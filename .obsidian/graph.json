@@ -1,0 +1,142 @@
+{
+  "collapse-filter": true,
+  "search": "",
+  "showTags": true,
+  "showAttachments": true,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": true,
+  "colorGroups": [
+    {
+      "query": "path:notes/props/inp/go  ",
+      "color": {
+        "a": 1,
+        "rgb": 14701138
+      }
+    },
+    {
+      "query": "path:notes/props/inp/mesh  ",
+      "color": {
+        "a": 1,
+        "rgb": 14725458
+      }
+    },
+    {
+      "query": "path:notes/props/inp/material  ",
+      "color": {
+        "a": 1,
+        "rgb": 11657298
+      }
+    },
+    {
+      "query": "path:notes/props/inp/step  ",
+      "color": {
+        "a": 1,
+        "rgb": 5431378
+      }
+    },
+    {
+      "query": "path:notes/props/reports  ",
+      "color": {
+        "a": 1,
+        "rgb": 5431473
+      }
+    },
+    {
+      "query": "path:notes/props/docs  ",
+      "color": {
+        "a": 1,
+        "rgb": 5419488
+      }
+    },
+    {
+      "query": "path:notes/props/tools  ",
+      "color": {
+        "a": 1,
+        "rgb": 5395168
+      }
+    },
+    {
+      "query": "path:notes/props/modfem  ",
+      "color": {
+        "a": 1,
+        "rgb": 11621088
+      }
+    },
+    {
+      "query": "file:go_inp",
+      "color": {
+        "a": 1,
+        "rgb": 14111314
+      }
+    },
+    {
+      "query": "file:mesh_inp",
+      "color": {
+        "a": 1,
+        "rgb": 14135634
+      }
+    },
+    {
+      "query": "file:material_inp",
+      "color": {
+        "a": 1,
+        "rgb": 11065170
+      }
+    },
+    {
+      "query": "file:step_inp",
+      "color": {
+        "a": 1,
+        "rgb": 4970599
+      }
+    },
+    {
+      "query": "file:report",
+      "color": {
+        "a": 1,
+        "rgb": 5429169
+      }
+    },
+    {
+      "query": "file:docs",
+      "color": {
+        "a": 1,
+        "rgb": 5419479
+      }
+    },
+    {
+      "query": "file:tools",
+      "color": {
+        "a": 1,
+        "rgb": 5395168
+      }
+    },
+    {
+      "query": "file:modfem",
+      "color": {
+        "a": 1,
+        "rgb": 11621088
+      }
+    },
+    {
+      "query": "path:notes/bases/go_inp  ",
+      "color": {
+        "a": 1,
+        "rgb": 14111314
+      }
+    }
+  ],
+  "collapse-display": true,
+  "showArrow": true,
+  "textFadeMultiplier": -2,
+  "nodeSizeMultiplier": 1.01875,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": true,
+  "centerStrength": 0.518713248970312,
+  "repelStrength": 16.875,
+  "linkStrength": 1,
+  "linkDistance": 30,
+  "scale": 0.9999999999998636,
+  "close": true
+}

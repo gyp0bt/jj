@@ -1,0 +1,11 @@
+{
+  "types": {
+    "aliases": "aliases",
+    "cssclasses": "multitext",
+    "tags": "tags",
+    "damage-stabilization": "number",
+    "Scoh": "number",
+    "success": "checkbox",
+    "active": "checkbox"
+  }
+}
