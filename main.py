@@ -7,11 +7,13 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from config import VocabConfig, load_ssh_config, load_vocab_config
+from services.run import RunService
 from services.ssh import ssh
 import yaml
 
@@ -485,6 +487,20 @@ def build_parser() -> argparse.ArgumentParser:
     pfm = pfsub.add_parser("move", help="move to ./old")
     _add_target_args(pfm)
 
+    pr = sub.add_parser("r", aliases=["run"], help="コマンド実行とログ記録")
+    pr.add_argument(
+        "--mode",
+        default="auto",
+        choices=["auto", "script", "job"],
+        help="実行モード（autoで自動判定）",
+    )
+    pr.add_argument("--cwd", default=".", help="実行ディレクトリ")
+    pr.add_argument(
+        "command",
+        nargs=argparse.REMAINDER,
+        help="実行コマンド（-- 以降に指定）",
+    )
+
     return p
 
 
@@ -494,6 +510,8 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         args.cmd = "notes"
     if args.cmd == "f":
         args.cmd = "files"
+    if args.cmd == "r":
+        args.cmd = "run"
     if getattr(args, "cmd", None):
         return args
 
@@ -1583,6 +1601,37 @@ def run_submit(args: argparse.Namespace, targets: list[str]) -> int:
     return 0 if not warnings else 1
 
 
+def run_run(args: argparse.Namespace) -> int:
+    command = list(getattr(args, "command", []) or [])
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        print("実行コマンドを指定してください。")
+        return 1
+
+    mode = getattr(args, "mode", "auto")
+    if mode == "auto":
+        mode = None
+
+    cwd = Path(getattr(args, "cwd", ".")).resolve()
+    service = RunService()
+    result = service.execute(command=command, cwd=cwd, mode=mode)
+
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+
+    log_path = str(result.log_path) if result.log_path else "なし"
+    print(f"[jj run] exit_code={result.exit_code} log={log_path}")
+    if result.trace_files:
+        print("trace_files:")
+        for path in result.trace_files:
+            print(f"  - {path}")
+
+    return result.exit_code
+
+
 def dispatch(args: argparse.Namespace) -> int:
     targets = resolve_targets(args)
 
@@ -1611,6 +1660,9 @@ def dispatch(args: argparse.Namespace) -> int:
 
     if cmd == "notes":
         return run_notes(args, targets)
+
+    if cmd == "run":
+        return run_run(args)
 
     # default: submit
     return run_submit(args, targets)
