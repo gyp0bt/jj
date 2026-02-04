@@ -58,7 +58,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
-- 2026-02-04 / status-013: Phase 1の実装を完了。設定管理層の統合、typesフォルダのリネーム、runコマンド層の確認を実施。([status-013](docs/status/status-013.md))
+- 2026-02-04 / status-014: Phase 1を完了。relation抽出ロジックの整理、AppConfig拡張、CLI層とservice層の分離、GraphStorage反映機能の実装、obsidian向けmarkdown生成記法の変更を実施。全テスト成功。([status-014](docs/status/status-014.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)

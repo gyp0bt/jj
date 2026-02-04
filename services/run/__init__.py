@@ -10,6 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from jj_types import GraphModel, Node, Relation
+from services.storage import GraphStorage
+
 
 @dataclass
 class RunResult:
@@ -102,6 +105,8 @@ class RunService:
 
         if record:
             run_result.log_path = self._write_log(resolved_cwd, run_result)
+            if resolved_mode == "script":
+                self._update_graph_storage(resolved_cwd, run_result)
 
         return run_result
 
@@ -236,3 +241,61 @@ class RunService:
         with log_path.open("w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
         return log_path
+
+    def _update_graph_storage(self, project_root: Path, result: RunResult) -> None:
+        """GraphStorageに実行ログと生成ファイルの関係を記録する"""
+        storage = GraphStorage()
+        graph = storage.load(project_root)
+
+        # 次のノードIDを取得
+        next_id = max([n.id for n in graph.nodes], default=0) + 1
+
+        # runノードを作成
+        script_name = result.script_path.name if result.script_path else " ".join(result.command)
+        run_node = Node(
+            id=next_id,
+            type="run",
+            name=script_name,
+            format="log",
+            properties={
+                "exit_code": str(result.exit_code),
+                "started_at": result.started_at,
+                "finished_at": result.finished_at,
+                "duration_seconds": str(result.duration_seconds),
+                "host": result.host,
+                "user": result.user,
+                **result.properties,
+            },
+        )
+        graph.nodes.append(run_node)
+        next_id += 1
+
+        # trace_filesの各ファイルに対してfileノードとgeneratedリレーションを作成
+        for trace_file in result.trace_files:
+            # 既存のfileノードを検索
+            file_node = next((n for n in graph.nodes if n.type == "file" and n.name == trace_file), None)
+
+            if file_node is None:
+                # fileノードを作成
+                file_node = Node(
+                    id=next_id,
+                    type="file",
+                    name=trace_file,
+                    format="",
+                    properties={},
+                )
+                graph.nodes.append(file_node)
+                next_id += 1
+
+            # generatedリレーションを作成
+            next_relation_id = max([r.id for r in graph.relations], default=0) + 1
+            relation = Relation(
+                id=next_relation_id,
+                label="generated",
+                node1_id=run_node.id,
+                node2_id=file_node.id,
+            )
+            graph.relations.append(relation)
+
+        # GraphStorageに保存
+        storage.save(project_root, graph)
