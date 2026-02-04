@@ -278,5 +278,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-011.md)
+- [最新ステータス](./status/status-012.md)
 - [プロジェクトREADME](../README.md)
