@@ -54,6 +54,9 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - CodexとClaude Codeの2交代制を前提に、引き継ぎ可能な形で実装状況を記録します。
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
+## 最新ステータス
+- 2026-02-04 / status-5: `run` の仕様整理と `docs/status` への統合対応を実施。([status-5](docs/status/status-5.md))
+
 ## 仕様リンク
 - [実装詳細](docs/detail.md)
 - [ロードマップ](docs/roadmap.md)
