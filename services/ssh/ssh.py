@@ -8,42 +8,11 @@ import stat
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
-from pathlib import Path
 from typing import IO, Any, Iterator, Optional
 
 import paramiko
-import yaml
 
-
-def read_yaml(filepath: str) -> dict:
-    """YAMLファイルを読み込んで辞書として返す
-
-    Args:
-        filepath (str): 読み込むYAMLファイルのパス
-
-    Returns:
-        dict: YAML内容を辞書化したもの
-    """
-    with open(filepath, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)  # セキュアにロード
-    return data
-
-
-def read_system_yaml() -> dict | None:
-    data = None
-    if os.path.exists(".pyssh.yaml"):
-        data = read_yaml(".pyssh.yaml")
-
-    elif os.path.exists(Path.home() / ".pyssh.yaml"):
-        data = read_yaml(str(Path.home() / ".pyssh.yaml"))
-    return data
-
-
-def throw_yaml_nonexistent_error(msg: Optional[str] = None):
-    text = f"'.pyssh.yaml'か'{str(Path.home() / '.pyssh.yaml')}'を設定してください。"
-    if msg is not None:
-        text += f"({msg})"
-    return ValueError(text)
+from config import load_ssh_config, throw_yaml_nonexistent_error
 
 
 def print_stdout(stdout):
@@ -65,27 +34,11 @@ class SSH_SETTING:
     _hostname: Optional[str] = None
 
     def __post_init__(self):
-        data = read_system_yaml()
-        if data is None:
-            raise throw_yaml_nonexistent_error("yaml定義が空です")
-
-        if self._hostname:
-            if self._hostname.upper() not in ["GRID2024", "GRID2020", "GRID2016"]:
-                raise ValueError(f"hostname: {self._hostname}は不正です")
-            hostkey = self._hostname.upper() + "_HOST"
-            passwordkey = self._hostname.upper() + "_PASSWORD"
-
-        else:
-            hostkey = "HOST"
-            passwordkey = "PASSWORD"
-
-        self.host = data.get(hostkey, None)
-        self.password = data.get(passwordkey, None)
-        for k in fields(self):
-            if k in ["host", "password"]:
+        config = load_ssh_config(hostname=self._hostname)
+        for f in fields(self):
+            if f.name == "_hostname":
                 continue
-            setattr(self, k.name, data.get(k.name.upper(), None))
-
+            setattr(self, f.name, getattr(config, f.name))
         self.validate()
 
     def validate(self):

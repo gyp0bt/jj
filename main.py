@@ -11,21 +11,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-import pyssh.services.ssh as ssh
+from config import VocabConfig, load_ssh_config, load_vocab_config
+from services.ssh import ssh
 import yaml
 
 # =========
 # Config
 # =========
-data = ssh.read_system_yaml()
-if data is None:
-    raise ssh.throw_yaml_nonexistent_error()
-
-base_dirpath = data.get("LINUX_LOCAL_BASEDIRPATH")
+ssh_config = load_ssh_config()
+ssh_config.require("linux_local_basedirpath")
+base_dirpath = ssh_config.linux_local_basedirpath
 if base_dirpath is None:
     raise ValueError("LINUX_LOCAL_BASEDIRPATHを'.pyssh.yaml'で指定してください。")
 
-remote_abq_path = data.get("REMOTE_ABQ_PATH")
+remote_abq_path = ssh_config.remote_abq_path
+if remote_abq_path is None:
+    raise ValueError("REMOTE_ABQ_PATHを'.pyssh.yaml'で指定してください。")
 TOOL_DIRPATH = Path(__file__).parents[0]
 
 
@@ -1037,12 +1038,6 @@ def collect_keys_all() -> dict[str, set[str]]:
     return base_keys
 
 
-@dataclass(frozen=True)
-class VocabConfig:
-    mapping: dict[str, str]
-    categories: dict[str, list[str]]
-
-
 def parse_word_with_vocab(
     word: str, vocab: VocabConfig, category_mapping: bool = True
 ) -> tuple[str, str] | None:
@@ -1107,7 +1102,9 @@ def normalize_extension_to_inp(filepath: str) -> tuple[str, str]:
     return filepath, ext
 
 
-def get_properties_by_filepath(inp_filepath: str, vocab: VocabConfig) -> dict[str, str]:
+def get_properties_by_filepath(
+    inp_filepath: str, vocab: VocabConfig
+) -> dict[str, str]:
     """ファイル名からアンダースコア区切りでプロパティ取得（prefix/idx/ver除去込み）"""
 
     inp_filepath, _ = normalize_extension_to_inp(inp_filepath)
@@ -1206,32 +1203,6 @@ def get_relations_by_inp_includes(inp_filepath: str) -> list[str]:
     return includes
 
 
-def load_vocab_yaml(path: Path) -> VocabConfig:
-    if not os.path.exists(str(path)):
-        return VocabConfig(mapping={}, categories={})
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError("vocab yaml must be a mapping at top-level")
-
-    mapping = data.get("mapping") or {}
-    categories = data.get("categories") or {}
-
-    if not isinstance(mapping, dict) or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in mapping.items()
-    ):
-        raise ValueError("mapping must be dict[str, str]")
-    if not isinstance(categories, dict):
-        raise ValueError("categories must be dict[str, list[str]]")
-
-    cat2: dict[str, list[str]] = {}
-    for ck, lst in categories.items():
-        if not isinstance(ck, str) or not isinstance(lst, list):
-            raise ValueError("categories must be dict[str, list[str]]")
-        cat2[ck] = [str(x) for x in lst]
-
-    return VocabConfig(mapping=mapping, categories=cat2)
-
-
 def clear_notes_props(dirpath: Path) -> None:
     if not dirpath.exists():
         return
@@ -1293,7 +1264,7 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
             all_basename_list += [i.split("\\")[-1].split("/")[-1] for i in inp_list]
         done = set()
         md_inp_dict = {}
-        vocab = load_vocab_yaml(Path(".obsidian/vocab.yaml"))
+        vocab = load_vocab_config()
         for base_name, inp_list in inp_groups.items():
             for i in inp_list:
                 try:

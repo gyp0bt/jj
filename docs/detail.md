@@ -18,13 +18,15 @@
   - `storage/`: `.jj/storage` 入出力。
   - `parse/`: プロジェクト解析と共通アダプタ。
   - `run/`: システムコマンド実行のラップとトレース。
-  - `file/`: ファイル操作・履歴・pyssh送受信。
+  - `file/`: ファイル操作・履歴・ssh送受信。
+  - `ssh/`: SSH送受信とコマンド実行。
   - `service/`: サービスアセンブル。
   - `cli/`: コマンドライン集約。
 - `types/`: Pydanticモデル。
 - `tests/`: テストコード。
 - `assets/`: テストデータ/サンプル。
 - `docs/status/`: 実装状況と実装メモ。
+- `config/`: `.jj/config` と `.pyssh.yaml` を読み込む設定ローダー。
 
 ## グラフデータモデル
 - `Node`: `id`, `type`, `name`, `format`, `properties`
@@ -96,7 +98,7 @@
 ## services/file の詳細
 - 依存関係を保ったファイル操作。
 - 操作履歴をグラフへ反映。
-- `pyssh` による送受信をここで一元化。
+- `services/ssh` による送受信をここで一元化。
 
 ## services/service / services/cli
 - `service` がユースケースを組み立て、`cli` が argparse で呼び出す。
