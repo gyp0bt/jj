@@ -5,7 +5,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 ## 目的と方針
 - プロジェクトフォルダを解析してグラフデータを生成します。
 - jjが保持するデータはテキスト形式（主にYAML）とし、`.jj/storage`に保存します。
-- プロジェクトごとの語彙マッピングなどの設定は`.jj/config`に配置します（例: `vocab.yaml`）。
+- プロジェクトごとの語彙マッピングなどの設定は`.jj/config`に配置します（例: `vocab.yaml`, `.pyssh.yaml`）。
 - ObsidianやNeo4jは外部ソフトとして扱い、jj内部で完結したグラフを出力する設計です。
 - グラフデータの一時構築には `networkx` を採用します。
 
@@ -41,6 +41,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 ## ディレクトリ
 - `.jj/storage/` : 解析で生成したグラフデータ（YAML想定）
 - `.jj/config/` : プロジェクト固有の設定（例: `vocab.yaml`）
+- `config/` : `.jj/config` や `.pyssh.yaml` を読み込む設定ローダー。
 - `docs/status/` : 実装状況の記録（最大indexが最新）
 - `docs/roadmap.md` : 今後の計画
 - `docs/detail.md` : 実装詳細と仕様リンク
@@ -55,7 +56,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
-- 2026-02-04 / status-5: `run` の仕様整理と `docs/status` への統合対応を実施。([status-5](docs/status/status-5.md))
+- 2026-02-04 / status-6: SSH設定/語彙設定の集約と `services/ssh` への移行を実施。([status-6](docs/status/status-6.md))
 
 ## 仕様リンク
 - [実装詳細](docs/detail.md)
