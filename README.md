@@ -42,6 +42,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `docs/roadmap.md` : 今後の計画
 - `docs/detail.md` : 実装詳細と仕様リンク
 - `services/` : CLI向けサービス群（詳細は各README）
+  - `services/parse/file_parse.py` : FileParse/ObsidianFileParseの共通基盤
 - `types/` : Pydanticモデル
 - `tests/` : pytestテスト
 - `assets/` : テストデータ/サンプル
