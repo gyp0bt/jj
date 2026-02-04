@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-10)
+# 実装状況 (status-010)
 
 ## 概要
 
@@ -36,7 +36,7 @@
 
 ### README.mdの更新
 
-- 最新ステータスを `status-10` に更新。
+- 最新ステータスを `status-010` に更新。
 - 仕様書へのリンク追加（`docs/specs/README.md`）。
 
 ## 機能ドメインの分類
@@ -86,7 +86,7 @@
 
 ### 文書の更新ルール
 
-- 実装完了時は `docs/status/status-11.md` を作成し、変更内容を記録。
+- 実装完了時は `docs/status/status-011.md` を作成し、変更内容を記録。
 - `docs/roadmap.md` のチェックボックスを更新。
 - `README.md` の最新ステータスを更新。
 
@@ -128,4 +128,4 @@ https://claude.ai/code/session_01MTNE5Ybqfv8Fgp18gPttxv
 - [機能ドメイン別仕様書](../specs/README.md)
 - [ロードマップ](../roadmap.md)
 - [実装詳細](../detail.md)
-- [前回のステータス](./status-9.md)
+- [前回のステータス](./status-009.md)

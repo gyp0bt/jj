@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-2)
+# 実装状況 (status-002)
 
 ## 概要
 - モジュール構成の設計を文書化し、services/types/tests/assets/docsのREADMEを追加。
@@ -21,7 +21,7 @@
 - 既存 `main.py` の段階的分割計画を作成。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-2.md`です。
+- 最新の実装状況は`docs/status/status-002.md`です。
 - Codex/Claudeの交代運用を前提に、READMEとstatusを更新してください。
 
 ## コミット
