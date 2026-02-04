@@ -1205,6 +1205,11 @@ def get_properties_by_inp_parameter(
 
 
 def get_relations_by_inp_includes(inp_filepath: str) -> list[str]:
+    """inpファイル内の*includeディレクティブを解析し、インクルードファイルをプロジェクト内から検索
+
+    - 相対パスではなく、プロジェクト内のファイル名検索に変更
+    - meshファイルの場合、.modfemファイルも追加
+    """
     includes: list[str] = []
 
     pat = re.compile(r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE)
@@ -1216,11 +1221,31 @@ def get_relations_by_inp_includes(inp_filepath: str) -> list[str]:
                 continue
             m = pat.match(s)
             if m:
-                include_i = Path(inp_filepath).parent / m.group(1).strip()
-                includes.append(str(include_i))
+                # インクルードファイル名を取得（パス情報は無視してファイル名のみ）
+                include_name = Path(m.group(1).strip()).name
 
+                # プロジェクト内でファイル名を検索（再帰的に）
+                project_root = Path.cwd()
+                found_files = list(project_root.rglob(include_name))
+
+                if found_files:
+                    # 最初に見つかったファイルを使用
+                    includes.append(found_files[0].name)
+                else:
+                    # 見つからない場合はファイル名のみを追加
+                    includes.append(include_name)
+
+    # meshファイルの場合、.modfemファイルも追加（depends関係）
     if "mesh" in inp_filepath:
-        includes += ["assets/" + get_basename(inp_filepath) + ".modfem"]
+        basename = get_basename(inp_filepath)
+        modfem_name = f"{basename}.modfem"
+        # プロジェクト内でmodfemファイルを検索
+        project_root = Path.cwd()
+        found_modfem = list(project_root.rglob(modfem_name))
+        if found_modfem:
+            includes.append(found_modfem[0].name)
+        else:
+            includes.append(modfem_name)
 
     return includes
 

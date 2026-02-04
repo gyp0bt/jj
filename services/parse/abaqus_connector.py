@@ -1381,3 +1381,109 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
     )
 
     return diffs
+
+
+# ==========================
+#  Diff サマリー生成
+# ==========================
+
+
+def format_diff_summary_table(diffs: List[BlockDiff]) -> str:
+    """BlockDiffのリストからMarkdownテーブル形式のサマリーを生成
+
+    Args:
+        diffs: BlockDiffのリスト
+
+    Returns:
+        Markdownテーブル形式の文字列
+    """
+    if not diffs:
+        return "差分なし"
+
+    lines = ["| Location | Status | Details |", "|----------|--------|---------|"]
+
+    for diff in diffs:
+        location = diff.location
+        if diff.left is None:
+            status = "追加"
+            details = "右側のみに存在"
+        elif diff.right is None:
+            status = "削除"
+            details = "左側のみに存在"
+        else:
+            status = "変更"
+            details = "両側で異なる"
+
+        lines.append(f"| {location} | {status} | {details} |")
+
+    return "\n".join(lines)
+
+
+def format_diff_blocks_markdown(diffs: List[BlockDiff]) -> str:
+    """BlockDiffのリストからMarkdown形式の詳細差分ブロックを生成
+
+    Args:
+        diffs: BlockDiffのリスト
+
+    Returns:
+        Markdown形式の差分ブロック
+    """
+    if not diffs:
+        return "差分なし"
+
+    lines = []
+
+    for diff in diffs:
+        lines.append(f"## {diff.location}")
+        lines.append("")
+
+        if diff.left is None:
+            lines.append("### 追加")
+            lines.append("```json")
+            lines.append(str(diff.right))
+            lines.append("```")
+        elif diff.right is None:
+            lines.append("### 削除")
+            lines.append("```json")
+            lines.append(str(diff.left))
+            lines.append("```")
+        else:
+            lines.append("### 変更")
+            lines.append("#### 左側（基準）")
+            lines.append("```json")
+            lines.append(str(diff.left))
+            lines.append("```")
+            lines.append("#### 右側（比較対象）")
+            lines.append("```json")
+            lines.append(str(diff.right))
+            lines.append("```")
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def generate_diff_props(
+    inp_filepath1: str,
+    inp_filepath2: str,
+    verbose: bool = False,
+) -> dict[str, str]:
+    """2つのinpファイルの差分を解析し、propsに追加する情報を生成
+
+    Args:
+        inp_filepath1: 比較元のinpファイルパス
+        inp_filepath2: 比較先のinpファイルパス
+        verbose: 詳細ログを出力するか
+
+    Returns:
+        propsに追加する辞書 {"diff_summary": テーブル, "diff_details": 詳細差分}
+    """
+    abq1 = read_inp(inp_filepath1, verbose=verbose)
+    abq2 = read_inp(inp_filepath2, verbose=verbose)
+
+    diffs = diff_abq_blocks(abq1, abq2)
+
+    summary_table = format_diff_summary_table(diffs)
+    details_markdown = format_diff_blocks_markdown(diffs)
+
+    return {"diff_summary": summary_table, "diff_details": details_markdown}
