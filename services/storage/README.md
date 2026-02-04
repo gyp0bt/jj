@@ -13,7 +13,12 @@
 - `GraphStorage`
   - `load(project_root: Path) -> GraphModel`
   - `save(project_root: Path, graph: GraphModel) -> None`
-  - `load_nodes(...)`, `load_relations(...)` など用途別APIも検討。
+  - 既定で `.jj/storage/graph.yaml` を読み書きする。
+  - `graph.json` を使う場合は拡張子を指定する。
+
+## 保存フォーマット
+- `GraphModel` の直列化結果を `.jj/storage/graph.yaml` に保存する。
+- トップレベルは `nodes` と `relations` の2つ。
 
 ## 注意点
 - `.jj/storage` 配下のファイルレイアウトは `docs/detail.md` の仕様を参照。
