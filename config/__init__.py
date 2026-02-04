@@ -9,6 +9,22 @@ import yaml
 CONFIG_DIRNAME = ".jj/config"
 SSH_CONFIG_FILENAME = ".pyssh.yaml"
 VOCAB_CONFIG_FILENAME = "vocab.yaml"
+EXTENSIONS_CONFIG_FILENAME = "extensions.yaml"
+PREFIXES_CONFIG_FILENAME = "prefixes.yaml"
+
+# デフォルト設定
+DEFAULT_EXTENSIONS = {
+    "calculation_input": [".inp", ".cas.h5", ".k", ".key", ".dat"],
+    "mesh": [".cdb", ".msh", ".unv"],
+    "multi_dot": [".cas.h5", ".dat.h5", ".tar.gz", ".tar.bz2", ".tar.xz"],
+}
+
+DEFAULT_PREFIXES = {
+    "go_": "calculation_input",
+    "mesh_": "mesh",
+    "material_": "material",
+    "step_": "step",
+}
 
 
 def get_config_dir(base_dir: Optional[Path] = None) -> Path:
@@ -153,3 +169,98 @@ def load_ssh_config(
         raise throw_yaml_nonexistent_error("yaml定義が空です")
     data = read_yaml(path)
     return SSHConfig.from_dict(data, hostname=hostname)
+
+
+@dataclass(frozen=True)
+class ExtensionsConfig:
+    calculation_input: list[str]
+    mesh: list[str]
+    multi_dot: list[str]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExtensionsConfig":
+        calculation_input = data.get("calculation_input") or []
+        mesh = data.get("mesh") or []
+        multi_dot = data.get("multi_dot") or []
+
+        if not isinstance(calculation_input, list):
+            raise ValueError("calculation_input must be list[str]")
+        if not isinstance(mesh, list):
+            raise ValueError("mesh must be list[str]")
+        if not isinstance(multi_dot, list):
+            raise ValueError("multi_dot must be list[str]")
+
+        return cls(
+            calculation_input=[str(x) for x in calculation_input],
+            mesh=[str(x) for x in mesh],
+            multi_dot=[str(x) for x in multi_dot],
+        )
+
+
+@dataclass(frozen=True)
+class PrefixesConfig:
+    prefixes: dict[str, str]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PrefixesConfig":
+        prefixes = data.get("prefixes") or {}
+
+        if not isinstance(prefixes, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in prefixes.items()
+        ):
+            raise ValueError("prefixes must be dict[str, str]")
+
+        return cls(prefixes=prefixes)
+
+
+def load_extensions_config(base_dir: Optional[Path] = None) -> ExtensionsConfig:
+    config_dir = get_config_dir(base_dir)
+    path = config_dir / EXTENSIONS_CONFIG_FILENAME
+    if not path.exists():
+        return ExtensionsConfig.from_dict(DEFAULT_EXTENSIONS)
+    data = read_yaml(path)
+    return ExtensionsConfig.from_dict(data)
+
+
+def load_prefixes_config(base_dir: Optional[Path] = None) -> PrefixesConfig:
+    config_dir = get_config_dir(base_dir)
+    path = config_dir / PREFIXES_CONFIG_FILENAME
+    if not path.exists():
+        return PrefixesConfig.from_dict({"prefixes": DEFAULT_PREFIXES})
+    data = read_yaml(path)
+    return PrefixesConfig.from_dict(data)
+
+
+def init_config_dir(base_dir: Optional[Path] = None) -> None:
+    """
+    .jj/config/ ディレクトリを初期化します。
+    フォルダが既に存在する場合は、初期化処理をスキップします。
+    """
+    config_dir = get_config_dir(base_dir)
+
+    # フォルダが既に存在する場合はスキップ
+    if config_dir.exists():
+        return
+
+    # .jj/config/ ディレクトリを作成
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    # vocab.yaml の初期化（空の辞書）
+    vocab_path = config_dir / VOCAB_CONFIG_FILENAME
+    vocab_data = {
+        "mapping": {},
+        "categories": {},
+    }
+    with vocab_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(vocab_data, f, allow_unicode=True, sort_keys=False)
+
+    # extensions.yaml の初期化
+    extensions_path = config_dir / EXTENSIONS_CONFIG_FILENAME
+    with extensions_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(DEFAULT_EXTENSIONS, f, allow_unicode=True, sort_keys=False)
+
+    # prefixes.yaml の初期化
+    prefixes_path = config_dir / PREFIXES_CONFIG_FILENAME
+    prefixes_data = {"prefixes": DEFAULT_PREFIXES}
+    with prefixes_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(prefixes_data, f, allow_unicode=True, sort_keys=False)
