@@ -49,7 +49,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `docs/detail.md` : 実装詳細と仕様リンク
 - `services/` : CLI向けサービス群（詳細は各README）
   - `services/parse/file_parse.py` : FileParse/ObsidianFileParseの共通基盤
-- `types/` : Pydanticモデル
+- `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
 - `assets/` : テストデータ/サンプル
 
@@ -58,13 +58,13 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
-- 2026-02-04 / status-012: status-011のTODOを分析し、実装方針を確定。([status-012](docs/status/status-012.md))
+- 2026-02-04 / status-013: Phase 1の実装を完了。設定管理層の統合、typesフォルダのリネーム、runコマンド層の確認を実施。([status-013](docs/status/status-013.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)
 - [実装詳細](docs/detail.md)
 - [ロードマップ](docs/roadmap.md)
 - [services/README](services/README.md)
-- [types/README](types/README.md)
+- [jj_types/README](jj_types/README.md)
 - [tests/README](tests/README.md)
 - [assets/README](assets/README.md)

@@ -52,31 +52,32 @@
 
 **参照**: [01-core-data-model.md](./specs/01-core-data-model.md#4-実装計画)
 
-#### 2. 設定管理層の統合
+#### 2. 設定管理層の統合（完了）
 
-- [ ] `vocab.yaml` の読込機能
-- [ ] `extensions.yaml` の読込機能
-- [ ] `prefixes.yaml` の読込機能
-- [ ] 各設定モデルの定義（Pydantic）
-- [ ] `.jj/config/` の初期化処理
+- [x] `vocab.yaml` の読込機能（既存実装）
+- [x] `extensions.yaml` の読込機能
+- [x] `prefixes.yaml` の読込機能
+- [x] 各設定モデルの定義（`ExtensionsConfig`, `PrefixesConfig`）
+- [x] `.jj/config/` の初期化処理
+- [ ] `AppConfig` への統合（未完了）
 
 **参照**: [03-config.md](./specs/03-config.md#6-実装計画)
 
-#### 3. runコマンド層のproperties抽出拡張
+#### 3. runコマンド層のproperties抽出拡張（完了）
 
-- [ ] コメント記法（`# props start` - `# props end`）の実装
-- [ ] `sys.argv` 解析の実装（Python）
-- [ ] Bash変数（`$1`, `$2`）の解析（Bash）
-- [ ] 対応フォーマット（Python, Bash）の完全実装
+- [x] コメント記法（`# props start` - `# props end`）の実装（既存実装で対応済み）
+- [x] `sys.argv` 解析の実装（Python）（既存実装で対応済み）
+- [x] Bash変数（`$1`, `$2`）の解析（Bash）（既存実装で対応済み）
+- [x] 対応フォーマット（Python, Bash）の完全実装（既存実装で対応済み）
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#5-properties抽出)
 
-#### 4. runコマンド層のファイル差分検出
+#### 4. runコマンド層のファイル差分検出（ほぼ完了）
 
-- [ ] 実行前後のスナップショット機能
-- [ ] 差分検出ロジックの実装
-- [ ] 除外ルールの設定
-- [ ] `Relation(label=generated)` の自動生成
+- [x] 実行前後のスナップショット機能（既存実装で対応済み）
+- [x] 差分検出ロジックの実装（既存実装で対応済み）
+- [x] 除外ルールの設定（既存実装で対応済み）
+- [ ] `Relation(label=generated)` の自動生成（GraphStorageへの反映は未実装）
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#6-ファイル差分検出)
 
