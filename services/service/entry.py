@@ -753,8 +753,9 @@ def _base_template(
 
     if additional_filters is None:
         additional_filters = []
+    folder_str = str(folder).replace("\\", "/")
     filters = [
-        f'file.folder == "{str(folder).replace("\\", "/")}"',
+        f'file.folder == "{folder_str}"',
         'file.fullname.endsWith(".md")',
     ]
     if show_only_active:

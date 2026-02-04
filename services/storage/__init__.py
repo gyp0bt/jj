@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import yaml
 
-from types import GraphModel
+from jj_types import GraphModel
 
 
 class GraphStorage:
