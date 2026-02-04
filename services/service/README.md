@@ -7,6 +7,7 @@
 ## 役割
 - 各サービスの依存注入と初期化。
 - CLI向けのユースケース関数を集約。
+- `entry.py` がCLIの実体を保持し、`main.py` から呼び出される想定。
 
 ## 例
 - `build_services(config: AppConfig) -> ServiceContainer`
