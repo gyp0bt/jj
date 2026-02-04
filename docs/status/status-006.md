@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-6)
+# 実装状況 (status-006)
 
 ## 概要
 - `pyssh` を `services/ssh` に移動し、SSH送受信ユーティリティをサービス配下へ整理。
@@ -18,7 +18,7 @@
 - 既存 `main.py` の段階的分割計画を作成。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-6.md`です。
+- 最新の実装状況は`docs/status/status-006.md`です。
 - Codex/Claudeの交代運用を前提に、READMEとstatusを更新してください。
 
 ## コミット
