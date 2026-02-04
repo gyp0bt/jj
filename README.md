@@ -58,6 +58,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-04 / status-015: O-ファイル名記法の修正、get_relations_by_inp_includesの相対パス→ファイル名検索への変更、read_inp.pyのAbaqusコネクターへの移動、バージョン間/index間のキーワードdiff機能追加、requirements.txt作成、phase2ロードマップ追加を実施。([status-015](docs/status/status-015.md))
 - 2026-02-04 / status-014: Phase 1を完了。relation抽出ロジックの整理、AppConfig拡張、CLI層とservice層の分離、GraphStorage反映機能の実装、obsidian向けmarkdown生成記法の変更を実施。全テスト成功。([status-014](docs/status/status-014.md))
 
 ## 仕様リンク
