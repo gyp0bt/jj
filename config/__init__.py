@@ -142,6 +142,8 @@ class SSHConfig:
 class AppConfig:
     ssh: SSHConfig
     vocab: VocabConfig
+    extensions: ExtensionsConfig
+    prefixes: PrefixesConfig
 
     @classmethod
     def load(
@@ -149,7 +151,14 @@ class AppConfig:
     ) -> "AppConfig":
         ssh_config = load_ssh_config(base_dir=base_dir, hostname=hostname)
         vocab = load_vocab_config(base_dir=base_dir)
-        return cls(ssh=ssh_config, vocab=vocab)
+        extensions = load_extensions_config(base_dir=base_dir)
+        prefixes = load_prefixes_config(base_dir=base_dir)
+        return cls(
+            ssh=ssh_config,
+            vocab=vocab,
+            extensions=extensions,
+            prefixes=prefixes,
+        )
 
 
 def load_vocab_config(base_dir: Optional[Path] = None) -> VocabConfig:

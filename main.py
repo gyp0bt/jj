@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from services.service.entry import main as service_main
+from cli import main as cli_main
 
 
 def main() -> int:
-    return service_main()
+    return cli_main()
 
 
 if __name__ == "__main__":
