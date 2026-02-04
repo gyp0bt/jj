@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import getpass
 import re
+import socket
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,9 +21,13 @@ class RunResult:
     exit_code: int
     started_at: str
     finished_at: str
+    duration_seconds: float
+    host: str
+    user: str
     trace_files: list[str]
     properties: dict[str, str]
     log_path: Path | None = None
+    script_path: Path | None = None
 
 
 class RunService:
@@ -41,11 +47,18 @@ class RunService:
         resolved_cwd = cwd or Path.cwd()
         resolved_cwd = resolved_cwd.resolve()
 
-        resolved_mode = mode or self._detect_mode(command)
-        script_path = self._detect_script_path(command)
-        properties = self._extract_properties(script_path, command[1:]) if script_path else {}
+        resolved_mode = mode or self._detect_mode(command, resolved_cwd)
+        script_path = self._detect_script_path(command, resolved_cwd)
+        properties = (
+            self._extract_properties(
+                script_path, self._extract_script_args(command, script_path)
+            )
+            if script_path
+            else {}
+        )
 
-        started_at = self._now()
+        started_dt = datetime.now(timezone.utc)
+        started_at = started_dt.isoformat()
         before_snapshot = (
             self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
         )
@@ -66,7 +79,9 @@ class RunService:
             if resolved_mode == "script"
             else []
         )
-        finished_at = self._now()
+        finished_dt = datetime.now(timezone.utc)
+        finished_at = finished_dt.isoformat()
+        duration_seconds = (finished_dt - started_dt).total_seconds()
 
         run_result = RunResult(
             command=command,
@@ -77,8 +92,12 @@ class RunService:
             exit_code=result.returncode,
             started_at=started_at,
             finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            host=socket.gethostname(),
+            user=getpass.getuser(),
             trace_files=trace_files,
             properties=properties,
+            script_path=script_path,
         )
 
         if record:
@@ -86,22 +105,28 @@ class RunService:
 
         return run_result
 
-    def _detect_mode(self, command: list[str]) -> str:
-        script_path = self._detect_script_path(command)
+    def _detect_mode(self, command: list[str], cwd: Path) -> str:
+        script_path = self._detect_script_path(command, cwd)
         return "script" if script_path else "job"
 
-    def _detect_script_path(self, command: list[str]) -> Path | None:
+    def _detect_script_path(self, command: list[str], cwd: Path) -> Path | None:
         if not command:
             return None
         head = command[0]
         if head.endswith((".py", ".sh", ".bash")):
-            return Path(head)
+            candidate = self._resolve_script_path(Path(head), cwd)
+            return candidate if candidate.exists() else None
         if head in {"python", "python3"} and len(command) > 1:
-            return Path(command[1])
+            if command[1].startswith("-"):
+                return None
+            candidate = self._resolve_script_path(Path(command[1]), cwd)
+            return candidate if candidate.exists() else None
         return None
 
-    def _now(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+    def _resolve_script_path(self, path: Path, cwd: Path) -> Path:
+        if path.is_absolute():
+            return path
+        return (cwd / path).resolve()
 
     def _snapshot_files(self, root: Path) -> dict[str, tuple[float, int]]:
         snapshot: dict[str, tuple[float, int]] = {}
@@ -145,6 +170,14 @@ class RunService:
         props.update(self._extract_props_block(text))
         props.update(self._extract_arg_mappings(text, args, props))
         return props
+
+    def _extract_script_args(self, command: list[str], script_path: Path) -> list[str]:
+        if not command:
+            return []
+        if command[0] in {"python", "python3"} and len(command) > 1:
+            if Path(command[1]).resolve() == script_path.resolve():
+                return command[2:]
+        return command[1:]
 
     def _extract_props_block(self, text: str) -> dict[str, str]:
         props: dict[str, str] = {}
@@ -193,8 +226,12 @@ class RunService:
             "exit_code": result.exit_code,
             "started_at": result.started_at,
             "finished_at": result.finished_at,
+            "duration_seconds": result.duration_seconds,
+            "host": result.host,
+            "user": result.user,
             "trace_files": result.trace_files,
             "properties": result.properties,
+            "script_path": str(result.script_path) if result.script_path else None,
         }
         with log_path.open("w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)

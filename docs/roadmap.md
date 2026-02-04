@@ -7,6 +7,8 @@
 - FileParseの命名規則更新とファイルグループ整理。
 - `run` 機能の仕様整理（スクリプト型/ジョブ型の整理）。
 - `jj r` の実行ログ保存とスクリプト型の差分トレースの初期実装。
+- `run` 実行ログのメタ情報（所要時間/ユーザー/ホスト）拡張とCLIの薄型化。
+- `run` と `storage` の単体テスト追加。
 - SSH設定/語彙設定の読み込みを `config/` に集約し、`services/ssh` に移行。
 - `GraphModel`/`Node`/`Relation` の型定義と `GraphStorage` の初期実装。
 
