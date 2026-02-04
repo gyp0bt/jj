@@ -6,6 +6,7 @@
 - `FileParse`/`ObsidianFileParse` の初期実装。
 - FileParseの命名規則更新とファイルグループ整理。
 - `run` 機能の仕様整理（スクリプト型/ジョブ型の整理）。
+- SSH設定/語彙設定の読み込みを `config/` に集約し、`services/ssh` に移行。
 
 ## 直近
 - モジュール構成の設計整理（services/types/tests/assets/docs/detail）。
