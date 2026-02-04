@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-3)
+# 実装状況 (status-003)
 
 ## 概要
 - `services/parse` に FileParse と ObsidianFileParse/ObsidianMap を追加。
@@ -19,7 +19,7 @@
 - 既存 `main.py` の段階的分割計画を作成。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-3.md`です。
+- 最新の実装状況は`docs/status/status-003.md`です。
 - Codex/Claudeの交代運用を前提に、READMEとstatusを更新してください。
 
 ## コミット

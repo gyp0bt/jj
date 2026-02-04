@@ -58,7 +58,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
-- 2026-02-04 / status-10: ロードマップを機能ドメイン別に細分化し、詳細仕様書を作成。([status-10](docs/status/status-10.md))
+- 2026-02-04 / status-011: statusファイルを010表記に変更、仕様書の方針を明確化。([status-011](docs/status/status-011.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)

@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-5)
+# 実装状況 (status-005)
 
 ## 概要
 - `docs/.status` を `docs/status` に統合し、運用ドキュメントの参照先を整理。
@@ -18,7 +18,7 @@
 - 既存 `main.py` の段階的分割計画を作成。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-5.md`です。
+- 最新の実装状況は`docs/status/status-005.md`です。
 - Codex/Claudeの交代運用を前提に、READMEとstatusを更新してください。
 
 ## コミット

@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-4)
+# 実装状況 (status-004)
 
 ## 概要
 - FileParseの命名規則を更新し、props/tagの判定と旧式version補完を追加。
@@ -21,7 +21,7 @@
 - 既存 `main.py` の段階的分割計画を作成。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-4.md`です。
+- 最新の実装状況は`docs/status/status-004.md`です。
 - Codex/Claudeの交代運用を前提に、READMEとstatusを更新してください。
 
 ## コミット

@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-7)
+# 実装状況 (status-007)
 
 ## 概要
 - `.jj/storage` のYAML/JSON保存を担う `GraphStorage` を追加。
@@ -19,7 +19,7 @@
 - 既存 `main.py` の段階的分割計画を作成。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-7.md`です。
+- 最新の実装状況は`docs/status/status-007.md`です。
 - `.jj/storage/graph.yaml` を起点に、`GraphStorage` と `parse` の接続方法を検討してください。
 - README/roadmap/statusを更新し、引き継ぎ可能な形を維持してください。
 

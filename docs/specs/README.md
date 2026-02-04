@@ -178,7 +178,7 @@ jj内部のグラフデータを外部ツール向けに変換し、多様な形
 - [プロジェクトREADME](../../README.md)
 - [実装詳細](../detail.md)
 - [ロードマップ](../roadmap.md)
-- [最新ステータス](../status/status-9.md)
+- [最新ステータス](../status/status-011.md)
 
 ---
 
