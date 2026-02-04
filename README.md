@@ -7,6 +7,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - jjが保持するデータはテキスト形式（主にYAML）とし、`.jj/storage`に保存します。
 - プロジェクトごとの語彙マッピングなどの設定は`.jj/config`に配置します（例: `vocab.yaml`）。
 - ObsidianやNeo4jは外部ソフトとして扱い、jj内部で完結したグラフを出力する設計です。
+- グラフデータの一時構築には `networkx` を採用します。
 
 ## コマンド構成
 - `jj n` (note)
@@ -39,8 +40,20 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `.jj/config/` : プロジェクト固有の設定（例: `vocab.yaml`）
 - `docs/status/` : 実装状況の記録（最大indexが最新）
 - `docs/roadmap.md` : 今後の計画
+- `docs/detail.md` : 実装詳細と仕様リンク
+- `services/` : CLI向けサービス群（詳細は各README）
+- `types/` : Pydanticモデル
+- `tests/` : pytestテスト
+- `assets/` : テストデータ/サンプル
 
 ## 運用メモ
 - CodexとClaude Codeの2交代制を前提に、引き継ぎ可能な形で実装状況を記録します。
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
+## 仕様リンク
+- [実装詳細](docs/detail.md)
+- [ロードマップ](docs/roadmap.md)
+- [services/README](services/README.md)
+- [types/README](types/README.md)
+- [tests/README](tests/README.md)
+- [assets/README](assets/README.md)
