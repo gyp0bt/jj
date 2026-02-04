@@ -111,6 +111,7 @@ relations:
   - `# props start` と `# props end` の間に書かれた `ncpu=1` や `ver=abq2023` などの宣言。
   - `sys.argv` や `$1` などの引数を、スクリプト内の変数名と対応付けて取得する。
   - 例: `jj r hoge.py 120 60` の実行なら、`sys.argv` に割り当てられた変数名に紐づける。
+- 実行ログは `.jj/storage/run/run-<timestamp>.json` に保存する。
 
 ### ジョブ型の扱い
 - 自動でのファイル追跡は行わない。
