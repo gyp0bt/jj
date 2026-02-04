@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# 実装状況 (status-9)
+# 実装状況 (status-009)
 
 ## 概要
 - `run` 実行ログに所要時間/ユーザー/ホストなどのメタ情報を追加。
@@ -21,7 +21,7 @@
 - スクリプト型のproperties抽出ルールを追加拡張する（コメント記法の差分対応など）。
 
 ## 次の担当者へ
-- 最新の実装状況は`docs/status/status-9.md`です。
+- 最新の実装状況は`docs/status/status-009.md`です。
 - `services/service/entry.py` がCLI本体です。必要に応じて `run` の出力仕様を拡張してください。
 - README/roadmap/statusを更新し、引き継ぎ可能な形を維持してください。
 

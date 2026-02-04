@@ -65,9 +65,9 @@
 #### 3. runコマンド層のproperties抽出拡張
 
 - [ ] コメント記法（`# props start` - `# props end`）の実装
-- [ ] `sys.argv` 解析の実装
-- [ ] Bash変数（`$1`, `$2`）の解析
-- [ ] 複数言語対応（Python, Bash, Perl）
+- [ ] `sys.argv` 解析の実装（Python）
+- [ ] Bash変数（`$1`, `$2`）の解析（Bash）
+- [ ] 対応フォーマット（Python, Bash）の完全実装
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#5-properties抽出)
 
@@ -278,5 +278,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-9.md)
+- [最新ステータス](./status/status-011.md)
 - [プロジェクトREADME](../README.md)
