@@ -59,7 +59,7 @@
 - [x] `prefixes.yaml` の読込機能
 - [x] 各設定モデルの定義（`ExtensionsConfig`, `PrefixesConfig`）
 - [x] `.jj/config/` の初期化処理
-- [ ] `AppConfig` への統合（未完了）
+- [x] `AppConfig` への統合
 
 **参照**: [03-config.md](./specs/03-config.md#6-実装計画)
 
@@ -72,12 +72,12 @@
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#5-properties抽出)
 
-#### 4. runコマンド層のファイル差分検出（ほぼ完了）
+#### 4. runコマンド層のファイル差分検出（完了）
 
 - [x] 実行前後のスナップショット機能（既存実装で対応済み）
 - [x] 差分検出ロジックの実装（既存実装で対応済み）
 - [x] 除外ルールの設定（既存実装で対応済み）
-- [ ] `Relation(label=generated)` の自動生成（GraphStorageへの反映は未実装）
+- [x] `Relation(label=generated)` の自動生成（GraphStorageへの反映機能を実装）
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#6-ファイル差分検出)
 
@@ -236,14 +236,17 @@
 
 ## マイルストーン
 
-### M1: 基盤完成（Phase 1完了）
+### M1: 基盤完成（Phase 1完了） ✅
 
-**目標日**: 直近4週間以内
+**達成日**: 2026-02-04
 
 **達成条件**:
-- コアデータモデル層の拡張完了
-- 設定管理層の統合完了
-- runコマンドのproperties抽出とファイル差分検出が完全動作
+- ✅ コアデータモデル層の基本機能完了（GraphModel, Node, Relation）
+- ✅ 設定管理層の統合完了（ExtensionsConfig, PrefixesConfig, AppConfig）
+- ✅ runコマンドのproperties抽出とファイル差分検出が完全動作
+- ✅ GraphStorageへのRelation(label=generated)自動生成機能を実装
+- ✅ CLI層とservice層の分離
+- ✅ 全テスト成功
 
 ### M2: コマンド機能完成（Phase 2完了）
 
@@ -279,5 +282,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-012.md)
+- [最新ステータス](./status/status-014.md)
 - [プロジェクトREADME](../README.md)
