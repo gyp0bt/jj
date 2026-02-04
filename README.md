@@ -17,6 +17,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
 - `jj r` (run)
   - CAEソフトでの計算実行やプリ/ポスト処理の実行履歴、指定オプションのログ取得を担います。
+  - `jj r -- <command>` でコマンドを実行し、`.jj/storage/run` に実行ログを保存します。
   - 既存のsubmit機能（Abaqusのサーバー投入）を`run`機能としてリファクタリングする方針です。
 
 ## データモデル
@@ -56,7 +57,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
-- 2026-02-10 / status-7: グラフデータのモデル定義と `GraphStorage` の初期実装を追加。([status-7](docs/status/status-7.md))
+- 2026-02-11 / status-8: `jj r` の実行ログ/トレース記録の初期実装を追加。([status-8](docs/status/status-8.md))
 
 ## 仕様リンク
 - [実装詳細](docs/detail.md)

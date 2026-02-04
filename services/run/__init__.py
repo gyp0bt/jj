@@ -1,0 +1,201 @@
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterable
+
+
+@dataclass
+class RunResult:
+    command: list[str]
+    cwd: Path
+    mode: str
+    stdout: str
+    stderr: str
+    exit_code: int
+    started_at: str
+    finished_at: str
+    trace_files: list[str]
+    properties: dict[str, str]
+    log_path: Path | None = None
+
+
+class RunService:
+    def __init__(self, storage_dirname: str = ".jj/storage/run") -> None:
+        self.storage_dirname = storage_dirname
+
+    def execute(
+        self,
+        command: list[str],
+        cwd: Path | None = None,
+        mode: str | None = None,
+        record: bool = True,
+    ) -> RunResult:
+        if not command:
+            raise ValueError("実行コマンドが空です。")
+
+        resolved_cwd = cwd or Path.cwd()
+        resolved_cwd = resolved_cwd.resolve()
+
+        resolved_mode = mode or self._detect_mode(command)
+        script_path = self._detect_script_path(command)
+        properties = self._extract_properties(script_path, command[1:]) if script_path else {}
+
+        started_at = self._now()
+        before_snapshot = (
+            self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
+        )
+
+        result = subprocess.run(
+            command,
+            cwd=str(resolved_cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        after_snapshot = (
+            self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
+        )
+        trace_files = (
+            self._diff_snapshot(before_snapshot, after_snapshot, resolved_cwd)
+            if resolved_mode == "script"
+            else []
+        )
+        finished_at = self._now()
+
+        run_result = RunResult(
+            command=command,
+            cwd=resolved_cwd,
+            mode=resolved_mode,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
+            exit_code=result.returncode,
+            started_at=started_at,
+            finished_at=finished_at,
+            trace_files=trace_files,
+            properties=properties,
+        )
+
+        if record:
+            run_result.log_path = self._write_log(resolved_cwd, run_result)
+
+        return run_result
+
+    def _detect_mode(self, command: list[str]) -> str:
+        script_path = self._detect_script_path(command)
+        return "script" if script_path else "job"
+
+    def _detect_script_path(self, command: list[str]) -> Path | None:
+        if not command:
+            return None
+        head = command[0]
+        if head.endswith((".py", ".sh", ".bash")):
+            return Path(head)
+        if head in {"python", "python3"} and len(command) > 1:
+            return Path(command[1])
+        return None
+
+    def _now(self) -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    def _snapshot_files(self, root: Path) -> dict[str, tuple[float, int]]:
+        snapshot: dict[str, tuple[float, int]] = {}
+        for path in self._iter_files(root):
+            try:
+                stat = path.stat()
+                snapshot[str(path)] = (stat.st_mtime, stat.st_size)
+            except OSError:
+                continue
+        return snapshot
+
+    def _iter_files(self, root: Path) -> Iterable[Path]:
+        ignore_names = {".jj", ".git", ".venv", "__pycache__", ".pytest_cache"}
+        for path in root.rglob("*"):
+            if any(part in ignore_names for part in path.parts):
+                continue
+            if path.is_file():
+                yield path
+
+    def _diff_snapshot(
+        self,
+        before: dict[str, tuple[float, int]],
+        after: dict[str, tuple[float, int]],
+        root: Path,
+    ) -> list[str]:
+        changed: list[str] = []
+        for path, data in after.items():
+            if path not in before or before[path] != data:
+                rel = str(Path(path).resolve().relative_to(root))
+                changed.append(rel)
+        return sorted(set(changed))
+
+    def _extract_properties(
+        self, script_path: Path, args: list[str]
+    ) -> dict[str, str]:
+        props: dict[str, str] = {}
+        if not script_path.exists():
+            return props
+
+        text = script_path.read_text(encoding="utf-8", errors="ignore")
+        props.update(self._extract_props_block(text))
+        props.update(self._extract_arg_mappings(text, args, props))
+        return props
+
+    def _extract_props_block(self, text: str) -> dict[str, str]:
+        props: dict[str, str] = {}
+        in_block = False
+        for line in text.splitlines():
+            normalized = line.strip().lower()
+            if "props start" in normalized:
+                in_block = True
+                continue
+            if "props end" in normalized:
+                in_block = False
+                continue
+            if not in_block:
+                continue
+            m = re.match(r"^\s*([A-Za-z_][\w\-]*)\s*=\s*(.+?)\s*$", line)
+            if not m:
+                continue
+            key, value = m.groups()
+            value = value.strip().strip('"').strip("'")
+            props[key] = value
+        return props
+
+    def _extract_arg_mappings(
+        self, text: str, args: list[str], props: dict[str, str]
+    ) -> dict[str, str]:
+        mapped: dict[str, str] = {}
+        py_matches = re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*sys\.argv\[(\d+)\]", text, re.MULTILINE)
+        sh_matches = re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*\"?\$([0-9]+)\"?", text, re.MULTILINE)
+        for name, idx_str in py_matches + sh_matches:
+            idx = int(idx_str) - 1
+            if 0 <= idx < len(args) and name not in props:
+                mapped[name] = args[idx]
+        return mapped
+
+    def _write_log(self, project_root: Path, result: RunResult) -> Path:
+        log_dir = project_root / self.storage_dirname
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        log_path = log_dir / f"run-{stamp}.json"
+        payload = {
+            "command": result.command,
+            "cwd": str(result.cwd),
+            "mode": result.mode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "exit_code": result.exit_code,
+            "started_at": result.started_at,
+            "finished_at": result.finished_at,
+            "trace_files": result.trace_files,
+            "properties": result.properties,
+        }
+        with log_path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        return log_path
