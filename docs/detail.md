@@ -76,6 +76,27 @@
 - YAML/JSONのテキスト形式を採用。
 - `GraphStorage` が保存・読込・抽出を担当。
 
+### `.jj/storage` の保存フォーマット
+- 既定ファイルは `.jj/storage/graph.yaml`。
+- JSONを使う場合は `.jj/storage/graph.json` を採用する。
+- フォーマットは `GraphModel` の直列化結果を使い、トップレベルは `nodes` と `relations` を持つ。
+
+```yaml
+nodes:
+  - id: 1
+    type: file
+    name: go_sample.v1.inp
+    format: inp
+    properties:
+      idx: \"1\"
+      ver: \"1\"
+relations:
+  - id: 1
+    label: generated
+    node1_id: 1
+    node2_id: 2
+```
+
 ## services/run の詳細
 `run` は `Node(type=run)` として扱い、実行履歴をグラフ化する。
 

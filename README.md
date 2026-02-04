@@ -39,7 +39,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - versionが取得できない場合は旧式の `.v1` 形式も補完対象とする。
 
 ## ディレクトリ
-- `.jj/storage/` : 解析で生成したグラフデータ（YAML想定）
+- `.jj/storage/` : 解析で生成したグラフデータ（`graph.yaml`/`graph.json`）
 - `.jj/config/` : プロジェクト固有の設定（例: `vocab.yaml`）
 - `config/` : `.jj/config` や `.pyssh.yaml` を読み込む設定ローダー。
 - `docs/status/` : 実装状況の記録（最大indexが最新）
@@ -56,7 +56,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
-- 2026-02-04 / status-6: SSH設定/語彙設定の集約と `services/ssh` への移行を実施。([status-6](docs/status/status-6.md))
+- 2026-02-10 / status-7: グラフデータのモデル定義と `GraphStorage` の初期実装を追加。([status-7](docs/status/status-7.md))
 
 ## 仕様リンク
 - [実装詳細](docs/detail.md)
