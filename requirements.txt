@@ -1,0 +1,15 @@
+# jjプロジェクトの依存関係
+
+# コアライブラリ
+pydantic>=2.0.0
+pyyaml>=6.0
+networkx>=3.0
+
+# Abaqusコネクター用
+chardet>=5.0.0
+ftfy>=6.0.0
+numpy>=1.24.0
+
+# テスト
+pytest>=7.0.0
+pytest-cov>=4.0.0
