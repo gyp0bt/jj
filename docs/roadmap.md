@@ -4,6 +4,7 @@
 
 ## 完了
 - `FileParse`/`ObsidianFileParse` の初期実装。
+- FileParseの命名規則更新とファイルグループ整理。
 
 ## 直近
 - モジュール構成の設計整理（services/types/tests/assets/docs/detail）。

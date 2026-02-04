@@ -43,8 +43,11 @@
 - `get_index()`
 - `get_version()`
 - `get_props()`
+- `get_tags()`
 - `get_basename()`（フォルダ/拡張子抜き）
 - `get_directory()`
+- `get_file_type()`（`go_`/`mesh_`/`material_`/`step_`）
+- `get_file_group()`（同一index+接頭辞のグループ生成）
 
 **拡張子判定**
 - `.cas.h5` など複数ドット拡張子を標準モジュール任せにしない。
@@ -52,6 +55,12 @@
 
 **バイナリ対応**
 - バイナリかどうかは開くまで分からないため、常に `errors="ignore"` で読み込みを行う。
+
+**命名規則**
+- 新形式は `go_prop1_v1_idx1.inp` のようにアンダースコア区切りでpropsを記載する。
+- propsは `文字列+数値` または `文字列=数値` を満たすものを採用し、それ以外はtagとして扱う。
+- versionが取得できない場合は旧式の `.v1` を補完する。
+- 接頭辞 `go_`/`mesh_`/`material_`/`step_` はファイルタイプとして列挙型でマッピングする。
 
 ### Obsidian向け
 - `ObsidianFileParse` を作成。
@@ -76,4 +85,3 @@
 
 ## services/service / services/cli
 - `service` がユースケースを組み立て、`cli` が argparse で呼び出す。
-
