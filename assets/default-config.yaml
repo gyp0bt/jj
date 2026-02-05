@@ -1,0 +1,104 @@
+# jj デフォルト設定ファイル
+# このファイルは `jj g init` で .jj/config/config.yaml にコピーされます。
+# プロジェクト固有の設定は .jj/config/config.yaml を編集してください。
+#
+# [READMEへ戻る](../README.md)
+
+# 語彙マッピング
+# ファイル名パース時にキー名を日本語表記に変換します
+vocab:
+  idx: 番号
+  ver: バージョン
+  v: バージョン
+
+# パスパターンによるファイルタイプ指定
+# 上から順に評価し、最初にマッチしたルールを適用します
+# パターンはglobスタイルで、"|" で複数パターンを指定可能
+path-type-map:
+  "**go_* | **go":
+    "*.inp": Abaqusインプット
+    "*.cas.h5": Fluentインプット
+    "*.aedt": HFSSインプット
+    "*.sta": Abaqusステータス
+    "*.dat": Abaqusデータ
+    "*.odb": Abaqus ODB
+    "*": 計算結果
+  "**mesh_* | **mesh":
+    "*.inp": Abaqus用メッシュ
+    "*.msh": Fluent用メッシュ
+    "*.cdb": ANSYS用メッシュ
+  "**material_* | **material":
+    "*.inp": Abaqus用マテリアル
+  "**step_* | **step":
+    "*.inp": Abaqusステップ
+  "./reports/":
+    "*": 報告書
+  "./results/":
+    "*": 計算結果
+  "./tools/":
+    "*": 処理スクリプト
+  "./docs/":
+    "*": 受領ファイル
+
+# パスパターンによるプロパティ指定
+# マッチしたファイルに自動的にプロパティを付与します
+path-property-map:
+  "**old/*":
+    active: false
+  "**archive/*":
+    active: false
+    archived: true
+
+# パスパターンによるタグ指定（オプション）
+# path-tag-map:
+#   "**": projectA
+#   "**/analysis/*": analysis-related
+
+# 除外パターン（.gitignore相当）
+# マッチしたパスはパース対象から除外されます
+ignore:
+  - ".git"
+  - ".git/**"
+  - ".jj"
+  - ".jj/**"
+  - "__pycache__"
+  - "__pycache__/**"
+  - "*.pyc"
+  - "node_modules"
+  - "node_modules/**"
+  - ".venv"
+  - ".venv/**"
+  - "*.tmp"
+  - "*.bak"
+  - "~$*"
+  - ".DS_Store"
+  - "Thumbs.db"
+
+# Obsidian エクスポート設定
+obsidian:
+  # ノート出力先ディレクトリ
+  notes-dir: notes/props
+  # ベースファイル出力先ディレクトリ
+  bases-dir: notes/bases
+  # Obsidianファイルに付けるプレフィックス
+  prefix: "O-"
+  # デフォルトのビュー設定（.baseファイル用）
+  default-views:
+    - type: table
+      name: Table
+      filters:
+        and:
+          - "file.fullname.endsWith(\".md\")"
+          - "active == true"
+      order:
+        - file.name
+        - idx
+        - ver
+        - success
+        - description
+        - file.links
+      sort:
+        - property: idx
+          direction: ASC
+        - property: ver
+          direction: ASC
