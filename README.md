@@ -69,6 +69,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-021: graph機能の確実化。暗黙のタイプ/index/version認識、入力-結果ファイル関係（result_of）構築、バージョンソート修正。テストコード27件追加（全61件パス）。([status-021](docs/status/status-021.md))
 - 2026-02-05 / status-020: `jj g parse`の拡張（サブバージョン関係・グループ関係構築）、設定機能の大幅拡充（path-type-map, path-property-map, ignore等）、Obsidian記法対応の改善、`jj g init`サブコマンド追加。([status-020](docs/status/status-020.md))
 - 2026-02-05 / status-019: `jj g` (graph) コマンドを実装。GraphService、Obsidianコネクタを独立モジュール化。relative_toのWindows対応バグ修正。O-プレフィックス処理のテスト追加。([status-019](docs/status/status-019.md))
 - 2026-02-05 / status-018: O-プレフィックス全面適用時のディレクトリパス生成バグを修正。([status-018](docs/status/status-018.md))
