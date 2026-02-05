@@ -56,7 +56,6 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `services/graph/` : グラフデータの生成・管理（GraphService）
   - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector等）
   - `services/parse/file_parse.py` : FileParse/ObsidianFileParse + レガシー関数
-  - `services/notes/` : Notes生成サービス（NotesService）
   - `services/storage/` : グラフデータの永続化（GraphStorage）
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
@@ -67,6 +66,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-025: グラフ機能の作り込み（Phase 2）。ロードマップ改定（notes削除、graph最優先化）。Abaqusコネクター4機能実装: has_output関係、contains関係、abaqus_material解析、sta解析。テスト92件パス。([status-025](docs/status/status-025.md))
 - 2026-02-05 / status-024: CLIの大幅スリム化。`jj g notes`と`jj n`を完全廃止、`file_utils.py`を`file_parse.py`に統合。cli/__init__.pyを1752行→745行に削減（57%削減）。([status-024](docs/status/status-024.md))
 - 2026-02-05 / status-023: CLIリファクタリング。cli/__init__.pyからビジネスロジック分離（services/parse/file_utils.py, services/notes/）。`jj n`を`jj g notes`に統合。テスト42件パス。([status-023](docs/status/status-023.md))
 - 2026-02-05 / status-022: graph機能の作り込み。FileRelationsConfig追加（拡張子設定ファイル化）、derived_from関係構築、日付パース機能、path-type-map評価順序改善、includes関係構築。テスト38件パス。([status-022](docs/status/status-022.md))

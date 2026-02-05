@@ -636,5 +636,473 @@ class TestIncludesRelations:
         assert isinstance(includes_relations, list)
 
 
+class TestOutputRelations:
+    """同一ファイルタイプのprops差分関連付け（has_output）のテスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*.inp": "Abaqusインプット",
+                    "*.odb": "Abaqus ODB",
+                    "*.sta": "Abaqusステータス",
+                    "*.csv": "計算結果CSV",
+                    "*.json": "処理済みデータ",
+                },
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_has_output_rf_csv(self, graph_service):
+        """go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv のhas_output関係"""
+        extensions = [".inp", ".csv"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        has_output_relations = [r for r in graph.relations if r.label == "has_output"]
+
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        rf_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20_RF" and n.format == "csv"),
+            None,
+        )
+
+        assert inp_node is not None, "go_idx1_w5_t20.inp ノードが見つからない"
+        assert rf_node is not None, "go_idx1_w5_t20_RF.csv ノードが見つからない"
+
+        # RF はタグとして保持される
+        assert "RF" in rf_node.properties.get("tags", [])
+
+        # has_output関係が存在
+        relation = next(
+            (r for r in has_output_relations
+             if r.node1_id == inp_node.id and r.node2_id == rf_node.id),
+            None,
+        )
+        assert relation is not None, "go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv の has_output 関係がない"
+
+    def test_has_output_stress_csv_in_results_dir(self, graph_service):
+        """results/go_idx1_w5_t20_stress.csv にもhas_output関係がある"""
+        extensions = [".inp", ".csv"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        has_output_relations = [r for r in graph.relations if r.label == "has_output"]
+
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        stress_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20_stress" and n.format == "csv"),
+            None,
+        )
+
+        assert inp_node is not None
+        assert stress_node is not None
+
+        relation = next(
+            (r for r in has_output_relations
+             if r.node1_id == inp_node.id and r.node2_id == stress_node.id),
+            None,
+        )
+        assert relation is not None, "go_idx1_w5_t20.inp → results/go_idx1_w5_t20_stress.csv の has_output 関係がない"
+
+
+class TestDirectoryRelations:
+    """フォルダベースの関連付け（contains）のテスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*.inp": "Abaqusインプット",
+                    "*.csv": "計算結果CSV",
+                    "*.png": "画像",
+                    "*.yaml": "データ",
+                },
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_directory_node_created(self, graph_service):
+        """go_idx1_w5_t20/ ディレクトリがノードとして生成される"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        go_dir = next(
+            (n for n in dir_nodes if n.name == "go_idx1_w5_t20"),
+            None,
+        )
+        assert go_dir is not None, "go_idx1_w5_t20 ディレクトリノードが見つからない"
+        assert go_dir.type == "go_directory"
+        assert go_dir.properties.get("index") == "1"
+
+    def test_contains_relations(self, graph_service):
+        """ディレクトリ内のファイルがcontains関係でリンクされる"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        contains_relations = [r for r in graph.relations if r.label == "contains"]
+
+        dir_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "directory"),
+            None,
+        )
+        assert dir_node is not None
+
+        # ディレクトリ内のファイルが含まれている
+        contained_ids = {r.node2_id for r in contains_relations if r.node1_id == dir_node.id}
+        assert len(contained_ids) > 0, "contains関係が1つもない"
+
+    def test_directory_has_output_from_inp(self, graph_service):
+        """go_idx1_w5_t20.inp → go_idx1_w5_t20/ のhas_output関係"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        has_output_relations = [r for r in graph.relations if r.label == "has_output"]
+
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        dir_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "directory"),
+            None,
+        )
+
+        assert inp_node is not None
+        assert dir_node is not None
+
+        relation = next(
+            (r for r in has_output_relations
+             if r.node1_id == inp_node.id and r.node2_id == dir_node.id),
+            None,
+        )
+        assert relation is not None, "go_idx1_w5_t20.inp → go_idx1_w5_t20/ の has_output 関係がない"
+
+
+class TestMaterialParsing:
+    """material.inpの高度な解析のテスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {},
+            "file-relations": {
+                "input-extensions": [".inp"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_material_nodes_created(self, graph_service):
+        """material.inpから abaqus_material ノードが生成される"""
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        assert len(mat_nodes) >= 2, f"materialノードが2つ以上必要 (実際: {len(mat_nodes)})"
+
+        names = {n.name for n in mat_nodes}
+        assert "steel_s235" in names or "Steel_S235" in names, \
+            f"Steel_S235 materialが見つからない: {names}"
+
+    def test_material_elastic_props(self, graph_service):
+        """material nodeにelasticプロパティが含まれる"""
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        steel = next(
+            (n for n in mat_nodes if "steel" in n.name.lower()),
+            None,
+        )
+        assert steel is not None, "Steel materialが見つからない"
+        assert "elastic" in steel.properties, "elasticプロパティがない"
+        assert "keywords" in steel.properties, "keywordsがない"
+        assert "elastic" in steel.properties["keywords"]
+
+        # elasticデータ確認: [[210000.0, 0.3]]
+        elastic_data = steel.properties["elastic"]
+        assert len(elastic_data) == 1
+        assert elastic_data[0][0] == 210000.0
+        assert elastic_data[0][1] == 0.3
+
+    def test_material_density_props(self, graph_service):
+        """material nodeにdensityプロパティが含まれる"""
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        steel = next(
+            (n for n in mat_nodes if "steel" in n.name.lower()),
+            None,
+        )
+        assert steel is not None
+        assert "density" in steel.properties
+        assert "density" in steel.properties["keywords"]
+
+    def test_material_plastic_props(self, graph_service):
+        """Steel_S235にはplasticプロパティがある（2行のデータ）"""
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        steel = next(
+            (n for n in mat_nodes if "steel" in n.name.lower()),
+            None,
+        )
+        assert steel is not None
+        assert "plastic" in steel.properties
+        plastic_data = steel.properties["plastic"]
+        assert len(plastic_data) == 2  # 2行のplasticデータ
+
+    def test_material_defined_in_relation(self, graph_service):
+        """materialノードがdefined_in関係で入力ファイルにリンクされる"""
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        defined_in_relations = [r for r in graph.relations if r.label == "defined_in"]
+        assert len(defined_in_relations) >= 2, "defined_in関係が2つ以上必要"
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        for mat_node in mat_nodes:
+            relation = next(
+                (r for r in defined_in_relations if r.node1_id == mat_node.id),
+                None,
+            )
+            assert relation is not None, f"{mat_node.name} に defined_in 関係がない"
+
+
+class TestStaAnalysis:
+    """解析結果ファイル（.sta）の解析テスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*.inp": "Abaqusインプット",
+                    "*.sta": "Abaqusステータス",
+                },
+            },
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".sta"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_sta_completed_status(self, graph_service):
+        """成功したstaファイルのanalysis_statusがcompletedになる"""
+        extensions = [".inp", ".sta"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        sta_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "sta"),
+            None,
+        )
+        assert sta_node is not None, "go_idx1_w5_t20.sta ノードが見つからない"
+        assert sta_node.properties.get("analysis_status") == "completed"
+
+    def test_sta_failed_status(self, graph_service):
+        """失敗したstaファイルのanalysis_statusがfailedになる"""
+        extensions = [".inp", ".sta"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        sta_node = next(
+            (n for n in graph.nodes if n.name == "go_idx2" and n.format == "sta"),
+            None,
+        )
+        assert sta_node is not None, "go_idx2.sta ノードが見つからない"
+        assert sta_node.properties.get("analysis_status") == "failed"
+        assert len(sta_node.properties.get("errors", [])) > 0, "エラーメッセージが抽出されていない"
+
+    def test_includes_relation_with_content(self, graph_service):
+        """go_idx1_w5_t20.inp に実際の *INCLUDE があり、includes関係が構築される"""
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        includes_relations = [r for r in graph.relations if r.label == "includes"]
+
+        go_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        material_node = next(
+            (n for n in graph.nodes if n.name == "material" and n.format == "inp"),
+            None,
+        )
+
+        assert go_node is not None
+        assert material_node is not None
+
+        relation = next(
+            (r for r in includes_relations
+             if r.node1_id == go_node.id and r.node2_id == material_node.id),
+            None,
+        )
+        assert relation is not None, "go_idx1_w5_t20.inp → material.inp の includes 関係がない"
+
+
+class TestParseMaterialBlocks:
+    """parse_material_blocks関数の単体テスト"""
+
+    def test_parse_material_from_file(self):
+        """material.inpファイルのパース"""
+        from services.graph import parse_material_blocks
+
+        inp_path = FIXTURE_DIR / "material.inp"
+        if not inp_path.exists():
+            pytest.skip("material.inp fixture not found")
+
+        materials = parse_material_blocks(inp_path)
+        assert len(materials) == 2
+
+        steel = materials[0]
+        assert "steel_s235" in steel["name"].lower()
+        assert "elastic" in steel["keywords"]
+        assert "density" in steel["keywords"]
+        assert "plastic" in steel["keywords"]
+        assert "conductivity" in steel["keywords"]
+
+        aluminum = materials[1]
+        assert "aluminum" in aluminum["name"].lower()
+        assert "elastic" in aluminum["keywords"]
+        assert "density" in aluminum["keywords"]
+
+    def test_parse_empty_file(self, tmp_path):
+        """空ファイルのパース"""
+        from services.graph import parse_material_blocks
+
+        empty_file = tmp_path / "empty.inp"
+        empty_file.write_text("")
+        materials = parse_material_blocks(empty_file)
+        assert materials == []
+
+    def test_parse_file_without_material(self, tmp_path):
+        """*MATERIALブロックがないファイル"""
+        from services.graph import parse_material_blocks
+
+        inp_file = tmp_path / "no_material.inp"
+        inp_file.write_text("*STEP\n*STATIC\n1., 1.\n*END STEP\n")
+        materials = parse_material_blocks(inp_file)
+        assert materials == []
+
+
+class TestParseStaFile:
+    """parse_sta_file関数の単体テスト"""
+
+    def test_parse_completed_sta(self):
+        """成功したstaファイル"""
+        from services.graph import parse_sta_file
+
+        sta_path = FIXTURE_DIR / "go_idx1_w5_t20.sta"
+        if not sta_path.exists():
+            pytest.skip("sta fixture not found")
+
+        result = parse_sta_file(sta_path)
+        assert result["analysis_status"] == "completed"
+        assert result["errors"] == []
+
+    def test_parse_failed_sta(self):
+        """失敗したstaファイル"""
+        from services.graph import parse_sta_file
+
+        sta_path = FIXTURE_DIR / "go_idx2.sta"
+        if not sta_path.exists():
+            pytest.skip("sta fixture not found")
+
+        result = parse_sta_file(sta_path)
+        assert result["analysis_status"] == "failed"
+        assert len(result["errors"]) > 0
+        assert "TOO MANY ATTEMPTS" in result["errors"][0]
+
+    def test_parse_nonexistent_sta(self, tmp_path):
+        """存在しないファイル"""
+        from services.graph import parse_sta_file
+
+        result = parse_sta_file(tmp_path / "nonexistent.sta")
+        assert result["analysis_status"] == "unknown"
+
+
+class TestGraphSummaryRelationTypes:
+    """summaryでリレーションタイプ別の集計が正しいことを確認"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*.inp": "Abaqusインプット",
+                    "*.odb": "Abaqus ODB",
+                    "*.sta": "Abaqusステータス",
+                    "*.csv": "計算結果CSV",
+                    "*.json": "処理済みデータ",
+                },
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_summary_includes_new_relation_types(self, graph_service):
+        """summaryに新しいリレーションタイプが含まれる"""
+        extensions = [".inp", ".odb", ".sta", ".csv", ".json", ".yaml", ".png"]
+        graph = graph_service.parse_project(extensions=extensions)
+        summary = graph_service.summary(graph)
+
+        assert "relations_by_label" in summary
+        labels = summary["relations_by_label"]
+
+        # has_output関係が存在するはず
+        assert "has_output" in labels, f"has_output関係がない: {labels}"
+
+        # defined_in関係（material.inpからのmaterialノード）
+        assert "defined_in" in labels, f"defined_in関係がない: {labels}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
