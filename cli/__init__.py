@@ -16,6 +16,31 @@ from typing import Optional
 from config import VocabConfig, load_ssh_config, load_vocab_config
 from services.run import RunService
 from services.ssh import ssh
+from services.parse import (
+    get_basename,
+    get_basename_with_ext,
+    get_group_name,
+    get_index_and_version,
+    normalize_extension_to_inp,
+    safe_relative_path,
+)
+from services.notes import (
+    NotesConfig,
+    NotesService,
+    base_template,
+    clear_notes_props,
+    frontmatter_keys,
+    get_properties_by_filepath,
+    get_properties_by_inp_parameter,
+    get_relations_by_inp_includes,
+    parse_word_with_vocab,
+    safe_rglob_dirs,
+    safe_rglob_files,
+    update_frontmatter_props,
+    update_go_base,
+    write_frontmatter_props,
+    write_yaml_if_missing,
+)
 from cli.graph import add_graph_parser, run_graph_command
 import yaml
 
@@ -83,31 +108,6 @@ def run_ps1(path: str, *args: str, capture: bool = False) -> str | None:
         return None
 
 
-def get_index_and_version(inp_filepath: str) -> tuple[str, str]:
-    if os.path.isdir(inp_filepath):
-        return "", ""
-    if inp_filepath.endswith(".py"):
-        return "", ""
-
-    inp_filepath, ext = get_basename_with_ext(inp_filepath)
-    head = inp_filepath.split("_")[0]
-    inp_filepath = inp_filepath[len(head) + 1 :]
-
-    # idx
-    if inp_filepath.startswith("idx"):
-        idx = inp_filepath.split(".")[0].split("_")[0].replace("idx", "")
-    else:
-        idx = ""
-
-    # ver
-    basename = inp_filepath.replace(ext, "")
-    if basename.split(".")[-1].startswith("v"):
-        version = basename.split(".")[-1].replace("v", "")
-    else:
-        version = ""
-
-    return idx, version
-
 
 def get_abq_job_name(inp_filepath: str | None = None) -> str:
     dirpath = ssh.get_local_linux_filepath(os.getcwd())
@@ -131,41 +131,7 @@ def get_abq_job_name(inp_filepath: str | None = None) -> str:
     return job_name
 
 
-def update_go_base(go_base: Path, keys: list[str]) -> None:
-    with go_base.open(encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    order: list[str] = data["views"][0].get("order", [])
-    default_order = [
-        "file.name",
-        "idx",
-        "ver",
-        "success",
-        "active",
-        "description",
-        "file.links",
-    ]
-    order = [i for i in default_order if i in order]
-    ignore_keys = ["includes"]
-
-    def reorder_keys(keys: list[str]) -> list[str]:
-        front = [
-            k for k in ("file.name", "idx", "ver", "success", "active") if k in keys
-        ]
-        back = [k for k in ("description", "file.links") if k in keys]
-        middle = [k for k in keys if k not in set(front + back)]
-        return front + middle + back
-
-    keys = [i for i in keys if i not in default_order]
-    order = order + keys
-    order = [i for i in order if i not in ignore_keys]
-    order = list(set(order))
-
-    data["views"][0]["order"] = reorder_keys(order)
-    with go_base.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
-
-
-def write_frontmatter_props(
+def _write_frontmatter_props(
     md_path: Path,
     base_name: str,
     all_basename_list: list[str],
@@ -813,30 +779,6 @@ def _write_yaml_if_missing(path: Path, data: dict, overwrite: bool = True) -> No
     )
 
 
-def get_basename_with_ext(filepath: str) -> tuple[str, str]:
-    org = filepath
-    filepath, ext = normalize_extension_to_inp(filepath)
-    if ext:
-        filepath = filepath[:-4]
-    filepath = filepath.split("/")[-1].split("\\")[-1]
-    return filepath, ext
-
-
-def get_basename(filepath: str) -> str:
-    filepath, _ = get_basename_with_ext(filepath)
-    return filepath
-
-
-def get_group_name(filepath: str) -> str:
-    """ファイル名からグループ名を抽出（idx/verを除いた部分）"""
-    if os.path.isdir(filepath):
-        return ""
-
-    basename, ext = get_basename_with_ext(filepath)
-    # headを取得（例: go_1_v2 → go）
-    head = basename.split("_")[0]
-    return head
-
 
 def init_notes_tree(root: Path, init_bases: bool = True) -> None:
     if init_bases:
@@ -1092,28 +1034,6 @@ def safe_rglob_files(root: Path) -> list[Path]:
     return out
 
 
-def safe_relative_path(file_path: Path, base_path: Path | None = None) -> str:
-    """Windowsでも安全に相対パスを生成（POSIX形式で返す）
-
-    Args:
-        file_path: 対象ファイルパス
-        base_path: 基準パス（デフォルト: Path.cwd()）
-
-    Returns:
-        POSIX形式（/区切り）の相対パス文字列
-    """
-    base = base_path or Path.cwd()
-    try:
-        # resolve()で正規化してから比較
-        resolved_file = file_path.resolve()
-        resolved_base = base.resolve()
-        rel = resolved_file.relative_to(resolved_base)
-        # 常にPOSIX形式で返す
-        return rel.as_posix()
-    except ValueError:
-        # relative_toが失敗した場合（異なるドライブ等）
-        return file_path.as_posix()
-
 
 def safe_rglob_dirs(root: Path) -> list[Path]:
     """root配下の全ディレクトリを収集（root自身は除外）。"""
@@ -1212,41 +1132,6 @@ def parse_word_with_vocab(
     value = vocab.mapping.get(value, value)
     return key, value
 
-
-def normalize_extension_to_inp(filepath: str) -> tuple[str, str]:
-    if "." not in filepath:
-        return filepath, ""
-    target_extension_list = [
-        ".cas.h5",
-        ".dat.h5",
-        ".aedt.batchinfo",
-        ".py",
-        ".xlsx",
-        ".csv",
-        ".pptx",
-        ".yaml",
-        ".md",
-        ".json",
-        ".sh",
-        ".msh",
-        ".modfem",
-        ".stp",
-        ".step",
-        ".catPart",
-        ".dxf",
-        ".dwg",
-        ".png",
-        ".gif",
-    ]
-    ext = None
-    for ext_i in target_extension_list:
-        if filepath.endswith(ext_i):
-            ext = ext_i
-            break
-    if ext is None:
-        ext = "." + filepath.split(".")[-1]
-    filepath = filepath.replace(ext, ".inp")
-    return filepath, ext
 
 
 def get_properties_by_filepath(
@@ -1839,7 +1724,11 @@ def dispatch(args: argparse.Namespace) -> int:
         return 0
 
     if cmd == "notes":
-        return run_notes(args, targets)
+        # 旧 jj n コマンドを jj g notes にリダイレクト
+        print("[DEPRECATED] 'jj n' は廃止予定です。'jj g notes' を使用してください。")
+        print("[INFO] 'jj g notes' への自動リダイレクト中...\n")
+        args.graph_command = "notes"
+        return run_graph_command(args)
 
     if cmd == "run":
         return run_run(args)
