@@ -36,6 +36,14 @@ FILE_TYPE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("step_", "step"),
 )
 
+# 暗黙的なタイプ認識用（ファイル名がそのものの場合: material.inp, mesh.inp等）
+IMPLICIT_TYPE_BASENAMES: dict[str, str] = {
+    "go": "go",
+    "mesh": "mesh",
+    "material": "material",
+    "step": "step",
+}
+
 
 class FileType(Enum):
     GO = "go"
@@ -122,9 +130,15 @@ class FileParse:
 
     def get_file_type(self) -> FileType:
         basename = self.get_basename().lower()
+        # プレフィックスベースのタイプ判定
         for prefix, type_name in FILE_TYPE_PREFIXES:
             if basename.startswith(prefix):
                 return FileType(type_name)
+        # 暗黙のタイプ判定（ファイル名がそのものの場合: material, mesh等）
+        # .v2などのサフィックスを除去して比較
+        base_without_version = re.sub(r"\.v\d+$", "", basename)
+        if base_without_version in IMPLICIT_TYPE_BASENAMES:
+            return FileType(IMPLICIT_TYPE_BASENAMES[base_without_version])
         return FileType.UNKNOWN
 
     def _prefix_to_strip(self) -> str:
@@ -174,15 +188,31 @@ class FileParse:
             return match.group(1)
         return ""
 
+    def _is_implicit_type_file(self) -> bool:
+        """暗黙のタイプファイルかどうかを判定（material.inp, mesh.inp等）"""
+        basename = self.get_basename().lower()
+        base_without_version = re.sub(r"\.v\d+$", "", basename)
+        return base_without_version in IMPLICIT_TYPE_BASENAMES
+
     def get_index(self) -> str:
         props, _ = self._split_props_and_tags()
-        return props.get("idx", "")
+        idx = props.get("idx", "")
+        # 暗黙のタイプファイルでidxがない場合は"1"を返す
+        if not idx and self._is_implicit_type_file():
+            return "1"
+        return idx
 
     def get_version(self) -> str:
         props, _ = self._split_props_and_tags()
         if "v" in props:
             return props["v"]
-        return self._legacy_version()
+        legacy = self._legacy_version()
+        if legacy:
+            return legacy
+        # 暗黙のタイプファイルでversionがない場合は"1"を返す
+        if self._is_implicit_type_file():
+            return "1"
+        return ""
 
     def get_props(self) -> dict[str, str]:
         props, _ = self._split_props_and_tags()
