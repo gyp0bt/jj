@@ -1,4 +1,18 @@
-from .file_parse import FileGroup, FileParse, FileType, ObsidianFileParse, ObsidianMap
+from .file_parse import (
+    FileGroup,
+    FileParse,
+    FileType,
+    ObsidianFileParse,
+    ObsidianMap,
+    TARGET_EXTENSIONS,
+    get_basename,
+    get_basename_with_ext,
+    get_group_name,
+    get_index_and_version,
+    get_index_and_version_legacy,
+    normalize_extension_to_inp,
+    safe_relative_path,
+)
 from .abaqus_connector import (
     ABQData,
     BlockDiff,
@@ -7,15 +21,6 @@ from .abaqus_connector import (
     format_diff_summary_table,
     generate_diff_props,
     read_inp,
-)
-from .file_utils import (
-    TARGET_EXTENSIONS,
-    get_basename,
-    get_basename_with_ext,
-    get_group_name,
-    get_index_and_version,
-    normalize_extension_to_inp,
-    safe_relative_path,
 )
 
 __all__ = [
@@ -35,6 +40,7 @@ __all__ = [
     "get_basename_with_ext",
     "get_group_name",
     "get_index_and_version",
+    "get_index_and_version_legacy",
     "normalize_extension_to_inp",
     "read_inp",
     "safe_relative_path",

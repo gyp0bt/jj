@@ -3,6 +3,7 @@
 このモジュールはCLI層のみを担当し、ビジネスロジックはservicesから呼び出します。
 
 サブコマンド:
+- jj g init: 設定ファイルを初期化
 - jj g parse: プロジェクトをスキャンしてグラフデータを生成・保存
 - jj g show: 保存されたグラフデータを表示
 - jj g export: グラフデータをObsidian等にエクスポート
@@ -114,23 +115,6 @@ def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
         help="既存ファイルを上書き",
     )
 
-    # jj g notes (jj n の統合先: parse + export のショートカット)
-    notes_parser = graph_subparsers.add_parser(
-        "notes",
-        help="Obsidian notes生成（parse + exportのショートカット、旧jj nの代替）",
-    )
-    notes_parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="既存ファイルを上書き",
-    )
-    notes_parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=None,
-        help="中間グラフファイル名（デフォルト: graph.yaml）",
-    )
 
 
 def run_graph_command(args: argparse.Namespace) -> int:
@@ -139,7 +123,7 @@ def run_graph_command(args: argparse.Namespace) -> int:
 
     if graph_command is None:
         print("使用方法: jj g <サブコマンド>")
-        print("サブコマンド: init, parse, show, export, notes")
+        print("サブコマンド: init, parse, show, export")
         print("詳細: jj g --help")
         return 1
 
@@ -153,8 +137,6 @@ def run_graph_command(args: argparse.Namespace) -> int:
         return _run_show(project_root, args)
     elif graph_command == "export":
         return _run_export(project_root, args)
-    elif graph_command == "notes":
-        return _run_notes(project_root, args)
     else:
         print(f"不明なサブコマンド: {graph_command}")
         return 1
@@ -289,51 +271,3 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
         return 1
 
 
-def _run_notes(project_root: Path, args: argparse.Namespace) -> int:
-    """notesサブコマンドを実行（parse + export のショートカット）
-
-    旧 jj n コマンドの代替として機能します。
-    1. プロジェクトをパースしてグラフデータを生成
-    2. Obsidianにエクスポート
-    """
-    service = GraphService(project_root=project_root)
-
-    # 出力ファイル名を決定
-    output_file = args.output
-    if output_file is None:
-        output_file = "graph.yaml"
-
-    print(f"=== Obsidian notes生成 (jj g notes) ===")
-    print(f"プロジェクトをスキャン中: {project_root}")
-
-    try:
-        # Step 1: parse
-        graph, save_path = service.parse_and_save(filename=output_file)
-        summary = service.summary(graph)
-
-        print(f"\n--- パース完了 ---")
-        print(f"ノード数: {summary['total_nodes']}")
-        print(f"リレーション数: {summary['total_relations']}")
-        print(f"保存先: {save_path}")
-
-        # Step 2: export
-        connector = ObsidianConnector(project_root=project_root)
-        print(f"\nObsidianにエクスポート中...")
-        written = connector.export_graph(graph, overwrite=getattr(args, "overwrite", False))
-
-        print(f"\n=== エクスポート完了 ===")
-        print(f"書き込みファイル数: {len(written)}")
-        if written:
-            print("\n書き込んだファイル:")
-            for path in written[:10]:  # 最初の10件のみ表示
-                rel_path = path.relative_to(project_root)
-                print(f"  {rel_path}")
-            if len(written) > 10:
-                print(f"  ... 他 {len(written) - 10} 件")
-
-        print("\n[INFO] 旧 'jj n' コマンドは 'jj g notes' に統合されました。")
-        return 0
-
-    except Exception as e:
-        print(f"エラー: {e}", file=sys.stderr)
-        return 1
