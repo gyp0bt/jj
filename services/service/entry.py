@@ -1103,6 +1103,29 @@ def safe_rglob_dirs(root: Path) -> list[Path]:
     return out
 
 
+def safe_relative_path(file_path: Path, base_path: Path | None = None) -> str:
+    """Windowsでも安全に相対パスを生成（POSIX形式で返す）
+
+    Args:
+        file_path: 対象ファイルパス
+        base_path: 基準パス（デフォルト: Path.cwd()）
+
+    Returns:
+        POSIX形式（/区切り）の相対パス文字列
+    """
+    base = base_path or Path.cwd()
+    try:
+        # resolve()で正規化してから比較
+        resolved_file = file_path.resolve()
+        resolved_base = base.resolve()
+        rel = resolved_file.relative_to(resolved_base)
+        # 常にPOSIX形式で返す
+        return rel.as_posix()
+    except ValueError:
+        # relative_toが失敗した場合（異なるドライブ等）
+        return file_path.as_posix()
+
+
 def frontmatter_keys(md_path: Path) -> set[str]:
     """frontmatterのキー集合（消えたファイルは空で返す）"""
     try:
@@ -1433,7 +1456,7 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
                         for file in folder_path.iterdir():
                             if file.is_file():
                                 # 相対パスを生成
-                                rel_path = str(file.relative_to(Path.cwd()))
+                                rel_path = safe_relative_path(file)
                                 folder_files_list.append(rel_path)
                     else:
                         _basename, ext = get_basename_with_ext(i)
