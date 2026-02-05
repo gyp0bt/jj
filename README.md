@@ -10,15 +10,15 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - グラフデータの一時構築には `networkx` を採用します。
 
 ## コマンド構成
-- `jj g` (graph) **新規追加**
+- `jj g` (graph)
   - プロジェクトフォルダをスキャンしてグラフデータを生成・管理します。
   - `jj g init`: 設定ファイルを初期化（`--overwrite`で上書き）
   - `jj g parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
   - `jj g show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj g export --target obsidian`: Obsidian向けにエクスポート
-- `jj n` (note)
-  - プロジェクトフォルダを解析し、グラフデータ化します。
-  - 現状はObsidian向けのnotesフォルダ出力が中心です。
+  - `jj g notes`: parse + export のショートカット（旧`jj n`の代替）
+- `jj n` (note) **廃止予定**
+  - `jj g notes` に統合されました。実行すると自動的に `jj g notes` にリダイレクトされます。
 - `jj f` (file)
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
 - `jj r` (run)
@@ -59,6 +59,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `services/graph/` : グラフデータの生成・管理（GraphService）
   - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector等）
   - `services/parse/file_parse.py` : FileParse/ObsidianFileParseの共通基盤
+  - `services/parse/file_utils.py` : ファイル名解析ユーティリティ
+  - `services/notes/` : Notes生成サービス（NotesService）
   - `services/storage/` : グラフデータの永続化（GraphStorage）
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
@@ -69,6 +71,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-023: CLIリファクタリング。cli/__init__.pyからビジネスロジック分離（services/parse/file_utils.py, services/notes/）。`jj n`を`jj g notes`に統合。テスト42件パス。([status-023](docs/status/status-023.md))
 - 2026-02-05 / status-022: graph機能の作り込み。FileRelationsConfig追加（拡張子設定ファイル化）、derived_from関係構築、日付パース機能、path-type-map評価順序改善、includes関係構築。テスト38件パス。([status-022](docs/status/status-022.md))
 - 2026-02-05 / status-021: graph機能の確実化。暗黙のタイプ/index/version認識、入力-結果ファイル関係（result_of）構築、バージョンソート修正。テストコード27件追加。([status-021](docs/status/status-021.md))
 - 2026-02-05 / status-020: `jj g parse`の拡張（サブバージョン関係・グループ関係構築）、設定機能の大幅拡充（path-type-map, path-property-map, ignore等）、Obsidian記法対応の改善、`jj g init`サブコマンド追加。([status-020](docs/status/status-020.md))

@@ -8,6 +8,15 @@ from .abaqus_connector import (
     generate_diff_props,
     read_inp,
 )
+from .file_utils import (
+    TARGET_EXTENSIONS,
+    get_basename,
+    get_basename_with_ext,
+    get_group_name,
+    get_index_and_version,
+    normalize_extension_to_inp,
+    safe_relative_path,
+)
 
 __all__ = [
     "ABQData",
@@ -17,9 +26,16 @@ __all__ = [
     "FileType",
     "ObsidianFileParse",
     "ObsidianMap",
+    "TARGET_EXTENSIONS",
     "diff_abq_blocks",
     "format_diff_blocks_markdown",
     "format_diff_summary_table",
     "generate_diff_props",
+    "get_basename",
+    "get_basename_with_ext",
+    "get_group_name",
+    "get_index_and_version",
+    "normalize_extension_to_inp",
     "read_inp",
+    "safe_relative_path",
 ]
