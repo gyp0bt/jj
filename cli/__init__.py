@@ -170,14 +170,17 @@ def write_frontmatter_props(
     all_basename_list: list[str],
     props: dict[str, str],
     includes: list[str] | None = None,
+    folder_files: list[str] | None = None,
 ) -> None:
     """mdファイルを完全上書きで生成する。
 
     - props は frontmatter にそのまま出力する。
     - includes は frontmatter の list として出力する（[[...]] 形式）。
     - 本文は true_filepath へのリンクのみを置く（必要なら増やす）。
+    - folder_files: フォルダの場合、フォルダ内の実ファイルリスト
     """
     includes = [] if includes is None else list(includes)
+    folder_files = [] if folder_files is None else list(folder_files)
 
     ver = props.get("ver", "")
     basename = md_path.name.removesuffix(".md")
@@ -186,14 +189,14 @@ def write_frontmatter_props(
     basename = basename + ext
 
     # base_name の補正（既存ロジック踏襲）
-    if base_name == "go.base" and ver:
-        candidate_base_name = basename.replace(f".v{ver}", "") + ".base"
-        # 専用baseファイルが存在する場合のみ使用、なければgo.baseのまま
+    if base_name == "O-go.base" and ver:
+        candidate_base_name = "O-" + basename.replace(f".v{ver}", "") + ".base"
+        # 専用baseファイルが存在する場合のみ使用、なければO-go.baseのまま
         base_dir = md_path.parent.parent / "bases"
         candidate_base_path = base_dir / "go" / candidate_base_name
         if candidate_base_path.exists():
             base_name = candidate_base_name
-        # else: base_name = "go.base" のまま（サブバージョンが1つのみの場合）
+        # else: base_name = "O-go.base" のまま（サブバージョンが1つのみの場合）
 
     # 親 include を決める（既存ロジック踏襲 + 安定化）
     try:
@@ -208,7 +211,8 @@ def write_frontmatter_props(
             parent = base_name
             for parent_path in parent_path_list:
                 if parent_path in all_basename_list_i:
-                    parent = parent_path
+                    # 親がmdファイルの場合は"O-"プレフィックスを追加
+                    parent = f"O-{parent_path}"
                     break
     except Exception:
         # verが1-2とかふざけた名前をしていたらよける
@@ -235,11 +239,11 @@ def write_frontmatter_props(
         else basename
     )
     match base_name:
-        case "tools.base":
+        case "O-tools.base":
             true_filepath = "tools/" + true_filepath
-        case "reports.base":
+        case "O-reports.base":
             true_filepath = "reports/" + true_filepath
-        case "docs.base":
+        case "O-docs.base":
             true_filepath = "docs/" + true_filepath
 
     # frontmatter（完全上書き）
@@ -258,7 +262,15 @@ def write_frontmatter_props(
             fm_lines.append(f"- [[{inc}]]")
 
     # 本文：リンクだけ置く（実ファイルの相対パスをそのまま使用）
-    body_lines: list[str] = [f"- [[{true_filepath}]]", ""]
+    body_lines: list[str] = []
+    if folder_files:
+        # フォルダの場合は、フォルダ内の全実ファイルへのリンクを追加
+        for file in folder_files:
+            body_lines.append(f"- [[{file}]]")
+    else:
+        # 通常のファイルの場合
+        body_lines.append(f"- [[{true_filepath}]]")
+    body_lines.append("")
 
     text = "\n".join(fm_lines) + "\n" + "\n".join(body_lines)
     md_path.write_text(text, encoding="utf-8")
@@ -849,24 +861,24 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
 
         # bases
         _write_yaml_if_missing(
-            root / "bases" / "go.base",
+            root / "bases" / "O-go.base",
             _base_template(root / "props" / "inp" / "go"),
         )
         _write_yaml_if_missing(
-            root / "bases" / "mesh.base",
+            root / "bases" / "O-mesh.base",
             _base_template(root / "props" / "inp" / "mesh"),
         )
         _write_yaml_if_missing(
-            root / "bases" / "material.base",
+            root / "bases" / "O-material.base",
             _base_template(root / "props" / "inp" / "material", idx=False),
         )
         _write_yaml_if_missing(
-            root / "bases" / "step.base",
+            root / "bases" / "O-step.base",
             _base_template(root / "props" / "inp" / "step", idx=False),
         )
 
         _write_yaml_if_missing(
-            root / "bases" / "docs.base",
+            root / "bases" / "O-docs.base",
             _base_template(
                 root / "props" / "docs",
                 idx=False,
@@ -876,17 +888,17 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
             ),
         )
         _write_yaml_if_missing(
-            root / "bases" / "reports.base",
+            root / "bases" / "O-reports.base",
             _base_template(root / "props" / "reports", idx=False, active=False),
         )
         _write_yaml_if_missing(
-            root / "bases" / "tools.base",
+            root / "bases" / "O-tools.base",
             _base_template(
                 root / "props" / "tools", idx=False, ver=False, active=False
             ),
         )
         _write_yaml_if_missing(
-            root / "bases" / "daily.base",
+            root / "bases" / "O-daily.base",
             _base_template(
                 root / "daily",
                 idx=False,
@@ -897,38 +909,70 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
         )
 
     base_list = [
-        "go.base",
+        "O-go.base",
     ]
 
     base_list.append("")
-    go_list = list(glob.glob(str(root / "props" / "inp" / "go" / "*.md")))
-    go_list = ["_".join(i.split("_")[:-1]) + "." + i.split("_")[-1] for i in go_list]
-    go_list = list([get_basename(i) for i in go_list])  # setを使わない（カウント用）
-    go_list_normalized = [i.replace(f".v{get_index_and_version(i)[1]}.", "_") for i in go_list]
 
-    # バージョン数をカウント
+    # 全カテゴリに対してバージョングループ化を適用
     from collections import Counter
-    version_count = Counter(go_list_normalized)
 
-    # 重複を除去してソート
-    go_list_unique = list(set(go_list_normalized))
-    go_list_unique = list(sorted(go_list_unique, key=lambda x: get_index_and_version(x)[0]))
+    # 各カテゴリごとにバージョングループ化を実行
+    all_category_bases = []
+    for category in ["go", "mesh", "material", "step"]:
+        category_list = list(glob.glob(str(root / "props" / "inp" / category / "*.md")))
+        if not category_list:
+            continue
 
-    go_base_list = []
-    for i in go_list_unique:
-        # バージョンが2つ以上ある場合のみbaseファイルを作成
-        if version_count[i] >= 2:
-            go_base_list.append(f"{i}.base")
-            _write_yaml_if_missing(
-                root / "bases" / "go" / f"{i}.base",
-                _base_template(
-                    root / "props" / "inp" / "go",
-                    additional_filters=[f'file.basename.startsWith("{i}")'],
-                    idx=False,
-                    show_only_active=False,
-                ),
-            )
-            base_list.append(f"{i}.base")
+        category_list = ["_".join(i.split("_")[:-1]) + "." + i.split("_")[-1] for i in category_list]
+        category_list = list([get_basename(i) for i in category_list])  # setを使わない（カウント用）
+
+        # バージョンを正規化（v1, v2などを除去してグループ化）
+        category_list_normalized = []
+        for item in category_list:
+            idx, ver = get_index_and_version(item)
+            if ver:
+                # バージョンを除去して正規化
+                normalized = item.replace(f".v{ver}", "")
+                category_list_normalized.append(normalized)
+            else:
+                category_list_normalized.append(item)
+
+        # バージョン数をカウント
+        version_count = Counter(category_list_normalized)
+
+        # 重複を除去してソート
+        category_list_unique = list(set(category_list_normalized))
+        category_list_unique = list(sorted(category_list_unique, key=lambda x: get_index_and_version(x)[0] if get_index_and_version(x)[0] else x))
+
+        # カテゴリごとのbaseディレクトリを作成
+        (root / "bases" / category).mkdir(parents=True, exist_ok=True)
+
+        category_base_list = []
+        for i in category_list_unique:
+            # バージョンが2つ以上ある場合のみbaseファイルを作成
+            if version_count[i] >= 2:
+                category_base_list.append(f"O-{i}.base")
+                _write_yaml_if_missing(
+                    root / "bases" / category / f"O-{i}.base",
+                    _base_template(
+                        root / "props" / "inp" / category,
+                        additional_filters=[f'file.basename.startsWith("O-{i}")'],
+                        idx=False,
+                        show_only_active=False,
+                    ),
+                )
+                if category == "go":
+                    base_list.append(f"O-{i}.base")
+
+        all_category_bases.extend(category_base_list)
+
+        # カテゴリごとのindex.mdを作成
+        if category_base_list:
+            with open(str(root / "bases" / category / f"O-{category}_index.md"), "w") as f:
+                f.write(f"[[O-{category}.base]]\n")
+                for base in category_base_list:
+                    f.write(f"[[{base}]]\n")
 
     # グループbaseファイルの生成
     all_inp_files = []
@@ -947,12 +991,12 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
     group_base_list = []
     for group_name in sorted(group_files.keys()):
         if len(group_files[group_name]) >= 2:
-            group_base_list.append(f"{group_name}.base")
+            group_base_list.append(f"O-{group_name}.base")
             _write_yaml_if_missing(
-                root / "bases" / "group" / f"{group_name}.base",
+                root / "bases" / "group" / f"O-{group_name}.base",
                 _base_template(
                     root / "props" / "inp",
-                    additional_filters=[f'file.basename.startsWith("{group_name}_")'],
+                    additional_filters=[f'file.basename.startsWith("O-{group_name}_")'],
                     idx=False,
                     ver=False,
                     show_only_active=False,
@@ -961,28 +1005,23 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
 
     base_list.append("")
     base_list += [
-        "mesh.base",
-        "material.base",
-        "step.base",
-        "docs.base",
-        "tools.base",
-        "reports.base",
-        "daily.base",
+        "O-mesh.base",
+        "O-material.base",
+        "O-step.base",
+        "O-docs.base",
+        "O-tools.base",
+        "O-reports.base",
+        "O-daily.base",
     ]
 
-    with open(str(root / "bases" / "base.md"), "w") as f:
+    with open(str(root / "bases" / "O-base.md"), "w") as f:
         for i in base_list:
             if i:
                 f.write(f"- [[{i}]]\n")
             else:
                 f.write("\n")
 
-    with open(str(root / "bases" / "go" / "go_index.md"), "w") as f:
-        f.write("[[go.base]]\n")
-        for i in go_base_list:
-            f.write(f"[[{i}]]\n")
-
-    with open(str(root / "bases" / "group" / "group_index.md"), "w") as f:
+    with open(str(root / "bases" / "group" / "O-group_index.md"), "w") as f:
         f.write("# グループ一覧\n\n")
         for i in group_base_list:
             f.write(f"- [[{i}]]\n")
@@ -1340,26 +1379,26 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
 
         # inp系（mdは notes/inp に作る）
         inp_groups: dict[str, list[str]] = {
-            "go.base": _glob_prefixed_ext(
+            "O-go.base": _glob_prefixed_ext(
                 "go", depth, ext_list=[".inp", ".cas.h5", ".aedt"]
             ),
-            "mesh.base": _glob_prefixed_ext("mesh", depth, ext_list=[".inp", ".msh"]),
-            "material.base": _glob_prefixed_ext("material", depth),
-            "step.base": _glob_prefixed_ext("step_", depth),
-            "docs.base": _glob_prefixed_ext("./docs/*", depth, ext_list=[""]),
-            "reports.base": _glob_prefixed_ext("./reports/*", depth, ext_list=["*"]),
-            "tools.base": _glob_prefixed_ext("./tools/*", depth, ext_list=["*"]),
+            "O-mesh.base": _glob_prefixed_ext("mesh", depth, ext_list=[".inp", ".msh"]),
+            "O-material.base": _glob_prefixed_ext("material", depth),
+            "O-step.base": _glob_prefixed_ext("step_", depth),
+            "O-docs.base": _glob_prefixed_ext("./docs/*", depth, ext_list=[""]),
+            "O-reports.base": _glob_prefixed_ext("./reports/*", depth, ext_list=["*"]),
+            "O-tools.base": _glob_prefixed_ext("./tools/*", depth, ext_list=["*"]),
         }
 
         # baseごとのキー集合（最終的に base の order に追記するキー）
         base_keys: dict[str, set[str]] = {
-            "go.base": set(),
-            "mesh.base": set(),
-            "material.base": set(),
-            "step.base": set(),
-            "docs.base": set(),
-            "reports.base": set(),
-            "tools.base": set(),
+            "O-go.base": set(),
+            "O-mesh.base": set(),
+            "O-material.base": set(),
+            "O-step.base": set(),
+            "O-docs.base": set(),
+            "O-reports.base": set(),
+            "O-tools.base": set(),
         }
 
         # ---- inp → md 生成/追記 + キー収集
@@ -1380,11 +1419,22 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
 
                     if i.endswith(".inp"):
                         props.update(get_properties_by_inp_parameter(i, vocab))
-                        includes += get_relations_by_inp_includes(i)
+                        # includesは実ファイル名を返すので、mdファイル名に変換（"O-"プレフィックス追加）
+                        raw_includes = get_relations_by_inp_includes(i)
+                        includes += [f"O-{inc}" for inc in raw_includes]
 
                     # frontmatterが真実源なので「追記のみ」
+                    folder_files_list = None
                     if os.path.isdir(i):
                         basename = Path(i).name
+                        # フォルダ内の実ファイルリストを取得
+                        folder_path = Path(i)
+                        folder_files_list = []
+                        for file in folder_path.iterdir():
+                            if file.is_file():
+                                # 相対パスを生成
+                                rel_path = str(file.relative_to(Path.cwd()))
+                                folder_files_list.append(rel_path)
                     else:
                         _basename, ext = get_basename_with_ext(i)
                         basename = (
@@ -1406,7 +1456,7 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
                         and md_path.name in done
                     ):
                         raise ValueError(f"""
-"{md_path}" appeared twice 
+"{md_path}" appeared twice
 - 1: {i}
 - 2: {md_inp_dict[md_path.name]})
 """)
@@ -1417,6 +1467,7 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
                             all_basename_list=all_basename_list,
                             props=props,
                             includes=includes,
+                            folder_files=folder_files_list,
                         )
 
                     else:
@@ -1434,27 +1485,27 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
         # ---- reports/tools：フォルダ内の md 全収集（名前一致なし）
         for p in safe_rglob_files(Path("reports")):
             if p.suffix.lower() == ".md":
-                base_keys["reports.base"].update(frontmatter_keys(p))
+                base_keys["O-reports.base"].update(frontmatter_keys(p))
 
         for p in safe_rglob_files(Path("tools")):
             if p.suffix.lower() == ".md":
-                base_keys["tools.base"].update(frontmatter_keys(p))
+                base_keys["O-tools.base"].update(frontmatter_keys(p))
 
         # ---- 制約反映
         # docs/tools: idx/ver なし
-        for bn in ("docs.base", "tools.base"):
+        for bn in ("O-docs.base", "O-tools.base"):
             base_keys[bn].discard("idx")
             base_keys[bn].discard("ver")
         # reports: idx なし（verは残す）
-        base_keys["reports.base"].discard("idx")
+        base_keys["O-reports.base"].discard("idx")
 
         # ---- base更新（orderに無いキーだけ追記）
         try:
             for base_name, keys in base_keys.items():
                 update_go_base(base_dir / base_name, sorted(keys))
 
-                if base_name == "go.base":
-                    sub_base_list = list(glob.glob(str(base_dir / "go" / "*.base")))
+                if base_name == "O-go.base":
+                    sub_base_list = list(glob.glob(str(base_dir / "go" / "O-*.base")))
                     for i in sub_base_list:
                         update_go_base(Path(i), sorted(keys))
 
