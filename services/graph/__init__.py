@@ -180,6 +180,10 @@ class GraphService:
         relations.extend(version_relations)
         relations.extend(group_relations)
 
+        # 入力-結果関係を構築
+        result_relations = self._build_result_relations(nodes)
+        relations.extend(result_relations)
+
         return GraphModel(nodes=nodes, relations=relations)
 
     def _build_version_and_group_relations(
@@ -210,9 +214,12 @@ class GraphService:
             if len(group_nodes) < 2:
                 continue
 
-            # version順にソート（versionがない場合は空文字として扱う）
+            # version順にソート（versionが空の場合は"1"として扱う）
             def get_version_key(n: Node) -> tuple[int, str]:
                 ver = n.properties.get("version", "")
+                # versionが空の場合はデフォルトで"1"として扱う
+                if not ver:
+                    ver = "1"
                 # 数値として解釈できる場合は数値でソート
                 try:
                     return (0, str(int(ver)).zfill(10))
@@ -248,6 +255,86 @@ class GraphService:
                 )
 
         return version_relations, group_relations
+
+    def _build_result_relations(self, nodes: list[Node]) -> list[Relation]:
+        """入力ファイルと結果ファイルの関係を構築
+
+        同じbasename（go_idx1_w5_t20等）を持つファイルのうち、
+        入力ファイル（.inp）と結果ファイル（.odb, .sta, .csv等）の間に
+        result_of関係を作成します。
+
+        Args:
+            nodes: ノードのリスト
+
+        Returns:
+            result_of関係のリスト
+        """
+        relations: list[Relation] = []
+
+        # 入力ファイルの拡張子
+        input_extensions = {".inp", ".cas.h5", ".k", ".key", ".dat"}
+        # 結果ファイルの拡張子
+        result_extensions = {".odb", ".sta", ".msg", ".dat", ".csv", ".json"}
+
+        # basenameでノードをグループ化
+        by_basename: dict[str, list[Node]] = defaultdict(list)
+        for node in nodes:
+            # ディレクトリ部分を除外してbasenameでグループ化
+            basename = node.name
+            by_basename[basename].append(node)
+
+        for basename, group_nodes in by_basename.items():
+            if len(group_nodes) < 2:
+                continue
+
+            # 入力ファイルと結果ファイルを分離
+            input_nodes = []
+            result_nodes = []
+
+            for node in group_nodes:
+                ext = f".{node.format}" if node.format else ""
+                if ext.lower() in input_extensions:
+                    input_nodes.append(node)
+                elif ext.lower() in result_extensions:
+                    result_nodes.append(node)
+
+            # 入力ファイルと結果ファイルの間にresult_of関係を作成
+            for input_node in input_nodes:
+                for result_node in result_nodes:
+                    # 同じindex/propsを持つ場合のみリンク
+                    if self._nodes_have_same_props(input_node, result_node):
+                        relations.append(
+                            Relation(
+                                id=self._next_relation_id(),
+                                label="result_of",
+                                node1_id=result_node.id,  # 結果ファイル
+                                node2_id=input_node.id,    # 入力ファイル
+                            )
+                        )
+
+        return relations
+
+    def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
+        """2つのノードが同じ主要プロパティを持つかチェック
+
+        Args:
+            node1: ノード1
+            node2: ノード2
+
+        Returns:
+            同じ主要プロパティを持つ場合True
+        """
+        # 比較対象のプロパティキー（index, 数値パラメータ等）
+        compare_keys = {"index", "w", "t", "番号"}
+
+        for key in compare_keys:
+            val1 = node1.properties.get(key, "")
+            val2 = node2.properties.get(key, "")
+            # 両方に値があり、異なる場合はFalse
+            if val1 and val2 and val1 != val2:
+                return False
+
+        return True
 
     def load(self, filename: Optional[str] = None) -> GraphModel:
         """グラフデータを読み込み"""
