@@ -18,7 +18,9 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj g export --target obsidian`: Obsidian向けにエクスポート
   - `jj g notes`: parse + export のショートカット（旧`jj n`の代替）
 - `jj n` (note) **廃止予定**
-  - `jj g notes` に統合されました。実行すると自動的に `jj g notes` にリダイレクトされます。
+  - `jj g parse` + `jj g export` に機能が統合されたため廃止予定です。
+  - 実行すると自動的に `jj g notes` にリダイレクトされます。
+  - 将来的には `jj g parse && jj g export --target obsidian` の使用を推奨します。
 - `jj f` (file)
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
 - `jj r` (run)

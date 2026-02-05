@@ -114,6 +114,16 @@ jj/
 | `jj g export` | `jj g export` | 維持 |
 | - | `jj g notes` | 新規（parse + export） |
 
+## 廃止理由
+
+`jj n` (notes) コマンドは以下の理由で廃止予定となりました：
+
+1. **機能の重複**: `jj g parse` + `jj g export --target obsidian` で同等の機能が実現可能
+2. **グラフ中心設計への移行**: jjはグラフデータを中心に設計されており、Obsidian出力は「エクスポート先の一つ」という位置づけ
+3. **コードの簡素化**: cli/__init__.pyに埋め込まれた複雑なnotes生成ロジックを、GraphService + ObsidianConnector に統一
+
+`jj g notes` は移行期間中のショートカットとして提供されますが、将来的には `jj g parse && jj g export` の使用を推奨します。
+
 ## TODO（今後の課題）
 
 - [ ] cli/__init__.pyの重複関数を完全に削除（現在はservices/notesからインポートしつつ、ローカル定義も残存）
