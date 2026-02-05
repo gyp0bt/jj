@@ -187,8 +187,13 @@ def write_frontmatter_props(
 
     # base_name の補正（既存ロジック踏襲）
     if base_name == "go.base" and ver:
-        base_name = basename.replace(f".v{ver}", "") + ".base"
-        # base_name = ".".join(basename.replace("v" + ver, "").split(".")[:-1]) + ".base"
+        candidate_base_name = basename.replace(f".v{ver}", "") + ".base"
+        # 専用baseファイルが存在する場合のみ使用、なければgo.baseのまま
+        base_dir = md_path.parent.parent / "bases"
+        candidate_base_path = base_dir / "go" / candidate_base_name
+        if candidate_base_path.exists():
+            base_name = candidate_base_name
+        # else: base_name = "go.base" のまま（サブバージョンが1つのみの場合）
 
     # 親 include を決める（既存ロジック踏襲 + 安定化）
     try:
@@ -806,6 +811,17 @@ def get_basename(filepath: str) -> str:
     return filepath
 
 
+def get_group_name(filepath: str) -> str:
+    """ファイル名からグループ名を抽出（idx/verを除いた部分）"""
+    if os.path.isdir(filepath):
+        return ""
+
+    basename, ext = get_basename_with_ext(filepath)
+    # headを取得（例: go_1_v2 → go）
+    head = basename.split("_")[0]
+    return head
+
+
 def init_notes_tree(root: Path, init_bases: bool = True) -> None:
     if init_bases:
         obsidian_config_path = Path(".obsidian")
@@ -820,6 +836,7 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
         (root).mkdir(parents=True, exist_ok=True)
         (root / "bases").mkdir(parents=True, exist_ok=True)
         (root / "bases" / "go").mkdir(parents=True, exist_ok=True)
+        (root / "bases" / "group").mkdir(parents=True, exist_ok=True)
         (root / "daily").mkdir(parents=True, exist_ok=True)
         (root / "canvas").mkdir(parents=True, exist_ok=True)
         (root / "props").mkdir(parents=True, exist_ok=True)
@@ -888,24 +905,61 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
     base_list.append("")
     go_list = list(glob.glob(str(root / "props" / "inp" / "go" / "*.md")))
     go_list = ["_".join(i.split("_")[:-1]) + "." + i.split("_")[-1] for i in go_list]
-    go_list = list(set([get_basename(i) for i in go_list]))
-    go_list = [i.replace(f".v{get_index_and_version(i)[1]}.", "_") for i in go_list]
-    go_list = list(set([i for i in go_list]))
-    go_list = list(sorted(go_list, key=lambda x: get_index_and_version(x)[0]))
+    go_list = list([get_basename(i) for i in go_list])  # setを使わない（カウント用）
+    go_list_normalized = [i.replace(f".v{get_index_and_version(i)[1]}.", "_") for i in go_list]
+
+    # バージョン数をカウント
+    from collections import Counter
+    version_count = Counter(go_list_normalized)
+
+    # 重複を除去してソート
+    go_list_unique = list(set(go_list_normalized))
+    go_list_unique = list(sorted(go_list_unique, key=lambda x: get_index_and_version(x)[0]))
 
     go_base_list = []
-    for i in go_list:
-        go_base_list.append(f"{i}.base")
-        _write_yaml_if_missing(
-            root / "bases" / "go" / f"{i}.base",
-            _base_template(
-                root / "props" / "inp" / "go",
-                additional_filters=[f'file.basename.startsWith("{i}")'],
-                idx=False,
-                show_only_active=False,
-            ),
-        )
-        base_list.append(f"{i}.base")
+    for i in go_list_unique:
+        # バージョンが2つ以上ある場合のみbaseファイルを作成
+        if version_count[i] >= 2:
+            go_base_list.append(f"{i}.base")
+            _write_yaml_if_missing(
+                root / "bases" / "go" / f"{i}.base",
+                _base_template(
+                    root / "props" / "inp" / "go",
+                    additional_filters=[f'file.basename.startsWith("{i}")'],
+                    idx=False,
+                    show_only_active=False,
+                ),
+            )
+            base_list.append(f"{i}.base")
+
+    # グループbaseファイルの生成
+    all_inp_files = []
+    for subdir in ["go", "mesh", "material", "step"]:
+        all_inp_files.extend(glob.glob(str(root / "props" / "inp" / subdir / "*.md")))
+
+    # グループ名ごとにファイルをまとめる
+    from collections import defaultdict
+    group_files = defaultdict(list)
+    for filepath in all_inp_files:
+        group_name = get_group_name(filepath)
+        if group_name:
+            group_files[group_name].append(filepath)
+
+    # 2つ以上のファイルがあるグループのみbaseファイルを作成
+    group_base_list = []
+    for group_name in sorted(group_files.keys()):
+        if len(group_files[group_name]) >= 2:
+            group_base_list.append(f"{group_name}.base")
+            _write_yaml_if_missing(
+                root / "bases" / "group" / f"{group_name}.base",
+                _base_template(
+                    root / "props" / "inp",
+                    additional_filters=[f'file.basename.startsWith("{group_name}_")'],
+                    idx=False,
+                    ver=False,
+                    show_only_active=False,
+                ),
+            )
 
     base_list.append("")
     base_list += [
@@ -929,6 +983,11 @@ def init_notes_tree(root: Path, init_bases: bool = True) -> None:
         f.write("[[go.base]]\n")
         for i in go_base_list:
             f.write(f"[[{i}]]\n")
+
+    with open(str(root / "bases" / "group" / "group_index.md"), "w") as f:
+        f.write("# グループ一覧\n\n")
+        for i in group_base_list:
+            f.write(f"- [[{i}]]\n")
 
 
 # =========================
@@ -1332,10 +1391,10 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
                         _basename, ext = get_basename_with_ext(i)
                         basename = (
                             # ".".join(Path(i).name.split(".")[:-1])[0:]
-                            _basename + "_" + ext[1:]
+                            _basename + "." + ext[1:]  # .inp → .inp.md に変更
                         )
                     if any([i in base_name for i in ["docs", "reports", "tools"]]):
-                        md_path = notes_dir / f"{base_name.split('.')[0]}/{basename}.md"
+                        md_path = notes_dir / f"{base_name.split('.')[0]}/O-{basename}.md"
                     else:
                         md_path = (
                             notes_dir
