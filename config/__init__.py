@@ -326,9 +326,32 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return result
 
 
+def _pattern_specificity(pattern: str) -> tuple[int, int, int]:
+    """パターンの具体性をスコア化（高いほど具体的）
+
+    Returns:
+        (ワイルドカード少なさ, ディレクトリ深さ, パターン長さ)
+    """
+    # ワイルドカードの数を数える（少ないほど具体的）
+    wildcards = pattern.count("*") + pattern.count("?")
+    # **は2つ分としてカウント（より汎用的）
+    wildcards += pattern.count("**")
+
+    # ディレクトリの深さ（深いほど具体的）
+    depth = pattern.count("/")
+
+    # パターンの長さ（長いほど具体的）
+    length = len(pattern.replace("*", "").replace("?", ""))
+
+    return (-wildcards, depth, length)
+
+
 @dataclass(frozen=True)
 class PathTypeMapConfig:
-    """path-type-map設定: パスパターンとファイルタイプのマッピング"""
+    """path-type-map設定: パスパターンとファイルタイプのマッピング
+
+    評価順序: より具体的なパターン（ワイルドカードが少ない、パスが長い）を先に評価
+    """
     rules: list[tuple[list[str], dict[str, str]]]
 
     @classmethod
@@ -342,16 +365,32 @@ class PathTypeMapConfig:
             patterns = [p.strip() for p in pattern_key.split("|")]
             if isinstance(type_map, dict):
                 rules.append((patterns, type_map))
+
+        # パターンの具体性でソート（より具体的なパターンを先に）
+        def rule_specificity(rule: tuple[list[str], dict[str, str]]) -> tuple[int, int, int]:
+            patterns = rule[0]
+            # 複数パターンの場合、最も具体的なものを基準にする
+            return max(_pattern_specificity(p) for p in patterns)
+
+        rules.sort(key=rule_specificity, reverse=True)
         return cls(rules=rules)
 
     def get_type(self, path: str, filename: str) -> Optional[str]:
-        """パスとファイル名からタイプを取得（マッチしない場合はNone）"""
+        """パスとファイル名からタイプを取得（マッチしない場合はNone）
+
+        より具体的なパターンが先に評価されるため、最初にマッチしたものが返されます。
+        """
         for patterns, type_map in self.rules:
             for pattern in patterns:
                 # ディレクトリパターンのマッチング
                 if _match_path_pattern(path, pattern):
-                    # ファイル名パターンのマッチング
-                    for file_pattern, file_type in type_map.items():
+                    # ファイル名パターンも具体性でソート
+                    sorted_file_patterns = sorted(
+                        type_map.items(),
+                        key=lambda x: _pattern_specificity(x[0]),
+                        reverse=True
+                    )
+                    for file_pattern, file_type in sorted_file_patterns:
                         if fnmatch.fnmatch(filename, file_pattern):
                             return file_type
         return None
@@ -438,6 +477,22 @@ class IgnoreConfig:
 
 
 @dataclass(frozen=True)
+class FileRelationsConfig:
+    """ファイル関係設定: 入力/結果/アセットファイルの拡張子マッピング"""
+    input_extensions: frozenset[str]
+    result_extensions: frozenset[str]
+    asset_extensions: frozenset[str]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FileRelationsConfig":
+        return cls(
+            input_extensions=frozenset(data.get("input-extensions", [".inp", ".cas.h5", ".k", ".key", ".dat"])),
+            result_extensions=frozenset(data.get("result-extensions", [".odb", ".sta", ".msg", ".csv", ".json"])),
+            asset_extensions=frozenset(data.get("asset-extensions", [".modfem", ".stl", ".cdb", ".msh"])),
+        )
+
+
+@dataclass(frozen=True)
 class ObsidianExportConfig:
     """Obsidianエクスポート設定"""
     notes_dir: str
@@ -463,6 +518,7 @@ class GraphConfig:
     path_property_map: PathPropertyMapConfig
     path_tag_map: PathTagMapConfig
     ignore: IgnoreConfig
+    file_relations: FileRelationsConfig
     obsidian: ObsidianExportConfig
 
     @classmethod
@@ -473,6 +529,7 @@ class GraphConfig:
             path_property_map=PathPropertyMapConfig.from_dict(data.get("path-property-map", {})),
             path_tag_map=PathTagMapConfig.from_dict(data.get("path-tag-map", {})),
             ignore=IgnoreConfig.from_list(data.get("ignore", [])),
+            file_relations=FileRelationsConfig.from_dict(data.get("file-relations", {})),
             obsidian=ObsidianExportConfig.from_dict(data.get("obsidian", {})),
         )
 

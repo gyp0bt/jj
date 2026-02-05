@@ -44,6 +44,9 @@ IMPLICIT_TYPE_BASENAMES: dict[str, str] = {
     "step": "step",
 }
 
+# 日付パターン（YYMMDD or YYYYMMDD）
+DATE_PATTERN = re.compile(r"^(\d{6}|\d{8})$")
+
 
 class FileType(Enum):
     GO = "go"
@@ -220,7 +223,43 @@ class FileParse:
 
     def get_tags(self) -> list[str]:
         _, tags = self._split_props_and_tags()
-        return tags
+        # 日付パターンは tagsから除外
+        return [t for t in tags if not DATE_PATTERN.match(t)]
+
+    def get_date(self) -> str:
+        """ファイル名から日付を抽出（YYMMDD or YYYYMMDD形式）
+
+        Returns:
+            日付文字列（見つからない場合は空文字）
+        """
+        _, tags = self._split_props_and_tags()
+        for token in tags:
+            if DATE_PATTERN.match(token):
+                return token
+        return ""
+
+    def get_date_formatted(self) -> str:
+        """日付を標準形式（YYYY-MM-DD）に変換
+
+        Returns:
+            YYYY-MM-DD形式の日付文字列（見つからない場合は空文字）
+        """
+        date_str = self.get_date()
+        if not date_str:
+            return ""
+
+        if len(date_str) == 6:
+            # YYMMDD → 20YY-MM-DD（2000年代と仮定）
+            year = int(date_str[:2])
+            if year > 50:  # 50以上は1900年代
+                full_year = 1900 + year
+            else:
+                full_year = 2000 + year
+            return f"{full_year:04d}-{date_str[2:4]}-{date_str[4:6]}"
+        elif len(date_str) == 8:
+            # YYYYMMDD → YYYY-MM-DD
+            return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+        return ""
 
     def get_file_group(
         self, candidates: Iterable[str | Path] | None = None
