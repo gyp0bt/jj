@@ -1,0 +1,12 @@
+ Abaqus/Standard 2024                  DATE 05-Feb-2026  TIME 12:00:00
+
+ SUMMARY OF JOB INFORMATION:
+
+  STEP    INC    ATT   SEVERE  EQUIL   TOTAL    TOTAL    STEP     INC OF
+                       DISCON  ITERS   ITERS    TIME/    TIME     TIME/LPF
+                       ITERS                    PERIOD
+     1      1     1U       0       5       5   0.100     0.100    0.100
+
+ ***ERROR: TOO MANY ATTEMPTS MADE FOR THIS INCREMENT
+
+ THE ANALYSIS HAS NOT BEEN COMPLETED
