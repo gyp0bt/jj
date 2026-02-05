@@ -16,11 +16,6 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj g parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
   - `jj g show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj g export --target obsidian`: Obsidian向けにエクスポート
-  - `jj g notes`: parse + export のショートカット（旧`jj n`の代替）
-- `jj n` (note) **廃止予定**
-  - `jj g parse` + `jj g export` に機能が統合されたため廃止予定です。
-  - 実行すると自動的に `jj g notes` にリダイレクトされます。
-  - 将来的には `jj g parse && jj g export --target obsidian` の使用を推奨します。
 - `jj f` (file)
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
 - `jj r` (run)
@@ -60,8 +55,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `services/` : CLI向けサービス群（詳細は各README）
   - `services/graph/` : グラフデータの生成・管理（GraphService）
   - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector等）
-  - `services/parse/file_parse.py` : FileParse/ObsidianFileParseの共通基盤
-  - `services/parse/file_utils.py` : ファイル名解析ユーティリティ
+  - `services/parse/file_parse.py` : FileParse/ObsidianFileParse + レガシー関数
   - `services/notes/` : Notes生成サービス（NotesService）
   - `services/storage/` : グラフデータの永続化（GraphStorage）
 - `jj_types/` : Pydanticモデル
@@ -73,12 +67,12 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-024: CLIの大幅スリム化。`jj g notes`と`jj n`を完全廃止、`file_utils.py`を`file_parse.py`に統合。cli/__init__.pyを1752行→745行に削減（57%削減）。([status-024](docs/status/status-024.md))
 - 2026-02-05 / status-023: CLIリファクタリング。cli/__init__.pyからビジネスロジック分離（services/parse/file_utils.py, services/notes/）。`jj n`を`jj g notes`に統合。テスト42件パス。([status-023](docs/status/status-023.md))
 - 2026-02-05 / status-022: graph機能の作り込み。FileRelationsConfig追加（拡張子設定ファイル化）、derived_from関係構築、日付パース機能、path-type-map評価順序改善、includes関係構築。テスト38件パス。([status-022](docs/status/status-022.md))
 - 2026-02-05 / status-021: graph機能の確実化。暗黙のタイプ/index/version認識、入力-結果ファイル関係（result_of）構築、バージョンソート修正。テストコード27件追加。([status-021](docs/status/status-021.md))
 - 2026-02-05 / status-020: `jj g parse`の拡張（サブバージョン関係・グループ関係構築）、設定機能の大幅拡充（path-type-map, path-property-map, ignore等）、Obsidian記法対応の改善、`jj g init`サブコマンド追加。([status-020](docs/status/status-020.md))
 - 2026-02-05 / status-019: `jj g` (graph) コマンドを実装。GraphService、Obsidianコネクタを独立モジュール化。relative_toのWindows対応バグ修正。O-プレフィックス処理のテスト追加。([status-019](docs/status/status-019.md))
-- 2026-02-05 / status-018: O-プレフィックス全面適用時のディレクトリパス生成バグを修正。([status-018](docs/status/status-018.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)
