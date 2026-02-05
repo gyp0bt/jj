@@ -160,7 +160,10 @@ class RunService:
         changed: list[str] = []
         for path, data in after.items():
             if path not in before or before[path] != data:
-                rel = str(Path(path).resolve().relative_to(root))
+                try:
+                    rel = Path(path).resolve().relative_to(root).as_posix()
+                except ValueError:
+                    rel = Path(path).as_posix()
                 changed.append(rel)
         return sorted(set(changed))
 

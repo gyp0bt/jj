@@ -16,6 +16,7 @@ from typing import Optional
 from config import VocabConfig, load_ssh_config, load_vocab_config
 from services.run import RunService
 from services.ssh import ssh
+from cli.graph import add_graph_parser, run_graph_command
 import yaml
 
 # =========
@@ -519,6 +520,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="実行コマンド（-- 以降に指定）",
     )
 
+    # graph (jj g)
+    add_graph_parser(sub)
+
     return p
 
 
@@ -530,6 +534,8 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         args.cmd = "files"
     if args.cmd == "r":
         args.cmd = "run"
+    if args.cmd == "g":
+        args.cmd = "graph"
     if getattr(args, "cmd", None):
         return args
 
@@ -1086,6 +1092,29 @@ def safe_rglob_files(root: Path) -> list[Path]:
     return out
 
 
+def safe_relative_path(file_path: Path, base_path: Path | None = None) -> str:
+    """Windowsでも安全に相対パスを生成（POSIX形式で返す）
+
+    Args:
+        file_path: 対象ファイルパス
+        base_path: 基準パス（デフォルト: Path.cwd()）
+
+    Returns:
+        POSIX形式（/区切り）の相対パス文字列
+    """
+    base = base_path or Path.cwd()
+    try:
+        # resolve()で正規化してから比較
+        resolved_file = file_path.resolve()
+        resolved_base = base.resolve()
+        rel = resolved_file.relative_to(resolved_base)
+        # 常にPOSIX形式で返す
+        return rel.as_posix()
+    except ValueError:
+        # relative_toが失敗した場合（異なるドライブ等）
+        return file_path.as_posix()
+
+
 def safe_rglob_dirs(root: Path) -> list[Path]:
     """root配下の全ディレクトリを収集（root自身は除外）。"""
     if not root.exists():
@@ -1433,7 +1462,7 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
                         for file in folder_path.iterdir():
                             if file.is_file():
                                 # 相対パスを生成
-                                rel_path = str(file.relative_to(Path.cwd()))
+                                rel_path = safe_relative_path(file)
                                 folder_files_list.append(rel_path)
                     else:
                         _basename, ext = get_basename_with_ext(i)
@@ -1814,6 +1843,9 @@ def dispatch(args: argparse.Namespace) -> int:
 
     if cmd == "run":
         return run_run(args)
+
+    if cmd == "graph":
+        return run_graph_command(args)
 
     # default: submit
     return run_submit(args, targets)
