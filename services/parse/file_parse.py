@@ -236,7 +236,7 @@ class ObsidianMap:
         else:
             basename, ext = parser._split_extension()
             if ext:
-                basename = f"{basename}_{ext.lstrip('.')}"
+                basename = f"{basename}.{ext.lstrip('.')}"  # .inp → .inp.md に変更
         base_dir = Path(notes_dir or self.notes_dir)
         return base_dir / f"{basename}.md"
 
