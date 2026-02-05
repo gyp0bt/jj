@@ -58,9 +58,9 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-018: O-プレフィックス全面適用時のディレクトリパス生成バグを修正。`notes/props/inp/O-go`が誤って生成される問題を解決し、正しく`notes/props/inp/go`が生成されるように修正。([status-018](docs/status/status-018.md))
+- 2026-02-05 / status-017: Obsidianファイル名記法を全面的に更新し、全てのObsidian向けファイルに"O-"プレフィックスを追加。バージョングループ化を全ファイルタイプに拡張し、フォルダ用mdファイルへの実ファイルリンク追加機能を実装。([status-017](docs/status/status-017.md))
 - 2026-02-05 / status-016: Obsidianファイル名記法を.inp→_inpから.inp→.inp.mdに変更、go_シリーズのbase生成ロジック改善（サブバージョンが1つのみの場合はgo.baseに直接リンク）、グループ機能の追加（同一ベース名のファイルをbases/group/に集約）を実施。([status-016](docs/status/status-016.md))
-- 2026-02-04 / status-015: O-ファイル名記法の修正、get_relations_by_inp_includesの相対パス→ファイル名検索への変更、read_inp.pyのAbaqusコネクターへの移動、バージョン間/index間のキーワードdiff機能追加、requirements.txt作成、phase2ロードマップ追加を実施。([status-015](docs/status/status-015.md))
-- 2026-02-04 / status-014: Phase 1を完了。relation抽出ロジックの整理、AppConfig拡張、CLI層とservice層の分離、GraphStorage反映機能の実装、obsidian向けmarkdown生成記法の変更を実施。全テスト成功。([status-014](docs/status/status-014.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)

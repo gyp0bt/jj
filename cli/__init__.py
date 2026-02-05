@@ -1442,12 +1442,12 @@ def run_notes(args: argparse.Namespace, targets: list[str]) -> int:
                             _basename + "." + ext[1:]  # .inp → .inp.md に変更
                         )
                     if any([i in base_name for i in ["docs", "reports", "tools"]]):
-                        md_path = notes_dir / f"{base_name.split('.')[0]}/O-{basename}.md"
+                        md_path = notes_dir / f"{base_name.split('.')[0].replace('O-', '')}/O-{basename}.md"
                     else:
                         md_path = (
                             notes_dir
                             / "inp"
-                            / base_name.split(".")[0]
+                            / base_name.split(".")[0].replace("O-", "")
                             / f"O-{basename}.md"
                         )
 
