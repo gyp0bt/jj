@@ -10,6 +10,11 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - グラフデータの一時構築には `networkx` を採用します。
 
 ## コマンド構成
+- `jj g` (graph) **新規追加**
+  - プロジェクトフォルダをスキャンしてグラフデータを生成・管理します。
+  - `jj g parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
+  - `jj g show`: グラフデータを表示（`--summary`でサマリーのみ）
+  - `jj g export --target obsidian`: Obsidian向けにエクスポート
 - `jj n` (note)
   - プロジェクトフォルダを解析し、グラフデータ化します。
   - 現状はObsidian向けのnotesフォルダ出力が中心です。
@@ -42,13 +47,18 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 
 ## ディレクトリ
 - `.jj/storage/` : 解析で生成したグラフデータ（`graph.yaml`/`graph.json`）
-- `.jj/config/` : プロジェクト固有の設定（例: `vocab.yaml`）
+- `.jj/config/` : プロジェクト固有の設定（例: `vocab.yaml`, `.pyssh.yaml`）
+- `cli/` : CLIコマンド実装（argparseとCLI出力のみ担当）
+  - `cli/graph.py` : `jj g` コマンドの実装
 - `config/` : `.jj/config` や `.pyssh.yaml` を読み込む設定ローダー。
 - `docs/status/` : 実装状況の記録（最大indexが最新）
 - `docs/roadmap.md` : 今後の計画
 - `docs/detail.md` : 実装詳細と仕様リンク
 - `services/` : CLI向けサービス群（詳細は各README）
+  - `services/graph/` : グラフデータの生成・管理（GraphService）
+  - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector等）
   - `services/parse/file_parse.py` : FileParse/ObsidianFileParseの共通基盤
+  - `services/storage/` : グラフデータの永続化（GraphStorage）
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
 - `assets/` : テストデータ/サンプル
@@ -58,9 +68,9 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-019: `jj g` (graph) コマンドを実装。GraphService、Obsidianコネクタを独立モジュール化。relative_toのWindows対応バグ修正。O-プレフィックス処理のテスト追加。([status-019](docs/status/status-019.md))
 - 2026-02-05 / status-018: O-プレフィックス全面適用時のディレクトリパス生成バグを修正。`notes/props/inp/O-go`が誤って生成される問題を解決し、正しく`notes/props/inp/go`が生成されるように修正。([status-018](docs/status/status-018.md))
 - 2026-02-05 / status-017: Obsidianファイル名記法を全面的に更新し、全てのObsidian向けファイルに"O-"プレフィックスを追加。バージョングループ化を全ファイルタイプに拡張し、フォルダ用mdファイルへの実ファイルリンク追加機能を実装。([status-017](docs/status/status-017.md))
-- 2026-02-05 / status-016: Obsidianファイル名記法を.inp→_inpから.inp→.inp.mdに変更、go_シリーズのbase生成ロジック改善（サブバージョンが1つのみの場合はgo.baseに直接リンク）、グループ機能の追加（同一ベース名のファイルをbases/group/に集約）を実施。([status-016](docs/status/status-016.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)
