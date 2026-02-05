@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -112,6 +113,9 @@ class GraphService:
             translated_key = self.config.vocab.get(key, key)
             translated_props[translated_key] = value
 
+        # 日付を取得
+        date_formatted = parser.get_date_formatted()
+
         properties: dict[str, Any] = {
             "path": rel_path,
             "index": parser.get_index(),
@@ -120,6 +124,10 @@ class GraphService:
             **translated_props,
             **config_props,  # 設定からのプロパティが優先
         }
+
+        # 日付がある場合のみ追加
+        if date_formatted:
+            properties["date"] = date_formatted
 
         return Node(
             id=self._next_node_id(),
@@ -183,6 +191,14 @@ class GraphService:
         # 入力-結果関係を構築
         result_relations = self._build_result_relations(nodes)
         relations.extend(result_relations)
+
+        # アセット関係を構築
+        asset_relations = self._build_asset_relations(nodes)
+        relations.extend(asset_relations)
+
+        # includes関係を構築（inpファイルの*includeディレクティブ）
+        includes_relations = self._build_includes_relations(nodes, node_by_path)
+        relations.extend(includes_relations)
 
         return GraphModel(nodes=nodes, relations=relations)
 
@@ -271,10 +287,9 @@ class GraphService:
         """
         relations: list[Relation] = []
 
-        # 入力ファイルの拡張子
-        input_extensions = {".inp", ".cas.h5", ".k", ".key", ".dat"}
-        # 結果ファイルの拡張子
-        result_extensions = {".odb", ".sta", ".msg", ".dat", ".csv", ".json"}
+        # 設定から拡張子を取得
+        input_extensions = self.config.file_relations.input_extensions
+        result_extensions = self.config.file_relations.result_extensions
 
         # basenameでノードをグループ化
         by_basename: dict[str, list[Node]] = defaultdict(list)
@@ -311,6 +326,133 @@ class GraphService:
                                 node2_id=input_node.id,    # 入力ファイル
                             )
                         )
+
+        return relations
+
+    def _build_asset_relations(self, nodes: list[Node]) -> list[Relation]:
+        """アセットファイルと入力ファイルの関係を構築
+
+        同じbasename（mesh等）を持つファイルのうち、
+        アセットファイル（.modfem, .stl等）と入力ファイル（.inp）の間に
+        derived_from関係を作成します。
+
+        例: mesh.modfem → derived_from → mesh.inp
+
+        Args:
+            nodes: ノードのリスト
+
+        Returns:
+            derived_from関係のリスト
+        """
+        relations: list[Relation] = []
+
+        # 設定から拡張子を取得
+        input_extensions = self.config.file_relations.input_extensions
+        asset_extensions = self.config.file_relations.asset_extensions
+
+        # basenameでノードをグループ化
+        by_basename: dict[str, list[Node]] = defaultdict(list)
+        for node in nodes:
+            basename = node.name
+            by_basename[basename].append(node)
+
+        for basename, group_nodes in by_basename.items():
+            if len(group_nodes) < 2:
+                continue
+
+            # 入力ファイルとアセットファイルを分離
+            input_nodes = []
+            asset_nodes = []
+
+            for node in group_nodes:
+                ext = f".{node.format}" if node.format else ""
+                if ext.lower() in input_extensions:
+                    input_nodes.append(node)
+                elif ext.lower() in asset_extensions:
+                    asset_nodes.append(node)
+
+            # アセットファイルと入力ファイルの間にderived_from関係を作成
+            for input_node in input_nodes:
+                for asset_node in asset_nodes:
+                    # 同じindex/propsを持つ場合のみリンク
+                    if self._nodes_have_same_props(input_node, asset_node):
+                        relations.append(
+                            Relation(
+                                id=self._next_relation_id(),
+                                label="derived_from",
+                                node1_id=input_node.id,    # 入力ファイル
+                                node2_id=asset_node.id,    # アセットファイル（元データ）
+                            )
+                        )
+
+        return relations
+
+    def _build_includes_relations(
+        self, nodes: list[Node], node_by_path: dict[str, Node]
+    ) -> list[Relation]:
+        """inpファイルの*includeディレクティブを解析してincludes関係を構築
+
+        Args:
+            nodes: ノードのリスト
+            node_by_path: パスからノードへのマッピング
+
+        Returns:
+            includes関係のリスト
+        """
+        relations: list[Relation] = []
+
+        # *includeパターン
+        include_pattern = re.compile(r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE)
+
+        # 入力ファイルの拡張子
+        input_extensions = self.config.file_relations.input_extensions
+
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() not in input_extensions:
+                continue
+
+            # ファイルパスを取得
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            # ファイルを読み込んで*includeを解析
+            try:
+                with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("**"):
+                            continue
+
+                        match = include_pattern.match(line)
+                        if match:
+                            include_path = match.group(1).strip()
+                            # インクルードファイル名を取得（パス情報から相対パスを解決）
+                            include_filename = Path(include_path).name
+
+                            # node_by_pathからインクルード先を検索
+                            # パス全体またはファイル名で検索
+                            target_node = None
+
+                            # まず完全パスで検索
+                            for path, n in node_by_path.items():
+                                if path.endswith(include_path) or Path(path).name == include_filename:
+                                    target_node = n
+                                    break
+
+                            if target_node:
+                                relations.append(
+                                    Relation(
+                                        id=self._next_relation_id(),
+                                        label="includes",
+                                        node1_id=node.id,          # インクルード元
+                                        node2_id=target_node.id,   # インクルード先
+                                    )
+                                )
+            except (OSError, IOError):
+                # ファイル読み込みエラーは無視
+                continue
 
         return relations
 

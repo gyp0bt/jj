@@ -74,6 +74,30 @@ ignore:
   - ".DS_Store"
   - "Thumbs.db"
 
+# ファイル関係設定
+# 入力ファイルと結果ファイルの拡張子マッピング
+file-relations:
+  # 入力ファイルとして認識する拡張子
+  input-extensions:
+    - ".inp"      # Abaqus
+    - ".cas.h5"   # Fluent
+    - ".k"        # LS-DYNA
+    - ".key"      # LS-DYNA
+    - ".dat"      # 汎用入力
+  # 結果ファイルとして認識する拡張子（入力ファイルと同じbasenameで関連付け）
+  result-extensions:
+    - ".odb"      # Abaqus ODB
+    - ".sta"      # Abaqus status
+    - ".msg"      # Abaqus message
+    - ".csv"      # 抽出データ
+    - ".json"     # 処理済みデータ
+  # アセットファイルの拡張子（同じbasenameで derived_from 関係を構築）
+  asset-extensions:
+    - ".modfem"   # 修正済みメッシュ
+    - ".stl"      # STLメッシュ
+    - ".cdb"      # ANSYS CDB
+    - ".msh"      # Fluent メッシュ
+
 # Obsidian エクスポート設定
 obsidian:
   # ノート出力先ディレクトリ
