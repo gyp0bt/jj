@@ -19,6 +19,7 @@ from typing import Optional, Sequence
 
 from services.graph import GraphService
 from services.connectors.obsidian import ObsidianConnector
+from config import init_graph_config
 
 
 def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -33,6 +34,17 @@ def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
     graph_subparsers = graph_parser.add_subparsers(
         dest="graph_command",
         help="グラフサブコマンド",
+    )
+
+    # jj g init
+    init_parser = graph_subparsers.add_parser(
+        "init",
+        help="設定ファイルを初期化（デフォルト設定をコピー）",
+    )
+    init_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="既存の設定ファイルを上書き",
     )
 
     # jj g parse
@@ -109,13 +121,15 @@ def run_graph_command(args: argparse.Namespace) -> int:
 
     if graph_command is None:
         print("使用方法: jj g <サブコマンド>")
-        print("サブコマンド: parse, show, export")
+        print("サブコマンド: init, parse, show, export")
         print("詳細: jj g --help")
         return 1
 
     project_root = Path.cwd()
 
-    if graph_command == "parse":
+    if graph_command == "init":
+        return _run_init(project_root, args)
+    elif graph_command == "parse":
         return _run_parse(project_root, args)
     elif graph_command == "show":
         return _run_show(project_root, args)
@@ -123,6 +137,21 @@ def run_graph_command(args: argparse.Namespace) -> int:
         return _run_export(project_root, args)
     else:
         print(f"不明なサブコマンド: {graph_command}")
+        return 1
+
+
+def _run_init(project_root: Path, args: argparse.Namespace) -> int:
+    """initサブコマンドを実行"""
+    overwrite = getattr(args, "overwrite", False)
+
+    try:
+        config_path = init_graph_config(base_dir=project_root, overwrite=overwrite)
+        print(f"設定ファイルを初期化しました: {config_path}")
+        if overwrite:
+            print("（既存ファイルを上書きしました）")
+        return 0
+    except Exception as e:
+        print(f"エラー: {e}", file=sys.stderr)
         return 1
 
 

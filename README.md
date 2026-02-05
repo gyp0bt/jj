@@ -12,6 +12,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 ## コマンド構成
 - `jj g` (graph) **新規追加**
   - プロジェクトフォルダをスキャンしてグラフデータを生成・管理します。
+  - `jj g init`: 設定ファイルを初期化（`--overwrite`で上書き）
   - `jj g parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
   - `jj g show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj g export --target obsidian`: Obsidian向けにエクスポート
@@ -68,9 +69,9 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-05 / status-020: `jj g parse`の拡張（サブバージョン関係・グループ関係構築）、設定機能の大幅拡充（path-type-map, path-property-map, ignore等）、Obsidian記法対応の改善、`jj g init`サブコマンド追加。([status-020](docs/status/status-020.md))
 - 2026-02-05 / status-019: `jj g` (graph) コマンドを実装。GraphService、Obsidianコネクタを独立モジュール化。relative_toのWindows対応バグ修正。O-プレフィックス処理のテスト追加。([status-019](docs/status/status-019.md))
-- 2026-02-05 / status-018: O-プレフィックス全面適用時のディレクトリパス生成バグを修正。`notes/props/inp/O-go`が誤って生成される問題を解決し、正しく`notes/props/inp/go`が生成されるように修正。([status-018](docs/status/status-018.md))
-- 2026-02-05 / status-017: Obsidianファイル名記法を全面的に更新し、全てのObsidian向けファイルに"O-"プレフィックスを追加。バージョングループ化を全ファイルタイプに拡張し、フォルダ用mdファイルへの実ファイルリンク追加機能を実装。([status-017](docs/status/status-017.md))
+- 2026-02-05 / status-018: O-プレフィックス全面適用時のディレクトリパス生成バグを修正。([status-018](docs/status/status-018.md))
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)
