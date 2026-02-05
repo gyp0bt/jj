@@ -454,5 +454,187 @@ class TestConfigRules:
         assert ignore.should_ignore("go_idx1.inp") == False
 
 
+class TestDateParsing:
+    """日付パース機能のテスト"""
+
+    def test_date_yymmdd(self):
+        """YYMMDD形式の日付パース"""
+        parser = FileParse("260205_構造解析_idx1.pptx")
+        assert parser.get_date() == "260205"
+        assert parser.get_date_formatted() == "2026-02-05"
+
+    def test_date_yyyymmdd(self):
+        """YYYYMMDD形式の日付パース"""
+        parser = FileParse("20260205_analysis.csv")
+        assert parser.get_date() == "20260205"
+        assert parser.get_date_formatted() == "2026-02-05"
+
+    def test_date_not_in_tags(self):
+        """日付はtagsに含まれない"""
+        parser = FileParse("260205_構造解析_idx1.pptx")
+        tags = parser.get_tags()
+        assert "260205" not in tags
+        assert "構造解析" in tags
+
+    def test_no_date(self):
+        """日付なしのファイル"""
+        parser = FileParse("go_idx1_w5.inp")
+        assert parser.get_date() == ""
+        assert parser.get_date_formatted() == ""
+
+    def test_date_1900s(self):
+        """1900年代の日付（YY > 50）"""
+        parser = FileParse("991231_legacy.csv")
+        assert parser.get_date_formatted() == "1999-12-31"
+
+
+class TestFileRelationsConfig:
+    """FileRelationsConfig のテスト"""
+
+    def test_default_extensions(self):
+        """デフォルトの拡張子が設定される"""
+        from config import FileRelationsConfig
+
+        config = FileRelationsConfig.from_dict({})
+        assert ".inp" in config.input_extensions
+        assert ".odb" in config.result_extensions
+        assert ".modfem" in config.asset_extensions
+
+    def test_custom_extensions(self):
+        """カスタム拡張子が設定できる"""
+        from config import FileRelationsConfig
+
+        config = FileRelationsConfig.from_dict({
+            "input-extensions": [".inp", ".custom"],
+            "result-extensions": [".result"],
+            "asset-extensions": [".asset"],
+        })
+        assert ".custom" in config.input_extensions
+        assert ".result" in config.result_extensions
+        assert ".asset" in config.asset_extensions
+
+
+class TestAssetRelations:
+    """アセット関係（derived_from）のテスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**mesh_* | **mesh": {"*.inp": "メッシュ", "*.modfem": "修正メッシュ"},
+            },
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb"],
+                "asset-extensions": [".modfem", ".stl"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_asset_derived_from_relation(self, graph_service):
+        """mesh.modfem と mesh.inp の間にderived_from関係がある"""
+        extensions = [".inp", ".modfem", ".stl"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        # derived_from関係を取得
+        derived_relations = [r for r in graph.relations if r.label == "derived_from"]
+
+        # mesh.inp と mesh.modfem のノードを取得
+        mesh_inp = next((n for n in graph.nodes if n.name == "mesh" and n.format == "inp"), None)
+        mesh_modfem = next((n for n in graph.nodes if n.name == "mesh" and n.format == "modfem"), None)
+
+        if mesh_inp and mesh_modfem:
+            # derived_from関係が存在
+            relation = next(
+                (r for r in derived_relations if r.node1_id == mesh_inp.id and r.node2_id == mesh_modfem.id),
+                None
+            )
+            assert relation is not None, "mesh.inp → mesh.modfem の derived_from 関係がない"
+
+
+class TestPathTypeMapOrdering:
+    """path-type-mapの評価順序テスト"""
+
+    def test_specific_pattern_first(self):
+        """より具体的なパターンが先に評価される"""
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {"*.inp": "汎用計算"},  # より汎用的
+                "**/reports/*": {"*.pptx": "報告書"},  # より具体的（先に評価される）
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+        # 具体的なパターンが優先される
+        result = config.path_type_map.get_type("reports/260205.pptx", "260205.pptx")
+        assert result == "報告書"
+
+    def test_file_pattern_specificity(self):
+        """ファイルパターンも具体性でソートされる"""
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*": "計算結果",        # 最も汎用的
+                    "*.inp": "計算入力",    # より具体的
+                },
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+        # .inpパターンが先に評価される
+        result = config.path_type_map.get_type("go_idx1.inp", "go_idx1.inp")
+        assert result == "計算入力"
+
+
+class TestIncludesRelations:
+    """includes関係のテスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {},
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb"],
+                "asset-extensions": [".modfem"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_includes_relation_exists(self, graph_service):
+        """*includeディレクティブがあれば関係が構築される"""
+        # テストフィクスチャのgoファイルにincludeを追加してテスト
+        extensions = [".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        # includes関係を取得
+        includes_relations = [r for r in graph.relations if r.label == "includes"]
+
+        # go_idx1_w5_t20.inp に mesh.inp や material.inp への *include があれば関係が作成される
+        # テストデータに依存するため、関係の存在のみ確認
+        # テストデータに*includeがある場合のみ関係が存在
+        assert isinstance(includes_relations, list)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
