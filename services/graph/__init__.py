@@ -332,20 +332,45 @@ class GraphService:
     def _safe_relative_path(self, file_path: Path) -> str:
         """Windowsでも安全に相対パスを生成
 
+        先頭の ``./`` を除去し、常にPOSIX形式（/区切り）で返す。
+
         Args:
             file_path: 対象ファイルパス
 
         Returns:
-            POSIX形式の相対パス文字列
+            POSIX形式の相対パス文字列（先頭 ./ なし）
         """
         try:
             resolved = file_path.resolve()
-            rel = resolved.relative_to(self.project_root)
+            rel = resolved.relative_to(self.project_root.resolve())
             # 常にPOSIX形式（/）で返す
-            return rel.as_posix()
+            result = rel.as_posix()
         except ValueError:
             # relative_toが失敗した場合（異なるドライブ等）
-            return file_path.as_posix()
+            result = file_path.as_posix()
+
+        # 先頭の ./ を除去
+        while result.startswith("./"):
+            result = result[2:]
+        return result
+
+    def _build_scan_extensions(
+        self,
+        extensions: Iterable[str] | None = None,
+    ) -> set[str]:
+        """スキャン対象の拡張子セットを構築
+
+        明示的にextensionsが指定されない場合、DEFAULT_EXTENSIONSに加えて
+        file-relations設定のinput/result/asset拡張子を自動マージする。
+        これにより、CLIからのjj g parse実行時に.inp, .odb, .sta等も確実にスキャンされる。
+        """
+        if extensions is not None:
+            return set(extensions)
+        ext_set = set(DEFAULT_EXTENSIONS)
+        ext_set.update(self.config.file_relations.input_extensions)
+        ext_set.update(self.config.file_relations.result_extensions)
+        ext_set.update(self.config.file_relations.asset_extensions)
+        return ext_set
 
     def parse_project(
         self,
@@ -355,13 +380,14 @@ class GraphService:
         """プロジェクトをパースしてGraphModelを生成
 
         Args:
-            extensions: 対象拡張子
+            extensions: 対象拡張子（Noneの場合はDEFAULT_EXTENSIONS + config file-relationsを使用）
             exclude_dirs: 除外ディレクトリ
 
         Returns:
             生成されたGraphModel
         """
-        files = self.scan_files(extensions=extensions, exclude_dirs=exclude_dirs)
+        merged_extensions = self._build_scan_extensions(extensions)
+        files = self.scan_files(extensions=merged_extensions, exclude_dirs=exclude_dirs)
 
         nodes: list[Node] = []
         node_by_path: dict[str, Node] = {}
@@ -715,9 +741,14 @@ class GraphService:
             dir_nodes.append(dir_node)
 
             # ディレクトリ内のファイルをcontains関係でリンク
+            # パス比較は正規化済み（POSIX形式、先頭./なし）で行う
+            dir_prefix = rel_path.replace("\\", "/").rstrip("/") + "/"
             for node in nodes:
-                node_path = node.properties.get("path", "")
-                if node_path.startswith(rel_path + "/"):
+                node_path = node.properties.get("path", "").replace("\\", "/")
+                # 先頭の ./ を除去して比較
+                while node_path.startswith("./"):
+                    node_path = node_path[2:]
+                if node_path.startswith(dir_prefix):
                     relations.append(
                         Relation(
                             id=self._next_relation_id(),
