@@ -543,33 +543,73 @@ class GraphConfig:
 def _match_path_pattern(path: str, pattern: str) -> bool:
     """パスパターンのマッチング
 
+    Windowsパス（バックスラッシュ）とLinuxパス（スラッシュ）の両方に対応。
+    以下のパターン形式をサポート:
+    - ``**/prefix_*``: 任意の階層で prefix_ で始まるパスにマッチ
+    - ``**name``: 任意の階層でファイル/ディレクトリ名が name にマッチ
+      （拡張子を除いたbasename比較を含む）
+    - ``./dir/``: プロジェクト直下のディレクトリ配下の全ファイルにマッチ
+    - ``dir/``: ディレクトリ配下の全ファイルにマッチ（末尾/は再帰マッチ）
+    - 通常のglobパターン
+
     Args:
-        path: チェック対象のパス（POSIX形式）
+        path: チェック対象のパス（POSIX形式推奨、Windows形式も可）
         pattern: globスタイルのパターン
 
     Returns:
         マッチした場合True
     """
-    # パスを正規化
+    # パスとパターンを正規化（バックスラッシュ→スラッシュ、先頭の ./ を除去）
     normalized_path = path.replace("\\", "/")
     normalized_pattern = pattern.replace("\\", "/")
 
-    # **/ で始まるパターンは任意の親ディレクトリを許容
+    # 先頭の ./ を除去（複数の ./ にも対応）
+    while normalized_path.startswith("./"):
+        normalized_path = normalized_path[2:]
+    while normalized_pattern.startswith("./"):
+        normalized_pattern = normalized_pattern[2:]
+
+    # ディレクトリパターン（末尾が / ）: 配下の全ファイルにマッチ
+    if normalized_pattern.endswith("/"):
+        dir_prefix = normalized_pattern  # 例: "reports/"
+        dir_name = normalized_pattern.rstrip("/")  # 例: "reports"
+        return (normalized_path.startswith(dir_prefix) or
+                normalized_path == dir_name)
+
+    # ** を含むパターン
     if normalized_pattern.startswith("**/") or normalized_pattern.startswith("**"):
-        # パスの各部分に対してマッチを試みる
-        if fnmatch.fnmatch(normalized_path, normalized_pattern):
-            return True
-        # パスの末尾部分にもマッチを試みる
-        parts = normalized_path.split("/")
-        for i in range(len(parts)):
-            subpath = "/".join(parts[i:])
-            if fnmatch.fnmatch(subpath, normalized_pattern.lstrip("*/")):
-                return True
-    else:
+        # まず直接fnmatchを試行
         if fnmatch.fnmatch(normalized_path, normalized_pattern):
             return True
 
-    return False
+        # ** 以降のパターン部分を取得
+        rest = normalized_pattern
+        while rest.startswith("*"):
+            rest = rest[1:]
+        if rest.startswith("/"):
+            rest = rest[1:]
+
+        # パスの各サフィックスに対してマッチを試みる
+        parts = normalized_path.split("/")
+        for i in range(len(parts)):
+            subpath = "/".join(parts[i:])
+            if fnmatch.fnmatch(subpath, rest):
+                return True
+
+        # ファイル名のbasename（拡張子除去）でもマッチを試みる
+        # 例: **go が go.inp, go.cas.h5 等にマッチするようにする
+        filename = parts[-1]
+        if "." in filename:
+            dot_parts = filename.split(".")
+            for j in range(1, len(dot_parts)):
+                candidate = ".".join(dot_parts[:j])
+                if fnmatch.fnmatch(candidate, rest):
+                    return True
+
+        return False
+
+    # 通常のパターン
+    return fnmatch.fnmatch(normalized_path, normalized_pattern)
 
 
 def init_graph_config(base_dir: Optional[Path] = None, overwrite: bool = False) -> Path:
