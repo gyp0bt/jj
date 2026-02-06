@@ -30,7 +30,7 @@ from typing import Any, Optional
 
 import yaml
 
-from jj_types import GraphModel, Node, Relation
+from jj_types import GraphModel, Node, Relation, NODE_TYPE_REPOSITORY, RELATION_BELONGS_TO
 from config import GraphConfig, ObsidianExportConfig
 
 
@@ -412,29 +412,45 @@ class ObsidianConnector:
         # ノードIDからノードへのマッピングを作成
         node_by_id: dict[int, Node] = {node.id: node for node in graph.nodes}
 
-        # ノードごとのリレーション情報を収集
+        # belongs_to関係からノード→レポジトリ名のマッピングを構築
+        repo_name_by_node: dict[int, str] = {}
+        for rel in graph.relations:
+            if rel.label == RELATION_BELONGS_TO:
+                parent = node_by_id.get(rel.node2_id)
+                if parent and parent.type == NODE_TYPE_REPOSITORY:
+                    repo_name_by_node[rel.node1_id] = parent.name
+
+        # ノードごとのリレーション情報を収集（belongs_toは除外）
         relations_by_node: dict[int, list[tuple[str, str]]] = defaultdict(list)
         for rel in graph.relations:
+            if rel.label == RELATION_BELONGS_TO:
+                continue
             # source → target のリレーションを記録
             target_node = node_by_id.get(rel.node2_id)
-            if target_node:
+            if target_node and target_node.type != NODE_TYPE_REPOSITORY:
                 target_filename = f"{target_node.name}.{target_node.format}"
                 target_md = to_obsidian_filename(target_filename, self.config.obsidian_prefix)
                 relations_by_node[rel.node1_id].append((rel.label, target_md))
 
+        # エクスポート対象ノード（レポジトリノードは除外）
+        export_nodes = [n for n in graph.nodes if n.type != NODE_TYPE_REPOSITORY]
+
         # バージョングループ構築と親リンク決定
-        version_groups = self._build_version_groups(graph.nodes)
+        version_groups = self._build_version_groups(export_nodes)
         parent_links = self._build_parent_links(version_groups)
 
         # ノードごとにmdファイルを書き出し
-        for node in graph.nodes:
+        for node in export_nodes:
             node_relations = relations_by_node.get(node.id, [])
             # 親リンクをincludesに設定
             includes = None
             if node.id in parent_links:
                 includes = [parent_links[node.id]]
+            # レポジトリ名をfrontmatterに追加
+            repo_name = repo_name_by_node.get(node.id)
             path = self.write_md_with_relations(
-                node, node_relations, includes=includes, overwrite=overwrite
+                node, node_relations, includes=includes,
+                overwrite=overwrite, repository=repo_name,
             )
             if path:
                 written.append(path)
@@ -451,6 +467,7 @@ class ObsidianConnector:
         relations: list[tuple[str, str]],
         includes: list[str] | None = None,
         overwrite: bool = False,
+        repository: str | None = None,
     ) -> Optional[Path]:
         """リレーション情報を含めてノードをObsidian mdファイルとして書き出し
 
@@ -459,6 +476,7 @@ class ObsidianConnector:
             relations: リレーション情報 [(label, target_md_filename), ...]
             includes: includeするファイルのリスト（実ファイル名）
             overwrite: 既存ファイルを上書きするか
+            repository: 帰属先レポジトリ名
 
         Returns:
             書き込んだファイルパス（スキップした場合はNone）
@@ -471,6 +489,8 @@ class ObsidianConnector:
         md_path.parent.mkdir(parents=True, exist_ok=True)
 
         frontmatter = self.node_to_frontmatter(node, includes)
+        if repository:
+            frontmatter["repository"] = repository
         content = self._format_md(frontmatter, node, relations)
 
         md_path.write_text(content, encoding="utf-8")
@@ -498,9 +518,11 @@ class ObsidianConnector:
         written: list[Path] = []
         bases_dir = self.project_root / self.config.bases_dir
 
-        # type + index でグループ化
+        # type + index でグループ化（レポジトリノードは除外）
         groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
         for node in graph.nodes:
+            if node.type == NODE_TYPE_REPOSITORY:
+                continue
             index = node.properties.get("index", "")
             if index:
                 groups[(node.type, index)].append(node)

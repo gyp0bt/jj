@@ -112,6 +112,24 @@
   - [x] *PARAMETER/**propsブロックのプロパティ読み取り
   - [x] Obsidianエクスポート: frontmatterのproperty化、バージョンリンク構造改善
 
+#### 5b. レポジトリ階層制約（破壊的変更）
+
+- [x] コアデータモデル拡張
+  - [x] `NODE_TYPE_REPOSITORY`, `RELATION_BELONGS_TO` 定数定義
+  - [x] `GraphModel.validate_repository_hierarchy()` バリデーション
+- [x] GraphService拡張
+  - [x] ルートレポジトリノードの自動生成
+  - [x] サブレポジトリ検出（`.jj/`ディレクトリ）
+  - [x] `belongs_to`関係の自動構築（全ノード→最寄り親レポジトリ）
+  - [x] レポジトリ間の階層関係構築
+- [x] Obsidianエクスポート対応
+  - [x] レポジトリノードのエクスポート除外
+  - [x] frontmatterの`repository`プロパティ追加
+- [ ] サブレポジトリの設定ファイルによる明示的指定
+- [ ] CLI出力へのレポジトリ情報追加
+
+**参照**: [09-repository-hierarchy.md](./specs/09-repository-hierarchy.md)
+
 **参照**: [services/parse/abaqus_connector.py](../../services/parse/abaqus_connector.py)
 
 #### 6. パーサー層の拡張機能
@@ -329,5 +347,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-028.md)
+- [最新ステータス](./status/status-029.md)
 - [プロジェクトREADME](../README.md)
