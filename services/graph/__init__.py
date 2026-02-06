@@ -849,13 +849,22 @@ class GraphService:
     ) -> tuple[list[Node], list[Relation]]:
         """フォルダベースの関連付け（contains）
 
-        ファイル命名規則に合致するディレクトリ（go_idx1_v1/等）をスキャンし、
-        ディレクトリノードとcontains関係を構築する。
+        2種類のディレクトリノードを生成する:
+        1. 命名規則に合致するディレクトリ（go_idx1_v1/等）→ type="{fileType}_directory"
+        2. ファイルノードを含む全ディレクトリ（reports/等）→ type="directory"
+
+        いずれもcontains関係でディレクトリ内のファイルとリンクする。
+        命名規則合致ディレクトリは同名入力ファイルとhas_output関係も作成する。
         """
         dir_nodes: list[Node] = []
         relations: list[Relation] = []
 
         input_extensions = self.config.file_relations.input_extensions
+
+        # 既にノード化済みのディレクトリパスを追跡
+        handled_dir_paths: set[str] = set()
+
+        # --- (1) 命名規則に合致するディレクトリ ---
         named_dirs = self.scan_directories(exclude_dirs=exclude_dirs)
 
         for dir_path in named_dirs:
@@ -877,6 +886,7 @@ class GraphService:
                 },
             )
             dir_nodes.append(dir_node)
+            handled_dir_paths.add(rel_path.replace("\\", "/").rstrip("/"))
 
             # ディレクトリ内のファイルをcontains関係でリンク
             # パス比較は正規化済み（POSIX形式、先頭./なし）で行う
@@ -911,25 +921,86 @@ class GraphService:
                         )
                     )
 
+        # --- (2) ファイルノードを含む全ディレクトリ ---
+        # ファイルノードの親ディレクトリを収集
+        parent_dirs: dict[str, list[Node]] = defaultdict(list)
+        for node in nodes:
+            node_path = node.properties.get("path", "").replace("\\", "/")
+            while node_path.startswith("./"):
+                node_path = node_path[2:]
+            if "/" in node_path:
+                parent_dir = node_path.rsplit("/", 1)[0]
+                parent_dirs[parent_dir].append(node)
+
+        for dir_rel_path, child_nodes in sorted(parent_dirs.items()):
+            # 既に命名規則ディレクトリとして処理済みならスキップ
+            if dir_rel_path in handled_dir_paths:
+                continue
+
+            dirname = dir_rel_path.rsplit("/", 1)[-1] if "/" in dir_rel_path else dir_rel_path
+
+            dir_node = Node(
+                id=self._next_node_id(),
+                type="directory",
+                name=dirname,
+                format="directory",
+                properties={
+                    "path": dir_rel_path,
+                },
+            )
+            dir_nodes.append(dir_node)
+            handled_dir_paths.add(dir_rel_path)
+
+            # contains関係を作成
+            for child_node in child_nodes:
+                relations.append(
+                    Relation(
+                        id=self._next_relation_id(),
+                        label="contains",
+                        node1_id=dir_node.id,
+                        node2_id=child_node.id,
+                    )
+                )
+
         return dir_nodes, relations
+
+    @staticmethod
+    def _is_material_source_node(node: Node) -> bool:
+        """abaqus materialを読み取る対象ノードかどうかを判定
+
+        materialはmaterial系.inpまたはgo系.inpからのみ読み取る。
+        .datファイルなどからは読み取らない。
+
+        判定基準:
+        - 拡張子が.inpであること
+        - ファイル名がgo_*、material_*で始まる、またはgo、materialそのものであること
+        """
+        ext = f".{node.format}" if node.format else ""
+        if ext.lower() != ".inp":
+            return False
+        name_lower = node.name.lower()
+        if name_lower.startswith("go_") or name_lower == "go":
+            return True
+        if name_lower.startswith("material_") or name_lower == "material":
+            return True
+        return False
 
     def _build_material_nodes(
         self, nodes: list[Node]
     ) -> tuple[list[Node], list[Relation]]:
         """material.inpの高度な解析 - Node(abaqus_material)を生成
 
-        .inpファイルから*MATERIALブロックを抽出し、
+        material系.inpまたはgo系.inpから*MATERIALブロックを抽出し、
         各物性定義をNode(type="abaqus_material")として生成。
         入力ファイルとの間にdefined_in関係を作成する。
+
+        注意: .datファイル等からはmaterialを読み取らない。
         """
         mat_nodes: list[Node] = []
         relations: list[Relation] = []
 
-        input_extensions = self.config.file_relations.input_extensions
-
         for node in nodes:
-            ext = f".{node.format}" if node.format else ""
-            if ext.lower() not in input_extensions:
+            if not self._is_material_source_node(node):
                 continue
 
             file_path = self.project_root / node.properties.get("path", "")
