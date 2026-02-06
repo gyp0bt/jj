@@ -1,0 +1,18 @@
+** material.inp - Abaqus material definitions
+**
+*MATERIAL, NAME=Steel_S235
+*ELASTIC
+210000.0, 0.3
+*DENSITY
+7.85e-09,
+*PLASTIC
+235.0, 0.0
+360.0, 0.2
+*CONDUCTIVITY
+52.0,
+**
+*MATERIAL, NAME=Aluminum_6061
+*ELASTIC
+69000.0, 0.33
+*DENSITY
+2.7e-09,
