@@ -25,6 +25,13 @@ from jj_types import GraphModel, Node, Relation
 from services.storage import GraphStorage
 from services.parse.file_parse import FileParse, FileType, DEFAULT_EXTENSIONS, _parse_prop_token as _parse_prop_token_static
 from services.connectors.pymesh_connector import extract_mesh_stats, extract_material_elset_mapping
+from services.connectors.daily_connector import scan_daily_notes, DailyNote
+from services.parse.abaqus_connector import (
+    read_inp as abq_read_inp,
+    diff_abq_blocks,
+    format_diff_summary_table,
+    format_diff_blocks_markdown,
+)
 from config import GraphConfig
 
 
@@ -574,6 +581,19 @@ class GraphService:
 
         # .msgファイルの解析（errors/warnings抽出）
         self._enrich_msg_status(nodes)
+
+        # includeファイルのpropertyをgo_*.inpに伝搬
+        self._enrich_include_properties(nodes, relations)
+
+        # 前バージョンとのキーワードブロック差分をpropertyに追加
+        self._enrich_version_diff(nodes)
+
+        # notes/dailyの日報解析
+        daily_nodes, daily_relations = self._build_daily_note_relations(
+            nodes, node_by_path
+        )
+        nodes.extend(daily_nodes)
+        relations.extend(daily_relations)
 
         return GraphModel(nodes=nodes, relations=relations)
 
@@ -1205,6 +1225,245 @@ class GraphService:
                     inp_node.properties["msg_errors"] = msg_info["errors"]
                 if msg_info["warnings"]:
                     inp_node.properties["msg_warnings"] = msg_info["warnings"]
+
+    def _enrich_version_diff(self, nodes: list[Node]) -> None:
+        """前バージョンとのキーワードブロック差分をpropertyに追加
+
+        同一type+indexのinpファイルをバージョン順に並べ、
+        隣接するバージョン間でAbaqusキーワードブロックの差分を計算し、
+        後のバージョンのNodeのpropertiesに差分情報を追加する。
+
+        追加されるプロパティ:
+        - diff_from: 比較元ファイル名
+        - diff_summary: 差分のサマリーテーブル（Markdown形式）
+        - diff_details: 差分の詳細（Markdown形式）
+        """
+        input_extensions = self.config.file_relations.input_extensions
+
+        # type + index でinpノードをグループ化
+        groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() not in input_extensions:
+                continue
+            # .inpファイルのみ対象
+            if ext.lower() != ".inp":
+                continue
+            index = node.properties.get("index", "")
+            if index:
+                groups[(node.type, index)].append(node)
+
+        for (node_type, index), group_nodes in groups.items():
+            if len(group_nodes) < 2:
+                continue
+
+            # version順にソート
+            def get_ver_key(n: Node) -> tuple[int, str]:
+                ver = n.properties.get("version", "")
+                if not ver:
+                    ver = "1"
+                try:
+                    return (0, str(int(ver)).zfill(10))
+                except (ValueError, TypeError):
+                    return (1, str(ver))
+
+            sorted_nodes = sorted(group_nodes, key=get_ver_key)
+
+            # 隣接するバージョン間で差分を計算
+            for i in range(len(sorted_nodes) - 1):
+                prev_node = sorted_nodes[i]
+                next_node = sorted_nodes[i + 1]
+
+                prev_path = self.project_root / prev_node.properties.get("path", "")
+                next_path = self.project_root / next_node.properties.get("path", "")
+
+                if not prev_path.exists() or not next_path.exists():
+                    continue
+
+                try:
+                    prev_abq = abq_read_inp(str(prev_path), verbose=False)
+                    next_abq = abq_read_inp(str(next_path), verbose=False)
+                    diffs = diff_abq_blocks(prev_abq, next_abq)
+
+                    if diffs:
+                        prev_file = prev_node.properties.get("path", prev_node.name)
+                        next_node.properties["diff_from"] = prev_file
+                        next_node.properties["diff_summary"] = format_diff_summary_table(diffs)
+                        next_node.properties["diff_details"] = format_diff_blocks_markdown(diffs)
+                except Exception:
+                    # パースエラー等は無視して続行
+                    continue
+
+    def _build_daily_note_relations(
+        self,
+        nodes: list[Node],
+        node_by_path: dict[str, Node],
+    ) -> tuple[list[Node], list[Relation]]:
+        """notes/dailyの日報を解析してグラフに追加
+
+        日報内のファイル参照を検出し、dailyノートNodeを作成して
+        既存のファイルノードとの間にmentioned_in関係を作成する。
+        ファイル参照にプロパティが付いている場合は、
+        そのプロパティを対象ファイルノードにも反映する。
+
+        Returns:
+            (追加ノードのリスト, 追加リレーションのリスト)
+        """
+        daily_nodes: list[Node] = []
+        daily_relations: list[Relation] = []
+
+        daily_dir = self.project_root / "notes" / "daily"
+        daily_notes = scan_daily_notes(daily_dir)
+
+        if not daily_notes:
+            return daily_nodes, daily_relations
+
+        # ファイル名→ノードのインデックス（逆引き用）
+        name_to_nodes: dict[str, list[Node]] = defaultdict(list)
+        for node in nodes:
+            # ファイル名（拡張子付き）で索引
+            name_with_ext = f"{node.name}.{node.format}" if node.format else node.name
+            name_to_nodes[name_with_ext].append(node)
+            name_to_nodes[node.name].append(node)
+
+        for note in daily_notes:
+            if not note.file_references:
+                continue
+
+            # dailyノートのNodeを作成
+            rel_path = self._safe_relative_path(note.path)
+            daily_node = Node(
+                id=self._next_node_id(),
+                type="daily_note",
+                name=note.path.stem,
+                format="md",
+                properties={
+                    "path": rel_path,
+                    "date": note.date,
+                    "tags": note.tags,
+                },
+            )
+            daily_nodes.append(daily_node)
+
+            # ファイル参照からリレーションを作成
+            linked_node_ids: set[int] = set()
+            for ref in note.file_references:
+                matched = name_to_nodes.get(ref.filename, [])
+                if not matched:
+                    # 拡張子なしでも検索
+                    stem = Path(ref.filename).stem
+                    matched = name_to_nodes.get(stem, [])
+
+                for target_node in matched:
+                    if target_node.id in linked_node_ids:
+                        continue
+                    linked_node_ids.add(target_node.id)
+
+                    daily_relations.append(
+                        Relation(
+                            id=self._next_relation_id(),
+                            label="mentioned_in",
+                            node1_id=target_node.id,
+                            node2_id=daily_node.id,
+                        )
+                    )
+
+                    # 日報のプロパティを対象ノードに反映
+                    if ref.properties:
+                        daily_props = target_node.properties.get("daily_notes", {})
+                        daily_props[note.date] = ref.properties
+                        target_node.properties["daily_notes"] = daily_props
+
+                    # セクション名をプロパティとして記録
+                    if ref.section:
+                        sections = target_node.properties.get("daily_sections", [])
+                        entry = f"{note.date}: {ref.section}"
+                        if entry not in sections:
+                            sections.append(entry)
+                        target_node.properties["daily_sections"] = sections
+
+        return daily_nodes, daily_relations
+
+    def _enrich_include_properties(
+        self, nodes: list[Node], relations: list[Relation]
+    ) -> None:
+        """includeファイルのプロパティをgo_*.inpに伝搬
+
+        *INCLUDEで参照されるmeshやmaterialファイルのプロパティ（mesh統計、
+        material情報、warning等）を親のgo_*.inpノードに集約する。
+
+        集約されるプロパティ:
+        - mesh_*: メッシュ統計情報
+        - sta_*/msg_*/analysis_status: 結果ファイルの解析情報
+        - include_properties: includeファイル名とそのプロパティの辞書
+        """
+        # includes関係を収集
+        includes_map: dict[int, list[int]] = defaultdict(list)
+        for rel in relations:
+            if rel.label == "includes":
+                includes_map[rel.node1_id].append(rel.node2_id)
+
+        if not includes_map:
+            return
+
+        # ノードIDマッピング
+        node_by_id: dict[int, Node] = {n.id: n for n in nodes}
+
+        # go_*入力ノードのinclude先プロパティを集約
+        for parent_id, child_ids in includes_map.items():
+            parent = node_by_id.get(parent_id)
+            if parent is None:
+                continue
+
+            # go系ノードのみ対象
+            name_lower = parent.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+
+            include_props: dict[str, dict[str, Any]] = {}
+
+            for child_id in child_ids:
+                child = node_by_id.get(child_id)
+                if child is None:
+                    continue
+
+                child_file = child.properties.get("path", child.name)
+                child_summary: dict[str, Any] = {}
+
+                # mesh統計情報を伝搬
+                for key in (
+                    "mesh_node_count",
+                    "mesh_element_count",
+                    "mesh_element_types",
+                    "mesh_elset_summary",
+                    "mesh_quality",
+                ):
+                    if key in child.properties:
+                        child_summary[key] = child.properties[key]
+                        # 親にもフラット化して追加（名前衝突時はinclude先のもので上書き）
+                        if key not in parent.properties:
+                            parent.properties[key] = child.properties[key]
+
+                # warning/error情報を伝搬
+                for key in (
+                    "analysis_status",
+                    "sta_errors",
+                    "sta_warnings",
+                    "msg_errors",
+                    "msg_warnings",
+                ):
+                    if key in child.properties:
+                        child_summary[key] = child.properties[key]
+
+                # materialキーワード情報を伝搬
+                if "keywords" in child.properties:
+                    child_summary["keywords"] = child.properties["keywords"]
+
+                if child_summary:
+                    include_props[child_file] = child_summary
+
+            if include_props:
+                parent.properties["include_properties"] = include_props
 
     def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
         """2つのノードが同じ主要プロパティを持つかチェック"""
