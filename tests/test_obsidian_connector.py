@@ -21,6 +21,7 @@ from services.connectors.obsidian import (
     _coerce_property_value,
 )
 from jj_types import Node, GraphModel
+from config import GraphConfig
 
 
 class TestObsidianNaming:
@@ -516,16 +517,20 @@ class TestFrontmatterPropertyTypes:
         return ObsidianConnector(project_root=tmp_path)
 
     def test_int_properties_in_frontmatter(self, connector):
-        """整数値がintとしてfrontmatterに入る"""
+        """整数値がintとしてfrontmatterに入る（vocabで変換後のキー名を使用）"""
         node = Node(
             id=1, type="go", name="go_idx1_v1", format="inp",
             properties={"path": "go_idx1_v1.inp", "index": "1", "version": "2", "w": "5"},
         )
         fm = connector.node_to_frontmatter(node)
-        assert fm["idx"] == 1
-        assert isinstance(fm["idx"], int)
-        assert fm["ver"] == 2
-        assert isinstance(fm["ver"], int)
+        # デフォルトvocab: idx→番号, v→バージョン
+        idx_key = connector.graph_config.vocab.get("idx", "idx")
+        ver_key = connector.graph_config.vocab.get("v",
+                  connector.graph_config.vocab.get("ver", "ver"))
+        assert fm[idx_key] == 1
+        assert isinstance(fm[idx_key], int)
+        assert fm[ver_key] == 2
+        assert isinstance(fm[ver_key], int)
         assert fm["w"] == 5
         assert isinstance(fm["w"], int)
 
@@ -768,3 +773,143 @@ class TestOverwriteBehavior:
         assert len(md_files) == 1
         content = md_files[0].read_text(encoding="utf-8")
         assert "w: 10" in content
+
+
+class TestVocabPropsUnification:
+    """props命名統一テスト: vocabで変換したキー名を正として混在解消"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_default_vocab_idx_to_bangou(self, connector):
+        """デフォルトvocabでidx→番号に変換される"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        # デフォルトvocab: idx→番号
+        assert "番号" in fm
+        assert fm["番号"] == 1
+        # 変換前のキーは存在しない
+        assert "index" not in fm
+        assert "idx" not in fm
+
+    def test_default_vocab_ver_to_version(self, connector):
+        """デフォルトvocabでv→バージョンに変換される"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "2"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        # デフォルトvocab: v→バージョン
+        assert "バージョン" in fm
+        assert fm["バージョン"] == 2
+        # 変換前のキーは存在しない
+        assert "version" not in fm
+        assert "ver" not in fm
+        assert "v" not in fm
+
+    def test_no_duplicate_keys(self, connector):
+        """translated_propsとindex/versionで重複が生じない"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={
+                "path": "go.inp",
+                "index": "1",
+                "version": "2",
+                "番号": "99",  # 事前にvocab変換済みの重複
+                "バージョン": "99",
+            },
+        )
+        fm = connector.node_to_frontmatter(node)
+        # indexの値が優先される
+        assert fm["番号"] == 1
+        assert fm["バージョン"] == 2
+
+    def test_custom_vocab_connector(self, tmp_path):
+        """カスタムvocabで任意のキー名に変換"""
+        config = GraphConfig.from_dict({
+            "vocab": {"idx": "No.", "v": "Rev"},
+        })
+        connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "3", "version": "5"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["No."] == 3
+        assert fm["Rev"] == 5
+        assert "idx" not in fm
+        assert "ver" not in fm
+        assert "index" not in fm
+        assert "version" not in fm
+
+    def test_empty_vocab_falls_back_to_idx_ver(self, tmp_path):
+        """vocabが空の場合はidx/verにフォールバック"""
+        config = GraphConfig.from_dict({"vocab": {}})
+        connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert "idx" in fm
+        assert "ver" in fm
+
+    def test_base_order_uses_vocab_keys(self, connector, tmp_path):
+        """baseファイルのorderがvocab変換後のキー名を使用"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
+        # vocab変換後のキー名がorderに含まれる
+        assert "- 番号" in content or "番号" in content
+        assert "- バージョン" in content or "バージョン" in content
+        # 変換前のキー名がorderに含まれない
+        assert "- idx\n" not in content
+        assert "- ver\n" not in content
+
+    def test_base_sort_uses_vocab_keys(self, connector, tmp_path):
+        """baseファイルのsortがvocab変換後のキー名を使用"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
+        # sortのproperty名もvocab変換済み
+        assert "property: 番号" in content or "property: '\\u756A\\u53F7'" in content or "property: \"\\u756A\\u53F7\"" in content or "番号" in content
+        assert "property: idx" not in content
+
+    def test_base_no_file_links(self, connector, tmp_path):
+        """baseファイルにfile.linksが含まれない"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        for path in written:
+            if path.name.endswith(".base"):
+                content = path.read_text(encoding="utf-8")
+                assert "file.links" not in content

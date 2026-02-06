@@ -11,6 +11,16 @@ vocab:
   ver: バージョン
   v: バージョン
 
+# トークン→キーマッピング
+# ファイル名のトークンを指定したキーのプロパティとして扱います。
+# 通常のトークン分割(文字列+数値)より優先されます。
+# 例: mesh_hogehoge24_v1_idx1.inp で 形状: [hogehoge24] と定義すると
+#   形状: hogehoge24 となり、さらにvocabに hogehoge24: ほげほげ24 があれば
+#   形状: ほげほげ24 と最終変換されます。
+# token-key-map:
+#   形状:
+#     - hogehoge24
+
 # パスパターンによるファイルタイプ指定
 # 上から順に評価し、最初にマッチしたルールを適用します
 # パターンはglobスタイルで、"|" で複数パターンを指定可能
@@ -124,7 +134,6 @@ obsidian:
         - ver
         - success
         - description
-        - file.links
       sort:
         - property: idx
           direction: ASC

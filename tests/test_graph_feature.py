@@ -1626,5 +1626,226 @@ class TestResultFileAggregation:
         assert len(inp_node.properties.get("sta_errors", [])) > 0
 
 
+class TestTokenKeyMap:
+    """token-key-map設定のテスト"""
+
+    def test_token_key_map_converts_tag_to_prop(self, tmp_path):
+        """token-key-mapでタグがプロパティに変換される"""
+        # mesh_hogehoge24_v1_idx1.inp 相当のテスト
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "token-key-map": {
+                "形状": ["hogehoge24"],
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+
+        # テストファイルを作成
+        inp = tmp_path / "mesh_hogehoge24_v1_idx1.inp"
+        inp.write_text("", encoding="utf-8")
+
+        node = svc.file_to_node(inp)
+        # hogehoge24がtagではなくpropに変換される
+        assert node.properties.get("形状") == "hogehoge24"
+        assert "hogehoge24" not in node.properties.get("tags", [])
+
+    def test_token_key_map_with_vocab_value_translation(self, tmp_path):
+        """token-key-map + vocab値変換で最終プロパティが正しい"""
+        config = GraphConfig.from_dict({
+            "vocab": {"hogehoge24": "ほげほげ24"},
+            "token-key-map": {
+                "形状": ["hogehoge24"],
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+
+        inp = tmp_path / "mesh_hogehoge24_v1_idx1.inp"
+        inp.write_text("", encoding="utf-8")
+
+        node = svc.file_to_node(inp)
+        # vocabで値が変換される
+        assert node.properties.get("形状") == "ほげほげ24"
+
+    def test_token_key_map_empty_config(self, tmp_path):
+        """token-key-mapが空の場合は通常のトークン解析"""
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "token-key-map": {},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+
+        inp = tmp_path / "go_idx1_v1.inp"
+        inp.write_text("", encoding="utf-8")
+
+        node = svc.file_to_node(inp)
+        assert node.properties.get("index") == "1"
+        assert node.properties.get("version") == "1"
+
+    def test_token_key_map_multiple_tokens_same_key(self, tmp_path):
+        """同一キーに複数トークンがマッピングされる場合"""
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "token-key-map": {
+                "形状": ["hogehoge24", "foobar12"],
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+
+        inp1 = tmp_path / "mesh_hogehoge24_v1_idx1.inp"
+        inp1.write_text("", encoding="utf-8")
+
+        inp2 = tmp_path / "mesh_foobar12_v1_idx1.inp"
+        inp2.write_text("", encoding="utf-8")
+
+        node1 = svc.file_to_node(inp1)
+        node2 = svc.file_to_node(inp2)
+        assert node1.properties.get("形状") == "hogehoge24"
+        assert node2.properties.get("形状") == "foobar12"
+
+
+class TestVocabValueTranslation:
+    """vocab値変換のテスト（キーだけでなく値も変換）"""
+
+    def test_vocab_translates_prop_values(self, tmp_path):
+        """vocabがプロパティ値も変換する"""
+        config = GraphConfig.from_dict({
+            "vocab": {"static": "静的"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+
+        inp = tmp_path / "go_idx1_v1.inp"
+        inp.write_text("*PARAMETER\n**props\nmethod=static\n", encoding="utf-8")
+
+        node = svc.file_to_node(inp)
+        # *PARAMETER/**propsの値がvocabで変換される
+        assert node.properties.get("method") == "静的"
+
+
+class TestTokenKeyMapConfig:
+    """TokenKeyMapConfigクラスのテスト"""
+
+    def test_from_dict_basic(self):
+        """基本的なfrom_dict変換"""
+        from config import TokenKeyMapConfig
+        config = TokenKeyMapConfig.from_dict({
+            "形状": ["hogehoge24", "foobar12"],
+            "解析タイプ": ["static"],
+        })
+        assert config.get_key("hogehoge24") == "形状"
+        assert config.get_key("foobar12") == "形状"
+        assert config.get_key("static") == "解析タイプ"
+        assert config.get_key("unknown") is None
+
+    def test_from_dict_empty(self):
+        """空のdict"""
+        from config import TokenKeyMapConfig
+        config = TokenKeyMapConfig.from_dict({})
+        assert config.get_key("anything") is None
+
+    def test_from_dict_string_value(self):
+        """値が文字列（リストでない）の場合"""
+        from config import TokenKeyMapConfig
+        config = TokenKeyMapConfig.from_dict({"形状": "hogehoge24"})
+        assert config.get_key("hogehoge24") == "形状"
+
+
+class TestPymeshConnector:
+    """pymeshコネクタのテスト"""
+
+    def test_extract_material_elset_mapping_basic(self, tmp_path):
+        """基本的な材料→Elsetマッピング抽出"""
+        from services.connectors.pymesh_connector import extract_material_elset_mapping
+
+        inp_file = tmp_path / "test.inp"
+        inp_file.write_text(
+            "*SOLID SECTION, MATERIAL=STEEL, ELSET=SOLID_ELEMS\n"
+            "1.0,\n"
+            "*SHELL SECTION, MATERIAL=ALUMINUM, ELSET=SHELL_ELEMS\n"
+            "0.5, 5\n",
+            encoding="utf-8",
+        )
+        mapping = extract_material_elset_mapping(inp_file)
+        assert "steel" in mapping
+        assert "solid_elems" in mapping["steel"]
+        assert "aluminum" in mapping
+        assert "shell_elems" in mapping["aluminum"]
+
+    def test_extract_material_elset_mapping_no_section(self, tmp_path):
+        """セクション定義がない場合は空"""
+        from services.connectors.pymesh_connector import extract_material_elset_mapping
+
+        inp_file = tmp_path / "test.inp"
+        inp_file.write_text(
+            "*NODE\n1, 0.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8\n1, 1, 2, 3, 4, 5, 6, 7, 8\n",
+            encoding="utf-8",
+        )
+        mapping = extract_material_elset_mapping(inp_file)
+        assert mapping == {}
+
+    def test_extract_material_elset_mapping_missing_file(self, tmp_path):
+        """ファイルが存在しない場合は空"""
+        from services.connectors.pymesh_connector import extract_material_elset_mapping
+
+        mapping = extract_material_elset_mapping(tmp_path / "nonexistent.inp")
+        assert mapping == {}
+
+    def test_extract_mesh_stats_missing_file(self, tmp_path):
+        """存在しないファイルに対してNoneを返す"""
+        from services.connectors.pymesh_connector import extract_mesh_stats
+
+        result = extract_mesh_stats(tmp_path / "nonexistent.inp")
+        assert result is None
+
+    def test_extract_mesh_stats_non_inp_file(self, tmp_path):
+        """非.inpファイルに対してNoneを返す"""
+        from services.connectors.pymesh_connector import extract_mesh_stats
+
+        txt_file = tmp_path / "test.txt"
+        txt_file.write_text("hello", encoding="utf-8")
+        result = extract_mesh_stats(txt_file)
+        assert result is None
+
+
+class TestMaterialAssignmentRelations:
+    """材料割り当て関係のテスト"""
+
+    def test_material_assignment_creates_assigned_to_relation(self, tmp_path):
+        """材料割り当てがassigned_to関係を生成する"""
+        # 材料定義と割り当てを含む.inpファイルを作成
+        inp_content = (
+            "*MATERIAL, NAME=STEEL\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n"
+            "*SOLID SECTION, MATERIAL=STEEL, ELSET=ALL_ELEMS\n"
+            "1.0,\n"
+        )
+        inp_file = tmp_path / "go_idx1_v1.inp"
+        inp_file.write_text(inp_content, encoding="utf-8")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {"*.inp": "Abaqusインプット"},
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        # materialノードが生成されている
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        assert len(mat_nodes) >= 1
+        steel_nodes = [n for n in mat_nodes if n.name.lower() == "steel"]
+        assert len(steel_nodes) >= 1
+
+        # assigned_to関係が存在する
+        assigned_relations = [r for r in graph.relations if r.label == "assigned_to"]
+        assert len(assigned_relations) >= 1
+
+        # materialノードにelset情報が付与されている
+        steel = steel_nodes[0]
+        assert "assigned_elsets" in steel.properties
+        assert "all_elems" in steel.properties["assigned_elsets"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

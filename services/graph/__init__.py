@@ -23,7 +23,8 @@ from typing import Any, Iterable, Optional
 
 from jj_types import GraphModel, Node, Relation
 from services.storage import GraphStorage
-from services.parse.file_parse import FileParse, FileType, DEFAULT_EXTENSIONS
+from services.parse.file_parse import FileParse, FileType, DEFAULT_EXTENSIONS, _parse_prop_token as _parse_prop_token_static
+from services.connectors.pymesh_connector import extract_mesh_stats, extract_material_elset_mapping
 from config import GraphConfig
 
 
@@ -337,11 +338,29 @@ class GraphService:
         # path-tag-mapからタグを取得
         config_tags = self.config.path_tag_map.get_tags(rel_path)
 
-        # vocabを使ってpropsのキーを変換
+        # token-key-mapの適用: 生トークンに対してマッチングし、
+        # マッチしたトークンは指定キーのプロパティに変換。
+        # 通常のprop解析で分割された結果は上書きする。
+        raw_tokens = parser.get_tokens()
+        for token in raw_tokens:
+            mapped_key = self.config.token_key_map.get_key(token)
+            if mapped_key:
+                # 通常の解析で分割された結果を除去（例: hogehoge24 → hogehoge:24）
+                parsed = _parse_prop_token_static(token)
+                if parsed:
+                    props.pop(parsed[0], None)
+                # タグからも除去
+                if token in tags:
+                    tags.remove(token)
+                # token-key-mapのキーで全トークンを値として設定
+                props[mapped_key] = token
+
+        # vocabを使ってpropsのキーと値を変換
         translated_props: dict[str, Any] = {}
         for key, value in props.items():
             translated_key = self.config.vocab.get(key, key)
-            translated_props[translated_key] = value
+            translated_value = self.config.vocab.get(str(value), str(value)) if isinstance(value, str) else value
+            translated_props[translated_key] = translated_value
 
         # 日付を取得
         date_formatted = parser.get_date_formatted()
@@ -540,6 +559,15 @@ class GraphService:
         mat_nodes, mat_relations = self._build_material_nodes(nodes)
         nodes.extend(mat_nodes)
         relations.extend(mat_relations)
+
+        # pymeshによるメッシュ統計エンリッチメント
+        self._enrich_mesh_stats(nodes)
+
+        # 材料割り当て関係の構築（material→elset→element）
+        mat_assign_relations = self._build_material_assignment_relations(
+            nodes, mat_nodes
+        )
+        relations.extend(mat_assign_relations)
 
         # 解析結果ファイルの解析（analysis_status）
         self._enrich_sta_status(nodes)
@@ -941,6 +969,93 @@ class GraphService:
                 )
 
         return mat_nodes, relations
+
+    def _enrich_mesh_stats(self, nodes: list[Node]) -> None:
+        """pymeshを使ってメッシュ統計情報をノードのプロパティに付与
+
+        .inpファイルの要素数、節点数、要素タイプ別集計、品質統計等を
+        対応するノードのpropertiesに追加する。
+        """
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".inp":
+                continue
+
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            stats = extract_mesh_stats(file_path, verbose=False)
+            if stats is None:
+                continue
+
+            if stats.get("node_count"):
+                node.properties["mesh_node_count"] = stats["node_count"]
+            if stats.get("element_count"):
+                node.properties["mesh_element_count"] = stats["element_count"]
+            if stats.get("element_types"):
+                node.properties["mesh_element_types"] = stats["element_types"]
+            if stats.get("elset_summary"):
+                node.properties["mesh_elset_summary"] = stats["elset_summary"]
+            if stats.get("quality"):
+                node.properties["mesh_quality"] = stats["quality"]
+
+    def _build_material_assignment_relations(
+        self,
+        all_nodes: list[Node],
+        mat_nodes: list[Node],
+    ) -> list[Relation]:
+        """材料割り当て関係の構築
+
+        .inpファイルの*SOLID SECTION/*SHELL SECTIONで定義される
+        材料→Elset割り当てを解析し、abaqus_materialノードと
+        入力ファイルノードの間にassigned_to関係を作成する。
+
+        Args:
+            all_nodes: 全ノード
+            mat_nodes: マテリアルノード
+
+        Returns:
+            材料割り当てリレーションのリスト
+        """
+        relations: list[Relation] = []
+
+        # マテリアル名でマテリアルノードを索引
+        mat_by_name: dict[str, list[Node]] = defaultdict(list)
+        for mnode in mat_nodes:
+            mat_by_name[mnode.name.lower()].append(mnode)
+
+        # 入力ファイルノードから材料割り当てを抽出
+        for node in all_nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".inp":
+                continue
+
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            mapping = extract_material_elset_mapping(file_path)
+            if not mapping:
+                continue
+
+            # 材料名→materialノードへのassigned_to関係
+            for mat_name, elset_names in mapping.items():
+                matched_mats = mat_by_name.get(mat_name.lower(), [])
+                for mnode in matched_mats:
+                    # materialノードにelset情報を付与
+                    if elset_names:
+                        mnode.properties["assigned_elsets"] = elset_names
+                    relations.append(
+                        Relation(
+                            id=self._next_relation_id(),
+                            label="assigned_to",
+                            node1_id=mnode.id,
+                            node2_id=node.id,
+                        )
+                    )
+
+        return relations
 
     def _enrich_sta_status(self, nodes: list[Node]) -> None:
         """解析結果ファイル（.sta）のステータスをノードのプロパティに付与
