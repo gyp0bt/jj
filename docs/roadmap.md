@@ -105,6 +105,8 @@
   - [x] .sta/.msgからインプットの成否を判定
   - [x] エラー内容とwarning内容の抽出
   - [x] analysis_status プロパティへの反映
+  - [x] .msgファイルのERROR/WARNING抽出（parse_msg_file）
+  - [x] GraphServiceへの.msgエンリッチメント統合
 
 **参照**: [services/parse/abaqus_connector.py](../../services/parse/abaqus_connector.py)
 
@@ -323,5 +325,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-026.md)
+- [最新ステータス](./status/status-027.md)
 - [プロジェクトREADME](../README.md)

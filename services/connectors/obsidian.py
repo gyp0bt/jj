@@ -3,7 +3,7 @@
 重要な命名規則:
 - 実ファイル: "O-"プレフィックスなし (例: go_test_v1.inp)
 - Obsidianファイル: "O-"プレフィックス付き (例: O-go_test_v1.inp.md)
-- ディレクトリ: "O-"プレフィックスなし (例: notes/props/inp/go/)
+- ディレクトリ: "O-"プレフィックスなし (例: notes/props/go/)
 
 リンク記法:
 - 実ファイルへのリンク: [[{相対パス}|{表記名}]]
@@ -11,8 +11,12 @@
 - ラベル付きリンク（独自記法）: label:[[ファイル名]]
 
 .baseファイル:
-- NodeGroupに相当し、folder/filter機能でグループを指定可能
-- views設定でtable形式の表示を定義
+- YAML形式のフィルター条件ファイル（拡張子は".base"、".base.md"ではない）
+- Obsidian上でフィルター条件に応じてpropertyをテーブル形式で表示
+
+group.mdファイル:
+- NodeGroupのメンバー一覧を持つマークダウンファイル
+- props/{type}/ 配下に "{type}_idx{index}-group.md" として配置
 
 [READMEへ戻る](../../../README.md)
 """
@@ -222,11 +226,8 @@ class ObsidianConnector:
         real_filename = f"{node.name}.{format_ext}" if format_ext else node.name
         obsidian_filename = to_obsidian_filename(real_filename, self.config.obsidian_prefix)
 
-        # タイプに応じてディレクトリ構造を決定
-        if file_type in ("docs", "reports", "tools"):
-            return notes_dir / dir_name / obsidian_filename
-        else:
-            return notes_dir / "inp" / dir_name / obsidian_filename
+        # すべてのタイプで notes/props/{type}/ 配下に配置
+        return notes_dir / dir_name / obsidian_filename
 
     def node_to_frontmatter(self, node: Node, includes: list[str] | None = None) -> dict[str, Any]:
         """ノードからfrontmatterを生成
@@ -395,7 +396,15 @@ class ObsidianConnector:
         graph: GraphModel,
         overwrite: bool = False,
     ) -> list[Path]:
-        """NodeGroup（.base）ファイルを生成
+        """NodeGroup用の.base（フィルター条件）ファイルと-group.md（メンバー一覧）ファイルを生成
+
+        .baseファイル:
+            YAML形式のフィルター条件ファイル（Obsidianでテーブル表示用）。
+            notes/bases/{type}/ 配下に配置。
+
+        -group.mdファイル:
+            NodeGroupのメンバー一覧を持つマークダウンファイル。
+            notes/props/{type}/ 配下に "{type}_idx{index}-group.md" として配置。
 
         Args:
             graph: グラフモデル
@@ -406,6 +415,7 @@ class ObsidianConnector:
         """
         written: list[Path] = []
         bases_dir = self.project_root / self.config.bases_dir
+        notes_dir = self.project_root / self.config.notes_dir
 
         # type + index でグループ化
         groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
@@ -414,32 +424,45 @@ class ObsidianConnector:
             if index:
                 groups[(node.type, index)].append(node)
 
-        # グループごとに.baseファイルを生成
+        # グループごとに .base と -group.md を生成
         for (node_type, index), nodes in groups.items():
             if len(nodes) < 2:
                 continue
 
-            base_filename = f"{node_type}_idx{index}.base.md"
-            base_path = bases_dir / get_directory_for_type(node_type) / base_filename
+            dir_name = get_directory_for_type(node_type)
 
-            if base_path.exists() and not overwrite:
-                continue
+            # --- .base ファイル（フィルター条件、YAML形式） ---
+            base_filename = f"{node_type}_idx{index}.base"
+            base_path = bases_dir / dir_name / base_filename
 
-            base_path.parent.mkdir(parents=True, exist_ok=True)
+            if not base_path.exists() or overwrite:
+                base_path.parent.mkdir(parents=True, exist_ok=True)
+                base_content = self._format_base_filter(node_type, index, nodes)
+                base_path.write_text(base_content, encoding="utf-8")
+                written.append(base_path)
 
-            content = self._format_base_file(node_type, index, nodes)
-            base_path.write_text(content, encoding="utf-8")
-            written.append(base_path)
+            # --- -group.md ファイル（メンバー一覧、props配下） ---
+            group_filename = f"{node_type}_idx{index}-group.md"
+            group_path = notes_dir / dir_name / group_filename
+
+            if not group_path.exists() or overwrite:
+                group_path.parent.mkdir(parents=True, exist_ok=True)
+                group_content = self._format_group_file(node_type, index, nodes)
+                group_path.write_text(group_content, encoding="utf-8")
+                written.append(group_path)
 
         return written
 
-    def _format_base_file(
+    def _format_base_filter(
         self,
         node_type: str,
         index: str,
         nodes: list[Node],
     ) -> str:
-        """NodeGroup用の.baseファイルの内容を生成
+        """NodeGroup用の.baseファイル内容を生成（YAML形式、フィルター条件のみ）
+
+        旧base_template形式: views/filters/sort のYAML構造。
+        Obsidian上でフィルター条件に応じてpropertyをテーブル形式で表示する。
 
         Args:
             node_type: ノードタイプ
@@ -447,23 +470,16 @@ class ObsidianConnector:
             nodes: グループ内のノード
 
         Returns:
-            .baseファイルの内容
+            YAML形式のフィルター条件
         """
-        # views設定を取得
         default_views = self.graph_config.obsidian.default_views
-
-        # ノートのフォルダパスを算出
         dir_name = get_directory_for_type(node_type)
-        if node_type in ("docs", "reports", "tools"):
-            folder_path = f"{self.config.notes_dir}/{dir_name}"
-        else:
-            folder_path = f"{self.config.notes_dir}/inp/{dir_name}"
+        folder_path = f"{self.config.notes_dir}/{dir_name}"
 
         # views設定をカスタマイズ
         views = []
         for view in default_views:
             custom_view = dict(view)
-            # filtersにfolder条件を追加
             if "filters" not in custom_view:
                 custom_view["filters"] = {"and": []}
             if isinstance(custom_view["filters"], dict) and "and" in custom_view["filters"]:
@@ -472,7 +488,25 @@ class ObsidianConnector:
                 custom_view["filters"]["and"] = filters
             views.append(custom_view)
 
-        # frontmatter生成
+        data = {"views": views}
+        return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+
+    def _format_group_file(
+        self,
+        node_type: str,
+        index: str,
+        nodes: list[Node],
+    ) -> str:
+        """NodeGroup用の-group.mdファイル内容を生成（frontmatter + メンバーリンク）
+
+        Args:
+            node_type: ノードタイプ
+            index: インデックス
+            nodes: グループ内のノード
+
+        Returns:
+            -group.mdファイルの内容
+        """
         frontmatter = {
             "type": "nodegroup",
             "node_type": node_type,
@@ -481,7 +515,6 @@ class ObsidianConnector:
         }
 
         yaml_str = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
-        views_yaml = yaml.safe_dump({"views": views}, allow_unicode=True, sort_keys=False)
 
         # メンバーノードへのリンク生成
         member_links: list[str] = []
@@ -501,10 +534,4 @@ class ObsidianConnector:
 ## メンバー
 
 {chr(10).join(member_links)}
-
-## Views設定
-
-```yaml
-{views_yaml.strip()}
-```
 """
