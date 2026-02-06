@@ -1104,5 +1104,370 @@ class TestGraphSummaryRelationTypes:
         assert "defined_in" in labels, f"defined_in関係がない: {labels}"
 
 
+class TestMatchPathPattern:
+    """_match_path_pattern関数のバグ修正テスト
+
+    修正対象:
+    - ./プレフィックス付きパターンのマッチング
+    - ディレクトリパターン（末尾/）の処理
+    - **go パターンが go.inp にマッチしない問題
+    - Windowsパス（バックスラッシュ）対応
+    """
+
+    def test_dot_slash_prefix_reports(self):
+        """./reports/ パターンが reports/file.pptx にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("reports/260205.pptx", "./reports/") is True
+
+    def test_dot_slash_prefix_tools(self):
+        """./tools/ パターンが tools/script.py にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("tools/make_inputs.py", "./tools/") is True
+
+    def test_dot_slash_prefix_results(self):
+        """./results/ パターンが results/file.csv にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("results/go_idx1_stress.csv", "./results/") is True
+
+    def test_dot_slash_prefix_docs(self):
+        """./docs/ パターンが docs/ 配下にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("docs/指示書/file.pptx", "./docs/") is True
+
+    def test_dot_slash_no_false_positive(self):
+        """./reports/ パターンが reports以外にマッチしない"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("tools/script.py", "./reports/") is False
+
+    def test_trailing_slash_directory_pattern(self):
+        """末尾/ パターンがディレクトリ配下にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("reports/file.csv", "reports/") is True
+        assert _match_path_pattern("other/file.csv", "reports/") is False
+
+    def test_double_star_go_matches_go_inp(self):
+        """**go パターンが go.inp にマッチ（basename比較）"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("go.inp", "**go") is True
+
+    def test_double_star_mesh_matches_mesh_inp(self):
+        """**mesh パターンが mesh.inp にマッチ（basename比較）"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("mesh.inp", "**mesh") is True
+
+    def test_double_star_material_matches_material_inp(self):
+        """**material パターンが material.inp にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("material.inp", "**material") is True
+
+    def test_double_star_go_matches_subdirectory(self):
+        """**go パターンが subdir/go.inp にマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("subdir/go.inp", "**go") is True
+
+    def test_double_star_go_matches_multi_dot_ext(self):
+        """**go パターンが go.cas.h5 にマッチ（複合拡張子）"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("go.cas.h5", "**go") is True
+
+    def test_double_star_go_no_false_positive(self):
+        """**go パターンが go_idx1.inp にマッチしない（go_はgo_*パターン用）"""
+        from config import _match_path_pattern
+
+        # "**go" は basename が "go" のものだけマッチ
+        # go_idx1 は "**go_*" でマッチすべき
+        assert _match_path_pattern("go_idx1.inp", "**go") is False
+
+    def test_double_star_prefix_root_file(self):
+        """**go_* パターンがプロジェクト直下ファイルにマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("go_idx1_w5_t20.inp", "**go_*") is True
+
+    def test_double_star_prefix_subdirectory_file(self):
+        """**go_* パターンがサブディレクトリファイルにマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("subdir/go_idx1.inp", "**go_*") is True
+
+    def test_windows_backslash_path(self):
+        """Windowsバックスラッシュパスが正しくマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("reports\\file.pptx", "./reports/") is True
+        assert _match_path_pattern("reports\\file.pptx", ".\\reports\\") is True
+
+    def test_windows_backslash_pattern(self):
+        """Windowsバックスラッシュパターンが正しくマッチ"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("reports/file.pptx", ".\\reports\\") is True
+
+    def test_dot_slash_on_both_sides(self):
+        """パスとパターン両方に./ がある場合"""
+        from config import _match_path_pattern
+
+        assert _match_path_pattern("./reports/file.pptx", "./reports/") is True
+
+
+class TestScanExtensions:
+    """scan_files拡張子マージのテスト
+
+    修正対象: DEFAULT_EXTENSIONSに.inp, .odb, .staが含まれない問題
+    """
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {},
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb", ".sta"],
+                "asset-extensions": [".modfem"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_build_scan_extensions_includes_config(self, graph_service):
+        """_build_scan_extensionsがconfig file-relationsの拡張子を含む"""
+        ext_set = graph_service._build_scan_extensions(None)
+        assert ".inp" in ext_set
+        assert ".odb" in ext_set
+        assert ".sta" in ext_set
+        assert ".modfem" in ext_set
+        # DEFAULT_EXTENSIONSからの拡張子も含む
+        assert ".csv" in ext_set
+        assert ".py" in ext_set
+
+    def test_build_scan_extensions_explicit_override(self, graph_service):
+        """明示的に指定した場合はマージしない"""
+        ext_set = graph_service._build_scan_extensions([".inp"])
+        assert ".inp" in ext_set
+        assert ".odb" not in ext_set
+
+    def test_parse_project_without_extensions_finds_inp(self, graph_service):
+        """extensions未指定でもparse_projectが.inpファイルを発見"""
+        graph = graph_service.parse_project()
+
+        # .inpノードが存在することを確認
+        inp_nodes = [n for n in graph.nodes if n.format == "inp"]
+        assert len(inp_nodes) > 0, "extensions未指定時に.inpファイルが見つからない"
+
+    def test_parse_project_without_extensions_finds_sta(self, graph_service):
+        """extensions未指定でもparse_projectが.staファイルを発見"""
+        graph = graph_service.parse_project()
+
+        sta_nodes = [n for n in graph.nodes if n.format == "sta"]
+        assert len(sta_nodes) > 0, "extensions未指定時に.staファイルが見つからない"
+
+
+class TestPathTypeMapWithDefaultConfig:
+    """デフォルト設定のpath-type-mapパターンが正しく動作するテスト
+
+    修正対象:
+    - ./reports/ 等のパターンがreports/配下のファイルにマッチしない問題
+    - **go パターンが go.inp にマッチしない問題
+    """
+
+    @pytest.fixture
+    def config(self):
+        """デフォルト設定を模したconfig"""
+        return GraphConfig.from_dict({
+            "vocab": {"idx": "番号", "v": "バージョン"},
+            "path-type-map": {
+                "**go_* | **go": {
+                    "*.inp": "Abaqusインプット",
+                    "*.cas.h5": "Fluentインプット",
+                    "*.sta": "Abaqusステータス",
+                    "*.odb": "Abaqus ODB",
+                    "*": "計算結果",
+                },
+                "**mesh_* | **mesh": {
+                    "*.inp": "Abaqus用メッシュ",
+                },
+                "**material_* | **material": {
+                    "*.inp": "Abaqus用マテリアル",
+                },
+                "./reports/": {
+                    "*": "報告書",
+                },
+                "./results/": {
+                    "*": "計算結果",
+                },
+                "./tools/": {
+                    "*": "処理スクリプト",
+                },
+                "./docs/": {
+                    "*": "受領ファイル",
+                },
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_reports_files_get_type(self, config):
+        """reports/配下のファイルが「報告書」タイプになる"""
+        result = config.path_type_map.get_type(
+            "reports/260205_構造解析_idx1.pptx", "260205_構造解析_idx1.pptx"
+        )
+        assert result == "報告書", f"reports/配下のファイルが報告書にならない: {result}"
+
+    def test_tools_files_get_type(self, config):
+        """tools/配下のファイルが「処理スクリプト」タイプになる"""
+        result = config.path_type_map.get_type(
+            "tools/make_inputs.py", "make_inputs.py"
+        )
+        assert result == "処理スクリプト", f"tools/配下のファイルが処理スクリプトにならない: {result}"
+
+    def test_results_files_get_type(self, config):
+        """results/配下のファイルが「計算結果」タイプになる"""
+        result = config.path_type_map.get_type(
+            "results/go_idx1_w5_t20_stress.csv", "go_idx1_w5_t20_stress.csv"
+        )
+        assert result == "計算結果", f"results/配下のファイルが計算結果にならない: {result}"
+
+    def test_docs_files_get_type(self, config):
+        """docs/配下のファイルが「受領ファイル」タイプになる"""
+        result = config.path_type_map.get_type(
+            "docs/指示書/file.pptx", "file.pptx"
+        )
+        assert result == "受領ファイル", f"docs/配下のファイルが受領ファイルにならない: {result}"
+
+    def test_root_go_inp_gets_type(self, config):
+        """プロジェクト直下の go.inp が「Abaqusインプット」タイプになる"""
+        result = config.path_type_map.get_type("go.inp", "go.inp")
+        assert result == "Abaqusインプット", f"go.inpのタイプが不正: {result}"
+
+    def test_root_mesh_inp_gets_type(self, config):
+        """プロジェクト直下の mesh.inp が「Abaqus用メッシュ」タイプになる"""
+        result = config.path_type_map.get_type("mesh.inp", "mesh.inp")
+        assert result == "Abaqus用メッシュ", f"mesh.inpのタイプが不正: {result}"
+
+    def test_root_material_inp_gets_type(self, config):
+        """プロジェクト直下の material.inp が「Abaqus用マテリアル」タイプになる"""
+        result = config.path_type_map.get_type("material.inp", "material.inp")
+        assert result == "Abaqus用マテリアル", f"material.inpのタイプが不正: {result}"
+
+    def test_root_go_idx1_inp_gets_type(self, config):
+        """プロジェクト直下の go_idx1_w5_t20.inp が正しいタイプになる"""
+        result = config.path_type_map.get_type(
+            "go_idx1_w5_t20.inp", "go_idx1_w5_t20.inp"
+        )
+        assert result == "Abaqusインプット"
+
+    def test_full_parse_reports_typed(self, graph_service):
+        """統合テスト: parse_projectでreports配下のファイルが正しく型付けされる"""
+        extensions = [".pptx", ".csv", ".py", ".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        report_nodes = [
+            n for n in graph.nodes
+            if "reports/" in n.properties.get("path", "")
+        ]
+        for node in report_nodes:
+            assert node.type == "報告書", \
+                f"{node.properties['path']} のタイプが {node.type}（報告書であるべき）"
+
+    def test_full_parse_tools_typed(self, graph_service):
+        """統合テスト: parse_projectでtools配下のファイルが正しく型付けされる"""
+        extensions = [".py", ".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        tools_nodes = [
+            n for n in graph.nodes
+            if "tools/" in n.properties.get("path", "")
+        ]
+        for node in tools_nodes:
+            assert node.type == "処理スクリプト", \
+                f"{node.properties['path']} のタイプが {node.type}（処理スクリプトであるべき）"
+
+
+class TestDirectoryNodeWindows:
+    """フォルダNode構築のWindows対応テスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*.inp": "Abaqusインプット",
+                    "*.csv": "計算結果CSV",
+                    "*.png": "画像",
+                    "*.yaml": "データ",
+                },
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_directory_node_has_posix_path(self, graph_service):
+        """ディレクトリノードのパスがPOSIX形式"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        for node in dir_nodes:
+            path = node.properties.get("path", "")
+            assert "\\" not in path, f"パスにバックスラッシュが含まれる: {path}"
+
+    def test_contains_relations_built_correctly(self, graph_service):
+        """ディレクトリcontains関係が正しく構築される"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "directory"),
+            None,
+        )
+        assert dir_node is not None, "go_idx1_w5_t20 ディレクトリノードが見つからない"
+
+        contains = [r for r in graph.relations
+                    if r.label == "contains" and r.node1_id == dir_node.id]
+        assert len(contains) >= 3, \
+            f"go_idx1_w5_t20/内の3ファイル(csv,png,yaml)に対するcontains関係が不足: {len(contains)}"
+
+    def test_file_nodes_have_no_leading_dot_slash(self, graph_service):
+        """ファイルノードのパスに先頭 ./ がない"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        for node in graph.nodes:
+            path = node.properties.get("path", "")
+            assert not path.startswith("./"), f"パスに先頭./が含まれる: {path}"
+            assert not path.startswith(".\\"), f"パスに先頭.\\が含まれる: {path}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
