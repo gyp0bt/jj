@@ -10,12 +10,14 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - グラフデータの一時構築には `networkx` を採用します。
 
 ## コマンド構成
-- `jj g` (graph)
-  - プロジェクトフォルダをスキャンしてグラフデータを生成・管理します。
-  - `jj g init`: 設定ファイルを初期化（`--overwrite`で上書き）
-  - `jj g parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
-  - `jj g show`: グラフデータを表示（`--summary`でサマリーのみ）
-  - `jj g export --target obsidian`: Obsidian向けにエクスポート
+- グラフ管理（トップレベル）
+  - `jj init`: 設定ファイルを初期化（`--overwrite`で上書き）
+  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
+  - `jj show`: グラフデータを表示（`--summary`でサマリーのみ）
+  - `jj export --target obsidian`: Obsidian向けにエクスポート
+  - `jj export --parse`: parseしてからexport
+  - `jj info <ファイル名>`: ファイルのproperty/relationを表示
+  - `jj g ...`: 旧コマンド（互換性維持）
 - `jj f` (file)
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
 - `jj r` (run)
@@ -66,6 +68,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-06 / status-032: CLIコマンド省略化（jj g→jj）、jj infoコマンド追加、includeファイルproperty伝搬、前バージョンとのキーワードブロック差分、notes/daily日報解析、Obsidianエクスポートwarning/diff表示強化。テスト260件パス（+18件）。([status-032](docs/status/status-032.md))
 - 2026-02-06 / status-031: abaqus material読み取りソースをmaterial系/go系.inpに限定、汎用ディレクトリノード（reports等）のグラフ追加、pymeshパーサーの末尾カンマ・*include FileNotFoundError対応。テスト242件パス（+14件）。([status-031](docs/status/status-031.md))
 - 2026-02-06 / status-030: props命名統一（vocab変換を正）、.baseからfile.links削除、token-key-map設定追加、pymesh統合基盤構築、材料割り当て関係のグラフ化。テスト228件パス（+22件）。([status-030](docs/status/status-030.md))
 - 2026-02-06 / status-029: Obsidianエクスポート改善。プロパティ型変換（int/float/bool）、.baseフィルター簡素化（folder条件のみ）、orderにプロパティ積集合追記、同一タイプ.base生成、props/bases上書き前提化。テスト206件パス（+21件）。([status-029](docs/status/status-029.md))

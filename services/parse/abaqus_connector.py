@@ -962,8 +962,9 @@ def _serialize_component(comp: ReadComponent) -> Dict[str, Any]:
         "data": data,
     }
 
-    # Procedure など特殊系をここで拡張できるよう余地を残す
-    # 例: if isinstance(comp, ReadProcedure): d["procedure_keyword"] = comp.procedure_keyword
+    # Procedure の procedure_keyword を比較対象に含める
+    if isinstance(comp, ReadProcedure):
+        d["procedure_keyword"] = comp.procedure_keyword
 
     return d
 
