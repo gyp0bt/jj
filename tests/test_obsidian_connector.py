@@ -18,6 +18,7 @@ from services.connectors.obsidian import (
     from_obsidian_filename,
     to_obsidian_link,
     get_directory_for_type,
+    _coerce_property_value,
 )
 from jj_types import Node, GraphModel
 
@@ -185,7 +186,7 @@ class TestObsidianBaseAndGroupFiles:
         return ObsidianConnector(project_root=tmp_path)
 
     def test_export_graph_generates_base_files(self, connector, tmp_path):
-        """同一indexのノードが2つ以上あれば.baseファイルが生成される"""
+        """同一indexのノードが2つ以上あれば.baseファイルが生成される（同一タイプ.baseも生成）"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -207,12 +208,15 @@ class TestObsidianBaseAndGroupFiles:
         )
         written = connector.export_graph(graph)
 
-        # .baseファイルが生成されている
+        # .baseファイルが生成されている（同一index + 同一タイプ）
         base_files = [p for p in written if p.name.endswith(".base")]
-        assert len(base_files) == 1
-        assert base_files[0].name == "go_idx1.base"
-        # .base はYAML形式（frontmatterの---で始まらない）
-        content = base_files[0].read_text(encoding="utf-8")
+        assert len(base_files) == 2
+        base_names = {p.name for p in base_files}
+        assert "go_idx1.base" in base_names
+        assert "go.base" in base_names
+        # idx .base はYAML形式（frontmatterの---で始まらない）
+        idx_base = [p for p in base_files if p.name == "go_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
         assert not content.startswith("---")
         assert "views:" in content
 
@@ -423,7 +427,7 @@ class TestObsidianVersionLinks:
         assert "go_idx1.base" in v3_content
 
     def test_base_filename_uses_node_type(self, connector, tmp_path):
-        """.baseファイル名はnode.typeを使用する"""
+        """.baseファイル名はnode.typeを使用する（同一タイプ.baseも生成される）"""
         graph = GraphModel(
             nodes=[
                 Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
@@ -435,10 +439,12 @@ class TestObsidianVersionLinks:
         )
         written = connector.export_graph(graph)
 
-        # .baseファイル名がノードのtypeを使う
+        # .baseファイル名がノードのtypeを使う（idx + タイプの2つ）
         base_files = [p for p in written if p.name.endswith(".base")]
-        assert len(base_files) == 1
-        assert base_files[0].name == "Abaqusインプット_idx1.base"
+        assert len(base_files) == 2
+        base_names = {p.name for p in base_files}
+        assert "Abaqusインプット_idx1.base" in base_names
+        assert "Abaqusインプット.base" in base_names
 
         # 最新verのfrontmatterに.baseリンクが含まれる
         v2_md = [p for p in written if "go_idx1_v2" in p.name and p.name.endswith(".md")]
@@ -454,3 +460,311 @@ class TestObsidianConfigCustomPrefix:
         assert to_obsidian_filename("test.inp", prefix="X-") == "X-test.inp.md"
         assert from_obsidian_filename("X-test.inp.md", prefix="X-") == "test.inp"
         assert to_obsidian_link("test.inp", prefix="X-") == "[[X-test.inp]]"
+
+
+class TestCoercePropertyValue:
+    """_coerce_property_value のテスト"""
+
+    def test_int_string_to_int(self):
+        """整数文字列はintに変換"""
+        assert _coerce_property_value("1") == 1
+        assert isinstance(_coerce_property_value("1"), int)
+        assert _coerce_property_value("42") == 42
+        assert _coerce_property_value("0") == 0
+
+    def test_float_string_to_float(self):
+        """小数文字列はfloatに変換"""
+        assert _coerce_property_value("1.5") == 1.5
+        assert isinstance(_coerce_property_value("1.5"), float)
+        assert _coerce_property_value("0.001") == 0.001
+
+    def test_bool_string_to_bool(self):
+        """true/falseはboolに変換（クオートなし）"""
+        assert _coerce_property_value("true") is True
+        assert _coerce_property_value("false") is False
+        assert _coerce_property_value("True") is True
+        assert _coerce_property_value("False") is False
+
+    def test_non_numeric_string_unchanged(self):
+        """非数値文字列はそのまま"""
+        assert _coerce_property_value("hello") == "hello"
+        assert _coerce_property_value("go_idx1") == "go_idx1"
+
+    def test_already_typed_values_unchanged(self):
+        """既に型が付いた値はそのまま"""
+        assert _coerce_property_value(42) == 42
+        assert _coerce_property_value(1.5) == 1.5
+        assert _coerce_property_value(True) is True
+
+    def test_negative_int(self):
+        """負の整数"""
+        assert _coerce_property_value("-1") == -1
+        assert isinstance(_coerce_property_value("-1"), int)
+
+    def test_scientific_notation(self):
+        """科学記法はfloatとして変換"""
+        result = _coerce_property_value("1e3")
+        assert result == 1000.0
+        assert isinstance(result, float)
+
+
+class TestFrontmatterPropertyTypes:
+    """frontmatterのプロパティ型変換テスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_int_properties_in_frontmatter(self, connector):
+        """整数値がintとしてfrontmatterに入る"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go_idx1_v1.inp", "index": "1", "version": "2", "w": "5"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["idx"] == 1
+        assert isinstance(fm["idx"], int)
+        assert fm["ver"] == 2
+        assert isinstance(fm["ver"], int)
+        assert fm["w"] == 5
+        assert isinstance(fm["w"], int)
+
+    def test_float_properties_in_frontmatter(self, connector):
+        """小数値がfloatとしてfrontmatterに入る"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1", "thickness": "2.5"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["thickness"] == 2.5
+        assert isinstance(fm["thickness"], float)
+
+    def test_bool_properties_in_frontmatter(self, connector):
+        """true/falseがboolとしてfrontmatterに入る"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1", "active": "true"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["active"] is True
+        assert isinstance(fm["active"], bool)
+
+    def test_bool_false_in_frontmatter(self, connector):
+        """falseがbool Falseとしてfrontmatterに入る"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1", "active": "false"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["active"] is False
+
+    def test_yaml_output_bool_unquoted(self, connector, tmp_path):
+        """YAML出力でtrue/falseがクオートなしで書かれる"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1", "active": "true"},
+        )
+        path = connector.write_md(node, overwrite=True)
+        content = path.read_text(encoding="utf-8")
+        # YAMLでboolはtrue（クオートなし）で出力される
+        assert "active: true" in content
+        # クオート付きで出力されていないことを確認
+        assert "active: 'true'" not in content
+        assert 'active: "true"' not in content
+
+
+class TestBaseFilterSimplified:
+    """.baseファイルのフィルター簡素化テスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_base_filter_folder_only(self, connector, tmp_path):
+        """フィルターがfolder条件のみであること"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
+                     properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="Abaqusインプット", name="go_idx1_v2", format="inp",
+                     properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        idx_base = [p for p in written if p.name == "Abaqusインプット_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
+        # folder条件のみ、andブロック不要
+        assert 'file.folder == "notes/props/Abaqusインプット"' in content
+        # andブロックが存在しないことを確認
+        assert "and:" not in content
+
+    def test_base_filter_no_extra_conditions(self, connector, tmp_path):
+        """余計なand条件（endsWith等）がないこと"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "go.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "go2.inp", "index": "1", "version": "2"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
+        assert "endsWith" not in content
+        assert "active ==" not in content
+
+
+class TestBaseOrderIntersection:
+    """.baseファイルのorderブロックにプロパティ積集合が追記されるテスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_order_includes_intersection_properties(self, connector, tmp_path):
+        """orderブロックにグループ共通プロパティが含まれる"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1",
+                                 "w": "5", "t": "20", "active": "true"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "b.inp", "index": "1", "version": "2",
+                                 "w": "5", "t": "20", "active": "true"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
+        # 共通プロパティ w, t, active がorderに含まれる
+        assert "- w" in content
+        assert "- t" in content
+        assert "- active" in content
+
+    def test_order_excludes_non_intersection_properties(self, connector, tmp_path):
+        """片方のノードにしかないプロパティはorderに含まれない"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1",
+                                 "w": "5", "unique_prop": "x"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "b.inp", "index": "1", "version": "2",
+                                 "w": "5"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        content = idx_base.read_text(encoding="utf-8")
+        # unique_propは片方のみなのでorderに含まれない
+        assert "unique_prop" not in content
+        # wは共通なのでorderに含まれる
+        assert "- w" in content
+
+
+class TestSameTypeBaseFiles:
+    """同一タイプグループの.baseファイル生成テスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_type_base_file_generated(self, connector, tmp_path):
+        """同一タイプのノードが2つ以上あればタイプ.baseが生成される"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="go", name="go_idx2_v1", format="inp",
+                     properties={"path": "b.inp", "index": "2", "version": "1"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        type_base = [p for p in written if p.name == "go.base"]
+        assert len(type_base) == 1
+
+    def test_type_base_has_intersection_properties(self, connector, tmp_path):
+        """タイプ.baseにもプロパティ積集合がorderに含まれる"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1", "w": "5"}),
+                Node(id=2, type="go", name="go_idx2_v1", format="inp",
+                     properties={"path": "b.inp", "index": "2", "version": "1", "w": "10"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        type_base = [p for p in written if p.name == "go.base"][0]
+        content = type_base.read_text(encoding="utf-8")
+        # 共通のw がorderに含まれる
+        assert "- w" in content
+
+    def test_no_type_base_for_single_node(self, connector, tmp_path):
+        """ノードが1つの場合はタイプ.baseは生成されない"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        type_base = [p for p in written if p.name == "go.base"]
+        assert len(type_base) == 0
+
+    def test_idx_and_type_base_both_generated(self, connector, tmp_path):
+        """同一index .baseと同一タイプ.baseが両方生成される"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="Abaqusインプット", name="go_idx1_v2", format="inp",
+                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+                Node(id=3, type="Abaqusインプット", name="go_idx2_v1", format="inp",
+                     properties={"path": "c.inp", "index": "2", "version": "1"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+        base_files = [p for p in written if p.name.endswith(".base")]
+        base_names = {p.name for p in base_files}
+        assert "Abaqusインプット_idx1.base" in base_names
+        assert "Abaqusインプット.base" in base_names
+
+
+class TestOverwriteBehavior:
+    """props/bases上書き前提動作のテスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_props_always_overwritten(self, connector, tmp_path):
+        """props/のmdファイルはoverwrite=Falseでも上書きされる"""
+        node = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1", "w": "5"},
+        )
+        # 初回書き込み
+        graph = GraphModel(nodes=[node], relations=[])
+        connector.export_graph(graph, overwrite=False)
+
+        # プロパティを変更して再エクスポート（overwrite=Falseでも上書き）
+        node2 = Node(
+            id=1, type="go", name="go_idx1_v1", format="inp",
+            properties={"path": "go.inp", "index": "1", "version": "1", "w": "10"},
+        )
+        graph2 = GraphModel(nodes=[node2], relations=[])
+        written = connector.export_graph(graph2, overwrite=False)
+
+        md_files = [p for p in written if p.name.endswith(".md")]
+        assert len(md_files) == 1
+        content = md_files[0].read_text(encoding="utf-8")
+        assert "w: 10" in content
