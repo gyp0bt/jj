@@ -453,6 +453,45 @@ class PathTagMapConfig:
 
 
 @dataclass(frozen=True)
+class TokenKeyMapConfig:
+    """token-key-map設定: ファイル名トークンをプロパティキーにマッピング
+
+    設定例:
+        token-key-map:
+          形状:
+            - hogehoge24
+            - foobar12
+          解析タイプ:
+            - static
+
+    mesh_hogehoge24_v1_idx1.inp の場合:
+    トークン hogehoge24 は通常 _parse_prop_token で hogehoge: 24 と分割されるが、
+    token-key-mapに定義があれば 形状: hogehoge24 として扱われる。
+    さらにvocabで hogehoge24: ほげほげ24 と定義があれば、形状: ほげほげ24 に最終変換される。
+    """
+    rules: dict[str, list[str]]  # key → list of token values
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TokenKeyMapConfig":
+        if not data:
+            return cls(rules={})
+        rules: dict[str, list[str]] = {}
+        for key, tokens in data.items():
+            if isinstance(tokens, list):
+                rules[str(key)] = [str(t) for t in tokens]
+            elif isinstance(tokens, str):
+                rules[str(key)] = [str(tokens)]
+        return cls(rules=rules)
+
+    def get_key(self, token: str) -> Optional[str]:
+        """トークンに対応するキーを返す（マッチしない場合はNone）"""
+        for key, tokens in self.rules.items():
+            if token in tokens:
+                return key
+        return None
+
+
+@dataclass(frozen=True)
 class IgnoreConfig:
     """ignore設定: 除外パターン（.gitignore相当）"""
     patterns: list[str]
@@ -520,6 +559,7 @@ class GraphConfig:
     ignore: IgnoreConfig
     file_relations: FileRelationsConfig
     obsidian: ObsidianExportConfig
+    token_key_map: TokenKeyMapConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
@@ -531,6 +571,7 @@ class GraphConfig:
             ignore=IgnoreConfig.from_list(data.get("ignore", [])),
             file_relations=FileRelationsConfig.from_dict(data.get("file-relations", {})),
             obsidian=ObsidianExportConfig.from_dict(data.get("obsidian", {})),
+            token_key_map=TokenKeyMapConfig.from_dict(data.get("token-key-map", {})),
         )
 
     @classmethod

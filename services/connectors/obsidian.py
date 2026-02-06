@@ -289,10 +289,37 @@ class ObsidianConnector:
             - "true"/"false" → bool
             - 整数文字列 → int
             - 小数文字列 → float
+
+            index/idx/番号 や version/ver/バージョン が混在する場合、
+            vocabで変換したキー名を正として統一し、変換前のキーは破棄する。
         """
         props = dict(node.properties)
-        props["idx"] = props.pop("index", "")
-        props["ver"] = props.pop("version", "")
+        vocab = self.graph_config.vocab
+
+        # index/version の値を取得してから全バリアントを除去
+        index_value = props.pop("index", "")
+        version_value = props.pop("version", "")
+
+        # vocab変換後のキー名を正とする
+        idx_canonical = vocab.get("idx", "idx")
+        ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
+
+        # index系バリアントを全て除去（raw + vocab変換後の重複）
+        for k in ("idx", "index"):
+            props.pop(k, None)
+            translated = vocab.get(k)
+            if translated:
+                props.pop(translated, None)
+        # version系バリアントを全て除去
+        for k in ("ver", "v", "version"):
+            props.pop(k, None)
+            translated = vocab.get(k)
+            if translated:
+                props.pop(translated, None)
+
+        # 正規化されたキー名で設定
+        props[idx_canonical] = index_value
+        props[ver_canonical] = version_value
 
         # ファイル情報をpropertyとして追加
         props["node_type"] = node.type
@@ -636,6 +663,69 @@ class ObsidianConnector:
             common = common & ks
         return sorted(common)
 
+    def _vocab_translate_order(self, order: list[str]) -> list[str]:
+        """orderリスト内のキー名をvocabで変換
+
+        index/idx → vocab変換後キー、version/ver/v → vocab変換後キー、
+        その他のキーもvocabにあれば変換。重複は除去。
+
+        Args:
+            order: 元のorderリスト
+
+        Returns:
+            vocab変換後のorderリスト（重複なし）
+        """
+        vocab = self.graph_config.vocab
+        idx_canonical = vocab.get("idx", "idx")
+        ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
+
+        # 変換マッピング
+        key_map: dict[str, str] = {
+            "idx": idx_canonical,
+            "index": idx_canonical,
+            "ver": ver_canonical,
+            "v": ver_canonical,
+            "version": ver_canonical,
+        }
+
+        translated: list[str] = []
+        seen: set[str] = set()
+        for key in order:
+            new_key = key_map.get(key, vocab.get(key, key))
+            if new_key not in seen:
+                translated.append(new_key)
+                seen.add(new_key)
+        return translated
+
+    def _vocab_translate_sort(self, sort_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """sortリスト内のpropertyキー名をvocabで変換
+
+        Args:
+            sort_list: 元のsortリスト
+
+        Returns:
+            vocab変換後のsortリスト
+        """
+        vocab = self.graph_config.vocab
+        idx_canonical = vocab.get("idx", "idx")
+        ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
+
+        key_map: dict[str, str] = {
+            "idx": idx_canonical,
+            "index": idx_canonical,
+            "ver": ver_canonical,
+            "v": ver_canonical,
+            "version": ver_canonical,
+        }
+
+        translated: list[dict[str, Any]] = []
+        for entry in sort_list:
+            new_entry = dict(entry)
+            prop = new_entry.get("property", "")
+            new_entry["property"] = key_map.get(prop, vocab.get(prop, prop))
+            translated.append(new_entry)
+        return translated
+
     def _format_base_filter(
         self,
         node_type: str,
@@ -647,6 +737,7 @@ class ObsidianConnector:
         Obsidian上でフィルター条件に応じてpropertyをテーブル形式で表示する。
         フィルターは対象フォルダのみに限定する（余計なand条件は追加しない）。
         orderブロックにはグループ内ノードのプロパティ積集合を追記する。
+        orderとsortのキー名はvocabで変換する。
 
         Args:
             node_type: ノードタイプ
@@ -671,7 +762,7 @@ class ObsidianConnector:
             custom_view = dict(view)
             # フィルターは対象フォルダのみ
             custom_view["filters"] = f'file.folder == "{folder_path}"'
-            # orderにプロパティ積集合を追記
+            # orderにプロパティ積集合を追記（vocab変換済み）
             if "order" in custom_view:
                 order = list(custom_view["order"])
             else:
@@ -679,7 +770,10 @@ class ObsidianConnector:
             for prop in intersection_props:
                 if prop not in order:
                     order.append(prop)
-            custom_view["order"] = order
+            custom_view["order"] = self._vocab_translate_order(order)
+            # sortのpropertyもvocab変換
+            if "sort" in custom_view:
+                custom_view["sort"] = self._vocab_translate_sort(list(custom_view["sort"]))
             views.append(custom_view)
 
         data = {"views": views}
