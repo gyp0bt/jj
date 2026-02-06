@@ -1847,5 +1847,348 @@ class TestMaterialAssignmentRelations:
         assert "all_elems" in steel.properties["assigned_elsets"]
 
 
+class TestMaterialSourceFiltering:
+    """abaqus materialの読み取りソース制限テスト
+
+    material定義はmaterial系.inpまたはgo系.inpからのみ読み取る。
+    .datファイルやstep系.inpからは読み取らない。
+    """
+
+    def test_dat_file_not_parsed_for_materials(self, tmp_path):
+        """go_idx3.datからmaterialを読み取らない"""
+        dat_content = (
+            "*MATERIAL, NAME=STEEL_FROM_DAT\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n"
+        )
+        dat_file = tmp_path / "go_idx3.dat"
+        dat_file.write_text(dat_content, encoding="utf-8")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {"*.dat": "Abaqusデータ"},
+            },
+            "file-relations": {
+                "input-extensions": [".inp", ".dat"],
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        dat_mats = [n for n in mat_nodes if "dat" in n.name.lower()]
+        assert len(dat_mats) == 0, \
+            f".datファイルからmaterialが読み取られている: {[n.name for n in dat_mats]}"
+
+    def test_go_inp_parsed_for_materials(self, tmp_path):
+        """go系.inpからはmaterialを読み取る"""
+        inp_content = (
+            "*MATERIAL, NAME=STEEL_GO\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n"
+        )
+        inp_file = tmp_path / "go_idx1.inp"
+        inp_file.write_text(inp_content, encoding="utf-8")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {"*.inp": "Abaqusインプット"},
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        assert len(mat_nodes) >= 1, "go系.inpからmaterialが読み取られていない"
+
+    def test_material_inp_parsed_for_materials(self, tmp_path):
+        """material系.inpからはmaterialを読み取る"""
+        inp_content = (
+            "*MATERIAL, NAME=STEEL_MAT\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n"
+        )
+        inp_file = tmp_path / "material.inp"
+        inp_file.write_text(inp_content, encoding="utf-8")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**material": {"*.inp": "Abaqus用マテリアル"},
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        assert len(mat_nodes) >= 1, "material系.inpからmaterialが読み取られていない"
+
+    def test_step_inp_not_parsed_for_materials(self, tmp_path):
+        """step系.inpからはmaterialを読み取らない"""
+        inp_content = (
+            "*MATERIAL, NAME=STEEL_STEP\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n"
+        )
+        inp_file = tmp_path / "step_static.inp"
+        inp_file.write_text(inp_content, encoding="utf-8")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**step_*": {"*.inp": "Abaqusステップ"},
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        assert len(mat_nodes) == 0, \
+            f"step系.inpからmaterialが読み取られている: {[n.name for n in mat_nodes]}"
+
+    def test_is_material_source_node_static(self):
+        """_is_material_source_nodeの静的テスト"""
+        # go系.inp → True
+        go_node = Node(id=1, type="go", name="go_idx1", format="inp", properties={})
+        assert GraphService._is_material_source_node(go_node) is True
+
+        # material系.inp → True
+        mat_node = Node(id=2, type="material", name="material", format="inp", properties={})
+        assert GraphService._is_material_source_node(mat_node) is True
+
+        # material_v2.inp → True
+        mat2_node = Node(id=3, type="material", name="material_v2", format="inp", properties={})
+        assert GraphService._is_material_source_node(mat2_node) is True
+
+        # go_idx3.dat → False
+        dat_node = Node(id=4, type="go", name="go_idx3", format="dat", properties={})
+        assert GraphService._is_material_source_node(dat_node) is False
+
+        # step_static.inp → False
+        step_node = Node(id=5, type="step", name="step_static", format="inp", properties={})
+        assert GraphService._is_material_source_node(step_node) is False
+
+        # mesh.inp → False
+        mesh_node = Node(id=6, type="mesh", name="mesh", format="inp", properties={})
+        assert GraphService._is_material_source_node(mesh_node) is False
+
+
+class TestGenericDirectoryNodes:
+    """汎用ディレクトリ（reports等）のノード生成テスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {"*.inp": "Abaqusインプット"},
+                "./reports/": {"*": "報告書"},
+                "./results/": {"*": "計算結果"},
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_reports_directory_node_created(self, graph_service):
+        """reports/ ディレクトリがtype=directoryのノードとして生成される"""
+        extensions = [".pptx", ".csv", ".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        reports_dir = next(
+            (n for n in dir_nodes if n.name == "reports"),
+            None,
+        )
+        assert reports_dir is not None, \
+            f"reports ディレクトリノードが見つからない (dir_nodes: {[n.name for n in dir_nodes]})"
+        assert reports_dir.type == "directory"
+        assert reports_dir.properties.get("path") == "reports"
+
+    def test_reports_contains_relations(self, graph_service):
+        """reports/ 内のファイルがcontains関係でリンクされる"""
+        extensions = [".pptx", ".csv", ".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        reports_dir = next(
+            (n for n in dir_nodes if n.name == "reports"),
+            None,
+        )
+        assert reports_dir is not None
+
+        contains = [r for r in graph.relations
+                    if r.label == "contains" and r.node1_id == reports_dir.id]
+        assert len(contains) >= 1, "reports/ 内にcontains関係がない"
+
+        # reportsフォルダ内のファイルが正しくリンクされている
+        contained_ids = {r.node2_id for r in contains}
+        report_file_nodes = [
+            n for n in graph.nodes
+            if "reports/" in n.properties.get("path", "")
+            and n.format != "directory"
+        ]
+        for file_node in report_file_nodes:
+            assert file_node.id in contained_ids, \
+                f"{file_node.name} がcontains関係に含まれていない"
+
+    def test_results_directory_node_created(self, graph_service):
+        """results/ ディレクトリもtype=directoryのノードとして生成される"""
+        extensions = [".csv", ".inp"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        results_dir = next(
+            (n for n in dir_nodes if n.name == "results"),
+            None,
+        )
+        assert results_dir is not None, \
+            f"results ディレクトリノードが見つからない (dir_nodes: {[n.name for n in dir_nodes]})"
+        assert results_dir.type == "directory"
+
+    def test_named_directory_still_works(self, graph_service):
+        """命名規則に合致するディレクトリは従来通りのtype（go_directory等）"""
+        extensions = [".inp", ".csv", ".png", ".yaml"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        go_dir = next(
+            (n for n in dir_nodes if n.name == "go_idx1_w5_t20"),
+            None,
+        )
+        assert go_dir is not None
+        assert go_dir.type == "go_directory"
+
+
+class TestTrailingCommaInMaterialProperty:
+    """末尾カンマ対応テスト: *DENSITYの1.0e-9, のような行のパース"""
+
+    def test_trailing_comma_in_density(self):
+        """末尾カンマがある行をNoneで埋めてパースできる"""
+        from services.parse.abaqus_connector import (
+            Context,
+            MaterialPropertyReadComponent,
+            ReadMaterial,
+        )
+
+        context = Context()
+        material = ReadMaterial(context)
+        material.options["name"] = "TEST_MATERIAL"
+
+        # DensityはMaterialPropertyReadComponentのサブクラスとして動的生成済み
+        # 直接MaterialPropertyReadComponentを使う
+        density = MaterialPropertyReadComponent(context)
+
+        # 末尾カンマのある行: "1.0e-9,"
+        result = density.read_line("1.0e-9,")
+        # エラーにならずにデータが追加される
+        assert len(density.data) == 1
+        row = density.data[0]
+        assert row[0] == 1.0e-9
+        assert row[1] is None  # 空文字列はNoneで埋まる
+
+    def test_no_trailing_comma(self):
+        """末尾カンマなしの通常行は正常にパースされる"""
+        from services.parse.abaqus_connector import (
+            Context,
+            MaterialPropertyReadComponent,
+            ReadMaterial,
+        )
+
+        context = Context()
+        material = ReadMaterial(context)
+        material.options["name"] = "TEST_MATERIAL"
+        prop = MaterialPropertyReadComponent(context)
+
+        prop.read_line("210000.0,0.3")
+        assert len(prop.data) == 1
+        assert prop.data[0] == [210000.0, 0.3]
+
+
+class TestIncludeFileNotFound:
+    """*include FileNotFoundErrorの対応テスト"""
+
+    def test_missing_include_file_skipped(self, tmp_path):
+        """存在しない*includeファイルはスキップして親ファイルの残りを処理"""
+        from services.parse.abaqus_connector import read_files_with_unknown_encoding
+
+        inp = tmp_path / "main.inp"
+        inp.write_text(
+            "*HEADING\ntest\n"
+            "*INCLUDE, INPUT=nonexistent_material.inp\n"
+            "*STEP\n"
+            "*STATIC\n"
+            "*END STEP\n",
+            encoding="utf-8",
+        )
+
+        lines = list(read_files_with_unknown_encoding(inp, verbose=False))
+        # *INCLUDE行自体は含まれないが、前後の行は含まれる
+        texts = [line for _, line in lines]
+        assert "*HEADING" in texts
+        assert "*STEP" in texts
+        assert "*STATIC" in texts
+        assert "*END STEP" in texts
+
+    def test_missing_include_does_not_crash_read_inp(self, tmp_path):
+        """存在しない*includeファイルがあってもread_inpがクラッシュしない"""
+        from services.parse.abaqus_connector import read_inp
+
+        inp = tmp_path / "main.inp"
+        inp.write_text(
+            "*HEADING\ntest\n"
+            "*INCLUDE, INPUT=missing.inp\n"
+            "*NODE\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "*ELEMENT, TYPE=C3D8, ELSET=ALL\n"
+            "1, 1, 1, 1, 1, 1, 1, 1, 1\n",
+            encoding="utf-8",
+        )
+
+        # クラッシュせずにABQDataが返される
+        abq = read_inp(inp, verbose=False)
+        assert abq is not None
+        assert len(abq.nodes) > 0
+
+    def test_graph_parse_with_missing_include(self, tmp_path):
+        """*includeファイルが存在しなくてもparse_projectがグラフを生成できる"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text(
+            "*HEADING\ntest\n"
+            "*INCLUDE, INPUT=moved_to_old.inp\n"
+            "*MATERIAL, NAME=INLINE_STEEL\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n",
+            encoding="utf-8",
+        )
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {"*.inp": "Abaqusインプット"},
+            },
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        # グラフにgo_idx1のノードが含まれる
+        go_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1" and n.format == "inp"),
+            None,
+        )
+        assert go_node is not None, "go_idx1.inp ノードが生成されていない"
+
+        # materialも抽出される（inline定義されているため）
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        assert len(mat_nodes) >= 1, "inline定義のmaterialが読み取られていない"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
