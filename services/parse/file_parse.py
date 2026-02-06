@@ -177,6 +177,10 @@ class FileParse:
                 tokens.append(token)
         return tokens
 
+    def get_tokens(self) -> list[str]:
+        """プレフィックス除去後のトークンリストを返す（外部からのトークン参照用）"""
+        return self._tokenize()
+
     def _split_props_and_tags(self) -> tuple[dict[str, str], list[str]]:
         props: dict[str, str] = {}
         tags: list[str] = []
