@@ -73,6 +73,10 @@ ignore:
   - "~$*"
   - ".DS_Store"
   - "Thumbs.db"
+  - "notes"
+  - "notes/**"
+  - ".obsidian"
+  - ".obsidian/**"
 
 # ファイル関係設定
 # 入力ファイルと結果ファイルの拡張子マッピング

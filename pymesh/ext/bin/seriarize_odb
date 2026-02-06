@@ -1,0 +1,57 @@
+#!/home/nishioka/envs/b/bin/python
+import sys, os
+
+odb_filepath = sys.argv[1]
+json_filepath = sys.argv[2]
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--odb_filepath", "-odb", type=str)
+parser.add_argument("--json_filepath", "-json", type=str)
+parser.add_argument("--fields", "-f", nargs="+")
+parser.add_argument("--steps", "-s", nargs="+")
+parser.add_argument("--frames", "-fr", nargs="+")
+parser.add_argument("--refnodes", "-rn", nargs="+")
+parser.add_argument("--refnode_numbers", "-rnn", nargs="+")
+parser.add_argument("--history_keys", "-hk", nargs="+")
+
+args = parser.parse_args()
+
+command = f"/mnt/c/Windows/System32/cmd.exe /c  C:/SIMULIA/Commands/abq2023.bat python ./pyabq/bin/seriarize_odb.py -o {args.odb_filepath} -j {args.json_filepath}"
+# command = f"/mnt/c/Windows/System32/cmd.exe /c  C:/SIMULIA/Commands/abq2024.bat python ./pyabq/bin/seriarize_odb.py -o {args.odb_filepath} -j {args.json_filepath}"
+# command = f"/mnt/c/Windows/System32/cmd.exe /c  C:/SIMULIA/Commands/abq2025.bat python ./pyabq/bin/seriarize_odb.py -o {args.odb_filepath} -j {args.json_filepath}"
+
+if args.fields:
+    command += " -f"
+    for i in args.fields:
+        command += f" {i}"
+
+if args.steps:
+    command += " -s"
+    for i in args.steps:
+        command += f" {i}"
+
+
+if args.frames:
+    command += " -fr"
+    for i in args.frames:
+        command += f" {i}"
+
+if args.refnodes:
+    command += " -rn"
+    for i in args.refnodes:
+        command += f" {i}"
+
+
+if args.refnode_numbers:
+    command += " -rnn"
+    for i in args.refnode_numbers:
+        command += f" {i}"
+
+
+if args.history_keys:
+    command += " -hk"
+    for i in args.history_keys:
+        command += f" {i}"
+
+
+os.system(command)
