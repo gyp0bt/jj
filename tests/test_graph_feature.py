@@ -1469,5 +1469,162 @@ class TestDirectoryNodeWindows:
             assert not path.startswith(".\\"), f"パスに先頭.\\が含まれる: {path}"
 
 
+class TestActiveAttribute:
+    """active属性のテスト: oldフォルダに入っていないNodeはactive=True"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {},
+            "file-relations": {
+                "input-extensions": [".inp"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    def test_normal_file_has_active_true(self, tmp_path, config):
+        """通常ファイルはactive=trueになる"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text("*HEADING\ntest\n")
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        assert node.properties.get("active") == "true"
+
+    def test_old_folder_file_has_active_false(self, tmp_path, config):
+        """old/フォルダ内のファイルはactive=falseになる"""
+        old_dir = tmp_path / "old"
+        old_dir.mkdir()
+        inp = old_dir / "go_idx1.inp"
+        inp.write_text("*HEADING\ntest\n")
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        assert node.properties.get("active") == "false"
+
+
+class TestInpParameterProps:
+    """*PARAMETER/**propsブロックからプロパティを読み取るテスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {"w": "width", "t": "thickness"},
+            "path-type-map": {},
+            "file-relations": {
+                "input-extensions": [".inp"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    def test_read_parameter_props(self, tmp_path, config):
+        """*PARAMETER/**propsブロックのkey=valueが読み取られる"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text(
+            "*HEADING\ntest\n"
+            "*PARAMETER\n"
+            "**props\n"
+            "w=5\n"
+            "t=20\n"
+            "*STEP\n"
+        )
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        # vocabマッピングが適用される
+        assert node.properties.get("width") == "5"
+        assert node.properties.get("thickness") == "20"
+
+    def test_no_parameter_block(self, tmp_path, config):
+        """*PARAMETERブロックがない場合は何も追加されない"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text("*HEADING\ntest\n*STEP\n*STATIC\n")
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        assert "width" not in node.properties
+        assert "thickness" not in node.properties
+
+    def test_parameter_without_props_comment(self, tmp_path, config):
+        """*PARAMETERの後に**propsがない場合はスキップ"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text(
+            "*PARAMETER\n"
+            "** something else\n"
+            "w=5\n"
+            "*STEP\n"
+        )
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        assert "width" not in node.properties
+
+    def test_non_inp_file_skipped(self, tmp_path, config):
+        """INP以外のファイルはパラメータ読み取りをスキップ"""
+        csv = tmp_path / "go_idx1.csv"
+        csv.write_text("a,b,c\n1,2,3\n")
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(csv)
+        assert "width" not in node.properties
+
+
+class TestResultFileAggregation:
+    """結果ファイル属性のAbaqusインプット集約テスト"""
+
+    @pytest.fixture
+    def config(self):
+        return GraphConfig.from_dict({
+            "vocab": {},
+            "path-type-map": {
+                "**go_*": {
+                    "*.inp": "Abaqusインプット",
+                    "*.sta": "Abaqusステータス",
+                    "*.msg": "Abaqusメッセージ",
+                },
+            },
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".sta", ".msg"],
+            },
+            "ignore": [],
+            "obsidian": {},
+        })
+
+    @pytest.fixture
+    def graph_service(self, config):
+        if not FIXTURE_DIR.exists():
+            pytest.skip(f"Fixture directory not found: {FIXTURE_DIR}")
+        return GraphService(project_root=FIXTURE_DIR, config=config)
+
+    def test_sta_status_aggregated_to_inp(self, graph_service):
+        """staファイルのanalysis_statusが対応するinpノードに集約される"""
+        extensions = [".inp", ".sta"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        assert inp_node is not None
+        assert inp_node.properties.get("analysis_status") == "completed"
+
+    def test_sta_errors_aggregated_to_inp(self, graph_service):
+        """staファイルのエラーが対応するinpノードにsta_errorsとして集約される"""
+        extensions = [".inp", ".sta"]
+        graph = graph_service.parse_project(extensions=extensions)
+
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx2" and n.format == "inp"),
+            None,
+        )
+        assert inp_node is not None
+        assert inp_node.properties.get("analysis_status") == "failed"
+        assert len(inp_node.properties.get("sta_errors", [])) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

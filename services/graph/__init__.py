@@ -346,11 +346,16 @@ class GraphService:
         # 日付を取得
         date_formatted = parser.get_date_formatted()
 
+        # oldフォルダに入っていなければactive=True
+        parent_dir = file_path.parent.name if isinstance(file_path, Path) else Path(str(file_path)).parent.name
+        active = "false" if parent_dir == "old" else "true"
+
         properties: dict[str, Any] = {
             "path": rel_path,
             "index": parser.get_index(),
             "version": parser.get_version(),
             "tags": tags + config_tags,
+            "active": active,
             **translated_props,
             **config_props,  # 設定からのプロパティが優先
         }
@@ -359,6 +364,11 @@ class GraphService:
         if date_formatted:
             properties["date"] = date_formatted
 
+        # Abaqusインプット向け: *PARAMETER/**propsブロックからプロパティを読み取る
+        inp_param_props = self._read_inp_parameter_props(file_path)
+        if inp_param_props:
+            properties.update(inp_param_props)
+
         return Node(
             id=self._next_node_id(),
             type=resolved_type,
@@ -366,6 +376,65 @@ class GraphService:
             format=parser._split_extension()[1].lstrip("."),
             properties=properties,
         )
+
+    def _read_inp_parameter_props(self, file_path: Path) -> dict[str, str]:
+        """INPファイルの*PARAMETER/**propsブロックからプロパティを読み取る
+
+        *PARAMETER キーワードの直後に **props コメントがある場合、
+        そのブロック内のkey=value形式のパラメータをプロパティとして抽出する。
+        vocabマッピングを適用してキーと値を変換する。
+
+        Args:
+            file_path: INPファイルのパス
+
+        Returns:
+            抽出されたプロパティの辞書
+        """
+        # INPファイルのみ対象
+        if not str(file_path).lower().endswith(".inp"):
+            return {}
+        if not file_path.exists():
+            return {}
+
+        props: dict[str, str] = {}
+        try:
+            with file_path.open(encoding="utf-8", errors="ignore") as f:
+                while True:
+                    line = f.readline()
+                    if not line:
+                        break
+                    s = line.strip()
+                    s_l = s.lower().replace(" ", "")
+                    if s_l.startswith("*parameter"):
+                        header = f.readline()
+                        if not header:
+                            break
+                        header_s = header.strip().lower().replace(" ", "")
+                        if not header_s.startswith("**props"):
+                            continue
+                        while True:
+                            line2 = f.readline()
+                            if not line2:
+                                break
+                            t = line2.strip()
+                            if not t:
+                                continue
+                            if t.startswith("**"):
+                                continue
+                            if t.lstrip().startswith("*"):
+                                break
+                            u = t.replace(" ", "")
+                            if "=" not in u:
+                                continue
+                            k, v = u.split("=", 1)
+                            if k:
+                                k = self.config.vocab.get(k, k)
+                                v = self.config.vocab.get(v, v)
+                                props[k] = v
+                        return props
+        except (OSError, IOError):
+            pass
+        return props
 
     def _safe_relative_path(self, file_path: Path) -> str:
         """Windowsでも安全に相対パスを生成
@@ -876,9 +945,18 @@ class GraphService:
     def _enrich_sta_status(self, nodes: list[Node]) -> None:
         """解析結果ファイル（.sta）のステータスをノードのプロパティに付与
 
-        .staファイルの内容を解析し、対応するノードのpropertiesに
+        .staファイルの内容を解析し、対応する.staノードおよび
+        同名の入力ファイル(.inp)ノードのpropertiesに
         analysis_status, errors, warningsを追加する。
         """
+        # 入力ファイルノードのインデックスを構築
+        input_extensions = self.config.file_relations.input_extensions
+        input_by_name: dict[str, Node] = {}
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() in input_extensions:
+                input_by_name[node.name] = node
+
         for node in nodes:
             ext = f".{node.format}" if node.format else ""
             if ext.lower() != ".sta":
@@ -895,12 +973,30 @@ class GraphService:
             if sta_info["warnings"]:
                 node.properties["warnings"] = sta_info["warnings"]
 
+            # 同名の入力ファイルにも集約
+            inp_node = input_by_name.get(node.name)
+            if inp_node:
+                inp_node.properties["analysis_status"] = sta_info["analysis_status"]
+                if sta_info["errors"]:
+                    inp_node.properties["sta_errors"] = sta_info["errors"]
+                if sta_info["warnings"]:
+                    inp_node.properties["sta_warnings"] = sta_info["warnings"]
+
     def _enrich_msg_status(self, nodes: list[Node]) -> None:
         """メッセージファイル（.msg）のエラー・警告をノードのプロパティに付与
 
-        .msgファイルの内容を解析し、対応するノードのpropertiesに
+        .msgファイルの内容を解析し、対応する.msgノードおよび
+        同名の入力ファイル(.inp)ノードのpropertiesに
         msg_errors, msg_warningsを追加する。
         """
+        # 入力ファイルノードのインデックスを構築
+        input_extensions = self.config.file_relations.input_extensions
+        input_by_name: dict[str, Node] = {}
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() in input_extensions:
+                input_by_name[node.name] = node
+
         for node in nodes:
             ext = f".{node.format}" if node.format else ""
             if ext.lower() != ".msg":
@@ -915,6 +1011,14 @@ class GraphService:
                 node.properties["msg_errors"] = msg_info["errors"]
             if msg_info["warnings"]:
                 node.properties["msg_warnings"] = msg_info["warnings"]
+
+            # 同名の入力ファイルにも集約
+            inp_node = input_by_name.get(node.name)
+            if inp_node:
+                if msg_info["errors"]:
+                    inp_node.properties["msg_errors"] = msg_info["errors"]
+                if msg_info["warnings"]:
+                    inp_node.properties["msg_warnings"] = msg_info["warnings"]
 
     def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
         """2つのノードが同じ主要プロパティを持つかチェック"""
