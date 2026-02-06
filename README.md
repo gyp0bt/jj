@@ -66,6 +66,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-06 / status-029: Obsidianエクスポート改善。プロパティ型変換（int/float/bool）、.baseフィルター簡素化（folder条件のみ）、orderにプロパティ積集合追記、同一タイプ.base生成、props/bases上書き前提化。テスト206件パス（+21件）。([status-029](docs/status/status-029.md))
 - 2026-02-06 / status-028: Obsidianエクスポート改善。frontmatterにファイル情報property化（node_type, node_format, file）。バージョンリンク構造改善（最新ver→.base、非最新→次ver）、-group.md廃止。結果ファイル(sta,msg)属性をAbaqusインプットに集約。active属性自動判定、*PARAMETER/**propsプロパティ読み取り。テスト185件パス（+15件）。([status-028](docs/status/status-028.md))
 - 2026-02-06 / status-027: Obsidianエクスポート構造改善。props/inp/→props/へフラット化。.base.md→.base（YAMLフィルター形式）に変更、旧内容は-group.mdとしてprops配下に配置。Abaqusコネクタ拡張: .msg解析実装、read_inp()テスト40件追加。テスト170件パス（+40件）。([status-027](docs/status/status-027.md))
 - 2026-02-06 / status-026: `jj g parse`パスパース・型判定バグ修正。`_match_path_pattern`の`./`プレフィックス対応・ディレクトリパターン対応・`**go`basename比較追加。`DEFAULT_EXTENSIONS`にconfigのfile-relations拡張子を自動マージ。フォルダNode構築のパス比較をWindows対応強化。テスト126件パス（+34件）。([status-026](docs/status/status-026.md))

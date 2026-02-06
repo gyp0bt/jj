@@ -13,10 +13,17 @@
 .baseファイル:
 - YAML形式のフィルター条件ファイル（拡張子は".base"、".base.md"ではない）
 - Obsidian上でフィルター条件に応じてpropertyをテーブル形式で表示
+- 同一index: {type}_idx{index}.base（例: Abaqusインプット_idx1.base）
+- 同一タイプ: {type}.base（例: Abaqusインプット.base）
+- フィルターは対象フォルダのみ（例: file.folder == "notes/props/Abaqusインプット"）
+- orderブロックにグループ内ノードのプロパティ積集合を追記
 
-group.mdファイル:
-- NodeGroupのメンバー一覧を持つマークダウンファイル
-- props/{type}/ 配下に "{type}_idx{index}-group.md" として配置
+プロパティ型変換:
+- 整数文字列 → int、小数文字列 → float、"true"/"false" → bool
+- Obsidianのfrontmatterに適切な型で書き出される
+
+上書き方針:
+- props/とbases/はObsidianがプロジェクトの現在を真実として追従するため常に上書き
 
 [READMEへ戻る](../../../README.md)
 """
@@ -180,6 +187,44 @@ def get_directory_for_type(file_type: str) -> str:
     return dir_name
 
 
+def _coerce_property_value(value: Any) -> Any:
+    """プロパティ値をObsidian向けに適切な型に変換
+
+    - "true" / "false" → bool (True / False)
+    - 整数文字列 → int
+    - 小数文字列 → float
+    - それ以外はそのまま返す
+
+    Args:
+        value: 変換対象の値
+
+    Returns:
+        型変換された値
+    """
+    if not isinstance(value, str):
+        return value
+    lower = value.strip().lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    # 整数判定（負の数にも対応）
+    try:
+        int_val = int(value)
+        # 元の文字列が数値表現と一致する場合のみ変換
+        if str(int_val) == value.strip():
+            return int_val
+    except (ValueError, TypeError):
+        pass
+    # 小数判定
+    try:
+        float_val = float(value)
+        return float_val
+    except (ValueError, TypeError):
+        pass
+    return value
+
+
 class ObsidianConnector:
     """GraphModelをObsidian向けにエクスポートするコネクタ"""
 
@@ -238,6 +283,12 @@ class ObsidianConnector:
 
         Returns:
             frontmatter用のdict
+
+        Note:
+            プロパティ値はObsidian向けに型変換される:
+            - "true"/"false" → bool
+            - 整数文字列 → int
+            - 小数文字列 → float
         """
         props = dict(node.properties)
         props["idx"] = props.pop("index", "")
@@ -254,6 +305,13 @@ class ObsidianConnector:
             props["includes"] = [
                 to_obsidian_link(inc, self.config.obsidian_prefix) for inc in includes
             ]
+
+        # プロパティ値をObsidian向け型に変換（int, float, bool）
+        for key, value in props.items():
+            if isinstance(value, list):
+                props[key] = [_coerce_property_value(v) for v in value]
+            else:
+                props[key] = _coerce_property_value(value)
 
         return props
 
@@ -400,9 +458,12 @@ class ObsidianConnector:
     ) -> list[Path]:
         """GraphModelをObsidianファイルとしてエクスポート
 
+        props/とbasesはObsidianがプロジェクトの現在を真実として追従するため、
+        overwrite引数に関わらず常に上書きする。
+
         Args:
             graph: エクスポートするグラフ
-            overwrite: 既存ファイルを上書きするか
+            overwrite: 既存ファイルを上書きするか（props/basesは常に上書き）
 
         Returns:
             書き込んだファイルパスのリスト
@@ -426,7 +487,7 @@ class ObsidianConnector:
         version_groups = self._build_version_groups(graph.nodes)
         parent_links = self._build_parent_links(version_groups)
 
-        # ノードごとにmdファイルを書き出し
+        # ノードごとにmdファイルを書き出し（props/は上書き前提）
         for node in graph.nodes:
             node_relations = relations_by_node.get(node.id, [])
             # 親リンクをincludesに設定
@@ -434,13 +495,13 @@ class ObsidianConnector:
             if node.id in parent_links:
                 includes = [parent_links[node.id]]
             path = self.write_md_with_relations(
-                node, node_relations, includes=includes, overwrite=overwrite
+                node, node_relations, includes=includes, overwrite=True
             )
             if path:
                 written.append(path)
 
-        # .baseファイル（NodeGroup）を生成
-        base_paths = self._write_base_files(graph, overwrite=overwrite)
+        # .baseファイル（NodeGroup）を生成（bases/は上書き前提）
+        base_paths = self._write_base_files(graph, overwrite=True)
         written.extend(base_paths)
 
         return written
@@ -488,9 +549,15 @@ class ObsidianConnector:
             notes/bases/{type}/ 配下に配置。
             最新verのNodeがこの.baseファイルへのリンクを持つ。
 
+        生成されるファイル:
+            - 同一index .base: {type}_idx{index}.base（同一type+indexのグループ、2ノード以上）
+            - 同一type .base: {type}.base（同一typeの全ノード、2ノード以上）
+
+        props/とbasesは上書き前提（Obsidianはプロジェクトの現在を真実として追従する）。
+
         Args:
             graph: グラフモデル
-            overwrite: 既存ファイルを上書きするか
+            overwrite: 既存ファイルを上書きするか（props/bases向けは常に上書き）
 
         Returns:
             書き込んだファイルパスのリスト
@@ -499,45 +566,91 @@ class ObsidianConnector:
         bases_dir = self.project_root / self.config.bases_dir
 
         # type + index でグループ化
-        groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
+        idx_groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
+        # type でグループ化（同一タイプ）
+        type_groups: dict[str, list[Node]] = defaultdict(list)
+
         for node in graph.nodes:
             index = node.properties.get("index", "")
             if index:
-                groups[(node.type, index)].append(node)
+                idx_groups[(node.type, index)].append(node)
+            type_groups[node.type].append(node)
 
-        # グループごとに .base を生成
-        for (node_type, index), nodes in groups.items():
+        # 同一indexグループごとに .base を生成
+        for (node_type, index), nodes in idx_groups.items():
             if len(nodes) < 2:
                 continue
 
             dir_name = get_directory_for_type(node_type)
-
-            # --- .base ファイル（フィルター条件、YAML形式） ---
             base_filename = f"{node_type}_idx{index}.base"
             base_path = bases_dir / dir_name / base_filename
 
-            if not base_path.exists() or overwrite:
-                base_path.parent.mkdir(parents=True, exist_ok=True)
-                base_content = self._format_base_filter(node_type, index, nodes)
-                base_path.write_text(base_content, encoding="utf-8")
-                written.append(base_path)
+            # props/basesは上書き前提
+            base_path.parent.mkdir(parents=True, exist_ok=True)
+            base_content = self._format_base_filter(node_type, index, nodes)
+            base_path.write_text(base_content, encoding="utf-8")
+            written.append(base_path)
+
+        # 同一タイプグループごとに .base を生成
+        for node_type, nodes in type_groups.items():
+            if len(nodes) < 2:
+                continue
+
+            dir_name = get_directory_for_type(node_type)
+            base_filename = f"{node_type}.base"
+            base_path = bases_dir / dir_name / base_filename
+
+            # props/basesは上書き前提
+            base_path.parent.mkdir(parents=True, exist_ok=True)
+            base_content = self._format_base_filter(node_type, None, nodes)
+            base_path.write_text(base_content, encoding="utf-8")
+            written.append(base_path)
 
         return written
+
+    def _compute_intersection_properties(self, nodes: list[Node]) -> list[str]:
+        """ノードグループ内のプロパティキーの積集合を返す
+
+        全ノードが共通して持つプロパティキーのリストを返す。
+        内部管理用キー（path, tags）は除外する。
+
+        Args:
+            nodes: グループ内のノード
+
+        Returns:
+            共通プロパティキーのリスト
+        """
+        if not nodes:
+            return []
+        # 除外するキー（内部管理用・リスト型）
+        exclude_keys = {"path", "tags"}
+        # 各ノードのプロパティキー集合
+        key_sets = []
+        for node in nodes:
+            keys = {k for k, v in node.properties.items()
+                    if k not in exclude_keys and not isinstance(v, (list, dict))}
+            key_sets.append(keys)
+        # 積集合
+        common = key_sets[0]
+        for ks in key_sets[1:]:
+            common = common & ks
+        return sorted(common)
 
     def _format_base_filter(
         self,
         node_type: str,
-        index: str,
+        index: str | None,
         nodes: list[Node],
     ) -> str:
         """NodeGroup用の.baseファイル内容を生成（YAML形式、フィルター条件のみ）
 
-        旧base_template形式: views/filters/sort のYAML構造。
         Obsidian上でフィルター条件に応じてpropertyをテーブル形式で表示する。
+        フィルターは対象フォルダのみに限定する（余計なand条件は追加しない）。
+        orderブロックにはグループ内ノードのプロパティ積集合を追記する。
 
         Args:
             node_type: ノードタイプ
-            index: インデックス
+            index: インデックス（同一タイプグループの場合はNone）
             nodes: グループ内のノード
 
         Returns:
@@ -549,62 +662,26 @@ class ObsidianConnector:
         notes_dir_str = str(self.config.notes_dir).replace("\\", "/")
         folder_path = f"{notes_dir_str}/{dir_name}"
 
+        # グループ内のプロパティ積集合を算出
+        intersection_props = self._compute_intersection_properties(nodes)
+
         # views設定をカスタマイズ
         views = []
         for view in default_views:
             custom_view = dict(view)
-            if "filters" not in custom_view:
-                custom_view["filters"] = {"and": []}
-            if isinstance(custom_view["filters"], dict) and "and" in custom_view["filters"]:
-                filters = list(custom_view["filters"]["and"])
-                filters.insert(0, f'file.folder == "{folder_path}"')
-                custom_view["filters"]["and"] = filters
+            # フィルターは対象フォルダのみ
+            custom_view["filters"] = f'file.folder == "{folder_path}"'
+            # orderにプロパティ積集合を追記
+            if "order" in custom_view:
+                order = list(custom_view["order"])
+            else:
+                order = []
+            for prop in intersection_props:
+                if prop not in order:
+                    order.append(prop)
+            custom_view["order"] = order
             views.append(custom_view)
 
         data = {"views": views}
         return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
-    def _format_group_file(
-        self,
-        node_type: str,
-        index: str,
-        nodes: list[Node],
-    ) -> str:
-        """NodeGroup用の-group.mdファイル内容を生成（frontmatter + メンバーリンク）
-
-        Args:
-            node_type: ノードタイプ
-            index: インデックス
-            nodes: グループ内のノード
-
-        Returns:
-            -group.mdファイルの内容
-        """
-        frontmatter = {
-            "type": "nodegroup",
-            "node_type": node_type,
-            "index": index,
-            "member_count": len(nodes),
-        }
-
-        yaml_str = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
-
-        # メンバーノードへのリンク生成
-        member_links: list[str] = []
-        for node in sorted(nodes, key=lambda n: n.properties.get("version", "")):
-            filename = f"{node.name}.{node.format}"
-            link = to_obsidian_link(filename, self.config.obsidian_prefix)
-            member_links.append(f"- {link}")
-
-        return f"""---
-{yaml_str.strip()}
----
-
-## NodeGroup: {node_type} / idx{index}
-
-このファイルは同一index（{index}）を持つ{node_type}タイプのノードをグループ化しています。
-
-## メンバー
-
-{chr(10).join(member_links)}
-"""
