@@ -93,6 +93,12 @@ def read_files_with_unknown_encoding(
                             continue
                         include_name = m.group(1)
                         include_path = (file_path.parent / include_name).resolve()
+                        if not include_path.exists():
+                            print(
+                                f"Warning: *INCLUDE ファイルが見つかりません（スキップ）: "
+                                f"{include_path}"
+                            )
+                            continue
                         if verbose:
                             print(f"Reading included file: {include_path}")
                         yield from read_files_with_unknown_encoding(
@@ -449,8 +455,9 @@ class MaterialPropertyReadComponent(ReadComponent):
         if len(values) == 1 and values[0] == "":
             return None
 
+        # 空文字列（末尾カンマ等）はNoneで埋める
         try:
-            rows = [[float(v) for v in values]]
+            rows = [[None if v == "" else float(v) for v in values]]
         except ValueError as e:
             mat = self.context.current_material
             mat_name = mat.options.get("name", "UNKNOWN") if mat else "UNKNOWN"
