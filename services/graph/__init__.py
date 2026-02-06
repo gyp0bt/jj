@@ -4,6 +4,10 @@
 - プロジェクトフォルダのスキャンとファイル解析
 - GraphModelへの変換
 - サブバージョン関係・グループ関係の構築
+- 同一ファイルタイプの関連付け（has_output）
+- フォルダベースの関連付け（contains）
+- material.inpの高度な解析（abaqus_material）
+- 解析結果ファイルの解析（analysis_status）
 - グラフデータの保存・読み込み
 
 [READMEへ戻る](../../../README.md)
@@ -21,6 +25,158 @@ from jj_types import GraphModel, Node, Relation
 from services.storage import GraphStorage
 from services.parse.file_parse import FileParse, FileType, DEFAULT_EXTENSIONS
 from config import GraphConfig
+
+
+# 解析結果ファイルの成否判定用パターン
+_STA_SUCCESS_PATTERN = re.compile(
+    r"THE ANALYSIS HAS COMPLETED SUCCESSFULLY", re.IGNORECASE
+)
+_STA_NOT_COMPLETED_PATTERN = re.compile(
+    r"THE ANALYSIS HAS NOT BEEN COMPLETED", re.IGNORECASE
+)
+_STA_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
+_STA_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
+
+# has_output 関係で対象とする出力ファイル拡張子
+OUTPUT_EXTENSIONS: frozenset[str] = frozenset({
+    ".csv", ".json", ".png", ".gif", ".xlsx", ".yaml", ".pptx",
+    ".pdf", ".svg", ".html", ".txt",
+})
+
+
+def parse_sta_file(sta_path: Path) -> dict[str, Any]:
+    """Abaqus .sta ファイルを解析して解析結果のステータスを返す
+
+    Args:
+        sta_path: .staファイルのパス
+
+    Returns:
+        解析結果の辞書:
+        - analysis_status: "completed" | "failed" | "unknown"
+        - errors: エラーメッセージのリスト
+        - warnings: 警告メッセージのリスト
+    """
+    result: dict[str, Any] = {
+        "analysis_status": "unknown",
+        "errors": [],
+        "warnings": [],
+    }
+
+    try:
+        with sta_path.open("r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except (OSError, IOError):
+        return result
+
+    if _STA_SUCCESS_PATTERN.search(content):
+        result["analysis_status"] = "completed"
+    elif _STA_NOT_COMPLETED_PATTERN.search(content):
+        result["analysis_status"] = "failed"
+
+    for match in _STA_ERROR_PATTERN.finditer(content):
+        result["errors"].append(match.group(1).strip())
+
+    for match in _STA_WARNING_PATTERN.finditer(content):
+        result["warnings"].append(match.group(1).strip())
+
+    return result
+
+
+def parse_material_blocks(inp_path: Path) -> list[dict[str, Any]]:
+    """Abaqus .inp ファイルから *MATERIAL ブロックを解析
+
+    軽量なパーサーで *MATERIAL ブロックを抽出し、物性定義データを返す。
+    abaqus_connector の read_inp() は重いため、material専用の軽量パーサーを使用。
+
+    Args:
+        inp_path: .inpファイルのパス
+
+    Returns:
+        物性情報のリスト。各要素は:
+        - name: 物性名
+        - properties: プロパティ辞書
+        - keywords: 含まれるキーワードのリスト
+    """
+    materials: list[dict[str, Any]] = []
+
+    try:
+        with inp_path.open("r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except (OSError, IOError):
+        return materials
+
+    current_material: Optional[dict[str, Any]] = None
+    current_keyword: Optional[str] = None
+    current_data: list[list[float]] = []
+
+    def _flush_keyword():
+        nonlocal current_keyword, current_data
+        if current_material is not None and current_keyword:
+            current_material["keywords"].append(current_keyword)
+            if current_data:
+                current_material["properties"][current_keyword] = current_data
+            current_keyword = None
+            current_data = []
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("**"):
+            continue
+
+        # キーワード行
+        if line.startswith("*"):
+            norm = re.sub(r"\s+", "", line).lower()
+            tokens = [s for s in norm.split(",") if s]
+            keyword = tokens[0].replace("*", "")
+
+            # *MATERIAL 行
+            if keyword == "material":
+                _flush_keyword()
+                # 前のmaterialを保存
+                if current_material:
+                    materials.append(current_material)
+
+                # name を取得
+                name = ""
+                for tok in tokens[1:]:
+                    if tok.startswith("name="):
+                        name = tok.split("=", 1)[1]
+                        break
+
+                current_material = {
+                    "name": name,
+                    "properties": {},
+                    "keywords": [],
+                }
+                current_keyword = None
+                current_data = []
+                continue
+
+            # material配下のキーワード
+            if current_material is not None:
+                _flush_keyword()
+                current_keyword = keyword
+                current_data = []
+                continue
+
+        # データ行（materialブロック配下）
+        if current_material is not None and current_keyword:
+            try:
+                values = [
+                    float(v.strip()) for v in line.split(",")
+                    if v.strip()
+                ]
+                if values:
+                    current_data.append(values)
+            except ValueError:
+                pass
+
+    # 最後のブロックを保存
+    _flush_keyword()
+    if current_material:
+        materials.append(current_material)
+
+    return materials
 
 
 class GraphService:
@@ -85,6 +241,42 @@ class GraphService:
                     files.append(file_path)
 
         return sorted(files)
+
+    def scan_directories(
+        self,
+        exclude_dirs: Iterable[str] | None = None,
+    ) -> list[Path]:
+        """プロジェクトルートからディレクトリをスキャン
+
+        名前がファイル命名規則に合致するディレクトリ（go_idx1_v1等）を検索。
+
+        Args:
+            exclude_dirs: 除外するディレクトリ名
+
+        Returns:
+            スキャンされたディレクトリパスのリスト
+        """
+        default_exclude = {".git", ".jj", "__pycache__", "node_modules", ".venv"}
+        exclude_set = set(exclude_dirs or default_exclude)
+
+        dirs_found: list[Path] = []
+        for root, dirs, _ in os.walk(self.project_root):
+            dirs[:] = [d for d in dirs if d not in exclude_set]
+
+            root_path = Path(root)
+            for dirname in dirs:
+                dir_path = root_path / dirname
+                rel_path = self._safe_relative_path(dir_path)
+
+                if self.config.ignore.should_ignore(rel_path):
+                    continue
+
+                # ディレクトリ名がファイル命名規則に合致するかチェック
+                parser = FileParse(dirname)
+                if parser.get_file_type() != FileType.UNKNOWN:
+                    dirs_found.append(dir_path)
+
+        return sorted(dirs_found)
 
     def file_to_node(self, file_path: Path) -> Node:
         """ファイルパスからNodeを生成"""
@@ -200,6 +392,25 @@ class GraphService:
         includes_relations = self._build_includes_relations(nodes, node_by_path)
         relations.extend(includes_relations)
 
+        # 同一ファイルタイプのprops差分関連付け（has_output）
+        output_relations = self._build_output_relations(nodes)
+        relations.extend(output_relations)
+
+        # フォルダベースの関連付け（contains）
+        dir_nodes, contains_relations = self._build_directory_relations(
+            nodes, extensions=extensions, exclude_dirs=exclude_dirs
+        )
+        nodes.extend(dir_nodes)
+        relations.extend(contains_relations)
+
+        # material.inpの高度な解析（abaqus_material）
+        mat_nodes, mat_relations = self._build_material_nodes(nodes)
+        nodes.extend(mat_nodes)
+        relations.extend(mat_relations)
+
+        # 解析結果ファイルの解析（analysis_status）
+        self._enrich_sta_status(nodes)
+
         return GraphModel(nodes=nodes, relations=relations)
 
     def _build_version_and_group_relations(
@@ -258,7 +469,6 @@ class GraphService:
                 )
 
             # グループ関係を作成（すべてのノードを同一グループとしてリンク）
-            # 最初のノードをグループの代表として、他のノードとリンク
             representative = sorted_nodes[0]
             for member in sorted_nodes[1:]:
                 group_relations.append(
@@ -278,23 +488,14 @@ class GraphService:
         同じbasename（go_idx1_w5_t20等）を持つファイルのうち、
         入力ファイル（.inp）と結果ファイル（.odb, .sta, .csv等）の間に
         result_of関係を作成します。
-
-        Args:
-            nodes: ノードのリスト
-
-        Returns:
-            result_of関係のリスト
         """
         relations: list[Relation] = []
 
-        # 設定から拡張子を取得
         input_extensions = self.config.file_relations.input_extensions
         result_extensions = self.config.file_relations.result_extensions
 
-        # basenameでノードをグループ化
         by_basename: dict[str, list[Node]] = defaultdict(list)
         for node in nodes:
-            # ディレクトリ部分を除外してbasenameでグループ化
             basename = node.name
             by_basename[basename].append(node)
 
@@ -302,7 +503,6 @@ class GraphService:
             if len(group_nodes) < 2:
                 continue
 
-            # 入力ファイルと結果ファイルを分離
             input_nodes = []
             result_nodes = []
 
@@ -313,17 +513,15 @@ class GraphService:
                 elif ext.lower() in result_extensions:
                     result_nodes.append(node)
 
-            # 入力ファイルと結果ファイルの間にresult_of関係を作成
             for input_node in input_nodes:
                 for result_node in result_nodes:
-                    # 同じindex/propsを持つ場合のみリンク
                     if self._nodes_have_same_props(input_node, result_node):
                         relations.append(
                             Relation(
                                 id=self._next_relation_id(),
                                 label="result_of",
-                                node1_id=result_node.id,  # 結果ファイル
-                                node2_id=input_node.id,    # 入力ファイル
+                                node1_id=result_node.id,
+                                node2_id=input_node.id,
                             )
                         )
 
@@ -335,22 +533,12 @@ class GraphService:
         同じbasename（mesh等）を持つファイルのうち、
         アセットファイル（.modfem, .stl等）と入力ファイル（.inp）の間に
         derived_from関係を作成します。
-
-        例: mesh.modfem → derived_from → mesh.inp
-
-        Args:
-            nodes: ノードのリスト
-
-        Returns:
-            derived_from関係のリスト
         """
         relations: list[Relation] = []
 
-        # 設定から拡張子を取得
         input_extensions = self.config.file_relations.input_extensions
         asset_extensions = self.config.file_relations.asset_extensions
 
-        # basenameでノードをグループ化
         by_basename: dict[str, list[Node]] = defaultdict(list)
         for node in nodes:
             basename = node.name
@@ -360,7 +548,6 @@ class GraphService:
             if len(group_nodes) < 2:
                 continue
 
-            # 入力ファイルとアセットファイルを分離
             input_nodes = []
             asset_nodes = []
 
@@ -371,17 +558,15 @@ class GraphService:
                 elif ext.lower() in asset_extensions:
                     asset_nodes.append(node)
 
-            # アセットファイルと入力ファイルの間にderived_from関係を作成
             for input_node in input_nodes:
                 for asset_node in asset_nodes:
-                    # 同じindex/propsを持つ場合のみリンク
                     if self._nodes_have_same_props(input_node, asset_node):
                         relations.append(
                             Relation(
                                 id=self._next_relation_id(),
                                 label="derived_from",
-                                node1_id=input_node.id,    # 入力ファイル
-                                node2_id=asset_node.id,    # アセットファイル（元データ）
+                                node1_id=input_node.id,
+                                node2_id=asset_node.id,
                             )
                         )
 
@@ -390,21 +575,10 @@ class GraphService:
     def _build_includes_relations(
         self, nodes: list[Node], node_by_path: dict[str, Node]
     ) -> list[Relation]:
-        """inpファイルの*includeディレクティブを解析してincludes関係を構築
-
-        Args:
-            nodes: ノードのリスト
-            node_by_path: パスからノードへのマッピング
-
-        Returns:
-            includes関係のリスト
-        """
+        """inpファイルの*includeディレクティブを解析してincludes関係を構築"""
         relations: list[Relation] = []
 
-        # *includeパターン
         include_pattern = re.compile(r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE)
-
-        # 入力ファイルの拡張子
         input_extensions = self.config.file_relations.input_extensions
 
         for node in nodes:
@@ -412,12 +586,10 @@ class GraphService:
             if ext.lower() not in input_extensions:
                 continue
 
-            # ファイルパスを取得
             file_path = self.project_root / node.properties.get("path", "")
             if not file_path.exists():
                 continue
 
-            # ファイルを読み込んで*includeを解析
             try:
                 with file_path.open("r", encoding="utf-8", errors="ignore") as f:
                     for line in f:
@@ -428,14 +600,9 @@ class GraphService:
                         match = include_pattern.match(line)
                         if match:
                             include_path = match.group(1).strip()
-                            # インクルードファイル名を取得（パス情報から相対パスを解決）
                             include_filename = Path(include_path).name
 
-                            # node_by_pathからインクルード先を検索
-                            # パス全体またはファイル名で検索
                             target_node = None
-
-                            # まず完全パスで検索
                             for path, n in node_by_path.items():
                                 if path.endswith(include_path) or Path(path).name == include_filename:
                                     target_node = n
@@ -446,33 +613,223 @@ class GraphService:
                                     Relation(
                                         id=self._next_relation_id(),
                                         label="includes",
-                                        node1_id=node.id,          # インクルード元
-                                        node2_id=target_node.id,   # インクルード先
+                                        node1_id=node.id,
+                                        node2_id=target_node.id,
                                     )
                                 )
             except (OSError, IOError):
-                # ファイル読み込みエラーは無視
                 continue
 
         return relations
 
-    def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
-        """2つのノードが同じ主要プロパティを持つかチェック
+    def _build_output_relations(self, nodes: list[Node]) -> list[Relation]:
+        """同一ファイルタイプのprops差分関連付け（has_output）
 
-        Args:
-            node1: ノード1
-            node2: ノード2
+        入力ファイルのbasenameを接頭辞として持つ出力ファイルを検出し、
+        has_output関係でリンクする。
 
-        Returns:
-            同じ主要プロパティを持つ場合True
+        例: go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv (has_output)
+
+        出力ファイルの追加タグ（RF等）はそのノードのtagsプロパティとして保持される。
         """
-        # 比較対象のプロパティキー（index, 数値パラメータ等）
+        relations: list[Relation] = []
+
+        input_extensions = self.config.file_relations.input_extensions
+        result_extensions = self.config.file_relations.result_extensions
+
+        input_nodes: list[Node] = []
+        output_candidates: list[Node] = []
+
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            ext_lower = ext.lower()
+            if ext_lower in input_extensions:
+                input_nodes.append(node)
+            elif ext_lower in OUTPUT_EXTENSIONS or ext_lower in result_extensions:
+                output_candidates.append(node)
+
+        for inp_node in input_nodes:
+            inp_basename = inp_node.name
+            inp_index = inp_node.properties.get("index", "")
+
+            for out_node in output_candidates:
+                # 完全一致はresult_ofで処理済み
+                if out_node.name == inp_basename:
+                    continue
+
+                # basename接頭辞マッチ
+                if not out_node.name.startswith(inp_basename + "_"):
+                    continue
+
+                # 同じindexか確認
+                out_index = out_node.properties.get("index", "")
+                if inp_index and out_index and inp_index != out_index:
+                    continue
+
+                relations.append(
+                    Relation(
+                        id=self._next_relation_id(),
+                        label="has_output",
+                        node1_id=inp_node.id,
+                        node2_id=out_node.id,
+                    )
+                )
+
+        return relations
+
+    def _build_directory_relations(
+        self,
+        nodes: list[Node],
+        extensions: Iterable[str] | None = None,
+        exclude_dirs: Iterable[str] | None = None,
+    ) -> tuple[list[Node], list[Relation]]:
+        """フォルダベースの関連付け（contains）
+
+        ファイル命名規則に合致するディレクトリ（go_idx1_v1/等）をスキャンし、
+        ディレクトリノードとcontains関係を構築する。
+        """
+        dir_nodes: list[Node] = []
+        relations: list[Relation] = []
+
+        input_extensions = self.config.file_relations.input_extensions
+        named_dirs = self.scan_directories(exclude_dirs=exclude_dirs)
+
+        for dir_path in named_dirs:
+            rel_path = self._safe_relative_path(dir_path)
+            dirname = dir_path.name
+            parser = FileParse(dirname)
+
+            dir_node = Node(
+                id=self._next_node_id(),
+                type=parser.get_file_type().value + "_directory",
+                name=dirname,
+                format="directory",
+                properties={
+                    "path": rel_path,
+                    "index": parser.get_index(),
+                    "version": parser.get_version(),
+                    "tags": parser.get_tags(),
+                    **parser.get_props(),
+                },
+            )
+            dir_nodes.append(dir_node)
+
+            # ディレクトリ内のファイルをcontains関係でリンク
+            for node in nodes:
+                node_path = node.properties.get("path", "")
+                if node_path.startswith(rel_path + "/"):
+                    relations.append(
+                        Relation(
+                            id=self._next_relation_id(),
+                            label="contains",
+                            node1_id=dir_node.id,
+                            node2_id=node.id,
+                        )
+                    )
+
+            # 同名の入力ファイルとhas_output関係を作成
+            for node in nodes:
+                ext = f".{node.format}" if node.format else ""
+                if ext.lower() not in input_extensions:
+                    continue
+                if node.name == dirname:
+                    relations.append(
+                        Relation(
+                            id=self._next_relation_id(),
+                            label="has_output",
+                            node1_id=node.id,
+                            node2_id=dir_node.id,
+                        )
+                    )
+
+        return dir_nodes, relations
+
+    def _build_material_nodes(
+        self, nodes: list[Node]
+    ) -> tuple[list[Node], list[Relation]]:
+        """material.inpの高度な解析 - Node(abaqus_material)を生成
+
+        .inpファイルから*MATERIALブロックを抽出し、
+        各物性定義をNode(type="abaqus_material")として生成。
+        入力ファイルとの間にdefined_in関係を作成する。
+        """
+        mat_nodes: list[Node] = []
+        relations: list[Relation] = []
+
+        input_extensions = self.config.file_relations.input_extensions
+
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() not in input_extensions:
+                continue
+
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            materials = parse_material_blocks(file_path)
+
+            for mat in materials:
+                if not mat["name"]:
+                    continue
+
+                properties: dict[str, Any] = {
+                    "source_file": node.properties.get("path", ""),
+                    "keywords": mat["keywords"],
+                }
+
+                for keyword, data in mat["properties"].items():
+                    properties[keyword] = data
+
+                mat_node = Node(
+                    id=self._next_node_id(),
+                    type="abaqus_material",
+                    name=mat["name"],
+                    format="material",
+                    properties=properties,
+                )
+                mat_nodes.append(mat_node)
+
+                relations.append(
+                    Relation(
+                        id=self._next_relation_id(),
+                        label="defined_in",
+                        node1_id=mat_node.id,
+                        node2_id=node.id,
+                    )
+                )
+
+        return mat_nodes, relations
+
+    def _enrich_sta_status(self, nodes: list[Node]) -> None:
+        """解析結果ファイル（.sta）のステータスをノードのプロパティに付与
+
+        .staファイルの内容を解析し、対応するノードのpropertiesに
+        analysis_status, errors, warningsを追加する。
+        """
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".sta":
+                continue
+
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            sta_info = parse_sta_file(file_path)
+            node.properties["analysis_status"] = sta_info["analysis_status"]
+            if sta_info["errors"]:
+                node.properties["errors"] = sta_info["errors"]
+            if sta_info["warnings"]:
+                node.properties["warnings"] = sta_info["warnings"]
+
+    def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
+        """2つのノードが同じ主要プロパティを持つかチェック"""
         compare_keys = {"index", "w", "t", "番号"}
 
         for key in compare_keys:
             val1 = node1.properties.get(key, "")
             val2 = node2.properties.get(key, "")
-            # 両方に値があり、異なる場合はFalse
             if val1 and val2 and val1 != val2:
                 return False
 
@@ -526,8 +883,13 @@ class GraphService:
         for node in graph.nodes:
             type_counts[node.type] = type_counts.get(node.type, 0) + 1
 
+        relation_counts: dict[str, int] = {}
+        for rel in graph.relations:
+            relation_counts[rel.label] = relation_counts.get(rel.label, 0) + 1
+
         return {
             "total_nodes": len(graph.nodes),
             "total_relations": len(graph.relations),
             "nodes_by_type": type_counts,
+            "relations_by_label": relation_counts,
         }
