@@ -32,6 +32,13 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `Node(type=タグ, name=sample)`
 - `Relation(label=tagged, node1_id=1, node2_id=2)`
 
+### レポジトリ階層制約
+- 全ノードは必ずレポジトリの下に帰属する（`belongs_to`関係）
+- レポジトリはレポジトリの下にしか存在できない（ルートレポジトリを除く）
+- ルートレポジトリ = `parse_project()`のproject_root
+- サブレポジトリ = `.jj/`ディレクトリを含むサブディレクトリ
+- 詳細: [レポジトリ階層制約仕様書](docs/specs/09-repository-hierarchy.md)
+
 ## 入力データの扱い
 - 対象はバイナリ、テキスト、フォルダなど多様です。
 - ソフト固有フォーマットの拡張を見据え、**アダプター**の概念を導入し、機能を独立させます。
@@ -66,6 +73,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-06 / status-029: **破壊的変更**: レポジトリ階層制約導入。全ノードがレポジトリの下に帰属し、レポジトリはレポジトリの下にしか存在できない制約。ルートレポジトリ自動生成、サブレポジトリ検出（.jj/）、belongs_to関係構築、5項目バリデーション、Obsidianエクスポート対応。テスト211件パス（+26件）。([status-029](docs/status/status-029.md))
 - 2026-02-06 / status-028: Obsidianエクスポート改善。frontmatterにファイル情報property化（node_type, node_format, file）。バージョンリンク構造改善（最新ver→.base、非最新→次ver）、-group.md廃止。結果ファイル(sta,msg)属性をAbaqusインプットに集約。active属性自動判定、*PARAMETER/**propsプロパティ読み取り。テスト185件パス（+15件）。([status-028](docs/status/status-028.md))
 - 2026-02-06 / status-027: Obsidianエクスポート構造改善。props/inp/→props/へフラット化。.base.md→.base（YAMLフィルター形式）に変更、旧内容は-group.mdとしてprops配下に配置。Abaqusコネクタ拡張: .msg解析実装、read_inp()テスト40件追加。テスト170件パス（+40件）。([status-027](docs/status/status-027.md))
 - 2026-02-06 / status-026: `jj g parse`パスパース・型判定バグ修正。`_match_path_pattern`の`./`プレフィックス対応・ディレクトリパターン対応・`**go`basename比較追加。`DEFAULT_EXTENSIONS`にconfigのfile-relations拡張子を自動マージ。フォルダNode構築のパス比較をWindows対応強化。テスト126件パス（+34件）。([status-026](docs/status/status-026.md))

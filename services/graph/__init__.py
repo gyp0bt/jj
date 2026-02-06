@@ -21,7 +21,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from jj_types import GraphModel, Node, Relation
+from jj_types import GraphModel, Node, Relation, NODE_TYPE_REPOSITORY, RELATION_BELONGS_TO
 from services.storage import GraphStorage
 from services.parse.file_parse import FileParse, FileType, DEFAULT_EXTENSIONS
 from config import GraphConfig
@@ -499,55 +499,277 @@ class GraphService:
         nodes: list[Node] = []
         node_by_path: dict[str, Node] = {}
 
-        # ノード生成
+        # 1. ルートレポジトリノード生成
+        root_repo = self._create_root_repository_node()
+        nodes.append(root_repo)
+
+        # 2. サブレポジトリ検出・ノード生成
+        sub_repos = self._scan_sub_repositories(exclude_dirs=exclude_dirs)
+        repo_nodes_map: dict[str, Node] = {".": root_repo}  # path -> repo node
+        for sub_repo_path in sub_repos:
+            repo_node = self._create_sub_repository_node(sub_repo_path, root_repo)
+            nodes.append(repo_node)
+            repo_nodes_map[repo_node.properties.get("path", "")] = repo_node
+
+        # 3. ファイルスキャン・ノード生成（既存）
         for file_path in files:
             node = self.file_to_node(file_path)
             nodes.append(node)
             node_by_path[node.properties.get("path", "")] = node
 
-        # リレーション生成
+        # 4. リレーション生成（既存）
         relations: list[Relation] = []
 
         # サブバージョン関係とグループ関係を構築
-        version_relations, group_relations = self._build_version_and_group_relations(nodes)
+        non_repo_nodes = [n for n in nodes if n.type != NODE_TYPE_REPOSITORY]
+        version_relations, group_relations = self._build_version_and_group_relations(non_repo_nodes)
         relations.extend(version_relations)
         relations.extend(group_relations)
 
         # 入力-結果関係を構築
-        result_relations = self._build_result_relations(nodes)
+        result_relations = self._build_result_relations(non_repo_nodes)
         relations.extend(result_relations)
 
         # アセット関係を構築
-        asset_relations = self._build_asset_relations(nodes)
+        asset_relations = self._build_asset_relations(non_repo_nodes)
         relations.extend(asset_relations)
 
         # includes関係を構築（inpファイルの*includeディレクティブ）
-        includes_relations = self._build_includes_relations(nodes, node_by_path)
+        includes_relations = self._build_includes_relations(non_repo_nodes, node_by_path)
         relations.extend(includes_relations)
 
         # 同一ファイルタイプのprops差分関連付け（has_output）
-        output_relations = self._build_output_relations(nodes)
+        output_relations = self._build_output_relations(non_repo_nodes)
         relations.extend(output_relations)
 
         # フォルダベースの関連付け（contains）
         dir_nodes, contains_relations = self._build_directory_relations(
-            nodes, extensions=extensions, exclude_dirs=exclude_dirs
+            non_repo_nodes, extensions=extensions, exclude_dirs=exclude_dirs
         )
         nodes.extend(dir_nodes)
         relations.extend(contains_relations)
 
         # material.inpの高度な解析（abaqus_material）
-        mat_nodes, mat_relations = self._build_material_nodes(nodes)
+        mat_nodes, mat_relations = self._build_material_nodes(non_repo_nodes)
         nodes.extend(mat_nodes)
         relations.extend(mat_relations)
 
         # 解析結果ファイルの解析（analysis_status）
-        self._enrich_sta_status(nodes)
+        self._enrich_sta_status(non_repo_nodes)
 
         # .msgファイルの解析（errors/warnings抽出）
-        self._enrich_msg_status(nodes)
+        self._enrich_msg_status(non_repo_nodes)
+
+        # 5. belongs_to 関係構築（新規）
+        all_non_repo = [n for n in nodes if n.type != NODE_TYPE_REPOSITORY]
+        belongs_to_relations = self._build_belongs_to_relations(
+            all_non_repo, repo_nodes_map
+        )
+        relations.extend(belongs_to_relations)
+
+        # レポジトリ間の belongs_to 関係（サブレポジトリ→親レポジトリ）
+        repo_hierarchy_relations = self._build_repository_hierarchy_relations(
+            repo_nodes_map
+        )
+        relations.extend(repo_hierarchy_relations)
 
         return GraphModel(nodes=nodes, relations=relations)
+
+    def _create_root_repository_node(self) -> Node:
+        """ルートレポジトリノードを生成"""
+        return Node(
+            id=self._next_node_id(),
+            type=NODE_TYPE_REPOSITORY,
+            name=self.project_root.name,
+            format="repository",
+            properties={
+                "path": ".",
+                "is_root": "true",
+                "depth": "0",
+            },
+        )
+
+    def _scan_sub_repositories(
+        self,
+        exclude_dirs: Iterable[str] | None = None,
+    ) -> list[Path]:
+        """サブレポジトリ（.jjディレクトリを含むサブディレクトリ）をスキャン
+
+        Args:
+            exclude_dirs: 除外するディレクトリ名
+
+        Returns:
+            サブレポジトリのディレクトリパスのリスト
+        """
+        default_exclude = {".git", ".jj", "__pycache__", "node_modules", ".venv"}
+        exclude_set = set(exclude_dirs or default_exclude)
+
+        sub_repos: list[Path] = []
+        for root, dirs, _ in os.walk(self.project_root):
+            dirs[:] = [d for d in dirs if d not in exclude_set]
+
+            root_path = Path(root)
+            # project_root自体はスキップ（ルートレポジトリとして別途処理済み）
+            if root_path == self.project_root:
+                continue
+
+            # .jjディレクトリを含むサブディレクトリをレポジトリとして検出
+            if (root_path / ".jj").is_dir():
+                sub_repos.append(root_path)
+
+        return sorted(sub_repos)
+
+    def _create_sub_repository_node(
+        self, repo_path: Path, root_repo: Node
+    ) -> Node:
+        """サブレポジトリノードを生成
+
+        Args:
+            repo_path: サブレポジトリのディレクトリパス
+            root_repo: ルートレポジトリノード（深さ計算用）
+
+        Returns:
+            サブレポジトリのNode
+        """
+        rel_path = self._safe_relative_path(repo_path)
+        # 深さはパスのセパレータ数で決定
+        depth = rel_path.count("/") + 1
+
+        return Node(
+            id=self._next_node_id(),
+            type=NODE_TYPE_REPOSITORY,
+            name=repo_path.name,
+            format="repository",
+            properties={
+                "path": rel_path,
+                "is_root": "false",
+                "depth": str(depth),
+            },
+        )
+
+    def _build_belongs_to_relations(
+        self,
+        nodes: list[Node],
+        repo_nodes_map: dict[str, Node],
+    ) -> list[Relation]:
+        """全非レポジトリノードに belongs_to 関係を構築
+
+        各ノードを最も近い祖先レポジトリに帰属させる。
+
+        Args:
+            nodes: 非レポジトリノードのリスト
+            repo_nodes_map: パス→レポジトリノードのマッピング
+
+        Returns:
+            belongs_to 関係のリスト
+        """
+        relations: list[Relation] = []
+
+        # レポジトリパスを長い順にソート（最も近い祖先を先に見つけるため）
+        # "." はルートなので最後にチェックされる必要がある
+        sorted_repo_paths = sorted(
+            repo_nodes_map.keys(),
+            key=lambda p: (p != ".", len(p)),
+            reverse=True,
+        )
+
+        for node in nodes:
+            node_path = node.properties.get("path", "")
+            parent_repo = self._find_nearest_repository(
+                node_path, sorted_repo_paths, repo_nodes_map
+            )
+            if parent_repo:
+                relations.append(
+                    Relation(
+                        id=self._next_relation_id(),
+                        label=RELATION_BELONGS_TO,
+                        node1_id=node.id,
+                        node2_id=parent_repo.id,
+                    )
+                )
+
+        return relations
+
+    def _build_repository_hierarchy_relations(
+        self,
+        repo_nodes_map: dict[str, Node],
+    ) -> list[Relation]:
+        """レポジトリ間の belongs_to 階層関係を構築
+
+        サブレポジトリを最も近い親レポジトリに帰属させる。
+
+        Args:
+            repo_nodes_map: パス→レポジトリノードのマッピング
+
+        Returns:
+            レポジトリ間の belongs_to 関係のリスト
+        """
+        relations: list[Relation] = []
+
+        sorted_repo_paths = sorted(
+            repo_nodes_map.keys(),
+            key=lambda p: (p != ".", len(p)),
+            reverse=True,
+        )
+
+        for repo_path, repo_node in repo_nodes_map.items():
+            # ルートレポジトリは親を持たない
+            if repo_node.properties.get("is_root") == "true":
+                continue
+
+            parent_repo = self._find_nearest_repository(
+                repo_path, sorted_repo_paths, repo_nodes_map,
+                exclude_self=True,
+            )
+            if parent_repo:
+                relations.append(
+                    Relation(
+                        id=self._next_relation_id(),
+                        label=RELATION_BELONGS_TO,
+                        node1_id=repo_node.id,
+                        node2_id=parent_repo.id,
+                    )
+                )
+
+        return relations
+
+    def _find_nearest_repository(
+        self,
+        node_path: str,
+        sorted_repo_paths: list[str],
+        repo_nodes_map: dict[str, Node],
+        exclude_self: bool = False,
+    ) -> Optional[Node]:
+        """ノードパスから最も近い祖先レポジトリを検索
+
+        Args:
+            node_path: ノードの相対パス
+            sorted_repo_paths: 深い順にソートされたレポジトリパスのリスト
+            repo_nodes_map: パス→レポジトリノードのマッピング
+            exclude_self: Trueの場合、自分自身と同じパスのレポジトリは除外
+
+        Returns:
+            最も近い祖先レポジトリノード、または None
+        """
+        # パスを正規化
+        normalized = node_path.replace("\\", "/")
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+
+        for repo_path in sorted_repo_paths:
+            if exclude_self and repo_path == normalized:
+                continue
+
+            if repo_path == ".":
+                # ルートレポジトリは全てのノードの祖先
+                return repo_nodes_map[repo_path]
+
+            # サブレポジトリのパスがノードパスの接頭辞であること
+            repo_prefix = repo_path.rstrip("/") + "/"
+            if normalized.startswith(repo_prefix):
+                return repo_nodes_map[repo_path]
+
+        return None
 
     def _build_version_and_group_relations(
         self, nodes: list[Node]
