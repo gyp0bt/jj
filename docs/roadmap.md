@@ -107,6 +107,10 @@
   - [x] analysis_status プロパティへの反映
   - [x] .msgファイルのERROR/WARNING抽出（parse_msg_file）
   - [x] GraphServiceへの.msgエンリッチメント統合
+  - [x] 結果ファイル(sta/msg)属性のAbaqusインプットNodeへの集約
+  - [x] active属性の自動判定（oldフォルダ判定）
+  - [x] *PARAMETER/**propsブロックのプロパティ読み取り
+  - [x] Obsidianエクスポート: frontmatterのproperty化、バージョンリンク構造改善
 
 **参照**: [services/parse/abaqus_connector.py](../../services/parse/abaqus_connector.py)
 
@@ -325,5 +329,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-027.md)
+- [最新ステータス](./status/status-028.md)
 - [プロジェクトREADME](../README.md)
