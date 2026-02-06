@@ -37,6 +37,10 @@ _STA_NOT_COMPLETED_PATTERN = re.compile(
 _STA_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
 _STA_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
 
+# .msg ファイル解析用パターン
+_MSG_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
+_MSG_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
+
 # has_output 関係で対象とする出力ファイル拡張子
 OUTPUT_EXTENSIONS: frozenset[str] = frozenset({
     ".csv", ".json", ".png", ".gif", ".xlsx", ".yaml", ".pptx",
@@ -177,6 +181,40 @@ def parse_material_blocks(inp_path: Path) -> list[dict[str, Any]]:
         materials.append(current_material)
 
     return materials
+
+
+def parse_msg_file(msg_path: Path) -> dict[str, Any]:
+    """Abaqus .msg ファイルを解析してエラーと警告を抽出する
+
+    .msgファイルはAbaqusの解析実行中の詳細メッセージログで、
+    ***ERROR や ***WARNING といったマーカーでエラー・警告を記録する。
+
+    Args:
+        msg_path: .msgファイルのパス
+
+    Returns:
+        解析結果の辞書:
+        - errors: エラーメッセージのリスト
+        - warnings: 警告メッセージのリスト
+    """
+    result: dict[str, Any] = {
+        "errors": [],
+        "warnings": [],
+    }
+
+    try:
+        with msg_path.open("r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except (OSError, IOError):
+        return result
+
+    for match in _MSG_ERROR_PATTERN.finditer(content):
+        result["errors"].append(match.group(1).strip())
+
+    for match in _MSG_WARNING_PATTERN.finditer(content):
+        result["warnings"].append(match.group(1).strip())
+
+    return result
 
 
 class GraphService:
@@ -436,6 +474,9 @@ class GraphService:
 
         # 解析結果ファイルの解析（analysis_status）
         self._enrich_sta_status(nodes)
+
+        # .msgファイルの解析（errors/warnings抽出）
+        self._enrich_msg_status(nodes)
 
         return GraphModel(nodes=nodes, relations=relations)
 
@@ -853,6 +894,27 @@ class GraphService:
                 node.properties["errors"] = sta_info["errors"]
             if sta_info["warnings"]:
                 node.properties["warnings"] = sta_info["warnings"]
+
+    def _enrich_msg_status(self, nodes: list[Node]) -> None:
+        """メッセージファイル（.msg）のエラー・警告をノードのプロパティに付与
+
+        .msgファイルの内容を解析し、対応するノードのpropertiesに
+        msg_errors, msg_warningsを追加する。
+        """
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".msg":
+                continue
+
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            msg_info = parse_msg_file(file_path)
+            if msg_info["errors"]:
+                node.properties["msg_errors"] = msg_info["errors"]
+            if msg_info["warnings"]:
+                node.properties["msg_warnings"] = msg_info["warnings"]
 
     def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
         """2つのノードが同じ主要プロパティを持つかチェック"""

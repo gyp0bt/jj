@@ -563,11 +563,10 @@ class NotesService:
             (root / "daily").mkdir(parents=True, exist_ok=True)
             (root / "canvas").mkdir(parents=True, exist_ok=True)
             (root / "props").mkdir(parents=True, exist_ok=True)
-            (root / "props" / "inp").mkdir(parents=True, exist_ok=True)
-            (root / "props" / "inp" / "go").mkdir(parents=True, exist_ok=True)
-            (root / "props" / "inp" / "mesh").mkdir(parents=True, exist_ok=True)
-            (root / "props" / "inp" / "material").mkdir(parents=True, exist_ok=True)
-            (root / "props" / "inp" / "step").mkdir(parents=True, exist_ok=True)
+            (root / "props" / "go").mkdir(parents=True, exist_ok=True)
+            (root / "props" / "mesh").mkdir(parents=True, exist_ok=True)
+            (root / "props" / "material").mkdir(parents=True, exist_ok=True)
+            (root / "props" / "step").mkdir(parents=True, exist_ok=True)
             (root / "props" / "reports").mkdir(parents=True, exist_ok=True)
             (root / "props" / "docs").mkdir(parents=True, exist_ok=True)
             (root / "props" / "tools").mkdir(parents=True, exist_ok=True)
@@ -575,19 +574,19 @@ class NotesService:
             # baseファイルを生成
             write_yaml_if_missing(
                 root / "bases" / "O-go.base",
-                base_template(root / "props" / "inp" / "go"),
+                base_template(root / "props" / "go"),
             )
             write_yaml_if_missing(
                 root / "bases" / "O-mesh.base",
-                base_template(root / "props" / "inp" / "mesh"),
+                base_template(root / "props" / "mesh"),
             )
             write_yaml_if_missing(
                 root / "bases" / "O-material.base",
-                base_template(root / "props" / "inp" / "material", idx=False),
+                base_template(root / "props" / "material", idx=False),
             )
             write_yaml_if_missing(
                 root / "bases" / "O-step.base",
-                base_template(root / "props" / "inp" / "step", idx=False),
+                base_template(root / "props" / "step", idx=False),
             )
             write_yaml_if_missing(
                 root / "bases" / "O-docs.base",
@@ -628,7 +627,7 @@ class NotesService:
 
         all_category_bases = []
         for category in ["go", "mesh", "material", "step"]:
-            category_list = list(glob.glob(str(root / "props" / "inp" / category / "*.md")))
+            category_list = list(glob.glob(str(root / "props" / category / "*.md")))
             if not category_list:
                 continue
 
@@ -657,7 +656,7 @@ class NotesService:
                     write_yaml_if_missing(
                         root / "bases" / category / f"O-{i}.base",
                         base_template(
-                            root / "props" / "inp" / category,
+                            root / "props" / category,
                             additional_filters=[f'file.basename.startsWith("O-{i}")'],
                             idx=False,
                             show_only_active=False,
@@ -677,7 +676,7 @@ class NotesService:
         # グループbaseファイルの生成
         all_inp_files = []
         for subdir in ["go", "mesh", "material", "step"]:
-            all_inp_files.extend(glob.glob(str(root / "props" / "inp" / subdir / "*.md")))
+            all_inp_files.extend(glob.glob(str(root / "props" / subdir / "*.md")))
 
         group_files = defaultdict(list)
         for filepath in all_inp_files:
@@ -692,7 +691,7 @@ class NotesService:
                 write_yaml_if_missing(
                     root / "bases" / "group" / f"O-{group_name}.base",
                     base_template(
-                        root / "props" / "inp",
+                        root / "props",
                         additional_filters=[f'file.basename.startsWith("O-{group_name}_")'],
                         idx=False,
                         ver=False,

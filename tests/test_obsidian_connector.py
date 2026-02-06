@@ -95,9 +95,12 @@ class TestObsidianConnector:
         md_path = connector.get_md_path(sample_node)
 
         # ディレクトリはO-なし、ファイル名はO-付き
-        assert "inp/go/" in str(md_path).replace("\\", "/")
+        # props直下の{type}/配下に配置（inp/は挟まない）
+        path_str = str(md_path).replace("\\", "/")
+        assert "/go/" in path_str
+        assert "inp/go/" not in path_str  # inp/は挟まない
         assert md_path.name == "O-go_test_v1.inp.md"
-        assert "O-go/" not in str(md_path).replace("\\", "/")  # ディレクトリにO-がないことを確認
+        assert "O-go/" not in path_str  # ディレクトリにO-がないことを確認
 
     def test_get_md_path_docs_type(self, connector):
         """docsタイプのmdファイルパス生成"""
@@ -136,9 +139,9 @@ class TestObsidianConnector:
         rel_path = path.relative_to(tmp_path)
         parts = rel_path.parts
 
-        # notes/props/inp/go/O-xxx.md という構造
-        assert "inp" in parts
+        # notes/props/go/O-xxx.md という構造（inp/は挟まない）
         assert "go" in parts
+        assert "inp" not in parts  # inp/は挟まない
         assert "O-go" not in parts  # ディレクトリにO-がないことを確認
         assert path.name.startswith("O-")
 
@@ -171,6 +174,134 @@ class TestObsidianConnector:
         # 全ファイルがO-プレフィックス付き
         for path in written:
             assert path.name.startswith("O-")
+
+
+class TestObsidianBaseAndGroupFiles:
+    """base/groupファイル生成のテスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        """テスト用コネクタ"""
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_export_graph_generates_base_files(self, connector, tmp_path):
+        """同一indexのノードが2つ以上あれば.baseファイルが生成される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+                ),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        # .baseファイルが生成されている
+        base_files = [p for p in written if p.name.endswith(".base")]
+        assert len(base_files) == 1
+        assert base_files[0].name == "go_idx1.base"
+        # .base はYAML形式（frontmatterの---で始まらない）
+        content = base_files[0].read_text(encoding="utf-8")
+        assert not content.startswith("---")
+        assert "views:" in content
+
+    def test_export_graph_generates_group_files(self, connector, tmp_path):
+        """同一indexのノードが2つ以上あれば-group.mdファイルが生成される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+                ),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        # -group.mdファイルが生成されている
+        group_files = [p for p in written if p.name.endswith("-group.md")]
+        assert len(group_files) == 1
+        assert group_files[0].name == "go_idx1-group.md"
+        # -group.md はfrontmatter形式
+        content = group_files[0].read_text(encoding="utf-8")
+        assert content.startswith("---")
+        assert "nodegroup" in content
+        assert "[[O-go_idx1_v1.inp]]" in content
+        assert "[[O-go_idx1_v2.inp]]" in content
+
+    def test_group_file_placed_in_props_type_dir(self, connector, tmp_path):
+        """-group.mdファイルはprops/{type}/配下に配置される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="mesh",
+                    name="mesh_idx1_v1",
+                    format="cdb",
+                    properties={"path": "mesh_idx1_v1.cdb", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="mesh",
+                    name="mesh_idx1_v2",
+                    format="cdb",
+                    properties={"path": "mesh_idx1_v2.cdb", "index": "1", "version": "2"},
+                ),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        group_files = [p for p in written if p.name.endswith("-group.md")]
+        assert len(group_files) == 1
+        # notes/props/mesh/mesh_idx1-group.md に配置される
+        rel_path = group_files[0].relative_to(tmp_path)
+        parts = rel_path.parts
+        assert "props" in parts
+        assert "mesh" in parts
+        assert "inp" not in parts  # inp/は挟まない
+
+    def test_no_base_or_group_for_single_node(self, connector, tmp_path):
+        """ノードが1つだけの場合はbase/groupファイルが生成されない"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        base_files = [p for p in written if p.name.endswith(".base")]
+        group_files = [p for p in written if p.name.endswith("-group.md")]
+        assert len(base_files) == 0
+        assert len(group_files) == 0
 
 
 class TestObsidianConfigCustomPrefix:
