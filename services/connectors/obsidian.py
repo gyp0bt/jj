@@ -243,6 +243,12 @@ class ObsidianConnector:
         props["idx"] = props.pop("index", "")
         props["ver"] = props.pop("version", "")
 
+        # ファイル情報をpropertyとして追加
+        props["node_type"] = node.type
+        props["node_format"] = node.format
+        real_path = props.get("path", "")
+        props["file"] = real_path.replace("\\", "/") if real_path else ""
+
         # includesは実ファイル名 → Obsidianリンク形式に変換
         if includes:
             props["includes"] = [
@@ -318,6 +324,75 @@ class ObsidianConnector:
 
         return content
 
+    def _build_version_groups(
+        self, nodes: list[Node]
+    ) -> dict[tuple[str, str], list[Node]]:
+        """type + index でノードをバージョン順にグループ化
+
+        Returns:
+            {(type, index): [ノードをversion昇順でソート]} のdict
+        """
+        groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
+        for node in nodes:
+            index = node.properties.get("index", "")
+            if index:
+                groups[(node.type, index)].append(node)
+
+        # 各グループをversion昇順でソート
+        for key in groups:
+            groups[key] = sorted(groups[key], key=lambda n: self._get_version_sort_key(n))
+
+        return groups
+
+    @staticmethod
+    def _get_version_sort_key(node: Node) -> tuple[int, str]:
+        """ノードのバージョンソートキーを返す"""
+        ver = node.properties.get("version", "")
+        if not ver:
+            ver = "1"
+        try:
+            return (0, str(int(ver)).zfill(10))
+        except (ValueError, TypeError):
+            return (1, str(ver))
+
+    def _build_parent_links(
+        self, version_groups: dict[tuple[str, str], list[Node]]
+    ) -> dict[int, str]:
+        """各ノードの親リンクを構築
+
+        最新ver → {type}_idx{index}.base へのリンク
+        それ以外 → 次のversionのNodeへのリンク
+
+        Returns:
+            {node_id: parent_link_string} のdict
+        """
+        parent_links: dict[int, str] = {}
+
+        for (node_type, index), sorted_nodes in version_groups.items():
+            if len(sorted_nodes) < 2:
+                # 1つしかない場合は.baseリンクのみ
+                if sorted_nodes:
+                    base_name = f"{node_type}_idx{index}.base"
+                    parent_links[sorted_nodes[0].id] = base_name
+                continue
+
+            # 最新ver（最後の要素）は.baseリンク
+            latest = sorted_nodes[-1]
+            base_name = f"{node_type}_idx{index}.base"
+            parent_links[latest.id] = base_name
+
+            # 最新以外は次のNodeへのリンク
+            for i in range(len(sorted_nodes) - 1):
+                current = sorted_nodes[i]
+                next_node = sorted_nodes[i + 1]
+                next_filename = f"{next_node.name}.{next_node.format}"
+                next_obsidian = to_obsidian_filename(next_filename, self.config.obsidian_prefix)
+                # .md拡張子を除いてリンク名にする
+                link_name = next_obsidian[:-3] if next_obsidian.endswith(".md") else next_obsidian
+                parent_links[current.id] = link_name
+
+        return parent_links
+
     def export_graph(
         self,
         graph: GraphModel,
@@ -347,10 +422,20 @@ class ObsidianConnector:
                 target_md = to_obsidian_filename(target_filename, self.config.obsidian_prefix)
                 relations_by_node[rel.node1_id].append((rel.label, target_md))
 
+        # バージョングループ構築と親リンク決定
+        version_groups = self._build_version_groups(graph.nodes)
+        parent_links = self._build_parent_links(version_groups)
+
         # ノードごとにmdファイルを書き出し
         for node in graph.nodes:
             node_relations = relations_by_node.get(node.id, [])
-            path = self.write_md_with_relations(node, node_relations, overwrite=overwrite)
+            # 親リンクをincludesに設定
+            includes = None
+            if node.id in parent_links:
+                includes = [parent_links[node.id]]
+            path = self.write_md_with_relations(
+                node, node_relations, includes=includes, overwrite=overwrite
+            )
             if path:
                 written.append(path)
 
@@ -396,15 +481,12 @@ class ObsidianConnector:
         graph: GraphModel,
         overwrite: bool = False,
     ) -> list[Path]:
-        """NodeGroup用の.base（フィルター条件）ファイルと-group.md（メンバー一覧）ファイルを生成
+        """NodeGroup用の.base（フィルター条件）ファイルを生成
 
         .baseファイル:
             YAML形式のフィルター条件ファイル（Obsidianでテーブル表示用）。
             notes/bases/{type}/ 配下に配置。
-
-        -group.mdファイル:
-            NodeGroupのメンバー一覧を持つマークダウンファイル。
-            notes/props/{type}/ 配下に "{type}_idx{index}-group.md" として配置。
+            最新verのNodeがこの.baseファイルへのリンクを持つ。
 
         Args:
             graph: グラフモデル
@@ -415,7 +497,6 @@ class ObsidianConnector:
         """
         written: list[Path] = []
         bases_dir = self.project_root / self.config.bases_dir
-        notes_dir = self.project_root / self.config.notes_dir
 
         # type + index でグループ化
         groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
@@ -424,7 +505,7 @@ class ObsidianConnector:
             if index:
                 groups[(node.type, index)].append(node)
 
-        # グループごとに .base と -group.md を生成
+        # グループごとに .base を生成
         for (node_type, index), nodes in groups.items():
             if len(nodes) < 2:
                 continue
@@ -440,16 +521,6 @@ class ObsidianConnector:
                 base_content = self._format_base_filter(node_type, index, nodes)
                 base_path.write_text(base_content, encoding="utf-8")
                 written.append(base_path)
-
-            # --- -group.md ファイル（メンバー一覧、props配下） ---
-            group_filename = f"{node_type}_idx{index}-group.md"
-            group_path = notes_dir / dir_name / group_filename
-
-            if not group_path.exists() or overwrite:
-                group_path.parent.mkdir(parents=True, exist_ok=True)
-                group_content = self._format_group_file(node_type, index, nodes)
-                group_path.write_text(group_content, encoding="utf-8")
-                written.append(group_path)
 
         return written
 
@@ -474,7 +545,9 @@ class ObsidianConnector:
         """
         default_views = self.graph_config.obsidian.default_views
         dir_name = get_directory_for_type(node_type)
-        folder_path = f"{self.config.notes_dir}/{dir_name}"
+        # パスは常にスラッシュ区切りにする（Windows対応）
+        notes_dir_str = str(self.config.notes_dir).replace("\\", "/")
+        folder_path = f"{notes_dir_str}/{dir_name}"
 
         # views設定をカスタマイズ
         views = []

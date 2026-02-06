@@ -216,8 +216,8 @@ class TestObsidianBaseAndGroupFiles:
         assert not content.startswith("---")
         assert "views:" in content
 
-    def test_export_graph_generates_group_files(self, connector, tmp_path):
-        """同一indexのノードが2つ以上あれば-group.mdファイルが生成される"""
+    def test_group_files_abolished(self, connector, tmp_path):
+        """同一idxグループの-group.mdは廃止され、生成されない"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -239,48 +239,69 @@ class TestObsidianBaseAndGroupFiles:
         )
         written = connector.export_graph(graph)
 
-        # -group.mdファイルが生成されている
+        # -group.mdファイルは生成されない（廃止）
         group_files = [p for p in written if p.name.endswith("-group.md")]
-        assert len(group_files) == 1
-        assert group_files[0].name == "go_idx1-group.md"
-        # -group.md はfrontmatter形式
-        content = group_files[0].read_text(encoding="utf-8")
-        assert content.startswith("---")
-        assert "nodegroup" in content
-        assert "[[O-go_idx1_v1.inp]]" in content
-        assert "[[O-go_idx1_v2.inp]]" in content
+        assert len(group_files) == 0
 
-    def test_group_file_placed_in_props_type_dir(self, connector, tmp_path):
-        """-group.mdファイルはprops/{type}/配下に配置される"""
+    def test_latest_version_links_to_base(self, connector, tmp_path):
+        """最新verのNodeは.baseファイルへのリンクを持つ"""
         graph = GraphModel(
             nodes=[
                 Node(
                     id=1,
-                    type="mesh",
-                    name="mesh_idx1_v1",
-                    format="cdb",
-                    properties={"path": "mesh_idx1_v1.cdb", "index": "1", "version": "1"},
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
                 ),
                 Node(
                     id=2,
-                    type="mesh",
-                    name="mesh_idx1_v2",
-                    format="cdb",
-                    properties={"path": "mesh_idx1_v2.cdb", "index": "1", "version": "2"},
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
                 ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
 
-        group_files = [p for p in written if p.name.endswith("-group.md")]
-        assert len(group_files) == 1
-        # notes/props/mesh/mesh_idx1-group.md に配置される
-        rel_path = group_files[0].relative_to(tmp_path)
-        parts = rel_path.parts
-        assert "props" in parts
-        assert "mesh" in parts
-        assert "inp" not in parts  # inp/は挟まない
+        # 最新ver (v2) のmdファイルを確認
+        v2_md = [p for p in written if "go_idx1_v2" in p.name and p.name.endswith(".md")]
+        assert len(v2_md) == 1
+        content = v2_md[0].read_text(encoding="utf-8")
+        # .baseへのリンクがincludesに含まれる
+        assert "go_idx1.base" in content
+
+    def test_non_latest_links_to_next_version(self, connector, tmp_path):
+        """最新以外のNodeは次のNodeへのリンクを持つ"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+                ),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        # v1のmdファイルを確認
+        v1_md = [p for p in written if "go_idx1_v1" in p.name and p.name.endswith(".md")]
+        assert len(v1_md) == 1
+        content = v1_md[0].read_text(encoding="utf-8")
+        # 次のバージョン(v2)へのリンクがincludesに含まれる
+        assert "O-go_idx1_v2.inp" in content
 
     def test_no_base_or_group_for_single_node(self, connector, tmp_path):
         """ノードが1つだけの場合はbase/groupファイルが生成されない"""
@@ -302,6 +323,127 @@ class TestObsidianBaseAndGroupFiles:
         group_files = [p for p in written if p.name.endswith("-group.md")]
         assert len(base_files) == 0
         assert len(group_files) == 0
+
+
+class TestObsidianFrontmatterProperties:
+    """frontmatterにファイル情報がpropertyとして含まれることのテスト"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_frontmatter_has_node_type(self, connector):
+        """frontmatterにnode_typeが含まれる"""
+        node = Node(
+            id=1,
+            type="Abaqusインプット",
+            name="go_idx1_v1",
+            format="inp",
+            properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["node_type"] == "Abaqusインプット"
+
+    def test_frontmatter_has_node_format(self, connector):
+        """frontmatterにnode_formatが含まれる"""
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
+            properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["node_format"] == "inp"
+
+    def test_frontmatter_has_file_path(self, connector):
+        """frontmatterにfile（実ファイルパス）が含まれる"""
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
+            properties={"path": "go/go_idx1_v1.inp", "index": "1", "version": "1"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert fm["file"] == "go/go_idx1_v1.inp"
+
+    def test_frontmatter_file_path_uses_forward_slash(self, connector):
+        """frontmatterのfileパスはバックスラッシュを/に変換する"""
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
+            properties={"path": "go\\go_idx1_v1.inp", "index": "1", "version": "1"},
+        )
+        fm = connector.node_to_frontmatter(node)
+        assert "\\" not in fm["file"]
+        assert fm["file"] == "go/go_idx1_v1.inp"
+
+
+class TestObsidianVersionLinks:
+    """バージョンリンク構造のテスト（3ノード以上）"""
+
+    @pytest.fixture
+    def connector(self, tmp_path):
+        return ObsidianConnector(project_root=tmp_path)
+
+    def test_three_versions_link_chain(self, connector, tmp_path):
+        """v1→v2, v2→v3, v3→.base のリンクチェーン"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                     properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+                Node(id=3, type="go", name="go_idx1_v3", format="inp",
+                     properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        # v1 → v2 リンク
+        v1_md = [p for p in written if "go_idx1_v1" in p.name and p.name.endswith(".md")]
+        assert len(v1_md) == 1
+        v1_content = v1_md[0].read_text(encoding="utf-8")
+        assert "O-go_idx1_v2.inp" in v1_content
+
+        # v2 → v3 リンク
+        v2_md = [p for p in written if "go_idx1_v2" in p.name and p.name.endswith(".md")]
+        assert len(v2_md) == 1
+        v2_content = v2_md[0].read_text(encoding="utf-8")
+        assert "O-go_idx1_v3.inp" in v2_content
+
+        # v3 → .base リンク
+        v3_md = [p for p in written if "go_idx1_v3" in p.name and p.name.endswith(".md")]
+        assert len(v3_md) == 1
+        v3_content = v3_md[0].read_text(encoding="utf-8")
+        assert "go_idx1.base" in v3_content
+
+    def test_base_filename_uses_node_type(self, connector, tmp_path):
+        """.baseファイル名はnode.typeを使用する"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
+                     properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+                Node(id=2, type="Abaqusインプット", name="go_idx1_v2", format="inp",
+                     properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            ],
+            relations=[],
+        )
+        written = connector.export_graph(graph)
+
+        # .baseファイル名がノードのtypeを使う
+        base_files = [p for p in written if p.name.endswith(".base")]
+        assert len(base_files) == 1
+        assert base_files[0].name == "Abaqusインプット_idx1.base"
+
+        # 最新verのfrontmatterに.baseリンクが含まれる
+        v2_md = [p for p in written if "go_idx1_v2" in p.name and p.name.endswith(".md")]
+        v2_content = v2_md[0].read_text(encoding="utf-8")
+        assert "Abaqusインプット_idx1.base" in v2_content
 
 
 class TestObsidianConfigCustomPrefix:
