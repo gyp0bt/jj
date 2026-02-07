@@ -395,13 +395,63 @@ class GraphService:
         if inp_param_props:
             properties.update(inp_param_props)
 
+        # verbose_name: config vocabで変換した後の表示名を生成
+        raw_name = parser.get_basename()
+        verbose_name = self._build_verbose_name(
+            raw_name, resolved_type, translated_props, tags + config_tags
+        )
+        if verbose_name and verbose_name != raw_name:
+            properties["verbose_name"] = verbose_name
+
         return Node(
             id=self._next_node_id(),
             type=resolved_type,
-            name=parser.get_basename(),
+            name=raw_name,
             format=parser._split_extension()[1].lstrip("."),
             properties=properties,
         )
+
+    def _build_verbose_name(
+        self,
+        raw_name: str,
+        resolved_type: str,
+        translated_props: dict[str, Any],
+        tags: list[str],
+    ) -> str:
+        """config vocabで変換した後の表示名を生成
+
+        ファイル名を構成要素に分解し、vocabで変換された値を用いて再構成する。
+        例: go_idx1_w5_t20 → {type翻訳}_{index翻訳}1_{w翻訳}5_{t翻訳}20
+
+        Args:
+            raw_name: 生のbasename
+            resolved_type: 解決済みタイプ
+            translated_props: vocab変換済みプロパティ
+            tags: タグリスト
+
+        Returns:
+            変換後の表示名
+        """
+        vocab = self.config.vocab
+        # タイプ名の変換
+        type_name = vocab.get(resolved_type, resolved_type)
+
+        parts = [type_name]
+        # プロパティを追加
+        skip_keys = {"path", "tags", "active"}
+        for key, value in translated_props.items():
+            if key in skip_keys:
+                continue
+            if isinstance(value, (list, dict)):
+                continue
+            parts.append(f"{key}{value}")
+
+        # タグを追加
+        for tag in tags:
+            translated_tag = vocab.get(tag, tag)
+            parts.append(translated_tag)
+
+        return "_".join(parts)
 
     def _read_inp_parameter_props(self, file_path: Path) -> dict[str, str]:
         """INPファイルの*PARAMETER/**propsブロックからプロパティを読み取る
@@ -584,6 +634,9 @@ class GraphService:
 
         # includeファイルのpropertyをgo_*.inpに伝搬
         self._enrich_include_properties(nodes, relations)
+
+        # elsetと材料名をgo_*.inpのプロパティに追加
+        self._enrich_material_assignment_props(nodes, mat_nodes, mat_assign_relations)
 
         # 前バージョンとのキーワードブロック差分をpropertyに追加
         self._enrich_version_diff(nodes)
@@ -1464,6 +1517,55 @@ class GraphService:
 
             if include_props:
                 parent.properties["include_properties"] = include_props
+
+    def _enrich_material_assignment_props(
+        self,
+        all_nodes: list[Node],
+        mat_nodes: list[Node],
+        mat_relations: list[Relation],
+    ) -> None:
+        """elsetと材料名をgo_*.inpのプロパティに追加
+
+        assigned_to関係を持つmaterialノードの情報を、
+        対応するgo_*.inpノードに材料名リストとelset情報として追加する。
+
+        追加プロパティ:
+        - materials: 割り当てられた材料名のリスト
+        - material_elsets: {材料名: [elset名, ...]} の辞書
+        """
+        # assigned_to関係: mat_node → inp_node
+        node_by_id: dict[int, Node] = {n.id: n for n in all_nodes + mat_nodes}
+
+        # go_*.inp ノードのID → 材料情報の集約
+        inp_materials: dict[int, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+
+        for rel in mat_relations:
+            if rel.label != "assigned_to":
+                continue
+            mat_node = node_by_id.get(rel.node1_id)
+            inp_node = node_by_id.get(rel.node2_id)
+            if mat_node is None or inp_node is None:
+                continue
+
+            # go系ノードのみ
+            name_lower = inp_node.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+
+            mat_name = mat_node.name
+            elsets = mat_node.properties.get("assigned_elsets", [])
+            if isinstance(elsets, list):
+                inp_materials[inp_node.id][mat_name].extend(elsets)
+            elif isinstance(elsets, str):
+                inp_materials[inp_node.id][mat_name].append(elsets)
+
+        # 結果をノードのプロパティに設定
+        for node_id, mat_elset_map in inp_materials.items():
+            node = node_by_id.get(node_id)
+            if node is None:
+                continue
+            node.properties["materials"] = sorted(mat_elset_map.keys())
+            node.properties["material_elsets"] = dict(mat_elset_map)
 
     def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
         """2つのノードが同じ主要プロパティを持つかチェック"""

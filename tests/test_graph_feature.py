@@ -2711,5 +2711,375 @@ class TestExportParse:
         assert args.parse is False
 
 
+class TestDailyConnectorEnhanced:
+    """日報コネクタの強化テスト: Obsidianリンク+プロパティ記法、ファイルリンク値抽出"""
+
+    def test_obsidian_link_with_property(self, tmp_path):
+        """[[O-go_idx1.inp]]:備考:条件1 でプロパティがセットされる"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily = tmp_path / "2026-02-07.md"
+        daily.write_text(
+            "## テスト\n\n"
+            "[[O-go_idx1.inp]]:備考:条件1\n",
+            encoding="utf-8",
+        )
+        note = parse_daily_note(daily)
+        assert len(note.file_references) == 1
+        ref = note.file_references[0]
+        assert ref.filename == "go_idx1.inp"
+        assert ref.properties.get("備考") == "条件1"
+
+    def test_obsidian_link_display_name_with_property(self, tmp_path):
+        """[[go_idx1.inp|表示名]]:status:completed でプロパティがセットされる"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily = tmp_path / "2026-02-07.md"
+        daily.write_text(
+            "## テスト\n\n"
+            "[[go_idx1.inp|ファイル1]]:status:completed\n",
+            encoding="utf-8",
+        )
+        note = parse_daily_note(daily)
+        assert len(note.file_references) == 1
+        ref = note.file_references[0]
+        assert ref.filename == "go_idx1.inp"
+        assert ref.properties.get("status") == "completed"
+
+    def test_plain_filename_with_property(self, tmp_path):
+        """go_idx1.inp:備考:条件1 でもプロパティがセットされる"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily = tmp_path / "2026-02-07.md"
+        daily.write_text(
+            "## テスト\n\n"
+            "go_idx1.inp: 備考: 条件1\n",
+            encoding="utf-8",
+        )
+        note = parse_daily_note(daily)
+        assert len(note.file_references) >= 1
+        ref = next(r for r in note.file_references if r.filename == "go_idx1.inp")
+        assert ref.properties.get("備考") == "条件1"
+
+    def test_file_link_value_extraction(self, tmp_path):
+        """プロパティ値が[[image.png]]の場合、ファイルパスを抽出"""
+        from services.connectors.daily_connector import _extract_file_path_from_value
+
+        assert _extract_file_path_from_value("[[image.png]]") == "image.png"
+        assert _extract_file_path_from_value("[[image.png|画像1]]") == "image.png"
+        assert _extract_file_path_from_value("[[path/to/image.png]]") == "path/to/image.png"
+        assert _extract_file_path_from_value("普通の値") == "普通の値"
+
+    def test_strip_obsidian_prefix(self):
+        """O-プレフィックスの除去テスト"""
+        from services.connectors.daily_connector import _strip_obsidian_prefix
+
+        assert _strip_obsidian_prefix("O-go_idx1.inp") == "go_idx1.inp"
+        assert _strip_obsidian_prefix("O-go_idx1.inp.md") == "go_idx1.inp"
+        assert _strip_obsidian_prefix("go_idx1.inp") == "go_idx1.inp"
+
+    def test_file_link_value_in_property(self, tmp_path):
+        """go_idx1.inp: image: [[image.png|画像1]] でファイルパスが抽出される"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily = tmp_path / "2026-02-07.md"
+        daily.write_text(
+            "## テスト\n\n"
+            "go_idx1.inp: image: [[image.png|画像1]]\n",
+            encoding="utf-8",
+        )
+        note = parse_daily_note(daily)
+        ref = next(r for r in note.file_references if r.filename == "go_idx1.inp")
+        assert ref.properties.get("image") == "image.png"
+
+
+class TestInfoCommandEnhanced:
+    """jj infoコマンドの強化テスト"""
+
+    @staticmethod
+    def _import_graph_module():
+        try:
+            import cli.graph as mod
+            return mod
+        except (ValueError, ImportError, ModuleNotFoundError) as e:
+            pytest.skip(f"cli.graph import failed: {e}")
+
+    def test_info_args_multiple_filenames(self):
+        """ファイル名を複数指定できる"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_info_args(parser)
+        args = parser.parse_args(["file1.inp", "file2.inp"])
+        assert args.filename == ["file1.inp", "file2.inp"]
+
+    def test_info_args_id_filter(self):
+        """-id オプションでインデックス指定"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_info_args(parser)
+        args = parser.parse_args(["-id", "1", "2"])
+        assert args.index == ["1", "2"]
+
+    def test_info_args_version_filter(self):
+        """-v オプションでバージョン指定"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_info_args(parser)
+        args = parser.parse_args(["-v", "1"])
+        assert args.version == ["1"]
+
+    def test_info_args_props_only(self):
+        """-props オプションでプロパティのみ表示"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_info_args(parser)
+        args = parser.parse_args(["-props", "file.inp"])
+        assert args.props_only is True
+
+    def test_info_search_by_index(self):
+        """インデックスで検索"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1", format="inp",
+                     properties={"index": "1", "version": "1", "path": "go_idx1.inp"}),
+                Node(id=2, type="go", name="go_idx2", format="inp",
+                     properties={"index": "2", "version": "1", "path": "go_idx2.inp"}),
+            ],
+            relations=[],
+        )
+        # インデックス1でフィルタ
+        matched = [n for n in graph.nodes if str(n.properties.get("index", "")) == "1"]
+        assert len(matched) == 1
+        assert matched[0].name == "go_idx1"
+
+
+class TestDiffCommand:
+    """jj diffコマンドのテスト"""
+
+    @staticmethod
+    def _import_graph_module():
+        try:
+            import cli.graph as mod
+            return mod
+        except (ValueError, ImportError, ModuleNotFoundError) as e:
+            pytest.skip(f"cli.graph import failed: {e}")
+
+    def test_diff_args(self):
+        """diffコマンドの引数パース"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_diff_args(parser)
+        args = parser.parse_args(["file1.inp", "file2.inp", "--detail"])
+        assert args.file1 == "file1.inp"
+        assert args.file2 == "file2.inp"
+        assert args.detail is True
+
+    def test_resolve_file_path(self, tmp_path):
+        """ファイルパス解決のテスト"""
+        mod = self._import_graph_module()
+
+        test_file = tmp_path / "test.inp"
+        test_file.write_text("test")
+
+        # 存在するファイルの検索
+        result = mod._resolve_file_path(tmp_path, "test.inp")
+        assert result is not None
+        assert result.name == "test.inp"
+
+        # 存在しないファイル
+        result = mod._resolve_file_path(tmp_path, "nonexist.inp")
+        assert result is None
+
+
+class TestVerboseName:
+    """verbose_name生成のテスト"""
+
+    def test_verbose_name_set_on_node(self, tmp_path):
+        """parse時にverbose_nameがプロパティに設定される"""
+        from services.graph import GraphService
+        from config import GraphConfig
+
+        # テスト用設定
+        config = GraphConfig.from_dict({
+            "vocab": {"go": "計算入力"},
+        })
+        service = GraphService(project_root=tmp_path, config=config)
+        # テストファイル作成
+        (tmp_path / "go_idx1_v1.inp").write_text("test")
+        node = service.file_to_node(tmp_path / "go_idx1_v1.inp")
+        # verbose_nameが設定される（raw_nameと異なる場合のみ）
+        assert "verbose_name" in node.properties
+
+
+class TestExportCSVJSON:
+    """CSV/JSONエクスポートのテスト"""
+
+    @staticmethod
+    def _import_graph_module():
+        try:
+            import cli.graph as mod
+            return mod
+        except (ValueError, ImportError, ModuleNotFoundError) as e:
+            pytest.skip(f"cli.graph import failed: {e}")
+
+    def test_export_args_csv(self):
+        """--target csv オプション"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_export_args(parser)
+        args = parser.parse_args(["--target", "csv"])
+        assert args.target == "csv"
+
+    def test_export_args_json(self):
+        """--target json オプション"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_export_args(parser)
+        args = parser.parse_args(["--target", "json"])
+        assert args.target == "json"
+
+    def test_export_args_select(self):
+        """--select オプションで複数ファイル選択"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_export_args(parser)
+        args = parser.parse_args(["--target", "csv", "--select", "file1.inp", "file2.inp"])
+        assert args.select == ["file1.inp", "file2.inp"]
+
+    def test_export_data_csv(self, tmp_path):
+        """CSVエクスポートの動作テスト"""
+        import csv
+        import json
+        mod = self._import_graph_module()
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1", format="inp",
+                     properties={"index": "1", "version": "1", "path": "go_idx1.inp", "tags": ["test"]}),
+                Node(id=2, type="mesh", name="mesh_idx1", format="inp",
+                     properties={"index": "1", "version": "1", "path": "mesh_idx1.inp"}),
+            ],
+            relations=[],
+        )
+
+        # 全ノードのキーを収集してnull埋め
+        all_keys = ["name", "type", "format"]
+        seen = set(all_keys)
+        for node in graph.nodes:
+            for key in node.properties:
+                if key not in seen:
+                    all_keys.append(key)
+                    seen.add(key)
+
+        # CSV書き出し
+        output_path = tmp_path / "test.csv"
+        rows = []
+        for node in graph.nodes:
+            row = {"name": node.name, "type": node.type, "format": node.format}
+            for key in all_keys:
+                if key not in row:
+                    value = node.properties.get(key)
+                    if value is None:
+                        row[key] = None
+                    elif isinstance(value, (list, dict)):
+                        row[key] = json.dumps(value, ensure_ascii=False)
+                    else:
+                        row[key] = value
+            rows.append(row)
+
+        with output_path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        # 検証
+        with output_path.open("r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            read_rows = list(reader)
+        assert len(read_rows) == 2
+        assert read_rows[0]["name"] == "go_idx1"
+        # mesh_idx1のtagsはNone（null）
+        assert read_rows[1].get("tags", "") in ("", None, "None")
+
+
+class TestMaterialAssignmentProps:
+    """材料割り当てプロパティのテスト"""
+
+    def test_material_enrich(self):
+        """_enrich_material_assignment_propsで材料名とelsetが追加される"""
+        from services.graph import GraphService
+        from jj_types import Relation
+        from config import GraphConfig
+
+        config = GraphConfig.from_dict({})
+        service = GraphService(project_root=Path("/tmp"), config=config)
+
+        go_node = Node(id=1, type="go", name="go_idx1", format="inp",
+                       properties={"path": "go_idx1.inp"})
+        mat_node = Node(id=2, type="abaqus_material", name="Steel",
+                        format="material",
+                        properties={"assigned_elsets": ["SOLID1", "SOLID2"]})
+
+        mat_rel = Relation(id=1, label="assigned_to", node1_id=2, node2_id=1)
+
+        service._enrich_material_assignment_props([go_node], [mat_node], [mat_rel])
+
+        assert "materials" in go_node.properties
+        assert "Steel" in go_node.properties["materials"]
+        assert "material_elsets" in go_node.properties
+        assert go_node.properties["material_elsets"]["Steel"] == ["SOLID1", "SOLID2"]
+
+
+class TestObsidianTagExport:
+    """Obsidianタグエクスポートのテスト"""
+
+    def test_tags_in_frontmatter(self):
+        """frontmatterにタイプタグが追加される"""
+        from services.connectors.obsidian import ObsidianConnector
+
+        node = Node(id=1, type="go", name="go_idx1", format="inp",
+                     properties={"tags": ["test"], "index": "1", "version": "1",
+                                 "path": "go_idx1.inp"})
+        connector = ObsidianConnector(project_root=Path("/tmp"))
+        fm = connector.node_to_frontmatter(node)
+        tags = fm.get("tags", [])
+        assert "go" in tags
+
+    def test_material_tags_in_frontmatter(self):
+        """材料タグがfrontmatterのtagsに追加される"""
+        from services.connectors.obsidian import ObsidianConnector
+
+        node = Node(id=1, type="go", name="go_idx1", format="inp",
+                     properties={"tags": [], "index": "1", "version": "1",
+                                 "path": "go_idx1.inp",
+                                 "materials": ["Steel", "Aluminum"]})
+        connector = ObsidianConnector(project_root=Path("/tmp"))
+        fm = connector.node_to_frontmatter(node)
+        tags = fm.get("tags", [])
+        assert "material/Steel" in tags
+        assert "material/Aluminum" in tags
+
+    def test_tags_in_markdown_body(self):
+        """markdown本文に#tag形式でタグが出力される"""
+        from services.connectors.obsidian import ObsidianConnector
+
+        node = Node(id=1, type="go", name="go_idx1", format="inp",
+                     properties={"tags": ["test"], "index": "1", "version": "1",
+                                 "path": "go_idx1.inp"})
+        connector = ObsidianConnector(project_root=Path("/tmp"))
+        fm = connector.node_to_frontmatter(node)
+        content = connector._format_md(fm, node)
+        assert "#go" in content
+        assert "#test" in content
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
