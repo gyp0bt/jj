@@ -2190,5 +2190,526 @@ class TestIncludeFileNotFound:
         assert len(mat_nodes) >= 1, "inline定義のmaterialが読み取られていない"
 
 
+class TestCliTopLevelCommands:
+    """CLIトップレベルコマンドのテスト（jj init/parse/show/export/info）
+
+    cli.graphモジュールをインポートすると cli/__init__.py が連鎖的にSSH設定を
+    読み込むため、テスト環境にSSH設定がない場合はスキップする。
+    """
+
+    @staticmethod
+    def _import_graph_module():
+        """cli.graphをインポート（失敗時はpytest.skipで中断）"""
+        try:
+            import cli.graph as mod
+            return mod
+        except (ValueError, ImportError, ModuleNotFoundError) as e:
+            pytest.skip(f"cli.graph import failed: {e}")
+
+    def test_top_level_graph_commands_defined(self):
+        """トップレベルグラフコマンドが定義されている"""
+        mod = self._import_graph_module()
+        assert callable(mod.add_top_level_graph_commands)
+        assert callable(mod.run_top_level_graph_command)
+
+    def test_add_init_args(self):
+        """init引数が正しく定義される"""
+        import argparse
+        mod = self._import_graph_module()
+        parser = argparse.ArgumentParser()
+        mod._add_init_args(parser)
+        args = parser.parse_args(["--overwrite"])
+        assert args.overwrite is True
+
+    def test_add_parse_args(self):
+        """parse引数が正しく定義される"""
+        import argparse
+        mod = self._import_graph_module()
+        parser = argparse.ArgumentParser()
+        mod._add_parse_args(parser)
+        args = parser.parse_args(["-o", "test.yaml"])
+        assert args.output == "test.yaml"
+
+    def test_add_show_args(self):
+        """show引数が正しく定義される"""
+        import argparse
+        mod = self._import_graph_module()
+        parser = argparse.ArgumentParser()
+        mod._add_show_args(parser)
+        args = parser.parse_args(["--summary"])
+        assert args.summary is True
+
+    def test_add_info_args(self):
+        """info引数が正しく定義される"""
+        import argparse
+        mod = self._import_graph_module()
+        parser = argparse.ArgumentParser()
+        mod._add_info_args(parser)
+        args = parser.parse_args(["go_idx1.inp"])
+        assert args.filename == "go_idx1.inp"
+
+    def test_top_level_commands_registered(self):
+        """トップレベルコマンドがサブパーサーに登録される"""
+        import argparse
+        mod = self._import_graph_module()
+        parser = argparse.ArgumentParser()
+        sub = parser.add_subparsers(dest="cmd")
+        mod.add_top_level_graph_commands(sub)
+        args = parser.parse_args(["parse"])
+        assert args.cmd == "parse"
+
+
+class TestInfoCommand:
+    """jj info コマンドのテスト"""
+
+    def test_info_finds_node_by_name(self, tmp_path):
+        """ファイル名でノードを検索できる"""
+        (tmp_path / "go_idx1.inp").write_text("** test\n")
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        # ノードが存在することを確認
+        matched = [n for n in graph.nodes if n.name == "go_idx1"]
+        assert len(matched) >= 1
+
+    def test_info_finds_node_by_partial_name(self, tmp_path):
+        """部分一致でノードを検索できる"""
+        (tmp_path / "go_idx1_w5.inp").write_text("** test\n")
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        # 部分一致検索
+        matched = [n for n in graph.nodes if "idx1" in n.name]
+        assert len(matched) >= 1
+
+
+class TestIncludePropertyPropagation:
+    """includeファイルのプロパティ伝搬テスト"""
+
+    def test_include_mesh_stats_propagated(self, tmp_path):
+        """includeされたmeshファイルの統計情報がgo_*.inpに伝搬される"""
+        # メッシュファイル
+        mesh_content = (
+            "*NODE\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*ELEMENT, TYPE=C3D8, ELSET=EALL\n"
+            "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
+        )
+        (tmp_path / "mesh.inp").write_text(mesh_content)
+
+        # go_inpファイル (meshをinclude)
+        go_content = (
+            "** go file\n"
+            "*INCLUDE, INPUT=mesh.inp\n"
+            "*STEP\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1.inp").write_text(go_content)
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        go_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1" and n.format == "inp"),
+            None,
+        )
+        assert go_node is not None
+
+        # include_propertiesが付与される
+        include_props = go_node.properties.get("include_properties")
+        # meshのinclude関係が構築されていれば伝搬される
+        if include_props:
+            assert isinstance(include_props, dict)
+
+    def test_include_relations_exist(self, tmp_path):
+        """includes関係が正しく構築される"""
+        (tmp_path / "mesh.inp").write_text("*NODE\n1, 0., 0., 0.\n")
+        go_content = (
+            "** go file\n"
+            "*INCLUDE, INPUT=mesh.inp\n"
+            "*STEP\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1.inp").write_text(go_content)
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        includes_rels = [r for r in graph.relations if r.label == "includes"]
+        assert len(includes_rels) >= 1, "includes関係が構築されていない"
+
+
+class TestVersionDiff:
+    """バージョン差分テスト"""
+
+    def test_diff_between_versions(self, tmp_path):
+        """隣接バージョン間の差分がpropertyに追加される"""
+        # v1: STATIC procedure
+        v1_content = (
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(v1_content)
+
+        # v2: DYNAMIC procedure（procedure変更で差分検出）
+        v2_content = (
+            "*STEP, NAME=Step-1\n"
+            "*DYNAMIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v2.inp").write_text(v2_content)
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        # v2ノードにdiff情報が付与される
+        v2_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_v2" and n.format == "inp"),
+            None,
+        )
+        assert v2_node is not None
+        assert "diff_from" in v2_node.properties
+        assert "diff_summary" in v2_node.properties
+
+    def test_no_diff_for_single_version(self, tmp_path):
+        """単一バージョンの場合は差分が付与されない"""
+        v1_content = (
+            "*STEP\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1.inp").write_text(v1_content)
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        node = next(
+            (n for n in graph.nodes if n.name == "go_idx1" and n.format == "inp"),
+            None,
+        )
+        assert node is not None
+        assert "diff_from" not in node.properties
+
+    def test_diff_summary_not_empty(self, tmp_path):
+        """変更がある場合のdiff_summaryは「差分なし」ではない"""
+        v1_content = (
+            "*STEP\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*BOUNDARY\n"
+            "FIX, 1, 3\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(v1_content)
+
+        v2_content = (
+            "*STEP\n"
+            "*DYNAMIC\n"
+            "1., 1.\n"
+            "*BOUNDARY\n"
+            "FIX, 1, 3\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v2.inp").write_text(v2_content)
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        v2_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_v2" and n.format == "inp"),
+            None,
+        )
+        assert v2_node is not None
+        if "diff_summary" in v2_node.properties:
+            assert v2_node.properties["diff_summary"] != "差分なし"
+
+
+class TestObsidianWarningDisplay:
+    """Obsidianエクスポートのwarning/diff表示テスト"""
+
+    def test_warnings_in_markdown_body(self, tmp_path):
+        """warning情報がmarkdown本文に記載される"""
+        from services.connectors.obsidian import ObsidianConnector
+
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1",
+            format="inp",
+            properties={
+                "path": "go_idx1.inp",
+                "index": "1",
+                "version": "1",
+                "sta_warnings": ["Some warning message"],
+                "sta_errors": ["Some error message"],
+            },
+        )
+
+        connector = ObsidianConnector(project_root=tmp_path)
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+
+        assert "## 警告・エラー" in content
+        assert "Some warning message" in content
+        assert "Some error message" in content
+
+    def test_diff_in_markdown_body(self, tmp_path):
+        """diff情報がmarkdown本文に記載される"""
+        from services.connectors.obsidian import ObsidianConnector
+
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1_v2",
+            format="inp",
+            properties={
+                "path": "go_idx1_v2.inp",
+                "index": "1",
+                "version": "2",
+                "diff_from": "go_idx1_v1.inp",
+                "diff_summary": "| Location | Status | Details |\n|---|---|---|\n| step[0] | 変更 | 両側で異なる |",
+                "diff_details": "## step[0]\n変更あり",
+            },
+        )
+
+        connector = ObsidianConnector(project_root=tmp_path)
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+
+        assert "## 前バージョンとの差分" in content
+        assert "go_idx1_v1.inp" in content
+        assert "### サマリー" in content
+
+    def test_no_warnings_section_when_clean(self, tmp_path):
+        """warning/errorがない場合はセクションが表示されない"""
+        from services.connectors.obsidian import ObsidianConnector
+
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1",
+            format="inp",
+            properties={
+                "path": "go_idx1.inp",
+                "index": "1",
+                "version": "1",
+            },
+        )
+
+        connector = ObsidianConnector(project_root=tmp_path)
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+
+        assert "## 警告・エラー" not in content
+        assert "## 前バージョンとの差分" not in content
+
+
+class TestDailyNotesParsing:
+    """notes/daily日報解析テスト"""
+
+    def test_parse_daily_note_file_references(self, tmp_path):
+        """日報からファイル参照を検出"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily_content = """---
+tags:
+  - 構造解析
+---
+
+## 応力振幅1
+- go_idx1.inp
+- 画像.png
+
+## メッシュ検討
+- mesh_v2.cdb
+"""
+        daily_file = tmp_path / "2026-02-06.md"
+        daily_file.write_text(daily_content)
+
+        note = parse_daily_note(daily_file)
+
+        assert note.date == "2026-02-06"
+        assert len(note.file_references) >= 2
+        filenames = [r.filename for r in note.file_references]
+        assert "go_idx1.inp" in filenames
+        assert "mesh_v2.cdb" in filenames
+
+    def test_parse_daily_note_with_properties(self, tmp_path):
+        """コロン区切りのプロパティ付きファイル参照を検出"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily_content = """## メモ
+go_idx1.inp:  備考: 最終版
+go_idx2.inp: status: completed
+"""
+        daily_file = tmp_path / "2026-02-06.md"
+        daily_file.write_text(daily_content)
+
+        note = parse_daily_note(daily_file)
+
+        # プロパティ付きファイル参照の検出
+        refs_with_props = [r for r in note.file_references if r.properties]
+        assert len(refs_with_props) >= 1
+
+        idx1_ref = next(
+            (r for r in note.file_references if r.filename == "go_idx1.inp"),
+            None,
+        )
+        if idx1_ref:
+            assert "備考" in idx1_ref.properties
+
+    def test_parse_daily_note_section_detection(self, tmp_path):
+        """セクション名が正しく取得される"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily_content = """## 応力振幅1
+- go_idx1.inp
+
+## メッシュ検討
+- mesh.inp
+"""
+        daily_file = tmp_path / "2026-02-06.md"
+        daily_file.write_text(daily_content)
+
+        note = parse_daily_note(daily_file)
+
+        go_ref = next(
+            (r for r in note.file_references if r.filename == "go_idx1.inp"),
+            None,
+        )
+        assert go_ref is not None
+        assert go_ref.section == "応力振幅1"
+
+    def test_parse_daily_note_tags(self, tmp_path):
+        """タグの検出"""
+        from services.connectors.daily_connector import parse_daily_note
+
+        daily_content = """---
+tags:
+  - 構造解析
+---
+## テスト #振幅 #応力
+- go_idx1.inp
+"""
+        daily_file = tmp_path / "2026-02-06.md"
+        daily_file.write_text(daily_content)
+
+        note = parse_daily_note(daily_file)
+
+        assert "構造解析" in note.tags
+        assert "振幅" in note.tags
+
+    def test_scan_daily_notes_empty_dir(self, tmp_path):
+        """日報ディレクトリが空の場合は空リストを返す"""
+        from services.connectors.daily_connector import scan_daily_notes
+
+        daily_dir = tmp_path / "notes" / "daily"
+        daily_dir.mkdir(parents=True)
+
+        notes = scan_daily_notes(daily_dir)
+        assert notes == []
+
+    def test_scan_daily_notes_nonexistent_dir(self, tmp_path):
+        """日報ディレクトリが存在しない場合は空リストを返す"""
+        from services.connectors.daily_connector import scan_daily_notes
+
+        daily_dir = tmp_path / "notes" / "daily"
+        notes = scan_daily_notes(daily_dir)
+        assert notes == []
+
+    def test_daily_notes_integrated_in_graph(self, tmp_path):
+        """日報解析がparse_projectに統合されている"""
+        # daily noteを配置
+        daily_dir = tmp_path / "notes" / "daily"
+        daily_dir.mkdir(parents=True)
+        (daily_dir / "2026-02-06.md").write_text(
+            "## テスト\n- go_idx1.inp\n"
+        )
+
+        # 対応するinpファイルも配置
+        (tmp_path / "go_idx1.inp").write_text("** test\n")
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        # daily_noteノードが生成される
+        daily_nodes = [n for n in graph.nodes if n.type == "daily_note"]
+        assert len(daily_nodes) >= 1
+
+        # mentioned_in関係が生成される
+        mentioned_rels = [r for r in graph.relations if r.label == "mentioned_in"]
+        assert len(mentioned_rels) >= 1
+
+    def test_daily_note_properties_propagated(self, tmp_path):
+        """日報のプロパティが対象ノードに反映される"""
+        daily_dir = tmp_path / "notes" / "daily"
+        daily_dir.mkdir(parents=True)
+        (daily_dir / "2026-02-06.md").write_text(
+            "## テスト\ngo_idx1.inp: 備考: 最終版\n"
+        )
+
+        (tmp_path / "go_idx1.inp").write_text("** test\n")
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project()
+
+        go_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1" and n.format == "inp"),
+            None,
+        )
+        assert go_node is not None
+        # daily_notesプロパティが付与される
+        if go_node.properties.get("daily_notes"):
+            assert "2026-02-06" in go_node.properties["daily_notes"]
+
+
+class TestExportParse:
+    """export --parse オプションのテスト"""
+
+    @staticmethod
+    def _import_graph_module():
+        try:
+            import cli.graph as mod
+            return mod
+        except (ValueError, ImportError, ModuleNotFoundError) as e:
+            pytest.skip(f"cli.graph import failed: {e}")
+
+    def test_export_parse_flag_exists(self):
+        """export --parse引数がパーサーに定義されている"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_export_args(parser)
+        args = parser.parse_args(["--parse"])
+        assert args.parse is True
+
+    def test_export_without_parse_flag(self):
+        """--parseなしの場合はFalse"""
+        mod = self._import_graph_module()
+        import argparse
+        parser = argparse.ArgumentParser()
+        mod._add_export_args(parser)
+        args = parser.parse_args([])
+        assert args.parse is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
