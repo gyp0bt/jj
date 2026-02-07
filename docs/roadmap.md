@@ -165,6 +165,7 @@
   - [x] メッシュ品質の統計情報をmeshファイルから抽出
   - [x] 要素品質（アスペクト比、ヤコビアン等）の計算
   - [x] 材料→Elset割り当て関係のグラフ化
+  - [x] メッシュキーワード要約（Node/Element/Nset/Elset→統計情報に自動置換 - status-034）
   - [ ] 個々のElsetごとの品質統計
   - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
 - [x] ドキュメント連携（強化 - status-033）
@@ -334,5 +335,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-033.md)
+- [最新ステータス](./status/status-034.md)
 - [プロジェクトREADME](../README.md)
