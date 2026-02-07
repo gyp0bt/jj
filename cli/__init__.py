@@ -17,7 +17,12 @@ from services.parse import (
     get_basename,
     get_index_and_version,
 )
-from cli.graph import add_graph_parser, run_graph_command
+from cli.graph import (
+    add_graph_parser,
+    add_top_level_graph_commands,
+    run_graph_command,
+    run_top_level_graph_command,
+)
 
 # =========
 # Config
@@ -209,8 +214,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="実行コマンド（-- 以降に指定）",
     )
 
-    # graph (jj g)
+    # graph (jj g) — 互換性維持
     add_graph_parser(sub)
+
+    # トップレベルのグラフコマンド (jj init, jj parse, jj show, jj export, jj info)
+    add_top_level_graph_commands(sub)
 
     return p
 
@@ -223,6 +231,9 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         args.cmd = "run"
     if args.cmd == "g":
         args.cmd = "graph"
+    # トップレベルのグラフコマンド（jj init/parse/show/export/info）
+    if args.cmd in ("init", "parse", "show", "export", "info"):
+        return args
     if getattr(args, "cmd", None):
         return args
 
@@ -729,6 +740,10 @@ def dispatch(args: argparse.Namespace) -> int:
 
     if cmd == "graph":
         return run_graph_command(args)
+
+    # トップレベルのグラフコマンド
+    if cmd in ("init", "parse", "show", "export", "info"):
+        return run_top_level_graph_command(cmd, args)
 
     # default: submit
     return run_submit(args, targets)

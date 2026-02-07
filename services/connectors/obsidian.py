@@ -383,6 +383,10 @@ class ObsidianConnector:
             frontmatter: frontmatter用のdict
             node: 対象ノード
             relations: リレーション情報 [(label, target_md_filename), ...]
+
+        Note:
+            warning/error/diff情報はfrontmatterのpropertyにも入れるが、
+            視認性のためmarkdown本文にも記載する。
         """
         yaml_str = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
 
@@ -406,6 +410,65 @@ class ObsidianConnector:
             for label, target_md in relations:
                 labeled_link = to_labeled_link(label, target_md)
                 content += f"- {labeled_link}\n"
+
+        # Warnings/Errors情報をmarkdown本文にも記載
+        props = node.properties
+        has_warnings = False
+
+        # sta_warnings
+        sta_warnings = props.get("sta_warnings", [])
+        if sta_warnings:
+            if not has_warnings:
+                content += "\n## 警告・エラー\n\n"
+                has_warnings = True
+            content += "### .sta Warnings\n\n"
+            for w in sta_warnings:
+                content += f"- {w}\n"
+            content += "\n"
+
+        # sta_errors
+        sta_errors = props.get("sta_errors", [])
+        if sta_errors:
+            if not has_warnings:
+                content += "\n## 警告・エラー\n\n"
+                has_warnings = True
+            content += "### .sta Errors\n\n"
+            for e in sta_errors:
+                content += f"- {e}\n"
+            content += "\n"
+
+        # msg_warnings
+        msg_warnings = props.get("msg_warnings", [])
+        if msg_warnings:
+            if not has_warnings:
+                content += "\n## 警告・エラー\n\n"
+                has_warnings = True
+            content += "### .msg Warnings\n\n"
+            for w in msg_warnings:
+                content += f"- {w}\n"
+            content += "\n"
+
+        # msg_errors
+        msg_errors = props.get("msg_errors", [])
+        if msg_errors:
+            if not has_warnings:
+                content += "\n## 警告・エラー\n\n"
+                has_warnings = True
+            content += "### .msg Errors\n\n"
+            for e in msg_errors:
+                content += f"- {e}\n"
+            content += "\n"
+
+        # バージョン差分情報をmarkdown本文にも記載
+        diff_from = props.get("diff_from", "")
+        diff_summary = props.get("diff_summary", "")
+        diff_details = props.get("diff_details", "")
+        if diff_from and diff_summary and diff_summary != "差分なし":
+            content += f"\n## 前バージョンとの差分\n\n"
+            content += f"比較元: {diff_from}\n\n"
+            content += f"### サマリー\n\n{diff_summary}\n\n"
+            if diff_details and diff_details != "差分なし":
+                content += f"### 詳細\n\n{diff_details}\n"
 
         return content
 
