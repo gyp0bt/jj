@@ -167,10 +167,12 @@
   - [x] 材料→Elset割り当て関係のグラフ化
   - [ ] 個々のElsetごとの品質統計
   - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
-- [x] ドキュメント連携（基盤実装完了 - status-032）
+- [x] ドキュメント連携（強化 - status-033）
   - [ ] index.csv/yamlとファイルの紐付け
   - [x] Obsidian dailyノートとファイルの紐付け
   - [x] 備考、結果サマリーの自動抽出（dailyからプロパティ付きファイル参照）
+  - [x] Obsidianリンク＋プロパティ記法（[[O-file]]:key:value）対応
+  - [x] ファイルリンク値の自動抽出（[[image.png|表示名]]）
   - [ ] dailyノートをブロックごとに切り出してNodeに逆輸入
 - [ ] config.yamlの拡張
   - [ ] 配列のスライス指定機能
@@ -332,5 +334,5 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-032.md)
+- [最新ステータス](./status/status-033.md)
 - [プロジェクトREADME](../README.md)

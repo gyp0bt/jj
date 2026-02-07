@@ -232,7 +232,7 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
     if args.cmd == "g":
         args.cmd = "graph"
     # トップレベルのグラフコマンド（jj init/parse/show/export/info）
-    if args.cmd in ("init", "parse", "show", "export", "info"):
+    if args.cmd in ("init", "parse", "show", "export", "info", "diff"):
         return args
     if getattr(args, "cmd", None):
         return args
@@ -742,7 +742,7 @@ def dispatch(args: argparse.Namespace) -> int:
         return run_graph_command(args)
 
     # トップレベルのグラフコマンド
-    if cmd in ("init", "parse", "show", "export", "info"):
+    if cmd in ("init", "parse", "show", "export", "info", "diff"):
         return run_top_level_graph_command(cmd, args)
 
     # default: submit
