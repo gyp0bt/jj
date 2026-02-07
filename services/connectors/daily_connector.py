@@ -15,8 +15,17 @@
 
 3. Obsidianリンク形式:
    [[go_idx1.inp]]
+   [[go_idx1.inp|表示名]]
 
-4. タグ:
+4. Obsidianリンク＋プロパティ形式:
+   [[O-go_idx1.inp]]:備考:条件1
+   [[go_idx1.inp]]:status:completed
+
+5. プロパティ値がファイルリンク形式:
+   go_idx1.inp: image: [[image.png]]
+   go_idx1.inp: image: [[image.png|画像1]]
+
+6. タグ:
    #応力 #振幅
 
 [READMEへ戻る](../../../README.md)
@@ -70,6 +79,22 @@ _FILE_PROP_PATTERN = re.compile(
 
 # Obsidianリンク形式 [[filename]] or [[path/to/filename|display]]
 _OBSIDIAN_LINK_PATTERN = re.compile(
+    r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]"
+)
+
+# Obsidianリンク＋プロパティ形式
+# [[O-go_idx1.inp]]:備考:条件1
+# [[go_idx1.inp|表示名]]:key:value
+_OBSIDIAN_LINK_PROP_PATTERN = re.compile(
+    r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]\s*:\s*(.+)$",
+    re.MULTILINE,
+)
+
+# Obsidianプレフィックス除去パターン
+_OBSIDIAN_PREFIX_PATTERN = re.compile(r"^O-(.+)$")
+
+# ファイルリンク値パターン: [[file.ext]] or [[file.ext|display]]
+_VALUE_LINK_PATTERN = re.compile(
     r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]"
 )
 
@@ -164,10 +189,43 @@ def parse_daily_note(path: Path) -> DailyNote:
                         tags=tags_in_section,
                     ))
 
-        # Obsidianリンク形式のファイル参照
+        # Obsidianリンク＋プロパティ形式の検出
+        # [[O-go_idx1.inp]]:備考:条件1
+        # [[go_idx1.inp|表示名]]:key:value
+        for match in _OBSIDIAN_LINK_PROP_PATTERN.finditer(section_content):
+            link_target = match.group(1)
+            rest = match.group(2).strip()
+            raw_name = Path(link_target).name
+            # O-プレフィックスを除去
+            filename = _strip_obsidian_prefix(raw_name)
+
+            if not _looks_like_file(filename):
+                continue
+
+            # プロパティのパース
+            props = _parse_inline_properties(rest)
+
+            # 重複チェック: 同じファイル名があればプロパティをマージ
+            existing = next(
+                (r for r in file_references if r.filename == filename),
+                None,
+            )
+            if existing:
+                existing.properties.update(props)
+            else:
+                file_references.append(DailyFileReference(
+                    filename=filename,
+                    section=section_name,
+                    properties=props,
+                    tags=tags_in_section,
+                ))
+
+        # Obsidianリンク形式のファイル参照（プロパティなし）
         for match in _OBSIDIAN_LINK_PATTERN.finditer(section_content):
             link_target = match.group(1)
-            filename = Path(link_target).name
+            raw_name = Path(link_target).name
+            # O-プレフィックスを除去
+            filename = _strip_obsidian_prefix(raw_name)
             if _looks_like_file(filename):
                 # 重複チェック
                 if not any(r.filename == filename for r in file_references):
@@ -298,11 +356,44 @@ def _looks_like_file(text: str) -> bool:
     return False
 
 
+def _strip_obsidian_prefix(filename: str) -> str:
+    """Obsidianプレフィックス（O-）を除去してファイル名を正規化
+
+    O-go_idx1.inp.md → go_idx1.inp
+    O-go_idx1.inp → go_idx1.inp
+    go_idx1.inp → go_idx1.inp
+    """
+    m = _OBSIDIAN_PREFIX_PATTERN.match(filename)
+    if m:
+        name = m.group(1)
+    else:
+        name = filename
+    # .md拡張子の除去（Obsidianリンク名は.md抜きの場合がある）
+    if name.endswith(".md") and name.count(".") >= 2:
+        name = name[:-3]
+    return name
+
+
+def _extract_file_path_from_value(value: str) -> str:
+    """プロパティ値からファイルパスを抽出
+
+    [[image.png]] → image.png
+    [[path/to/image.png|画像1]] → path/to/image.png
+    通常の値 → そのまま返す
+    """
+    m = _VALUE_LINK_PATTERN.search(value)
+    if m:
+        return m.group(1)
+    return value
+
+
 def _parse_inline_properties(text: str) -> dict[str, str]:
     """インラインプロパティをパース
 
     "備考: 最終版" → {"備考": "最終版"}
     "status: completed, 備考: テスト" → {"status": "completed", "備考": "テスト"}
+    "image: [[image.png]]" → {"image": "image.png"}
+    "image: [[image.png|画像1]]" → {"image": "image.png"}
     """
     props: dict[str, str] = {}
     # カンマ区切りまたは改行区切りのプロパティ
@@ -313,7 +404,8 @@ def _parse_inline_properties(text: str) -> dict[str, str]:
             key = key.strip()
             value = value.strip()
             if key:
-                props[key] = value
+                # ファイルリンク形式の値を処理
+                props[key] = _extract_file_path_from_value(value)
         elif part:
             # キーのみの場合はフラグとして扱う
             props[part] = "true"

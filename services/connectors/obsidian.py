@@ -327,6 +327,22 @@ class ObsidianConnector:
         real_path = props.get("path", "")
         props["file"] = real_path.replace("\\", "/") if real_path else ""
 
+        # タグの拡充: タイプ、材料名などをtags listに追加
+        existing_tags = props.get("tags", [])
+        if not isinstance(existing_tags, list):
+            existing_tags = [existing_tags] if existing_tags else []
+        # タイプをタグに追加
+        if node.type and node.type not in existing_tags:
+            existing_tags.append(node.type)
+        # 材料名をタグに追加
+        materials = props.get("materials", [])
+        if isinstance(materials, list):
+            for m in materials:
+                tag = f"material/{m}"
+                if tag not in existing_tags:
+                    existing_tags.append(tag)
+        props["tags"] = existing_tags
+
         # includesは実ファイル名 → Obsidianリンク形式に変換
         if includes:
             props["includes"] = [
@@ -404,6 +420,33 @@ class ObsidianConnector:
 - タイプ: {node.type}
 - フォーマット: {node.format}
 """
+
+        # タグ情報を#tagname形式で出力
+        tags = node.properties.get("tags", [])
+        node_type_tag = node.type
+        materials = node.properties.get("materials", [])
+        verbose_name = node.properties.get("verbose_name", "")
+
+        tag_items: list[str] = []
+        # タイプタグ
+        tag_items.append(f"#{node_type_tag}")
+        # ファイルタグ
+        if isinstance(tags, list):
+            for t in tags:
+                tag_items.append(f"#{t}")
+        # 材料タグ
+        if isinstance(materials, list):
+            for m in materials:
+                tag_items.append(f"#material/{m}")
+        # verbose_nameタグ
+        if verbose_name:
+            tag_items.append(f"#name/{verbose_name}")
+
+        # 重複除去して出力
+        unique_tags = list(dict.fromkeys(tag_items))
+        if unique_tags:
+            content += "\n" + " ".join(unique_tags) + "\n"
+
         # リレーション情報を追加
         if relations:
             content += "\n## 関連ファイル\n\n"
