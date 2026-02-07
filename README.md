@@ -70,6 +70,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-07 / status-034: メッシュキーワード要約。diff/propertyでNode/Element/Nset/Elsetの生データを統計情報（節点数、座標範囲、メッシュ数、メッシュサイズ、ねじれ角、ID数）に自動置換。トップレベルメッシュデータのdiff比較追加。テスト294件パス（+22件）。([status-034](docs/status/status-034.md))
 - 2026-02-07 / status-033: Daily紐付け強化（[[O-file]]:key:value記法）、jj info強化（-id/-v/複数指定/-props）、jj diffコマンド追加、verbose_name登録、CSV/JSONエクスポート、elset/材料名プロパティ追加、Obsidianタグ出力強化。テスト272件パス（+12件）。([status-033](docs/status/status-033.md))
 - 2026-02-06 / status-032: CLIコマンド省略化（jj g→jj）、jj infoコマンド追加、includeファイルproperty伝搬、前バージョンとのキーワードブロック差分、notes/daily日報解析、Obsidianエクスポートwarning/diff表示強化。テスト260件パス（+18件）。([status-032](docs/status/status-032.md))
 - 2026-02-06 / status-031: abaqus material読み取りソースをmaterial系/go系.inpに限定、汎用ディレクトリノード（reports等）のグラフ追加、pymeshパーサーの末尾カンマ・*include FileNotFoundError対応。テスト242件パス（+14件）。([status-031](docs/status/status-031.md))
