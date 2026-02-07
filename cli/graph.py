@@ -21,10 +21,16 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from services.graph import GraphService
 from services.connectors.obsidian import ObsidianConnector
+from services.parse.abaqus_connector import (
+    read_inp as abq_read_inp,
+    diff_abq_blocks,
+    format_diff_summary_table,
+    format_diff_blocks_markdown,
+)
 from config import init_graph_config
 
 
@@ -80,7 +86,7 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
     """exportコマンドの引数を追加"""
     parser.add_argument(
         "--target",
-        choices=["obsidian"],
+        choices=["obsidian", "csv", "json"],
         default="obsidian",
         help="エクスポート先（デフォルト: obsidian）",
     )
@@ -101,6 +107,26 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="エクスポート前にparseを実行",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="出力ファイル名（CSV/JSON出力時に使用）",
+    )
+    parser.add_argument(
+        "--type",
+        type=str,
+        default=None,
+        help="エクスポートするノードタイプでフィルタリング",
+    )
+    parser.add_argument(
+        "--select",
+        type=str,
+        nargs="*",
+        default=None,
+        help="エクスポートするファイル名を指定（複数可）",
+    )
 
 
 def _add_info_args(parser: argparse.ArgumentParser) -> None:
@@ -108,7 +134,31 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "filename",
         type=str,
-        help="表示するファイル名",
+        nargs="*",
+        default=[],
+        help="表示するファイル名（複数指定可）",
+    )
+    parser.add_argument(
+        "-id",
+        "--index",
+        type=str,
+        nargs="*",
+        default=None,
+        help="インデックスで指定（例: -id 1 2）",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        type=str,
+        nargs="*",
+        default=None,
+        help="バージョンで指定（例: -v 1 2）",
+    )
+    parser.add_argument(
+        "-props",
+        "--props-only",
+        action="store_true",
+        help="プロパティのみ表示",
     )
     parser.add_argument(
         "-f",
@@ -116,6 +166,25 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         default=None,
         help="読み込むグラフファイル名",
+    )
+
+
+def _add_diff_args(parser: argparse.ArgumentParser) -> None:
+    """diffコマンドの引数を追加"""
+    parser.add_argument(
+        "file1",
+        type=str,
+        help="比較元ファイル（パスまたはファイル名）",
+    )
+    parser.add_argument(
+        "file2",
+        type=str,
+        help="比較先ファイル（パスまたはファイル名）",
+    )
+    parser.add_argument(
+        "--detail",
+        action="store_true",
+        help="詳細な差分を表示",
     )
 
 
@@ -155,6 +224,13 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
         help="ファイルのproperty/relationを表示",
     )
     _add_info_args(info_parser)
+
+    # jj diff
+    diff_parser = subparsers.add_parser(
+        "diff",
+        help="2つのファイル間のAbaqusキーワードブロック差分を表示",
+    )
+    _add_diff_args(diff_parser)
 
 
 def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -206,6 +282,12 @@ def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_info_args(info_parser)
 
+    # jj g diff
+    diff_parser = graph_subparsers.add_parser(
+        "diff",
+        help="2つのファイル間のAbaqusキーワードブロック差分を表示",
+    )
+    _add_diff_args(diff_parser)
 
 
 def run_graph_command(args: argparse.Namespace) -> int:
@@ -214,7 +296,7 @@ def run_graph_command(args: argparse.Namespace) -> int:
 
     if graph_command is None:
         print("使用方法: jj g <サブコマンド>")
-        print("サブコマンド: init, parse, show, export, info")
+        print("サブコマンド: init, parse, show, export, info, diff")
         print("詳細: jj g --help")
         return 1
 
@@ -230,13 +312,15 @@ def run_graph_command(args: argparse.Namespace) -> int:
         return _run_export(project_root, args)
     elif graph_command == "info":
         return _run_info(project_root, args)
+    elif graph_command == "diff":
+        return _run_diff(project_root, args)
     else:
         print(f"不明なサブコマンド: {graph_command}")
         return 1
 
 
 def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
-    """トップレベルのグラフコマンドを実行（jj init/parse/show/export/info）"""
+    """トップレベルのグラフコマンドを実行（jj init/parse/show/export/info/diff）"""
     project_root = Path.cwd()
 
     if cmd == "init":
@@ -249,6 +333,8 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return _run_export(project_root, args)
     elif cmd == "info":
         return _run_info(project_root, args)
+    elif cmd == "diff":
+        return _run_diff(project_root, args)
     else:
         print(f"不明なコマンド: {cmd}")
         return 1
@@ -351,6 +437,7 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
     """exportサブコマンドを実行
 
     --parse オプションが指定された場合、エクスポート前にparseを実行する。
+    --target csv/json の場合、ノード属性をCSV/JSON形式で書き出す。
     """
     service = GraphService(project_root=project_root)
 
@@ -371,6 +458,7 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
             return 1
 
         target = getattr(args, "target", "obsidian")
+
         if target == "obsidian":
             connector = ObsidianConnector(project_root=project_root)
             print(f"Obsidianにエクスポート中...")
@@ -380,12 +468,18 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
             print(f"書き込みファイル数: {len(written)}")
             if written:
                 print("\n書き込んだファイル:")
-                for path in written[:10]:  # 最初の10件のみ表示
+                for path in written[:10]:
                     rel_path = path.relative_to(project_root)
                     print(f"  {rel_path}")
                 if len(written) > 10:
                     print(f"  ... 他 {len(written) - 10} 件")
             return 0
+
+        elif target in ("csv", "json"):
+            return _run_export_data(
+                project_root, graph, service, target, args
+            )
+
         else:
             print(f"未対応のエクスポート先: {target}")
             return 1
@@ -395,10 +489,111 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
         return 1
 
 
+def _run_export_data(
+    project_root: Path,
+    graph: "GraphModel",
+    service: GraphService,
+    target: str,
+    args: argparse.Namespace,
+) -> int:
+    """CSV/JSONデータエクスポートを実行
+
+    選択したノードのプロパティを全キーのAND（積集合ではなく和集合）で
+    null埋めしてCSV/JSON形式で書き出す。
+    """
+    import csv
+    import json as json_mod
+
+    # ノードのフィルタリング
+    nodes = list(graph.nodes)
+    type_filter = getattr(args, "type", None)
+    select_filter = getattr(args, "select", None)
+
+    if type_filter:
+        nodes = [n for n in nodes if n.type == type_filter]
+    if select_filter:
+        filtered = []
+        for n in nodes:
+            name_with_ext = f"{n.name}.{n.format}" if n.format else n.name
+            for sel in select_filter:
+                if n.name == sel or name_with_ext == sel or sel in n.name:
+                    filtered.append(n)
+                    break
+        nodes = filtered
+
+    if not nodes:
+        print("対象ノードが見つかりません。")
+        return 1
+
+    # 全キーの和集合を収集
+    all_keys: list[str] = []
+    seen_keys: set[str] = set()
+    # 基本属性キー
+    base_keys = ["name", "type", "format"]
+    for k in base_keys:
+        all_keys.append(k)
+        seen_keys.add(k)
+
+    for node in nodes:
+        for key in node.properties:
+            if key not in seen_keys:
+                all_keys.append(key)
+                seen_keys.add(key)
+
+    # 行データの構築（null埋め）
+    rows: list[dict[str, Any]] = []
+    for node in nodes:
+        row: dict[str, Any] = {
+            "name": node.name,
+            "type": node.type,
+            "format": node.format,
+        }
+        for key in all_keys:
+            if key in row:
+                continue
+            value = node.properties.get(key)
+            if value is None:
+                row[key] = None
+            elif isinstance(value, (list, dict)):
+                row[key] = json_mod.dumps(value, ensure_ascii=False)
+            else:
+                row[key] = value
+        rows.append(row)
+
+    # 出力ファイル名の決定
+    output_file = getattr(args, "output", None)
+    if output_file is None:
+        output_file = f"export.{target}"
+    output_path = project_root / output_file
+
+    if target == "csv":
+        with output_path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"CSVエクスポート完了: {output_path} ({len(rows)}件)")
+    elif target == "json":
+        with output_path.open("w", encoding="utf-8") as f:
+            json_mod.dump(rows, f, ensure_ascii=False, indent=2, default=str)
+        print(f"JSONエクスポート完了: {output_path} ({len(rows)}件)")
+
+    return 0
+
+
 def _run_info(project_root: Path, args: argparse.Namespace) -> int:
-    """infoサブコマンドを実行 - ファイルのproperty/relationを表示"""
+    """infoサブコマンドを実行 - ファイルのproperty/relationを表示
+
+    指定方法:
+    - ファイル名直打ち（複数可）: jj info go_idx1.inp mesh.inp
+    - インデックス指定: jj info -id 1 2
+    - バージョン指定: jj info -v 1 2
+    - プロパティのみ表示: jj info -props go_idx1.inp
+    """
     service = GraphService(project_root=project_root)
-    filename = getattr(args, "filename", "")
+    filenames = getattr(args, "filename", []) or []
+    index_filters = getattr(args, "index", None)
+    version_filters = getattr(args, "version", None)
+    props_only = getattr(args, "props_only", False)
 
     try:
         graph = service.load(filename=getattr(args, "file", None))
@@ -408,23 +603,64 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
             print("まず 'jj parse' を実行してください。")
             return 1
 
-        # ファイル名でノードを検索（部分一致）
         matched_nodes = []
-        for node in graph.nodes:
-            node_path = node.properties.get("path", "")
-            node_file = Path(node_path).name if node_path else ""
-            # 完全一致 or 部分一致
-            if (
-                node.name == filename
-                or node_file == filename
-                or node_path == filename
-                or filename in node.name
-                or filename in node_path
-            ):
-                matched_nodes.append(node)
+
+        # ファイル名で検索（部分一致）
+        for filename in filenames:
+            for node in graph.nodes:
+                if node in matched_nodes:
+                    continue
+                node_path = node.properties.get("path", "")
+                node_file = Path(node_path).name if node_path else ""
+                if (
+                    node.name == filename
+                    or node_file == filename
+                    or node_path == filename
+                    or filename in node.name
+                    or filename in node_path
+                ):
+                    matched_nodes.append(node)
+
+        # インデックスで検索
+        if index_filters is not None:
+            for node in graph.nodes:
+                if node in matched_nodes:
+                    continue
+                node_index = str(node.properties.get("index", ""))
+                if node_index and node_index in index_filters:
+                    matched_nodes.append(node)
+
+        # バージョンで検索
+        if version_filters is not None:
+            # バージョンフィルタはマッチ済みノードに対して絞り込み、
+            # または他の条件と組み合わせて使う
+            if filenames or index_filters is not None:
+                # 既存のマッチ結果から絞り込み
+                matched_nodes = [
+                    n for n in matched_nodes
+                    if str(n.properties.get("version", "")) in version_filters
+                ]
+            else:
+                # バージョンのみ指定の場合は全ノードから検索
+                for node in graph.nodes:
+                    node_ver = str(node.properties.get("version", ""))
+                    if node_ver and node_ver in version_filters:
+                        matched_nodes.append(node)
+
+        # 何も指定がない場合
+        if not filenames and index_filters is None and version_filters is None:
+            print("ファイル名、-id、-v のいずれかを指定してください。")
+            return 1
 
         if not matched_nodes:
-            print(f"ファイル '{filename}' に一致するノードが見つかりません。")
+            criteria = []
+            if filenames:
+                criteria.append(f"ファイル名: {', '.join(filenames)}")
+            if index_filters:
+                criteria.append(f"index: {', '.join(index_filters)}")
+            if version_filters:
+                criteria.append(f"version: {', '.join(version_filters)}")
+            print(f"条件 ({'; '.join(criteria)}) に一致するノードが見つかりません。")
             return 1
 
         # ノードIDからノードへのマッピング
@@ -432,9 +668,13 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
         for node in matched_nodes:
             print(f"\n=== {node.name} ===")
-            print(f"  ID: {node.id}")
-            print(f"  タイプ: {node.type}")
-            print(f"  フォーマット: {node.format}")
+            if not props_only:
+                print(f"  ID: {node.id}")
+                print(f"  タイプ: {node.type}")
+                print(f"  フォーマット: {node.format}")
+                verbose_name = node.properties.get("verbose_name", "")
+                if verbose_name:
+                    print(f"  表示名: {verbose_name}")
 
             # プロパティ表示
             print(f"\n  プロパティ:")
@@ -446,19 +686,20 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                 else:
                     print(f"    {key}: {value}")
 
-            # リレーション表示
-            rels = service.get_relations_for_node(graph, node.id)
-            if rels:
-                print(f"\n  リレーション ({len(rels)}件):")
-                for rel in rels:
-                    if rel.node1_id == node.id:
-                        target = node_by_id.get(rel.node2_id)
-                        target_name = target.name if target else f"ID:{rel.node2_id}"
-                        print(f"    --{rel.label}--> {target_name}")
-                    else:
-                        source = node_by_id.get(rel.node1_id)
-                        source_name = source.name if source else f"ID:{rel.node1_id}"
-                        print(f"    <--{rel.label}-- {source_name}")
+            # リレーション表示（-propsでない場合のみ）
+            if not props_only:
+                rels = service.get_relations_for_node(graph, node.id)
+                if rels:
+                    print(f"\n  リレーション ({len(rels)}件):")
+                    for rel in rels:
+                        if rel.node1_id == node.id:
+                            target = node_by_id.get(rel.node2_id)
+                            target_name = target.name if target else f"ID:{rel.node2_id}"
+                            print(f"    --{rel.label}--> {target_name}")
+                        else:
+                            source = node_by_id.get(rel.node1_id)
+                            source_name = source.name if source else f"ID:{rel.node1_id}"
+                            print(f"    <--{rel.label}-- {source_name}")
 
         return 0
 
@@ -467,3 +708,85 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
         return 1
 
 
+def _resolve_file_path(project_root: Path, filename: str) -> Path | None:
+    """ファイル名からファイルパスを解決
+
+    直接パス指定、プロジェクトルート相対パス、再帰検索の順に試行する。
+    """
+    direct = Path(filename)
+    if direct.exists():
+        return direct
+    relative = project_root / filename
+    if relative.exists():
+        return relative
+    for found in project_root.rglob(filename):
+        return found
+    return None
+
+
+def _run_diff(project_root: Path, args: argparse.Namespace) -> int:
+    """diffサブコマンドを実行 - 2つのファイル間の差分を表示"""
+    file1_arg = getattr(args, "file1", "")
+    file2_arg = getattr(args, "file2", "")
+    show_detail = getattr(args, "detail", False)
+
+    try:
+        file1 = _resolve_file_path(project_root, file1_arg)
+        if file1 is None:
+            print(f"ファイルが見つかりません: {file1_arg}", file=sys.stderr)
+            return 1
+
+        file2 = _resolve_file_path(project_root, file2_arg)
+        if file2 is None:
+            print(f"ファイルが見つかりません: {file2_arg}", file=sys.stderr)
+            return 1
+
+        print(f"比較: {file1.name} ← → {file2.name}")
+        print()
+
+        if file1.suffix.lower() == ".inp" and file2.suffix.lower() == ".inp":
+            left_abq = abq_read_inp(str(file1), verbose=False)
+            right_abq = abq_read_inp(str(file2), verbose=False)
+            diffs = diff_abq_blocks(left_abq, right_abq)
+
+            if not diffs:
+                print("差分はありません。")
+                return 0
+
+            summary = format_diff_summary_table(diffs)
+            print("=== サマリー ===")
+            print(summary)
+
+            if show_detail:
+                details = format_diff_blocks_markdown(diffs)
+                print("\n=== 詳細 ===")
+                print(details)
+        else:
+            import difflib
+
+            try:
+                text1 = file1.read_text(encoding="utf-8", errors="ignore").splitlines()
+                text2 = file2.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except (OSError, IOError) as e:
+                print(f"ファイル読み込みエラー: {e}", file=sys.stderr)
+                return 1
+
+            diff = difflib.unified_diff(
+                text1, text2,
+                fromfile=str(file1.name),
+                tofile=str(file2.name),
+                lineterm="",
+            )
+            diff_lines = list(diff)
+            if not diff_lines:
+                print("差分はありません。")
+                return 0
+
+            for line in diff_lines:
+                print(line)
+
+        return 0
+
+    except Exception as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        return 1
