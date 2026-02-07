@@ -29,7 +29,15 @@ from services.parse.abaqus_connector import (
     ReadProcedure,
     RawBlock,
     StepData,
+    ABQData,
     _parse_keyline_options,
+    _summarize_node_data,
+    _summarize_element_data,
+    _summarize_set_data,
+    _build_nodes_lookup,
+    _serialize_mesh_component,
+    _quad_warp_angle,
+    _compute_element_skew,
     evaluate_expressions,
 )
 from services.graph import parse_sta_file, parse_material_blocks
@@ -688,3 +696,287 @@ class TestDiffIntegration:
         # 物性値の差分が検出される
         assert "diff_summary" in result
         assert len(result["diff_summary"]) > 0
+
+
+# ==========================
+# メッシュキーワード要約テスト
+# ==========================
+
+
+class TestMeshSummary:
+    """メッシュ関連キーワードの要約機能テスト"""
+
+    def test_summarize_node_data_basic(self):
+        """Nodeデータが正しく要約されること"""
+        data = [
+            (1, 0.0, 0.0, 0.0),
+            (2, 1.0, 0.0, 0.0),
+            (3, 1.0, 1.0, 0.0),
+            (4, 0.0, 1.0, 0.0),
+        ]
+        summary = _summarize_node_data(data)
+        assert summary["node_count"] == 4
+        assert summary["x_range"]["min"] == 0.0
+        assert summary["x_range"]["max"] == 1.0
+        assert summary["y_range"]["min"] == 0.0
+        assert summary["y_range"]["max"] == 1.0
+        assert summary["z_range"]["min"] == 0.0
+        assert summary["z_range"]["max"] == 0.0
+
+    def test_summarize_node_data_empty(self):
+        """空のNodeデータ"""
+        summary = _summarize_node_data([])
+        assert summary["node_count"] == 0
+
+    def test_summarize_element_data_without_nodes(self):
+        """ノード情報なしでElement要約: カウントのみ"""
+        data = [[1, 1, 2, 3, 4], [2, 5, 6, 7, 8]]
+        summary = _summarize_element_data(data, nodes_lookup=None)
+        assert summary["element_count"] == 2
+        assert "size" not in summary
+
+    def test_summarize_element_data_with_nodes(self):
+        """ノード情報ありでElement要約: サイズ・ねじれ角あり"""
+        nodes_lookup = {
+            1: (0.0, 0.0, 0.0),
+            2: (1.0, 0.0, 0.0),
+            3: (1.0, 1.0, 0.0),
+            4: (0.0, 1.0, 0.0),
+        }
+        data = [[1, 1, 2, 3, 4]]
+        summary = _summarize_element_data(data, nodes_lookup=nodes_lookup)
+        assert summary["element_count"] == 1
+        assert "size" in summary
+        assert summary["size"]["min"] > 0
+        assert summary["size"]["max"] > 0
+        # 平面四辺形: ねじれ角はほぼ0
+        assert "skew" in summary
+        assert summary["skew"]["max"] < 1.0  # ほぼ0度
+
+    def test_summarize_element_data_empty(self):
+        """空のElementデータ"""
+        summary = _summarize_element_data([], nodes_lookup={})
+        assert summary["element_count"] == 0
+
+    def test_summarize_set_data_integers(self):
+        """整数IDリストのNset/Elset要約"""
+        data = [1, 2, 3, 4, 5]
+        summary = _summarize_set_data(data)
+        assert summary["id_count"] == 5
+        assert "names" not in summary
+
+    def test_summarize_set_data_strings(self):
+        """文字列リストのNset/Elset要約: そのまま返す"""
+        data = ["PART-A", "PART-B"]
+        summary = _summarize_set_data(data)
+        assert summary["names"] == ["PART-A", "PART-B"]
+        assert "id_count" not in summary
+
+    def test_summarize_set_data_empty(self):
+        """空のNset/Elset"""
+        summary = _summarize_set_data([])
+        assert summary["count"] == 0
+
+
+class TestQuadWarpAngle:
+    """四辺形warp角計算テスト"""
+
+    def test_planar_quad_zero_warp(self):
+        """平面四辺形のwarp角は0度"""
+        p1 = (0.0, 0.0, 0.0)
+        p2 = (1.0, 0.0, 0.0)
+        p3 = (1.0, 1.0, 0.0)
+        p4 = (0.0, 1.0, 0.0)
+        angle = _quad_warp_angle(p1, p2, p3, p4)
+        assert angle is not None
+        assert abs(angle) < 0.01  # ほぼ0度
+
+    def test_warped_quad_nonzero(self):
+        """非平面四辺形はwarp角 > 0"""
+        p1 = (0.0, 0.0, 0.0)
+        p2 = (1.0, 0.0, 0.0)
+        p3 = (1.0, 1.0, 0.5)  # z方向にずらす
+        p4 = (0.0, 1.0, 0.0)
+        angle = _quad_warp_angle(p1, p2, p3, p4)
+        assert angle is not None
+        assert angle > 0.0
+
+    def test_degenerate_quad_returns_zero(self):
+        """退化四辺形 (面積ゼロ) は0を返す"""
+        p1 = (0.0, 0.0, 0.0)
+        p2 = (0.0, 0.0, 0.0)
+        p3 = (0.0, 0.0, 0.0)
+        p4 = (0.0, 0.0, 0.0)
+        angle = _quad_warp_angle(p1, p2, p3, p4)
+        assert angle == 0.0
+
+
+class TestComputeElementSkew:
+    """要素ねじれ角計算テスト"""
+
+    def test_triangle_returns_none(self):
+        """三角形要素はNone"""
+        coords = [(0, 0, 0), (1, 0, 0), (0.5, 1, 0)]
+        assert _compute_element_skew(coords) is None
+
+    def test_quad_element(self):
+        """四辺形要素"""
+        coords = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        skew = _compute_element_skew(coords)
+        assert skew is not None
+        assert abs(skew) < 0.01  # 平面四辺形: ほぼ0
+
+    def test_hex_element(self):
+        """六面体要素 (C3D8)"""
+        coords = [
+            (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0),  # bottom
+            (0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1),  # top
+        ]
+        skew = _compute_element_skew(coords)
+        assert skew is not None
+        assert abs(skew) < 0.01  # 正六面体: ほぼ0
+
+
+class TestMeshSummaryInDiff:
+    """diff操作でメッシュキーワードが要約されることのテスト"""
+
+    def test_abq_to_dict_nodes_summarized(self, simple_inp):
+        """abq_to_dictでnodeが要約形式になること"""
+        abq = read_inp(simple_inp, verbose=False)
+        result = abq_to_dict(abq)
+
+        # ノードデータが要約形式であること
+        for name, node_dict in result["nodes"].items():
+            assert "summary" in node_dict
+            assert "node_count" in node_dict["summary"]
+            assert "data" not in node_dict
+
+    def test_abq_to_dict_elements_summarized(self, simple_inp):
+        """abq_to_dictでelementが要約形式になること"""
+        abq = read_inp(simple_inp, verbose=False)
+        result = abq_to_dict(abq)
+
+        for name, elem_dict in result["elements"].items():
+            assert "summary" in elem_dict
+            assert "element_count" in elem_dict["summary"]
+            assert "data" not in elem_dict
+
+    def test_abq_to_dict_nsets_summarized(self, simple_inp):
+        """abq_to_dictでnsetが要約形式になること"""
+        abq = read_inp(simple_inp, verbose=False)
+        result = abq_to_dict(abq)
+
+        for name, nset_dict in result["nsets"].items():
+            assert "summary" in nset_dict
+            assert "data" not in nset_dict
+
+    def test_abq_to_dict_elsets_summarized(self, simple_inp):
+        """abq_to_dictでelsetが要約形式になること"""
+        abq = read_inp(simple_inp, verbose=False)
+        result = abq_to_dict(abq)
+
+        for name, elset_dict in result["elsets"].items():
+            assert "summary" in elset_dict
+            assert "data" not in elset_dict
+
+    def test_diff_identical_mesh_no_diff(self, simple_inp):
+        """同一メッシュ間で差分がないこと"""
+        abq1 = read_inp(simple_inp, verbose=False)
+        abq2 = read_inp(simple_inp, verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        assert len(diffs) == 0
+
+    def test_diff_different_mesh_produces_diff(self, tmp_path):
+        """異なるメッシュで差分が検出されること"""
+        content1 = textwrap.dedent("""\
+            *NODE, NSET=ALL
+            1, 0.0, 0.0, 0.0
+            2, 1.0, 0.0, 0.0
+            3, 1.0, 1.0, 0.0
+            4, 0.0, 1.0, 0.0
+            *ELEMENT, TYPE=CPS4, ELSET=EALL
+            1, 1, 2, 3, 4
+            *STEP, NAME=Step-1
+            *STATIC
+            1., 1.
+            *END STEP
+        """)
+        content2 = textwrap.dedent("""\
+            *NODE, NSET=ALL
+            1, 0.0, 0.0, 0.0
+            2, 2.0, 0.0, 0.0
+            3, 2.0, 2.0, 0.0
+            4, 0.0, 2.0, 0.0
+            5, 1.0, 1.0, 0.0
+            *ELEMENT, TYPE=CPS4, ELSET=EALL
+            1, 1, 2, 3, 4
+            2, 1, 2, 5, 4
+            *STEP, NAME=Step-1
+            *STATIC
+            1., 1.
+            *END STEP
+        """)
+        f1 = tmp_path / "mesh1.inp"
+        f2 = tmp_path / "mesh2.inp"
+        f1.write_text(content1, encoding="utf-8")
+        f2.write_text(content2, encoding="utf-8")
+
+        abq1 = read_inp(f1, verbose=False)
+        abq2 = read_inp(f2, verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+
+        # ノード数・座標範囲が異なるため差分が出る
+        assert len(diffs) > 0
+        # 差分にsummaryが含まれる
+        has_summary = False
+        for d in diffs:
+            for side in [d.left, d.right]:
+                if side and isinstance(side, dict) and "summary" in side:
+                    has_summary = True
+                    break
+        assert has_summary
+
+    def test_diff_summary_table_with_mesh(self, tmp_path):
+        """メッシュ差分のサマリーテーブルにlocationが含まれること"""
+        content1 = textwrap.dedent("""\
+            *NODE, NSET=ALL
+            1, 0.0, 0.0, 0.0
+            2, 1.0, 0.0, 0.0
+            *STEP, NAME=Step-1
+            *STATIC
+            1., 1.
+            *END STEP
+        """)
+        content2 = textwrap.dedent("""\
+            *NODE, NSET=ALL
+            1, 0.0, 0.0, 0.0
+            2, 1.0, 0.0, 0.0
+            3, 2.0, 0.0, 0.0
+            *STEP, NAME=Step-1
+            *STATIC
+            1., 1.
+            *END STEP
+        """)
+        f1 = tmp_path / "s1.inp"
+        f2 = tmp_path / "s2.inp"
+        f1.write_text(content1, encoding="utf-8")
+        f2.write_text(content2, encoding="utf-8")
+
+        abq1 = read_inp(f1, verbose=False)
+        abq2 = read_inp(f2, verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        table = format_diff_summary_table(diffs)
+        # nodes.allの差分がテーブルに含まれる
+        assert "nodes" in table.lower()
+
+    def test_element_summary_has_size_with_nodes(self, simple_inp):
+        """ノード情報ありでElement要約にsizeが含まれること"""
+        abq = read_inp(simple_inp, verbose=False)
+        result = abq_to_dict(abq)
+
+        for name, elem_dict in result["elements"].items():
+            summary = elem_dict["summary"]
+            assert "element_count" in summary
+            # simple_inp には4ノードあるのでサイズ計算可能
+            assert "size" in summary
+            assert summary["size"]["min"] > 0

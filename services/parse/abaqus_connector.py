@@ -831,14 +831,25 @@ def read_inp(inp_filepath: PathList, verbose: bool = True) -> ABQData:
 def abq_to_dict(abq: ABQData) -> Dict[str, Any]:
     """ABQData を辞書型へ変換する（JSON化可能な構造へ正規化）。
 
+    メッシュ関連キーワード (Node, Element, Nset, Elset) は要約形式で出力する。
+
     Args:
         abq (ABQData): 解析データ
 
     Returns:
         Dict[str, Any]: JSON 変換可能な辞書
     """
+    # ノード座標ルックアップテーブル（要素サイズ・ねじれ角計算用）
+    nodes_lookup = _build_nodes_lookup(abq)
+
+    def mesh_comp_to_dict(comp: ReadComponent) -> Dict[str, Any]:
+        """メッシュ関連コンポーネントを要約形式で変換"""
+        return _serialize_mesh_component(comp, nodes_lookup)
 
     def comp_to_dict(comp: ReadComponent) -> Dict[str, Any]:
+        """メッシュ関連は要約、それ以外は従来通り変換"""
+        if comp.key in MESH_SUMMARY_KEYS:
+            return mesh_comp_to_dict(comp)
         # numpy array → list
         try:
             data = comp.dump().tolist()
@@ -941,12 +952,255 @@ def _sort_component_data_for_diff(comp: ReadComponent, data: Any) -> Any:
     return data
 
 
-def _serialize_component(comp: ReadComponent) -> Dict[str, Any]:
+# ==========================
+#  メッシュキーワード要約
+# ==========================
+
+MESH_SUMMARY_KEYS = {"node", "element", "nset", "elset"}
+
+
+def _build_nodes_lookup(abq: ABQData) -> Dict[int, tuple]:
+    """ABQData からノード座標のルックアップテーブルを構築
+
+    Returns:
+        {node_label: (x, y, z), ...}
+    """
+    lookup: Dict[int, tuple] = {}
+    for _name, comp in abq.nodes.items():
+        for row in comp.data:
+            label = row[0]
+            x = float(row[1]) if row[1] is not None else 0.0
+            y = float(row[2]) if row[2] is not None else 0.0
+            z = float(row[3]) if row[3] is not None else 0.0
+            lookup[int(label)] = (x, y, z)
+    return lookup
+
+
+def _summarize_node_data(data: List) -> Dict[str, Any]:
+    """Nodeデータを要約
+
+    Args:
+        data: [(label, x, y, z), ...]
+
+    Returns:
+        {"node_count": int, "x_range": {"min": float, "max": float}, ...}
+    """
+    if not data:
+        return {"node_count": 0}
+
+    xs, ys, zs = [], [], []
+    for row in data:
+        if len(row) >= 4 and row[1] is not None:
+            xs.append(float(row[1]))
+            ys.append(float(row[2]))
+            zs.append(float(row[3]))
+
+    summary: Dict[str, Any] = {"node_count": len(data)}
+
+    if xs:
+        summary["x_range"] = {"min": round(min(xs), 6), "max": round(max(xs), 6)}
+        summary["y_range"] = {"min": round(min(ys), 6), "max": round(max(ys), 6)}
+        summary["z_range"] = {"min": round(min(zs), 6), "max": round(max(zs), 6)}
+
+    return summary
+
+
+def _quad_warp_angle(
+    p1: tuple, p2: tuple, p3: tuple, p4: tuple,
+) -> Optional[float]:
+    """四辺形のwarp角（度）を計算
+
+    4頂点を2つの三角形に分割し、法線ベクトル間の角度を返す。
+    """
+    import math
+
+    v1 = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+    v2 = (p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2])
+    v3 = (p4[0] - p1[0], p4[1] - p1[1], p4[2] - p1[2])
+
+    # Triangle (P1, P2, P3) の法線
+    n1 = (
+        v1[1] * v2[2] - v1[2] * v2[1],
+        v1[2] * v2[0] - v1[0] * v2[2],
+        v1[0] * v2[1] - v1[1] * v2[0],
+    )
+
+    # Triangle (P1, P3, P4) の法線
+    n2 = (
+        v2[1] * v3[2] - v2[2] * v3[1],
+        v2[2] * v3[0] - v2[0] * v3[2],
+        v2[0] * v3[1] - v2[1] * v3[0],
+    )
+
+    norm1 = math.sqrt(n1[0] ** 2 + n1[1] ** 2 + n1[2] ** 2)
+    norm2 = math.sqrt(n2[0] ** 2 + n2[1] ** 2 + n2[2] ** 2)
+
+    if norm1 < 1e-10 or norm2 < 1e-10:
+        return 0.0
+
+    dot = n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2]
+    cos_angle = max(-1.0, min(1.0, dot / (norm1 * norm2)))
+
+    return math.degrees(math.acos(cos_angle))
+
+
+def _compute_element_skew(coords: List[tuple]) -> Optional[float]:
+    """要素のねじれ角（warp角）を計算
+
+    四辺形/六面体面のwarp角を計算する。
+    三角形要素 (3節点) の場合はNoneを返す。
+    """
+    n = len(coords)
+
+    if n < 4:
+        # 三角形: warp角なし
+        return None
+
+    if n == 4:
+        # 四辺形: warp角を計算
+        return _quad_warp_angle(coords[0], coords[1], coords[2], coords[3])
+
+    if n >= 8:
+        # 六面体: 各面のwarp角の最大値
+        # C3D8ノード順: 底面(0,1,2,3), 上面(4,5,6,7)
+        faces = [
+            (coords[0], coords[1], coords[2], coords[3]),  # bottom
+            (coords[4], coords[5], coords[6], coords[7]),  # top
+            (coords[0], coords[1], coords[5], coords[4]),  # front
+            (coords[1], coords[2], coords[6], coords[5]),  # right
+            (coords[2], coords[3], coords[7], coords[6]),  # back
+            (coords[3], coords[0], coords[4], coords[7]),  # left
+        ]
+        warps = []
+        for face in faces:
+            w = _quad_warp_angle(*face)
+            if w is not None:
+                warps.append(w)
+        return max(warps) if warps else None
+
+    if n >= 5:
+        # 5-6節点: 底面が四辺形の要素（wedge等）の底面のみ
+        return _quad_warp_angle(coords[0], coords[1], coords[2], coords[3])
+
+    return None
+
+
+def _summarize_element_data(
+    data: List,
+    nodes_lookup: Optional[Dict[int, tuple]] = None,
+) -> Dict[str, Any]:
+    """Elementデータを要約
+
+    Args:
+        data: [[elem_id, node1, node2, ...], ...]
+        nodes_lookup: {node_label: (x, y, z), ...}
+
+    Returns:
+        {"element_count": int, "size": {"min", "max", "mean"}, "skew": {"min", "max", "mean"}}
+    """
+    import math
+
+    if not data:
+        return {"element_count": 0}
+
+    summary: Dict[str, Any] = {"element_count": len(data)}
+
+    if not nodes_lookup:
+        return summary
+
+    sizes: List[float] = []
+    skews: List[float] = []
+
+    for row in data:
+        node_ids = row[1:]
+        coords = [nodes_lookup[nid] for nid in node_ids if nid in nodes_lookup]
+
+        if len(coords) < 2:
+            continue
+
+        # Element size: bounding box diagonal
+        xs = [c[0] for c in coords]
+        ys = [c[1] for c in coords]
+        zs = [c[2] for c in coords]
+        dx = max(xs) - min(xs)
+        dy = max(ys) - min(ys)
+        dz = max(zs) - min(zs)
+        size = math.sqrt(dx * dx + dy * dy + dz * dz)
+        sizes.append(size)
+
+        # Skew angle
+        skew = _compute_element_skew(coords)
+        if skew is not None:
+            skews.append(skew)
+
+    if sizes:
+        summary["size"] = {
+            "min": round(min(sizes), 6),
+            "max": round(max(sizes), 6),
+            "mean": round(sum(sizes) / len(sizes), 6),
+        }
+
+    if skews:
+        summary["skew"] = {
+            "min": round(min(skews), 6),
+            "max": round(max(skews), 6),
+            "mean": round(sum(skews) / len(skews), 6),
+        }
+
+    return summary
+
+
+def _summarize_set_data(data: List) -> Dict[str, Any]:
+    """Nset/Elsetデータを要約
+
+    文字列が割り当てられていればそのまま返す。
+    IDのリストの場合はIDの数を返す。
+    """
+    if not data:
+        return {"count": 0}
+
+    # 文字列が含まれているかチェック
+    has_strings = any(isinstance(v, str) for v in data)
+
+    if has_strings:
+        # 文字列のみ抽出して返す
+        names = [str(v) for v in data]
+        return {"names": names}
+    else:
+        return {"id_count": len(data)}
+
+
+def _serialize_mesh_component(
+    comp: ReadComponent,
+    nodes_lookup: Optional[Dict[int, tuple]] = None,
+) -> Dict[str, Any]:
+    """メッシュ関連コンポーネントを要約形式でシリアライズ"""
+    d: Dict[str, Any] = {
+        "kind": "component",
+        "key": comp.key,
+        "options": dict(comp.options),
+    }
+
+    if comp.key == "node":
+        d["summary"] = _summarize_node_data(comp.data)
+    elif comp.key == "element":
+        d["summary"] = _summarize_element_data(comp.data, nodes_lookup)
+    elif comp.key in ("nset", "elset"):
+        d["summary"] = _summarize_set_data(comp.data)
+
+    return d
+
+
+def _serialize_component(comp: ReadComponent, nodes_lookup: Optional[Dict[int, tuple]] = None) -> Dict[str, Any]:
     """ReadComponent を比較用の dict に正規化
 
-    - dump() → numpy → list 変換
-    - Node/Element/Nset/Elset はラベルソートしてから格納
+    - メッシュキーワード (node, element, nset, elset) は要約データに置換
+    - その他は従来通り dump() → numpy → list 変換
     """
+    # メッシュ関連キーワードは要約形式で返す
+    if comp.key in MESH_SUMMARY_KEYS:
+        return _serialize_mesh_component(comp, nodes_lookup)
+
     try:
         arr = comp.dump()
         data = arr.tolist()
@@ -996,12 +1250,13 @@ def _serialize_surface_interaction_block(
 
 def _serialize_block(
     block: Union[ReadComponent, RawBlock, SurfaceInteractionBlock],
+    nodes_lookup: Optional[Dict[int, tuple]] = None,
 ) -> Dict[str, Any]:
     """Step.blocks / top-level raw_blocks / SurfaceInteractionBlock を共通形式に変換"""
     if isinstance(block, SurfaceInteractionBlock):
         return _serialize_surface_interaction_block(block)
     if isinstance(block, ReadComponent):
-        return _serialize_component(block)
+        return _serialize_component(block, nodes_lookup=nodes_lookup)
     if isinstance(block, RawBlock):
         return _serialize_rawblock(block)
 
@@ -1121,6 +1376,8 @@ def _diff_block_groups(
     left_blocks: List[Union[ReadComponent, RawBlock, SurfaceInteractionBlock]],
     right_blocks: List[Union[ReadComponent, RawBlock, SurfaceInteractionBlock]],
     base_location: str,
+    left_nodes_lookup: Optional[Dict[int, tuple]] = None,
+    right_nodes_lookup: Optional[Dict[int, tuple]] = None,
 ) -> List[BlockDiff]:
     """ブロック列を kind/keyword グループ単位に分けて差分比較する。
 
@@ -1161,7 +1418,7 @@ def _diff_block_groups(
                     BlockDiff(
                         location=f"{loc_group}[{idx}]",
                         left=None,
-                        right=_serialize_block(b),
+                        right=_serialize_block(b, nodes_lookup=right_nodes_lookup),
                     )
                 )
             continue
@@ -1172,7 +1429,7 @@ def _diff_block_groups(
                 diffs.append(
                     BlockDiff(
                         location=f"{loc_group}[{idx}]",
-                        left=_serialize_block(b),
+                        left=_serialize_block(b, nodes_lookup=left_nodes_lookup),
                         right=None,
                     )
                 )
@@ -1181,8 +1438,8 @@ def _diff_block_groups(
         # 両方に存在する場合
         if _is_orderless_group(kind, gid):
             # 順不同比較 → serializeしてソート
-            left_ser = [_serialize_block(b) for b in lb]
-            right_ser = [_serialize_block(b) for b in rb]
+            left_ser = [_serialize_block(b, nodes_lookup=left_nodes_lookup) for b in lb]
+            right_ser = [_serialize_block(b, nodes_lookup=right_nodes_lookup) for b in rb]
 
             # ソートキーには repr(dict) を雑に使う（厳密さより簡便性優先）
             left_sorted = sorted(left_ser, key=lambda d: repr(d))
@@ -1211,7 +1468,7 @@ def _diff_block_groups(
                         BlockDiff(
                             location=loc,
                             left=None,
-                            right=_serialize_block(br),
+                            right=_serialize_block(br, nodes_lookup=right_nodes_lookup),
                         )
                     )
                     continue
@@ -1220,14 +1477,14 @@ def _diff_block_groups(
                     diffs.append(
                         BlockDiff(
                             location=loc,
-                            left=_serialize_block(bl),
+                            left=_serialize_block(bl, nodes_lookup=left_nodes_lookup),
                             right=None,
                         )
                     )
                     continue
 
-                sl = _serialize_block(bl)
-                sr = _serialize_block(br)
+                sl = _serialize_block(bl, nodes_lookup=left_nodes_lookup)
+                sr = _serialize_block(br, nodes_lookup=right_nodes_lookup)
                 if sl != sr:
                     diffs.append(
                         BlockDiff(
@@ -1244,6 +1501,8 @@ def _diff_block_lists(
     left_blocks: List[Union[ReadComponent, RawBlock]],
     right_blocks: List[Union[ReadComponent, RawBlock]],
     base_location: str,
+    left_nodes_lookup: Optional[Dict[int, tuple]] = None,
+    right_nodes_lookup: Optional[Dict[int, tuple]] = None,
 ) -> List[BlockDiff]:
     """ブロックのリスト同士を単純比較し、差分だけ返す
 
@@ -1266,7 +1525,7 @@ def _diff_block_lists(
                 BlockDiff(
                     location=loc,
                     left=None,
-                    right=_serialize_block(right_block),
+                    right=_serialize_block(right_block, nodes_lookup=right_nodes_lookup),
                 )
             )
             continue
@@ -1275,14 +1534,14 @@ def _diff_block_lists(
             diffs.append(
                 BlockDiff(
                     location=loc,
-                    left=_serialize_block(left_block),
+                    left=_serialize_block(left_block, nodes_lookup=left_nodes_lookup),
                     right=None,
                 )
             )
             continue
 
-        left_ser = _serialize_block(left_block)
-        right_ser = _serialize_block(right_block)
+        left_ser = _serialize_block(left_block, nodes_lookup=left_nodes_lookup)
+        right_ser = _serialize_block(right_block, nodes_lookup=right_nodes_lookup)
 
         if left_ser != right_ser:
             diffs.append(
@@ -1296,20 +1555,75 @@ def _diff_block_lists(
     return diffs
 
 
+def _diff_mesh_dicts(
+    diffs: List[BlockDiff],
+    left_dict: Dict[str, ReadComponent],
+    right_dict: Dict[str, ReadComponent],
+    category: str,
+    left_nodes_lookup: Optional[Dict[int, tuple]] = None,
+    right_nodes_lookup: Optional[Dict[int, tuple]] = None,
+) -> None:
+    """トップレベルのメッシュデータ辞書（nodes/elements/nsets/elsets）を比較
+
+    要約形式で比較し、差分があればdiffsに追加する。
+    """
+    all_names = set(left_dict.keys()) | set(right_dict.keys())
+
+    for name in sorted(all_names):
+        loc = f"{category}.{name}"
+        left_comp = left_dict.get(name)
+        right_comp = right_dict.get(name)
+
+        if left_comp is None and right_comp is not None:
+            diffs.append(
+                BlockDiff(
+                    location=loc,
+                    left=None,
+                    right=_serialize_component(right_comp, nodes_lookup=right_nodes_lookup),
+                )
+            )
+        elif right_comp is None and left_comp is not None:
+            diffs.append(
+                BlockDiff(
+                    location=loc,
+                    left=_serialize_component(left_comp, nodes_lookup=left_nodes_lookup),
+                    right=None,
+                )
+            )
+        elif left_comp is not None and right_comp is not None:
+            left_ser = _serialize_component(left_comp, nodes_lookup=left_nodes_lookup)
+            right_ser = _serialize_component(right_comp, nodes_lookup=right_nodes_lookup)
+            if left_ser != right_ser:
+                diffs.append(
+                    BlockDiff(location=loc, left=left_ser, right=right_ser)
+                )
+
+
 def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
     """2つの ABQData の差分を取り、差があるブロックのみ抽出する。
 
     現状仕様:
+        - トップレベルのメッシュデータ (nodes, elements, nsets, elsets) を要約形式で比較
         - STEP 単位で、Step.blocks を論理ブロック (SurfaceInteractionBlock) に変換して比較
         - kind/keyword (=_get_block_group_key) が同じブロック同士をグループ化して比較
-        - Elements/Nodes/Nset/Elset はラベルソート後に比較
+        - メッシュ関連キーワード (Node, Element, Nset, Elset) は要約データに置換して比較
         - surface, contact, contact property, boundary, surface interaction block は順不同扱い
-
-    将来拡張:
-        - Procedure専用の ReadProcedure を作り、kind="procedure", id=実際のキーワード でグループ化
-        - Nset/Elset, Boundary などの中身をさらに構造化して賢く比較
     """
     diffs: List[BlockDiff] = []
+
+    # ---- ノード座標ルックアップテーブルを構築 ----
+    left_nodes_lookup = _build_nodes_lookup(left)
+    right_nodes_lookup = _build_nodes_lookup(right)
+
+    # ---- トップレベルのメッシュデータ比較（要約形式）----
+    _diff_mesh_dicts(diffs, left.nodes, right.nodes, "nodes",
+                     left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.elements, right.elements, "elements",
+                     left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.nsets, right.nsets, "nsets",
+                     left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.elsets, right.elsets, "elsets",
+                     left_nodes_lookup, right_nodes_lookup)
 
     # ---- STEP 配下の blocks の比較 ----
     max_steps = max(len(left.steps), len(right.steps))
@@ -1325,7 +1639,7 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
                     BlockDiff(
                         location=f"{step_loc}.blocks[{idx}]",
                         left=None,
-                        right=_serialize_block(blk),
+                        right=_serialize_block(blk, nodes_lookup=right_nodes_lookup),
                     )
                 )
             continue
@@ -1338,7 +1652,7 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
                 diffs.append(
                     BlockDiff(
                         location=f"{step_loc}.blocks[{idx}]",
-                        left=_serialize_block(blk),
+                        left=_serialize_block(blk, nodes_lookup=left_nodes_lookup),
                         right=None,
                     )
                 )
@@ -1373,6 +1687,8 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
                 left_blocks=left_logical,
                 right_blocks=right_logical,
                 base_location=f"step[{si}].blocks",
+                left_nodes_lookup=left_nodes_lookup,
+                right_nodes_lookup=right_nodes_lookup,
             )
         )
 
@@ -1385,6 +1701,8 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
             left_blocks=left_top_logical,
             right_blocks=right_top_logical,
             base_location="top.raw_blocks",
+            left_nodes_lookup=left_nodes_lookup,
+            right_nodes_lookup=right_nodes_lookup,
         )
     )
 
