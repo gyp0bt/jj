@@ -39,8 +39,8 @@
 
 | # | ドメイン | ファイル | 実装状況 | 説明 |
 |---|---------|---------|---------|------|
-| 9 | ダッシュボード層 | [09-dashboard.md](./09-dashboard.md) | 設計完了 | Streamlitダッシュボード、REST API、mat-db統合 |
-| 10 | DB統合層 | [10-db-integration.md](./10-db-integration.md) | 設計完了 | jj × mat-db × Neo4j統合設計 |
+| 9 | ダッシュボード層 | [09-dashboard.md](./09-dashboard.md) | 設計完了 | Streamlitダッシュボード、REST API、jj-db統合 |
+| 10 | DB統合層 | [10-db-integration.md](./10-db-integration.md) | 設計完了 | jj × jj-db × Neo4j統合設計 |
 
 ---
 
@@ -130,19 +130,19 @@ jj内部のグラフデータを外部ツール向けに変換し、多様な形
 
 **主要機能:**
 - Streamlitダッシュボード（テーブル/カード/プロット/ステータス）
-- REST API（FastAPI、mat-db連携用）
-- mat-db統合（バッチアップロード/API連携）
+- REST API（FastAPI、jj-db連携用）
+- jj-db統合（バッチアップロード/API連携）
 - dashboard-jsonエクスポート
 
-### 10. DB統合層（jj × mat-db × Neo4j）
+### 10. DB統合層（jj × jj-db × Neo4j）
 
-jjとmat-dbをNeo4jを介して統合するアーキテクチャを定義します。
+jjとjj-dbをNeo4jを介して統合するアーキテクチャを定義します。
 
 **主要機能:**
 - Neo4jスキーマ定義（共有契約）
 - 共有データ型パッケージ（`shared/`）
 - jj Neo4jエクスポーター
-- mat-db Neo4jクライアント
+- jj-db Neo4jクライアント
 - クロスリレーション（材料マッチング）
 
 ---
