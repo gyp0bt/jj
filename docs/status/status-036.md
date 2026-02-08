@@ -1,18 +1,33 @@
 [READMEへ戻る](../../README.md)
 
-# status-036: jj-db統合設計（jj × mat-db × Neo4j）
+# status-036: jj-db統合設計（jj × jj-db × Neo4j）
 
 **日付**: 2026-02-08
 
 ## 概要
 
-mat-dbをjj-dbに組み込む統合方針を策定。Neo4jを通信中間層とし、共有データ型を`shared/`パッケージで管理する設計を文書化した。
+jj-db（旧mat-db）をNeo4j経由で統合する方針を策定。共有データ型を`shared/`パッケージで管理する設計を文書化した。
 
 ## 環境調査結果
 
-- **mat-dbリポジトリアクセス**: 不可（`repository not authorized` / HTTP 502）
-- **判定**: submodule方式は現時点では不可 → 一時的なモノレポ方式を採用
-- **移行計画**: アクセス復旧後にsubmodule化
+| 確認項目 | 結果 |
+|---------|------|
+| jj-dbリポジトリ閲覧（WebFetch） | 可能 |
+| jj-dbリポジトリのgit clone/push | **不可**（Gitプロキシがjjリポジトリのみ認可） |
+| submodule追加 | **不可**（clone不可のため） |
+
+### jj-db技術スタック（WebFetch経由で確認）
+
+| 項目 | 値 |
+|------|------|
+| フレームワーク | Next.js 15 / React 19 / TypeScript |
+| 現行DB | **SQLite (sql.js)** |
+| スタイル | Tailwind CSS v4 |
+| パッケージ管理 | pnpm |
+| コンポーネント | Storybook |
+| リンター | Biome |
+
+**重要**: jj-dbは現在SQLiteを使用しており、Neo4j統合では**SQLite + Neo4j併用**を推奨。
 
 ## 設計判断
 
@@ -20,19 +35,20 @@ mat-dbをjj-dbに組み込む統合方針を策定。Neo4jを通信中間層と�
 
 | 選択肢 | 判定 | 理由 |
 |--------|------|------|
-| submodule分離（理想） | **現時点で不可** | mat-dbリポジトリにアクセスできない |
+| submodule分離（理想） | **現時点で不可** | Gitプロキシがjj-dbを認可していない |
 | 一時的モノレポ | **採用** | 開発効率を確保しつつ、将来の分離を前提に設計 |
 | 完全統合（1リポジトリ） | 不採用 | コンテキスト肥大化の懸念 |
 
 ### アーキテクチャ
 
-- **通信**: jj ↔ Neo4j ↔ mat-db（直接のコード依存は禁止）
+- **通信**: jj ↔ Neo4j ↔ jj-db（直接のコード依存は禁止）
 - **共有型**: `shared/` パッケージ（neo4j_schema.py, types.py, config.py）
-- **依存方向**: `services/` → `shared/` ← `mat_db/`（shared → services/mat_dbは禁止）
+- **依存方向**: `services/` → `shared/` ← `jj_db/`（shared → services/jj_dbは禁止）
+- **jj-db側DB**: SQLite維持 + Neo4j追加（併用方式）
 
 ### コンテキスト肥大化対策
 
-- ディレクトリ分離（`mat_db/` 独立）
+- ディレクトリ分離（`jj_db/` 独立）
 - 独立README
 - 共有層を最小化（型定義とスキーマのみ）
 - テスト分離
@@ -50,16 +66,16 @@ mat-dbをjj-dbに組み込む統合方針を策定。Neo4jを通信中間層と�
 |-------|------|------|
 | N1 | 基盤構築（shared/, Neo4j Docker, スキーマ） | なし |
 | N2 | jj Neo4jエクスポーター | N1 |
-| N3 | mat-db Neo4jクライアント | N1, mat-dbコード入手 |
+| N3 | jj-db Neo4jクライアント（TypeScript） | N1, jj-dbコード入手 |
 | N4 | クロスリレーション（材料マッチング、import） | N2, N3 |
-| N5 | submodule移行 | mat-dbリポジトリアクセス復旧 |
+| N5 | submodule移行 | jj-dbリポジトリへのGitアクセス復旧 |
 
 ## 変更ファイル一覧
 
 | ファイル | 変更種別 |
 |---------|---------|
-| `docs/specs/10-db-integration.md` | 新規: jj-db統合設計書 |
-| `docs/status/status-036.md` | 新規: 本ステータス |
+| `docs/specs/10-db-integration.md` | 新規→更新: jj-db統合設計書（mat-db→jj-dbリネーム、技術スタック反映） |
+| `docs/status/status-036.md` | 新規→更新: 本ステータス |
 | `docs/roadmap.md` | 変更: Phase N追加 |
 | `docs/specs/README.md` | 変更: DB統合仕様追加 |
 | `README.md` | 変更: ステータスリンク追加 |
@@ -70,12 +86,13 @@ mat-dbをjj-dbに組み込む統合方針を策定。Neo4jを通信中間層と�
 - [ ] Phase N1: Neo4j Docker Compose構築
 - [ ] Phase N2: `services/connectors/neo4j_connector.py` 実装
 - [ ] Phase N2: `jj export --target neo4j` CLI追加
-- [ ] mat-dbリポジトリアクセスの復旧確認
-- [ ] mat-dbの既存データモデルとの詳細マッピング
+- [ ] jj-dbリポジトリへのGitアクセス復旧確認（プロキシ認可問題）
+- [ ] jj-dbの既存データモデルとの詳細マッピング（SQLite側のスキーマ確認）
 
 ## 確認事項・設計上の懸念
 
-- mat-dbリポジトリアクセスの復旧時期が不明。復旧するまではモノレポで開発
-- mat-dbの既存データモデル（Node/Edge型）の詳細が未確認。mat-dbコード入手後に具体化が必要
+- Gitプロキシの認可問題: この環境ではjjリポジトリのみがプロキシ認可されており、jj-dbへのclone/pushは不可。パブリック化後も状況変わらず。ユーザー側でプロキシ設定の変更、またはjj-dbのコードを手動で`jj_db/`にコピーする必要がある可能性あり
+- jj-dbの現行DB（SQLite）とNeo4jの併用: 移行ではなく併用を推奨。SQLiteで既存機能維持、Neo4jはjjとの通信専用
+- jj-db側のNeo4jクライアントはTypeScript（neo4j-driver npm package）で実装が必要
 - Neo4j Community vs Enterprise: 初期はCommunity Editionで十分
 - 材料名マッチングのアルゴリズム: 完全一致 → ファジーマッチ → LLMベースの段階的改善を想定

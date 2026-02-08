@@ -156,18 +156,18 @@
 - [ ] `/api/v1/summary`, `/api/v1/status` エンドポイント
 - [ ] クエリフィルター（type, index, status, props条件）
 
-#### D4. mat-db統合
+#### D4. jj-db統合
 
-- [ ] `jj export --target mat-db` の実装（mat-dbアップロード形式）
-- [ ] mat-db側にjjプロジェクトインポート機能追加
-- [ ] API連携（jj serve → mat-db fetch）
-- [ ] mat-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
+- [ ] `jj export --target jj-db` の実装（jj-dbアップロード形式）
+- [ ] jj-db側にjjプロジェクトインポート機能追加
+- [ ] API連携（jj serve → jj-db fetch）
+- [ ] jj-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
 
 **参照**: [09-dashboard.md](./specs/09-dashboard.md)
 
 ---
 
-## Phase 2.N: DB統合基盤（jj × mat-db × Neo4j）
+## Phase 2.N: DB統合基盤（jj × jj-db × Neo4j）
 
 ### 優先度: 中（Phase 2.5と並行）
 
@@ -186,10 +186,10 @@
 - [ ] upsert対応
 - [ ] テスト
 
-#### N3. mat-db Neo4jクライアント
+#### N3. jj-db Neo4jクライアント
 
-- [ ] `mat_db/` ディレクトリ構築
-- [ ] `mat_db/neo4j_client.py` 実装
+- [ ] `jj_db/` ディレクトリ構築
+- [ ] `jj_db/neo4j_client.py` 実装
 - [ ] 材料データのNeo4j投入
 - [ ] jjデータの読み取りインターフェース
 
@@ -197,11 +197,11 @@
 
 - [ ] 材料名マッチングロジック（MATCHES関係の自動生成）
 - [ ] `jj import --source neo4j` 実装
-- [ ] mat-db側のjjプロジェクトビュー
+- [ ] jj-db側のjjプロジェクトビュー
 
 #### N5. submodule移行（アクセス復旧後）
 
-- [ ] mat_db/ を別リポジトリに切り出し
+- [ ] jj_db/ を別リポジトリに切り出し
 - [ ] .gitmodules設定
 - [ ] shared/ の独立パッケージ化検討
 - [ ] CI/CD分離
@@ -415,7 +415,7 @@
 - 出力層の基盤完成
 - 3つ以上のCAEソフトに対応
 - jj serve REST APIが稼働
-- mat-db統合が基本動作（D3-D4完了）
+- jj-db統合が基本動作（D3-D4完了）
 
 ### M5: 最適化完了（Phase 5完了）
 
