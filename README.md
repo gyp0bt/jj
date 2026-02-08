@@ -19,6 +19,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj info <ファイル名>`: ファイルのproperty/relationを表示（-id, -v, -propsオプション対応）
   - `jj diff <file1> <file2>`: ファイル間の差分を表示（Abaqusキーワードブロック差分対応）
   - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート
+  - `jj export --target neo4j`: Neo4jデータベースにグラフをエクスポート
+  - `jj export --target cypher`: Cypherクエリファイルとしてエクスポート（Neo4j不要）
   - `jj g ...`: 旧コマンド（互換性維持）
 - `jj f` (file)
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
@@ -58,9 +60,11 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `docs/detail.md` : 実装詳細と仕様リンク
 - `services/` : CLI向けサービス群（詳細は各README）
   - `services/graph/` : グラフデータの生成・管理（GraphService）
-  - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector等）
+  - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector, Neo4jConnector）
   - `services/parse/file_parse.py` : FileParse/ObsidianFileParse + レガシー関数
   - `services/storage/` : グラフデータの永続化（GraphStorage）
+- `shared/` : jj-dbとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
+- `neo4j/` : Neo4j Docker設定と初期化スクリプト
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
 - `assets/` : テストデータ/サンプル
@@ -70,6 +74,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-08 / status-037: Neo4jエクスポート実装（Phase N1+N2）。shared/パッケージ（スキーマ契約・型定義・接続設定）、Neo4j Docker設定、Neo4jConnector（直接書き込み+Cypherファイル出力）、CLI `--target neo4j/cypher`追加。テスト71件追加（69パス+2スキップ）、既存294件リグレッションなし。([status-037](docs/status/status-037.md))
 - 2026-02-08 / status-036: jj-db統合設計。jj-db（旧mat-db）をNeo4j経由で統合する方針策定。submoduleアクセス不可のため一時モノレポ方式採用。shared/パッケージでデータ型共通化、Phase N1-N5の実装計画策定。jj-dbの技術スタック（Next.js 15/SQLite）を確認、SQLite+Neo4j併用を推奨。([status-036](docs/status/status-036.md))
 - 2026-02-08 / status-035: ダッシュボードアーキテクチャ設計。jj側Streamlit（即時一覧）+ jj-db側Next.js（高機能レンダリング）の役割分担決定。Phase 2.5・M2.5追加、仕様書09-dashboard.md作成。([status-035](docs/status/status-035.md))
 - 2026-02-07 / status-034: メッシュキーワード要約。diff/propertyでNode/Element/Nset/Elsetの生データを統計情報（節点数、座標範囲、メッシュ数、メッシュサイズ、ねじれ角、ID数）に自動置換。トップレベルメッシュデータのdiff比較追加。テスト294件パス（+22件）。([status-034](docs/status/status-034.md))
