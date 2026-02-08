@@ -125,6 +125,48 @@
 
 ---
 
+## Phase 2.5: ダッシュボード・API基盤（直近〜中期）
+
+### 優先度: 高
+
+#### D1. データ供給基盤（DashboardDataProvider）
+
+- [ ] `DashboardDataProvider` クラスの実装
+  - [ ] `get_go_table()` → DataFrame変換（プロパティ展開済み）
+  - [ ] `get_node_card()` → 詳細辞書（関連ノード含む）
+  - [ ] `get_plot_data()` → 数値プロパティ抽出
+  - [ ] `get_property_keys()` → 利用可能キー一覧
+  - [ ] `get_status_summary()` → 実行ステータスサマリー
+- [ ] `jj export --target dashboard-json` の実装
+- [ ] テスト
+
+#### D2. Streamlitダッシュボード
+
+- [ ] `jj dashboard` CLIコマンド追加
+- [ ] テーブルビュー（ag-grid + フィルター）
+  - go_ファイル一覧、プロパティカラム展開、ステータス表示
+- [ ] カードビュー（ノード詳細 + 関連画像表示）
+- [ ] プロットビュー（plotly散布図/線図、X/Y軸選択）
+- [ ] ステータスモニター（実行中/完了/失敗の一覧）
+
+#### D3. REST API（jj serve）
+
+- [ ] `jj serve` CLIコマンド追加（FastAPI + uvicorn）
+- [ ] `/api/v1/nodes`, `/api/v1/relations` エンドポイント
+- [ ] `/api/v1/summary`, `/api/v1/status` エンドポイント
+- [ ] クエリフィルター（type, index, status, props条件）
+
+#### D4. mat-db統合
+
+- [ ] `jj export --target mat-db` の実装（mat-dbアップロード形式）
+- [ ] mat-db側にjjプロジェクトインポート機能追加
+- [ ] API連携（jj serve → mat-db fetch）
+- [ ] mat-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
+
+**参照**: [09-dashboard.md](./specs/09-dashboard.md)
+
+---
+
 ## Phase 3: コマンド機能の充実（中期 - 1〜3ヶ月）
 
 ### 優先度: 高
@@ -302,6 +344,16 @@
 - 解析結果ファイルの解析完了
 - パーサー層の拡張機能完了
 
+### M2.5: ダッシュボード基盤完成（Phase 2.5 D1-D2完了）
+
+**目標日**: M2完了後 2〜4週間以内
+
+**達成条件**:
+- DashboardDataProviderが完全動作
+- `jj dashboard` でStreamlitアプリが起動
+- テーブル/カード/プロット/ステータスの4ビューが利用可能
+- dashboard-jsonエクスポートが動作
+
 ### M3: コマンド機能完成（Phase 3完了）
 
 **目標日**: 3ヶ月以内
@@ -319,6 +371,8 @@
 - アダプター層の基盤完成
 - 出力層の基盤完成
 - 3つ以上のCAEソフトに対応
+- jj serve REST APIが稼働
+- mat-db統合が基本動作（D3-D4完了）
 
 ### M5: 最適化完了（Phase 5完了）
 
@@ -335,5 +389,6 @@
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
-- [最新ステータス](./status/status-034.md)
+- [ダッシュボード仕様書](./specs/09-dashboard.md)
+- [最新ステータス](./status/status-035.md)
 - [プロジェクトREADME](../README.md)
