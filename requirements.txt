@@ -10,6 +10,9 @@ chardet>=5.0.0
 ftfy>=6.0.0
 numpy>=1.24.0
 
+# Neo4jコネクター用
+neo4j>=5.0.0
+
 # テスト
 pytest>=7.0.0
 pytest-cov>=4.0.0
