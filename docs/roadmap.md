@@ -171,20 +171,21 @@
 
 ### 優先度: 中（Phase 2.5と並行）
 
-#### N1. 基盤構築
+#### N1. 基盤構築 ✅ (status-037)
 
-- [ ] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
-- [ ] `neo4j/docker-compose.yml` 作成
-- [ ] `neo4j/init/01-schema.cypher` 作成（制約/インデックス）
-- [ ] requirements.txtに`neo4j`ドライバ追加
+- [x] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
+- [x] `neo4j/docker-compose.yml` 作成
+- [x] `neo4j/init/01-schema.cypher` 作成（制約/インデックス）
+- [x] requirements.txtに`neo4j`ドライバ追加
 
-#### N2. jj Neo4jエクスポーター
+#### N2. jj Neo4jエクスポーター ✅ (status-037)
 
-- [ ] `services/connectors/neo4j_connector.py` 実装
-- [ ] `jj export --target neo4j` CLI追加
-- [ ] GraphModel → Neo4j Cypherマッピング実装
-- [ ] upsert対応
-- [ ] テスト
+- [x] `services/connectors/neo4j.py` 実装（Neo4jConnector）
+- [x] `jj export --target neo4j` CLI追加
+- [x] `jj export --target cypher` CLI追加（Cypherファイル出力）
+- [x] GraphModel → Neo4j Cypherマッピング実装
+- [x] upsert対応（UNWIND + MERGE）
+- [x] テスト（71件: 69パス + 2スキップ）
 
 #### N3. jj-db Neo4jクライアント
 
@@ -434,5 +435,5 @@
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-036.md)
+- [最新ステータス](./status/status-037.md)
 - [プロジェクトREADME](../README.md)
