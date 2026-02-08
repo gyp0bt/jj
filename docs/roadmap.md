@@ -167,6 +167,49 @@
 
 ---
 
+## Phase 2.N: DB統合基盤（jj × mat-db × Neo4j）
+
+### 優先度: 中（Phase 2.5と並行）
+
+#### N1. 基盤構築
+
+- [ ] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
+- [ ] `neo4j/docker-compose.yml` 作成
+- [ ] `neo4j/init/01-schema.cypher` 作成（制約/インデックス）
+- [ ] requirements.txtに`neo4j`ドライバ追加
+
+#### N2. jj Neo4jエクスポーター
+
+- [ ] `services/connectors/neo4j_connector.py` 実装
+- [ ] `jj export --target neo4j` CLI追加
+- [ ] GraphModel → Neo4j Cypherマッピング実装
+- [ ] upsert対応
+- [ ] テスト
+
+#### N3. mat-db Neo4jクライアント
+
+- [ ] `mat_db/` ディレクトリ構築
+- [ ] `mat_db/neo4j_client.py` 実装
+- [ ] 材料データのNeo4j投入
+- [ ] jjデータの読み取りインターフェース
+
+#### N4. クロスリレーション
+
+- [ ] 材料名マッチングロジック（MATCHES関係の自動生成）
+- [ ] `jj import --source neo4j` 実装
+- [ ] mat-db側のjjプロジェクトビュー
+
+#### N5. submodule移行（アクセス復旧後）
+
+- [ ] mat_db/ を別リポジトリに切り出し
+- [ ] .gitmodules設定
+- [ ] shared/ の独立パッケージ化検討
+- [ ] CI/CD分離
+
+**参照**: [10-db-integration.md](./specs/10-db-integration.md)
+
+---
+
 ## Phase 3: コマンド機能の充実（中期 - 1〜3ヶ月）
 
 ### 優先度: 高
@@ -390,5 +433,6 @@
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
-- [最新ステータス](./status/status-035.md)
+- [DB統合設計書](./specs/10-db-integration.md)
+- [最新ステータス](./status/status-036.md)
 - [プロジェクトREADME](../README.md)
