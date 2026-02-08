@@ -86,7 +86,7 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
     """exportコマンドの引数を追加"""
     parser.add_argument(
         "--target",
-        choices=["obsidian", "csv", "json"],
+        choices=["obsidian", "csv", "json", "neo4j", "cypher"],
         default="obsidian",
         help="エクスポート先（デフォルト: obsidian）",
     )
@@ -126,6 +126,30 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         nargs="*",
         default=None,
         help="エクスポートするファイル名を指定（複数可）",
+    )
+    # Neo4j固有オプション
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Neo4jエクスポート時、既存のプロジェクトデータを削除してから投入",
+    )
+    parser.add_argument(
+        "--neo4j-uri",
+        type=str,
+        default=None,
+        help="Neo4j接続URI（デフォルト: bolt://localhost:7687）",
+    )
+    parser.add_argument(
+        "--neo4j-user",
+        type=str,
+        default=None,
+        help="Neo4jユーザー名（デフォルト: neo4j）",
+    )
+    parser.add_argument(
+        "--neo4j-password",
+        type=str,
+        default=None,
+        help="Neo4jパスワード（デフォルト: password）",
     )
 
 
@@ -480,6 +504,16 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
                 project_root, graph, service, target, args
             )
 
+        elif target == "neo4j":
+            return _run_export_neo4j(
+                project_root, graph, args, direct=True
+            )
+
+        elif target == "cypher":
+            return _run_export_neo4j(
+                project_root, graph, args, direct=False
+            )
+
         else:
             print(f"未対応のエクスポート先: {target}")
             return 1
@@ -578,6 +612,77 @@ def _run_export_data(
         print(f"JSONエクスポート完了: {output_path} ({len(rows)}件)")
 
     return 0
+
+
+def _run_export_neo4j(
+    project_root: Path,
+    graph: "GraphModel",
+    args: argparse.Namespace,
+    direct: bool = True,
+) -> int:
+    """Neo4j/Cypherエクスポートを実行
+
+    Args:
+        project_root: プロジェクトルート
+        graph: エクスポート対象のグラフ
+        args: CLIの引数
+        direct: Trueの場合Neo4jに直接書き込み、Falseの場合Cypherファイル出力
+    """
+    from services.connectors.neo4j import Neo4jConnector
+    from shared.config import Neo4jConfig
+
+    clear_project = getattr(args, "clear", False)
+
+    # Neo4j接続設定の構築
+    neo4j_config = Neo4jConfig.from_jj_config(project_root)
+    # CLIオプションで上書き
+    uri = getattr(args, "neo4j_uri", None)
+    user = getattr(args, "neo4j_user", None)
+    password = getattr(args, "neo4j_password", None)
+    if uri:
+        neo4j_config.uri = uri
+    if user:
+        neo4j_config.user = user
+    if password:
+        neo4j_config.password = password
+
+    connector = Neo4jConnector(project_root=project_root, config=neo4j_config)
+
+    try:
+        if direct:
+            # Neo4jに直接書き込み
+            print(f"Neo4jにエクスポート中... ({neo4j_config.uri})")
+            stats = connector.export_graph(
+                graph, clear_project=clear_project
+            )
+            print(f"\n=== Neo4jエクスポート完了 ===")
+            print(f"ノード: {stats['nodes_created']}件")
+            print(f"リレーション: {stats['relations_created']}件")
+            if clear_project:
+                print("（既存プロジェクトデータを削除後に投入）")
+        else:
+            # Cypherファイルとしてエクスポート
+            output_file = getattr(args, "output", None)
+            output_path = connector.export_cypher(
+                graph,
+                output_path=output_file,
+                clear_project=clear_project,
+            )
+            rel_path = output_path.relative_to(project_root)
+            print(f"Cypherエクスポート完了: {rel_path}")
+            print(f"ノード: {len(graph.nodes)}件、リレーション: {len(graph.relations)}件")
+
+        return 0
+
+    except ImportError as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        print("Neo4jへの直接接続が不要な場合は --target cypher を使用してください。")
+        return 1
+    except Exception as e:
+        print(f"Neo4jエクスポートエラー: {e}", file=sys.stderr)
+        return 1
+    finally:
+        connector.close()
 
 
 def _run_info(project_root: Path, args: argparse.Namespace) -> int:
