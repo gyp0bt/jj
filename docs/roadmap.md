@@ -156,14 +156,57 @@
 - [ ] `/api/v1/summary`, `/api/v1/status` エンドポイント
 - [ ] クエリフィルター（type, index, status, props条件）
 
-#### D4. mat-db統合
+#### D4. jj-db統合
 
-- [ ] `jj export --target mat-db` の実装（mat-dbアップロード形式）
-- [ ] mat-db側にjjプロジェクトインポート機能追加
-- [ ] API連携（jj serve → mat-db fetch）
-- [ ] mat-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
+- [ ] `jj export --target jj-db` の実装（jj-dbアップロード形式）
+- [ ] jj-db側にjjプロジェクトインポート機能追加
+- [ ] API連携（jj serve → jj-db fetch）
+- [ ] jj-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
 
 **参照**: [09-dashboard.md](./specs/09-dashboard.md)
+
+---
+
+## Phase 2.N: DB統合基盤（jj × jj-db × Neo4j）
+
+### 優先度: 中（Phase 2.5と並行）
+
+#### N1. 基盤構築
+
+- [ ] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
+- [ ] `neo4j/docker-compose.yml` 作成
+- [ ] `neo4j/init/01-schema.cypher` 作成（制約/インデックス）
+- [ ] requirements.txtに`neo4j`ドライバ追加
+
+#### N2. jj Neo4jエクスポーター
+
+- [ ] `services/connectors/neo4j_connector.py` 実装
+- [ ] `jj export --target neo4j` CLI追加
+- [ ] GraphModel → Neo4j Cypherマッピング実装
+- [ ] upsert対応
+- [ ] テスト
+
+#### N3. jj-db Neo4jクライアント
+
+- [ ] `jj_db/` ディレクトリ構築
+- [ ] `jj_db/neo4j_client.py` 実装
+- [ ] 材料データのNeo4j投入
+- [ ] jjデータの読み取りインターフェース
+
+#### N4. クロスリレーション
+
+- [ ] 材料名マッチングロジック（MATCHES関係の自動生成）
+- [ ] `jj import --source neo4j` 実装
+- [ ] jj-db側のjjプロジェクトビュー
+
+#### N5. submodule移行（アクセス復旧後）
+
+- [ ] jj_db/ を別リポジトリに切り出し
+- [ ] .gitmodules設定
+- [ ] shared/ の独立パッケージ化検討
+- [ ] CI/CD分離
+
+**参照**: [10-db-integration.md](./specs/10-db-integration.md)
 
 ---
 
@@ -372,7 +415,7 @@
 - 出力層の基盤完成
 - 3つ以上のCAEソフトに対応
 - jj serve REST APIが稼働
-- mat-db統合が基本動作（D3-D4完了）
+- jj-db統合が基本動作（D3-D4完了）
 
 ### M5: 最適化完了（Phase 5完了）
 
@@ -390,5 +433,6 @@
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
-- [最新ステータス](./status/status-035.md)
+- [DB統合設計書](./specs/10-db-integration.md)
+- [最新ステータス](./status/status-036.md)
 - [プロジェクトREADME](../README.md)
