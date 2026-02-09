@@ -945,6 +945,9 @@ class GraphService:
             dirname = dir_path.name
             parser = FileParse(dirname)
 
+            dir_tags = parser.get_tags()
+            if "root.directory" not in dir_tags:
+                dir_tags.append("root.directory")
             dir_node = Node(
                 id=self._next_node_id(),
                 type=parser.get_file_type().value + "_directory",
@@ -954,7 +957,7 @@ class GraphService:
                     "path": rel_path,
                     "index": parser.get_index(),
                     "version": parser.get_version(),
-                    "tags": parser.get_tags(),
+                    "tags": dir_tags,
                     **parser.get_props(),
                 },
             )
@@ -1019,6 +1022,7 @@ class GraphService:
                 format="directory",
                 properties={
                     "path": dir_rel_path,
+                    "tags": ["root.directory"],
                 },
             )
             dir_nodes.append(dir_node)
