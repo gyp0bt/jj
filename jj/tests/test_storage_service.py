@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from services.storage import GraphStorage
 from jj_types import GraphModel, Node, Relation
+
+from jj.services.graph.storage import GraphStorage
 
 
 def test_graph_storage_save_and_load_yaml(tmp_path: Path) -> None:

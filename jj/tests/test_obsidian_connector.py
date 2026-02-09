@@ -8,20 +8,21 @@
 [READMEへ戻る](../README.md)
 """
 
-import pytest
 from pathlib import Path
 
-from services.connectors.obsidian import (
+import pytest
+from config import GraphConfig
+from jj_types import GraphModel, Node
+
+from jj.services.parse.connectors.obsidian import (
     ObsidianConfig,
     ObsidianConnector,
-    to_obsidian_filename,
-    from_obsidian_filename,
-    to_obsidian_link,
-    get_directory_for_type,
     _coerce_property_value,
+    from_obsidian_filename,
+    get_directory_for_type,
+    to_obsidian_filename,
+    to_obsidian_link,
 )
-from jj_types import Node, GraphModel
-from config import GraphConfig
 
 
 class TestObsidianNaming:

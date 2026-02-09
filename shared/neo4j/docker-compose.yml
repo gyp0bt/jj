@@ -1,0 +1,30 @@
+# Neo4j Docker Compose設定
+# jjとjj-dbの共有グラフデータベース
+#
+# 起動: docker compose -f neo4j/docker-compose.yml up -d
+# 停止: docker compose -f neo4j/docker-compose.yml down
+# ブラウザ: http://localhost:7474
+# Bolt接続: bolt://localhost:7687
+#
+# [READMEへ戻る](../README.md)
+
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: jj-neo4j
+    ports:
+      - "7474:7474"   # ブラウザUI
+      - "7687:7687"   # Boltプロトコル
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ./init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

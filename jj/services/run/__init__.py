@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import getpass
+import json
 import re
 import socket
 import subprocess
@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Iterable
 
 from jj_types import GraphModel, Node, Relation
-from services.storage import GraphStorage
+
+from jj.services.graph.storage import GraphStorage
 
 
 @dataclass
@@ -167,9 +168,7 @@ class RunService:
                 changed.append(rel)
         return sorted(set(changed))
 
-    def _extract_properties(
-        self, script_path: Path, args: list[str]
-    ) -> dict[str, str]:
+    def _extract_properties(self, script_path: Path, args: list[str]) -> dict[str, str]:
         props: dict[str, str] = {}
         if not script_path.exists():
             return props
@@ -212,8 +211,12 @@ class RunService:
         self, text: str, args: list[str], props: dict[str, str]
     ) -> dict[str, str]:
         mapped: dict[str, str] = {}
-        py_matches = re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*sys\.argv\[(\d+)\]", text, re.MULTILINE)
-        sh_matches = re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*\"?\$([0-9]+)\"?", text, re.MULTILINE)
+        py_matches = re.findall(
+            r"^\s*([A-Za-z_]\w*)\s*=\s*sys\.argv\[(\d+)\]", text, re.MULTILINE
+        )
+        sh_matches = re.findall(
+            r"^\s*([A-Za-z_]\w*)\s*=\s*\"?\$([0-9]+)\"?", text, re.MULTILINE
+        )
         for name, idx_str in py_matches + sh_matches:
             idx = int(idx_str) - 1
             if 0 <= idx < len(args) and name not in props:
@@ -254,7 +257,9 @@ class RunService:
         next_id = max([n.id for n in graph.nodes], default=0) + 1
 
         # runノードを作成
-        script_name = result.script_path.name if result.script_path else " ".join(result.command)
+        script_name = (
+            result.script_path.name if result.script_path else " ".join(result.command)
+        )
         run_node = Node(
             id=next_id,
             type="run",
@@ -276,7 +281,10 @@ class RunService:
         # trace_filesの各ファイルに対してfileノードとgeneratedリレーションを作成
         for trace_file in result.trace_files:
             # 既存のfileノードを検索
-            file_node = next((n for n in graph.nodes if n.type == "file" and n.name == trace_file), None)
+            file_node = next(
+                (n for n in graph.nodes if n.type == "file" and n.name == trace_file),
+                None,
+            )
 
             if file_node is None:
                 # fileノードを作成

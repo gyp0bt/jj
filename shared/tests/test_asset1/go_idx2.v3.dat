@@ -1,0 +1,590 @@
+1
+
+   Abaqus 2023                                  Date 06-Feb-2026   Time 18:20:47
+   For use by SUMITOMO ELECTRIC INDUSTRIES LTD under license from Dassault Systemes or its subsidiary.
+
+
+
+                         The Abaqus Software is a product of:
+
+                           Dassault Systemes SIMULIA Corp.
+                           1301 Atwood Avenue, Suite 101W
+                              Johnston, RI 02919, USA
+ 
+
+
+                   The Abaqus Software is available only under license
+                   from Dassault Systemes or its subsidiary and may be
+                   used or reproduced only in accordance with the terms
+                   of such license.
+ 
+                          On machine calc2426 
+                          you are authorized to run
+                          Abaqus/Standard until 30-Apr-2027
+
+                          Your site id is: SIT00001797 
+
+
+ 
+                    For assistance or any other information you may
+                    obtain contact information for your local office
+                    from the world wide web at:
+
+                      http://www.3ds.com/products/simulia/locations/
+
+ 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+                *                                                         * 
+                *                   *****************                     * 
+                *                   *  N O T I C E  *                     * 
+                *                   *****************                     * 
+                *                                                         * 
+                *                                                         * 
+                *                       Abaqus 2023                       * 
+                *                                                         * 
+                *          BUILD ID: 2022_09_29-03.11.55 183150           * 
+                *                                                         * 
+                *                                                         * 
+                *  Please make sure you are using                         * 
+                *  release Abaqus 2023 manuals                            * 
+                *  plus the notes accompanying this release.              * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+
+
+ 
+
+
+
+     PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   *******************************************************
+
+
+     END PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   ***********************************************************
+
+1
+
+   Abaqus 2023                                  Date 06-Feb-2026   Time 18:20:48
+   For use by SUMITOMO ELECTRIC INDUSTRIES LTD under license from Dassault Systemes or its subsidiary.
+
+                                                                                     
+
+                                      P A R A M E T E R   I N T E R P R E T A T I O N
+
+
+                     
+                     ***COMMENT: STARTING PARAMETER EVALUATION
+                     
+                     ***COMMENT: STARTING PARAMETER SUBSTITUTION
+     LINE     5      
+                     ***COMMENT: EVALUATION AND SUBSTITUTION OF PARAMETERS COMPLETED
+                    --------------------------------------------------------------------------------
+                        5   10   15   20   25   30   35   40   45   50   55   60   65   70   75   80
+                    --------------------------------------------------------------------------------
+
+
+
+     OPTIONS BEING PROCESSED
+   ***************************
+
+
+  *NODE, NSET=GLOBAL
+  *ELEMENT, ELSET=PCOVER, TYPE=C3D8R
+  *ELEMENT, ELSET=PWIRE, TYPE=C3D8R
+  *ELEMENT, ELSET=PWIRE, TYPE=C3D6
+  *NSET, NSET=GZMAX, GENERATE
+  *NSET, NSET=GZMIN, GENERATE
+  *NSET, NSET=GXMIN, GENERATE
+  *NSET, NSET=GYMIN, GENERATE
+  *ELSET, ELSET=OUT_CONT, GENERATE
+  *NODE, NSET=REFFRONT
+  *NODE, NSET=REFBACK
+  *MATERIAL, NAME=mat_PI_20do
+  *ELASTIC, TYPE=ISOTROPIC
+  *plastic
+  *density
+  *specific heat
+  *conductivity
+  *expansion
+  *MATERIAL, NAME=mat_cu
+  *ELASTIC, TYPE=ISOTROPIC
+  *plastic
+  *DENSITY
+  *initial condition, type=velocity
+  *SOLID SECTION, ELSET=Pwire, material=mat_cu
+  *SOLID SECTION, ELSET=Pcover, material=mat_PI_20do
+  *SOLID SECTION, ELSET=Pwire_coh, material=mat_cu
+  *SOLID SECTION, ELSET=Pcover_coh, material=mat_PI_20do
+  *SOLID SECTION, ELSET=Pwire, material=mat_cu
+  *SOLID SECTION, ELSET=Pcover, material=mat_PI_20do
+  *SOLID SECTION, ELSET=Pwire_coh, material=mat_cu
+
+ ***WARNING: ELSET PWIRE_COH ON *SOLID SECTION OPTION IS NOT DEFINED. THIS 
+             SECTION DEFINITION WILL NOT BE USED IN THE ANALYSIS.
+  *SOLID SECTION, ELSET=Pcover_coh, material=mat_PI_20do
+
+ ***WARNING: ELSET PCOVER_COH ON *SOLID SECTION OPTION IS NOT DEFINED. THIS 
+             SECTION DEFINITION WILL NOT BE USED IN THE ANALYSIS.
+  *contact controls, RELATIVE PENETRATION TOLERANCE=20.0
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *SURFACE, NAME=CSWIRE_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH3, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH3, TYPE=ELEMENT
+  *surface, type=node, name=Szmax
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *SURFACE, NAME=CSWIRE_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH3, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH3, TYPE=ELEMENT
+  *surface, type=node, name=Szmax
+
+ ***WARNING: THE CONTACT AREA OR DISTRIBUTING WEIGHT ASSOCIATED WITH 422 NODES 
+             IS ZERO OR NEGATIVE. A ONE IS ASSUMED FOR THE CONTACT AREA IF THE 
+             SURFACE IS USED IN A CONTACT CALCULATION. A ZERO IS ASSUMED FOR 
+             THE DISTRIBUTING WEIGHT FACTOR IF THE SURFACE IS USED IN A 
+             *COUPLING OR *SHELL TO SOLID COUPLING DEFINITION. ONE EXAMPLE OF 
+             SUCH A NODE IS 185985. ALL NODES WITH THIS ISSUE ARE INCLUDED IN 
+             THE NODE SET NODES_ZERO_AREA. NODES WITH THIS ISSUE PER SECONDARY 
+             SURFACE ARE INCLUDED IN THE NODE SET NODES_ZERO_AREA_SurfaceName. 
+             PLEASE CHECK THAT THIS IS APPROPRIATE.
+  *SURFACE, NAME=CSWIRE_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH3, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH3, TYPE=ELEMENT
+  *surface, type=node, name=Szmax
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *surface interaction, name=frict010
+  *surface interaction, name=scoh
+  *surface behavior, pressure-overclosure=linear
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *surface interaction, name=frict010
+  *surface interaction, name=scoh
+  *cohesive behavior, eligibility=original contacts
+  *damage initiation, criterion=quads, dependencies=1
+  *damage evolution, type=displacement, softening=linear, mixed mode behaviori=tabular
+  *surface behavior, pressure-overclosure=linear
+  *friction
+  *initial condition, type=velocity
+  *surface interaction, name=frict010
+  *surface interaction, name=scoh
+  *boundary, type=velocity
+  *boundary, type=velocity
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *equation
+  *equation
+  *surface interaction, name=frict010
+  *surface interaction, name=scoh
+  *contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+  *SURFACE, NAME=CSWIRE_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSWIRE_COH3, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH1, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH2, TYPE=ELEMENT
+  *SURFACE, NAME=CSCOVER_COH3, TYPE=ELEMENT
+  *surface, type=node, name=Szmax
+  *OUTPUT, HISTORY, time interval=0.02
+  *output, field, VARIABLE=PRESELECT, num=15
+  *ELEMENT OUTPUT
+  *initial condition, type=velocity
+  *OUTPUT, HISTORY, time interval=0.02
+  *output, field, VARIABLE=PRESELECT, num=15
+  *ELEMENT OUTPUT
+  *initial condition, type=velocity
+
+
+  SECONDARY : CSCOVER_COH1                                                                    
+  MAIN: CSWIRE_COH1                                                                     
+              DISTANCE
+   NODE       ADJUSTED    REMARKS/WARNINGS
+
+     34463   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    , 6.25000E-02).
+     34464   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    , 6.25000E-02).
+     34465   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    , 6.25000E-02).
+     34466   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    , 6.25000E-02).
+     34467   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    , 6.25000E-02).
+     34468   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    , 6.25000E-02).
+     34661   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    , 0.12500    ).
+     34662   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    , 0.12500    ).
+     34663   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    , 0.12500    ).
+     34664   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    , 0.12500    ).
+     34665   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    , 0.12500    ).
+     34666   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    , 0.12500    ).
+     34859   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    , 0.18750    ).
+     34860   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    , 0.18750    ).
+     34861   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    , 0.18750    ).
+     34862   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    , 0.18750    ).
+     34863   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    , 0.18750    ).
+     34864   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    , 0.18750    ).
+     35057   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    , 0.25000    ).
+     35058   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    , 0.25000    ).
+
+ ***WARNING: FOR CONTACT PAIR (CSCOVER_COH1-CSWIRE_COH1), NOT ALL THE NODES 
+             THAT HAVE BEEN ADJUSTED WERE PRINTED. SPECIFY 
+             *PREPRINT,CONTACT=YES FOR COMPLETE PRINTOUT.
+
+ ***WARNING: FOR CONTACT PAIR (CSCOVER_COH1-CSWIRE_COH1), ADJUSTED NODES WITH 
+             VERY SMALL ADJUSTMENTS WERE NOT PRINTED. SPECIFY 
+             *PREPRINT,CONTACT=YES FOR COMPLETE PRINTOUT.
+
+
+
+
+
+  SECONDARY : CSCOVER_COH2                                                                    
+  MAIN: CSWIRE_COH2                                                                     
+              DISTANCE
+   NODE       ADJUSTED    REMARKS/WARNINGS
+
+    119829   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  5.5625    ).
+    119830   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  5.5625    ).
+    119831   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    ,  5.5625    ).
+    119832   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    ,  5.5625    ).
+    119833   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    ,  5.5625    ).
+    119834   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    ,  5.5625    ).
+    120027   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  5.6250    ).
+    120028   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  5.6250    ).
+    120029   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    ,  5.6250    ).
+    120030   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    ,  5.6250    ).
+    120031   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    ,  5.6250    ).
+    120032   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    ,  5.6250    ).
+    120225   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  5.6875    ).
+    120226   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  5.6875    ).
+    120227   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    ,  5.6875    ).
+    120228   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    ,  5.6875    ).
+    120229   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    ,  5.6875    ).
+    120230   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    ,  5.6875    ).
+    120423   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  5.7500    ).
+    120424   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  5.7500    ).
+
+ ***WARNING: FOR CONTACT PAIR (CSCOVER_COH2-CSWIRE_COH2), NOT ALL THE NODES 
+             THAT HAVE BEEN ADJUSTED WERE PRINTED. SPECIFY 
+             *PREPRINT,CONTACT=YES FOR COMPLETE PRINTOUT.
+
+ ***WARNING: FOR CONTACT PAIR (CSCOVER_COH2-CSWIRE_COH2), ADJUSTED NODES WITH 
+             VERY SMALL ADJUSTMENTS WERE NOT PRINTED. SPECIFY 
+             *PREPRINT,CONTACT=YES FOR COMPLETE PRINTOUT.
+
+
+
+
+
+  SECONDARY : CSCOVER_COH3                                                                    
+  MAIN: CSWIRE_COH3                                                                     
+              DISTANCE
+   NODE       ADJUSTED    REMARKS/WARNINGS
+
+    152427   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  10.062    ).
+    152428   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  10.062    ).
+    152429   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    ,  10.062    ).
+    152430   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    ,  10.062    ).
+    152431   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    ,  10.062    ).
+    152432   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    ,  10.062    ).
+    152625   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  10.125    ).
+    152626   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  10.125    ).
+    152627   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    ,  10.125    ).
+    152628   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    ,  10.125    ).
+    152629   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    ,  10.125    ).
+    152630   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    ,  10.125    ).
+    152823   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  10.188    ).
+    152824   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  10.188    ).
+    152825   4.81067E-04  ADJUSTED TO (  1.6431    , 0.81721    ,  10.188    ).
+    152826   4.81396E-04  ADJUSTED TO (  1.6656    , 0.76293    ,  10.188    ).
+    152827   6.42830E-04  ADJUSTED TO (  1.6726    , 0.73440    ,  10.188    ).
+    152828   4.81620E-04  ADJUSTED TO (  1.6771    , 0.70537    ,  10.188    ).
+    153021   4.81634E-04  ADJUSTED TO (  1.6105    , 0.86600    ,  10.250    ).
+    153022   6.42288E-04  ADJUSTED TO (  1.6279    , 0.84231    ,  10.250    ).
+
+ ***WARNING: FOR CONTACT PAIR (CSCOVER_COH3-CSWIRE_COH3), NOT ALL THE NODES 
+             THAT HAVE BEEN ADJUSTED WERE PRINTED. SPECIFY 
+             *PREPRINT,CONTACT=YES FOR COMPLETE PRINTOUT.
+
+ ***WARNING: FOR CONTACT PAIR (CSCOVER_COH3-CSWIRE_COH3), ADJUSTED NODES WITH 
+             VERY SMALL ADJUSTMENTS WERE NOT PRINTED. SPECIFY 
+             *PREPRINT,CONTACT=YES FOR COMPLETE PRINTOUT.
+
+
+
+  *OUTPUT, HISTORY, time interval=0.02
+  *output, field, VARIABLE=PRESELECT, num=15
+  *ELEMENT OUTPUT
+
+ ***NOTE: MPCS (EXTERNAL or INTERNAL, including those generated from rigid body 
+          definitions), KINEMATIC COUPLINGS, AND/OR EQUATIONS WILL ACTIVATE 
+          ADDITIONAL DEGREES OF FREEDOM
+  *STEP, NLGEOM=YES, UNSYMM=YES, INC=1000000
+  *OUTPUT, HISTORY, time interval=0.02
+  *output, field, VARIABLE=PRESELECT, num=15
+  *STEP, NLGEOM=YES, UNSYMM=YES, INC=1000000
+  *STEP, NLGEOM=YES, UNSYMM=YES, INC=1000000
+  *dynamic, application=quasi-static
+  *controls, analysis=discontinuous
+  *controls, parameter=timeincrementation
+  *controls, parameter=field
+  *contact controls, RELATIVE PENETRATION TOLERANCE=20.0
+  *boundary, type=velocity
+  *OUTPUT, HISTORY, time interval=0.02
+  *ENERGY OUTPUT,VARIABLE=PRESELECT
+  *node output, nset=REFFRONT
+  *output, field, VARIABLE=PRESELECT, num=15
+  *NODE OUTPUT,NSET=GLOBAL
+  *ELEMENT OUTPUT
+  *contact output
+  *end step
+
+ ***WARNING: OUTPUT AT EXACT, PREDEFINED TIME POINTS WAS REQUESTED IN THIS 
+             STEP. IN ORDER TO WRITE OUTPUT AT EXACT TIME POINTS SPECIFIED, 
+             Abaqus MIGHT USE TIME INCREMENTS SMALLER THAN THE MINIMUM TIME 
+             INCREMENT ALLOWED IN THE STEP. IN ADDITION, THE NUMBER OF 
+             INCREMENTS REQUIRED TO COMPLETE THE STEP WILL IN GENERAL INCREASE.
+
+ ***WARNING: THE REQUEST FOR PRESS OUTPUT WILL BE REPLACED BY A REQUEST FOR S 
+             OUTPUT
+  *STEP, NLGEOM=YES, UNSYMM=YES, INC=1000000
+  *dynamic, application=quasi-static
+  *boundary, type=velocity
+  *end step
+
+ ***WARNING: BOUNDARY CONDITIONS WITH TYPE=VELOCITY WILL USE AMPLITUDE=STEP 
+             IGNORING THE AMPLITUDE=RAMP SPECIFIED ON THE STEP KEYWORD FOR STEP 
+             NUMBER 1.
+
+     COHESIVE BEHAVIOR
+
+          COHESIVE BEHAVIOR WILL BE ENFORCED ONLY AT NODES 
+          THAT ARE IN CONTACT AT THE START OF A STEP
+
+
+          COHESIVE BEHAVIOR AT A CONTACTING NODE WILL 
+          BE ENFORCED ONLY IF THE COHESIVE BOND AT THE NODE 
+          HAS NOT FAILED PREVIOUSLY
+
+
+
+     UNCOUPLED COHESIVE STIFFNESS
+
+                         Knn            Kss            Ktt    
+
+                     1.00000E+05    1.00000E+05    1.00000E+05
+
+
+
+     COHESIVE BEHAVIOR
+
+          COHESIVE BEHAVIOR WILL BE ENFORCED ONLY AT NODES 
+          THAT ARE IN CONTACT AT THE START OF A STEP
+
+
+          COHESIVE BEHAVIOR AT A CONTACTING NODE WILL 
+          BE ENFORCED ONLY IF THE COHESIVE BOND AT THE NODE 
+          HAS NOT FAILED PREVIOUSLY
+
+
+
+     UNCOUPLED COHESIVE STIFFNESS
+
+                         Knn            Kss            Ktt    
+
+                     1.00000E+05    1.00000E+05    1.00000E+05
+
+
+
+     COHESIVE BEHAVIOR
+
+          COHESIVE BEHAVIOR WILL BE ENFORCED ONLY AT NODES 
+          THAT ARE IN CONTACT AT THE START OF A STEP
+
+
+          COHESIVE BEHAVIOR AT A CONTACTING NODE WILL 
+          BE ENFORCED ONLY IF THE COHESIVE BOND AT THE NODE 
+          HAS NOT FAILED PREVIOUSLY
+
+
+
+     UNCOUPLED COHESIVE STIFFNESS
+
+                         Knn            Kss            Ktt    
+
+                     1.00000E+05    1.00000E+05    1.00000E+05
+
+
+
+ ***NOTE: Boundary conditions are specified on inactive dof of 2 nodes. The 
+          nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 1 IS NOT ACTIVE ON NODE 10000001 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 2 IS NOT ACTIVE ON NODE 10000001 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 1 IS NOT ACTIVE ON NODE 10000002 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 2 IS NOT ACTIVE ON NODE 10000002 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***NOTE: Boundary conditions are specified on inactive dof of 2 nodes. The 
+          nodes have been identified in node set WarnNodeBCInactiveDof.
+
+
+
+                            P R O B L E M   S I Z E
+
+
+          NUMBER OF ELEMENTS IS                                117550
+          NUMBER OF ELEMENTS DEFINED BY THE USER AND *TIE      103360
+          NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT     14190
+          NUMBER OF NODES IS                                   164240
+          NUMBER OF NODES DEFINED BY THE USER                  135860
+          NUMBER OF INTERNAL NODES GENERATED BY THE PROGRAM     28380
+          TOTAL NUMBER OF VARIABLES IN THE MODEL               450146
+          (DEGREES OF FREEDOM PLUS MAX NO. OF ANY LAGRANGE MULTIPLIER
+           VARIABLES. INCLUDE *PRINT,SOLVE=YES TO GET THE ACTUAL NUMBER.)
+
+
+
+                              END OF USER INPUT PROCESSING
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =      2.9    
+       SYSTEM TIME (SEC)    =     0.29    
+       TOTAL CPU TIME (SEC) =      3.2    
+       WALLCLOCK TIME (SEC) =            4
+1
+
+   Abaqus 2023                                  Date 06-Feb-2026   Time 18:20:52
+   For use by SUMITOMO ELECTRIC INDUSTRIES LTD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    1  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       1     D Y N A M I C   A N A L Y S I S - I M P L I C I T  I N T E G R A T I O N
+
+
+                                                                                          
+
+          DYNAMIC APPLICATION PACKED SCHEME IS                 QUASI-STATIC        
+          BACKWARD EULER (BWE) TIME INTEGRATOR IS USED
+
+     AUTOMATIC TIME CONTROL WITH -
+          A SUGGESTED INITIAL TIME INCREMENT OF                1.000E-02
+          AND A TOTAL TIME PERIOD OF                            1.00    
+          THE MINIMUM TIME INCREMENT ALLOWED IS                1.000E-10
+          THE MAXIMUM TIME INCREMENT ALLOWED IS                 1.00    
+
+          THE HALF-INCREMENT RESIDUALS WILL NOT BE CALCULATED
+
+          INITIAL ACCELERATIONS WILL NOT BE CALCULATED
+          CONTACT IMPACT/RELEASE COMPUTATIONS ARE SKIPPED
+          AGGRESSIVE   TIME INCREMENTATION IS USED
+          STEP AMPLITUDE IS                                    RAMP
+
+          LARGE DISPLACEMENT THEORY WILL BE USED
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+
+
+
+                    TOTAL MASS OF MODEL
+
+                      2.9315538E-07
+
+
+                    LOCATION OF THE CENTER OF MASS OF THE MODEL
+
+                      0.8355895          0.4885941           9.999986    
+
+
+                    MOMENTS OF INERTIA ABOUT THE ORIGIN
+                           I(XX)               I(YY)               I(ZZ)
+
+                      3.9182107E-05      3.9362534E-05      3.6967281E-07
+
+
+                    PRODUCTS OF INERTIA ABOUT THE ORIGIN
+                           I(XY)               I(XZ)               I(YZ)
+
+                     -1.1846275E-07     -2.4495690E-06     -1.4323367E-06
+
+
+                    MOMENTS OF INERTIA ABOUT THE CENTER OF MASS
+                           I(XX)               I(YY)               I(ZZ)
+
+                      9.7966664E-06      9.8423931E-06      9.5005546E-08
+
+
+                    PRODUCTS OF INERTIA ABOUT THE CENTER OF MASS
+                           I(XY)               I(XZ)               I(YZ)
+
+                      1.2220713E-09      3.2937727E-12      1.2117581E-12
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          6.17E+11              368               4628
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+
+
+          THE ANALYSIS HAS BEEN COMPLETED
+
+
+
+                              ANALYSIS COMPLETE
+                              WITH     16 WARNING MESSAGES ON THE DAT FILE
+                              AND     154 WARNING MESSAGES ON THE MSG FILE
+                                       62 WARNINGS ARE FOR NEGATIVE EIGENVALUES
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =     1.22E+05
+       SYSTEM TIME (SEC)    =     6.61E+03
+       TOTAL CPU TIME (SEC) =     1.28E+05
+       WALLCLOCK TIME (SEC) =        20885
