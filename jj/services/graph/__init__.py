@@ -21,19 +21,25 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from jj_types import GraphModel, Node, Relation
-from services.storage import GraphStorage
-from services.parse.file_parse import FileParse, FileType, DEFAULT_EXTENSIONS, _parse_prop_token as _parse_prop_token_static
-from services.connectors.pymesh_connector import extract_mesh_stats, extract_material_elset_mapping
-from services.connectors.daily_connector import scan_daily_notes, DailyNote
-from services.parse.abaqus_connector import (
-    read_inp as abq_read_inp,
-    diff_abq_blocks,
-    format_diff_summary_table,
-    format_diff_blocks_markdown,
-)
 from config import GraphConfig
+from jj_types import GraphModel, Node, Relation
 
+from jj.services.parse.connectors.abaqus import (
+    diff_abq_blocks,
+    format_diff_blocks_markdown,
+    format_diff_summary_table,
+)
+from jj.services.parse.connectors.abaqus import (
+    read_inp as abq_read_inp,
+)
+from jj.services.parse.connectors.abaqus.mesh import (
+    extract_material_elset_mapping,
+    extract_mesh_stats,
+)
+from jj.services.parse.connectors.obsidian.daily import DailyNote, scan_daily_notes
+from services.parse.file_parse import DEFAULT_EXTENSIONS, FileParse, FileType
+from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
+from services.storage import GraphStorage
 
 # 解析結果ファイルの成否判定用パターン
 _STA_SUCCESS_PATTERN = re.compile(
@@ -50,10 +56,21 @@ _MSG_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
 _MSG_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
 
 # has_output 関係で対象とする出力ファイル拡張子
-OUTPUT_EXTENSIONS: frozenset[str] = frozenset({
-    ".csv", ".json", ".png", ".gif", ".xlsx", ".yaml", ".pptx",
-    ".pdf", ".svg", ".html", ".txt",
-})
+OUTPUT_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".csv",
+        ".json",
+        ".png",
+        ".gif",
+        ".xlsx",
+        ".yaml",
+        ".pptx",
+        ".pdf",
+        ".svg",
+        ".html",
+        ".txt",
+    }
+)
 
 
 def parse_sta_file(sta_path: Path) -> dict[str, Any]:
@@ -177,10 +194,7 @@ def parse_material_blocks(inp_path: Path) -> list[dict[str, Any]]:
         # データ行（materialブロック配下）
         if current_material is not None and current_keyword:
             try:
-                values = [
-                    float(v.strip()) for v in line.split(",")
-                    if v.strip()
-                ]
+                values = [float(v.strip()) for v in line.split(",") if v.strip()]
                 if values:
                     current_data.append(values)
             except ValueError:
@@ -213,25 +227,26 @@ def parse_dat_file(dat_path: Path) -> dict[str, Any]:
     except (OSError, IOError):
         return result
 
-    # TOTAL CPU TIME (SEC) = 123.45
+    # 5.84E+03 / 1732 / 12.34 すべて拾える数値パターン
+    num = r"([+-]?\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?)"
+
+    # TOTAL CPU TIME (SEC)
     cpu_match = re.search(
-        r"TOTAL\s+CPU\s+TIME\s*\(SEC\)\s*=\s*([\d.]+)", content, re.IGNORECASE
+        rf"TOTAL\s+CPU\s+TIME\s*\(SEC\)\s*=\s*{num}",
+        content,
+        re.IGNORECASE,
     )
     if cpu_match:
-        try:
-            result["cpu_time"] = float(cpu_match.group(1))
-        except ValueError:
-            pass
+        result["cpu_time"] = float(cpu_match.group(1))
 
-    # TOTAL WALL CLOCK TIME (SEC) = 67.89
+    # WALLCLOCK TIME (SEC)  ※ TOTAL は付かない
     wall_match = re.search(
-        r"TOTAL\s+WALL\s+CLOCK\s+TIME\s*\(SEC\)\s*=\s*([\d.]+)", content, re.IGNORECASE
+        rf"WALLCLOCK\s+TIME\s*\(SEC\)\s*=\s*{num}",
+        content,
+        re.IGNORECASE,
     )
     if wall_match:
-        try:
-            result["wallclock_time"] = float(wall_match.group(1))
-        except ValueError:
-            pass
+        result["wallclock_time"] = float(wall_match.group(1))
 
     return result
 
@@ -414,14 +429,22 @@ class GraphService:
         translated_props: dict[str, Any] = {}
         for key, value in props.items():
             translated_key = self.config.vocab.get(key, key)
-            translated_value = self.config.vocab.get(str(value), str(value)) if isinstance(value, str) else value
+            translated_value = (
+                self.config.vocab.get(str(value), str(value))
+                if isinstance(value, str)
+                else value
+            )
             translated_props[translated_key] = translated_value
 
         # 日付を取得
         date_formatted = parser.get_date_formatted()
 
         # oldフォルダに入っていなければactive=True
-        parent_dir = file_path.parent.name if isinstance(file_path, Path) else Path(str(file_path)).parent.name
+        parent_dir = (
+            file_path.parent.name
+            if isinstance(file_path, Path)
+            else Path(str(file_path)).parent.name
+        )
         active = "false" if parent_dir == "old" else "true"
 
         properties: dict[str, Any] = {
@@ -460,7 +483,10 @@ class GraphService:
         # token_key_map適用キーはverbose_nameで値のみ採用（キー名を含めない）
         raw_name = parser.get_basename()
         verbose_name = self._build_verbose_name(
-            raw_name, resolved_type, translated_props, tags + config_tags,
+            raw_name,
+            resolved_type,
+            translated_props,
+            tags + config_tags,
             token_key_mapped_keys=token_key_mapped_keys,
         )
         if verbose_name and verbose_name != raw_name:
@@ -693,7 +719,9 @@ class GraphService:
         relations: list[Relation] = []
 
         # サブバージョン関係とグループ関係を構築
-        version_relations, group_relations = self._build_version_and_group_relations(nodes)
+        version_relations, group_relations = self._build_version_and_group_relations(
+            nodes
+        )
         relations.extend(version_relations)
         relations.extend(group_relations)
 
@@ -943,7 +971,9 @@ class GraphService:
         """inpファイルの*includeディレクティブを解析してincludes関係を構築"""
         relations: list[Relation] = []
 
-        include_pattern = re.compile(r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE)
+        include_pattern = re.compile(
+            r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE
+        )
         input_extensions = self.config.file_relations.input_extensions
 
         for node in nodes:
@@ -969,7 +999,10 @@ class GraphService:
 
                             target_node = None
                             for path, n in node_by_path.items():
-                                if path.endswith(include_path) or Path(path).name == include_filename:
+                                if (
+                                    path.endswith(include_path)
+                                    or Path(path).name == include_filename
+                                ):
                                     target_node = n
                                     break
 
@@ -1154,7 +1187,9 @@ class GraphService:
             if dir_rel_path in handled_dir_paths:
                 continue
 
-            dirname = dir_rel_path.rsplit("/", 1)[-1] if "/" in dir_rel_path else dir_rel_path
+            dirname = (
+                dir_rel_path.rsplit("/", 1)[-1] if "/" in dir_rel_path else dir_rel_path
+            )
 
             dir_node = Node(
                 id=self._next_node_id(),
@@ -1523,8 +1558,12 @@ class GraphService:
                     if diffs:
                         prev_file = prev_node.properties.get("path", prev_node.name)
                         next_node.properties["diff_from"] = prev_file
-                        next_node.properties["diff_summary"] = format_diff_summary_table(diffs)
-                        next_node.properties["diff_details"] = format_diff_blocks_markdown(diffs)
+                        next_node.properties["diff_summary"] = (
+                            format_diff_summary_table(diffs)
+                        )
+                        next_node.properties["diff_details"] = (
+                            format_diff_blocks_markdown(diffs)
+                        )
                 except Exception:
                     # パースエラー等は無視して続行
                     continue
@@ -1719,7 +1758,9 @@ class GraphService:
         node_by_id: dict[int, Node] = {n.id: n for n in all_nodes + mat_nodes}
 
         # go_*.inp ノードのID → 材料情報の集約
-        inp_materials: dict[int, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+        inp_materials: dict[int, dict[str, list[str]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
 
         for rel in mat_relations:
             if rel.label != "assigned_to":
@@ -1980,7 +2021,8 @@ class GraphService:
 
         # 除外ノードに関わるリレーションも除去
         filtered_relations = [
-            r for r in relations
+            r
+            for r in relations
             if r.node1_id not in excluded_ids and r.node2_id not in excluded_ids
         ]
 
@@ -2035,9 +2077,7 @@ class GraphService:
     def get_relations_for_node(self, graph: GraphModel, node_id: int) -> list[Relation]:
         """ノードに関連するリレーションを取得"""
         return [
-            r
-            for r in graph.relations
-            if r.node1_id == node_id or r.node2_id == node_id
+            r for r in graph.relations if r.node1_id == node_id or r.node2_id == node_id
         ]
 
     def summary(self, graph: GraphModel) -> dict[str, Any]:
