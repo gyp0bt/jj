@@ -1,6 +1,22 @@
-"""ファイル名解析ユーティリティ
+"""パーサー基盤モジュール
 
-FileParse クラスとレガシーな関数インターフェースを提供します。
+ファイル名解析ユーティリティ（FileNameParser）と
+グラフエンリッチメント用抽象パーサー基底クラス（AbstractFileParser）を提供します。
+
+## グラフパーサーパターン
+
+AbstractFileParserのサブクラスを定義すると __init_subclass__ により
+自動的にパーサーレジストリに登録されます。parse() 関数で全パーサーが
+priority順に適用されます。
+
+```python
+class MyParser(AbstractFileParser):
+    priority = 50
+
+    def apply(self, graph: ProjectGraph) -> ProjectGraph:
+        # グラフを更新して返す
+        return graph
+```
 
 [READMEへ戻る](../../../README.md)
 """
@@ -12,7 +28,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Generic, Iterable, TypeVar
+from typing import TYPE_CHECKING, Generic, Iterable, TypeVar
+
+if TYPE_CHECKING:
+    from services.graph.project_graph import ProjectGraph
 
 DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".cas.h5",
@@ -64,7 +83,7 @@ class FileType(Enum):
     UNKNOWN = "unknown"
 
 
-TFileParse = TypeVar("TFileParse", bound="AbstractFileParser")
+TFileParse = TypeVar("TFileParse", bound="FileNameParser")
 
 
 def _match_extension(
@@ -117,8 +136,17 @@ class FileGroup(Generic[TFileParse]):
         return pd.DataFrame(rows)
 
 
-class AbstractFileParser(ABC):
-    """Parser抽象基底クラス"""
+# ===========================================================================
+# ファイル名解析クラス（旧AbstractFileParser）
+# ===========================================================================
+
+
+class FileNameParser:
+    """ファイル名解析クラス
+
+    ファイルパスからbasename, 拡張子, index, version, props, tags等を抽出する。
+    旧名 AbstractFileParser。FileParse (file_parse.py) と同等の機能を提供。
+    """
 
     def __init__(
         self,
@@ -245,11 +273,7 @@ class AbstractFileParser(ABC):
         return [t for t in tags if not DATE_PATTERN.match(t)]
 
     def get_date(self) -> str:
-        """ファイル名から日付を抽出（YYMMDD or YYYYMMDD形式）
-
-        Returns:
-            日付文字列（見つからない場合は空文字）
-        """
+        """ファイル名から日付を抽出（YYMMDD or YYYYMMDD形式）"""
         _, tags = self._split_props_and_tags()
         for token in tags:
             if DATE_PATTERN.match(token):
@@ -257,45 +281,118 @@ class AbstractFileParser(ABC):
         return ""
 
     def get_date_formatted(self) -> str:
-        """日付を標準形式（YYYY-MM-DD）に変換
-
-        Returns:
-            YYYY-MM-DD形式の日付文字列（見つからない場合は空文字）
-        """
+        """日付を標準形式（YYYY-MM-DD）に変換"""
         date_str = self.get_date()
         if not date_str:
             return ""
 
         if len(date_str) == 6:
-            # YYMMDD → 20YY-MM-DD（2000年代と仮定）
             year = int(date_str[:2])
-            if year > 50:  # 50以上は1900年代
+            if year > 50:
                 full_year = 1900 + year
             else:
                 full_year = 2000 + year
             return f"{full_year:04d}-{date_str[2:4]}-{date_str[4:6]}"
         elif len(date_str) == 8:
-            # YYYYMMDD → YYYY-MM-DD
             return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
         return ""
 
     def get_file_group(
         self, candidates: Iterable[str | Path] | None = None
-    ) -> FileGroup["AbstractFileParser"]:
+    ) -> FileGroup["FileNameParser"]:
         file_type = self.get_file_type()
         index = self.get_index()
         targets = list(candidates) if candidates is not None else [self.true_file_path]
-        items: list[AbstractFileParser] = []
+        items: list[FileNameParser] = []
         for candidate in targets:
-            parser = AbstractFileParser(
+            parser = FileNameParser(
                 candidate, extension_candidates=self.extension_candidates
             )
             if parser.get_file_type() == file_type and parser.get_index() == index:
                 items.append(parser)
         if self.true_file_path not in targets:
-            parser = AbstractFileParser(
+            parser = FileNameParser(
                 self.true_file_path, extension_candidates=self.extension_candidates
             )
             if parser.get_file_type() == file_type and parser.get_index() == index:
                 items.append(parser)
         return FileGroup(tuple(items), file_type=file_type, index=index)
+
+
+# ===========================================================================
+# グラフパーサー基底クラス（Phase R2: 新アーキテクチャ）
+# ===========================================================================
+
+# パーサーレジストリ: __init_subclass__ で自動登録される
+_parser_registry: list[type[AbstractFileParser]] = []
+
+
+class AbstractFileParser(ABC):
+    """グラフエンリッチメント用抽象パーサー基底クラス
+
+    ProjectGraphを受け取り、ノード・リレーションの追加や
+    属性付与を行って返す。サブクラスを定義すると自動的に
+    パーサーレジストリに登録される。
+
+    priority属性で実行順序を制御する（小さいほど先に実行）。
+
+    パーサー実行順序の指針:
+        10: ファイル名解析（ノード生成）
+        20: バージョン・グループ関係
+        30: 入力-結果・アセット・出力関係
+        40: includes関係
+        50: ディレクトリ関係
+        60: Abaqus INP解析（material, *PARAMETER）
+        70: Abaqus結果ファイル解析（.sta, .msg, .dat）
+        80: Abaqusメッシュ統計
+        85: プロパティ伝搬（include, material assignment）
+        90: Abaqusバージョン差分
+        95: Daily note解析
+        98: Elset Node化、root directory
+        99: Enrichment-onlyノードフィルタ
+    """
+
+    priority: int = 100
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        # 抽象メソッドが残っているクラスは登録しない
+        if not getattr(cls, "__abstractmethods__", None):
+            _parser_registry.append(cls)
+
+    @abstractmethod
+    def apply(self, graph: ProjectGraph) -> ProjectGraph:
+        """グラフを受け取り、エンリッチメントを適用して返す
+
+        Args:
+            graph: 処理対象のProjectGraph
+
+        Returns:
+            更新されたProjectGraph（通常は同一オブジェクト）
+        """
+        ...
+
+
+def get_parser_registry() -> list[type[AbstractFileParser]]:
+    """登録済みパーサーの一覧を返す（テスト・デバッグ用）"""
+    return list(_parser_registry)
+
+
+def clear_parser_registry() -> None:
+    """パーサーレジストリをクリアする（テスト用）"""
+    _parser_registry.clear()
+
+
+def parse(graph: ProjectGraph) -> ProjectGraph:
+    """全登録パーサーをpriority順に適用する
+
+    Args:
+        graph: 処理対象のProjectGraph
+
+    Returns:
+        全パーサー適用後のProjectGraph
+    """
+    sorted_parsers = sorted(_parser_registry, key=lambda cls: cls.priority)
+    for parser_cls in sorted_parsers:
+        graph = parser_cls().apply(graph)
+    return graph

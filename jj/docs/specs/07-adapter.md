@@ -1,410 +1,203 @@
 [READMEへ戻る](../../README.md)
 
-# アダプター層 仕様書
+# parseコネクター仕様書
 
 ## 1. 概要
 
-本ドメインは、CAEソフト固有のフォーマットや動作を抽象化し、独立した拡張モジュールとして実装する機能を提供します。新しいソフトへの対応を容易にし、コアロジックへの影響を最小化します。
+本ドメインは、CAEソフト固有のファイル解析ロジックを`AbstractFileParser`サブクラスとして実装し、パーサーパイプラインに統合するものです。Phase Rで確立した`__init_subclass__`自動登録パターンにより、新規ソフト対応はパーサーサブクラスの追加のみで完了します。
 
 ### 目的
 
-- ソフト固有の処理を独立したモジュールとして分離
-- 新規ソフトへの対応を容易にする拡張性の確保
-- コアロジックの保守性向上
+- ソフト固有の解析ロジックを独立したパーサーサブクラスとして分離
+- `AbstractFileParser.__init_subclass__`による自動登録でコアロジック変更不要
+- `priority`属性による実行順序制御
 
 ### 責務範囲
 
-- `services/parse/adapters/` : ソフト固有のパーサー
-- `services/run/adapters/` : ソフト固有の実行ロジック
-- `services/file/adapters/` : ソフト固有のテンプレート
+```
+services/parse/connectors/
+├── abaqus/
+│   ├── __init__.py           # ABQData, read_inp, diff_abq_blocks等
+│   ├── inp_parser.py         # AbaqusInpParser, AbaqusMaterialAssignmentParser, AbaqusElsetParser
+│   ├── result_parser.py      # AbaqusResultParser, AbaqusIncludePropertyParser
+│   ├── mesh_parser.py        # AbaqusMeshParser
+│   ├── mesh.py               # pymesh統合メッシュユーティリティ
+│   └── diff_parser.py        # AbaqusDiffParser
+└── obsidian/
+    ├── __init__.py            # ObsidianConnector, export_graph等
+    ├── daily.py               # DailyNote解析ユーティリティ
+    └── daily_parser.py        # DailyNoteParser
+```
 
 ---
 
-## 2. アダプターパターンの概要
+## 2. parseコネクターパターン
 
 ### 2.1 基本構造
 
-各アダプターは以下のインターフェースを実装します。
+各コネクターは`AbstractFileParser`のサブクラスとして実装します。
 
 ```python
-from abc import ABC, abstractmethod
-from pathlib import Path
-from types import Node, Relation
+from services.parse.base import AbstractFileParser
+from services.graph.project_graph import ProjectGraph
 
-class CAEAdapter(ABC):
-    """CAEソフト固有の処理を抽象化"""
+class MyCAEParser(AbstractFileParser):
+    priority = 60  # 実行順序（小さいほど先に実行）
 
-    @abstractmethod
-    def get_name(self) -> str:
-        """アダプター名を返す（例: 'abaqus', 'fluent', 'dyna'）"""
-        pass
-
-    @abstractmethod
-    def can_handle(self, file_path: Path) -> bool:
-        """このアダプターが対応可能なファイルか判定"""
-        pass
-
-    @abstractmethod
-    def parse_file(self, file_path: Path) -> Node:
-        """ファイルを解析してNodeを生成"""
-        pass
-
-    @abstractmethod
-    def predict_output_files(self, input_file: Path, command: str) -> list[Path]:
-        """実行時に生成されるファイルを予測"""
-        pass
-
-    @abstractmethod
-    def extract_properties(self, file_path: Path) -> dict[str, str]:
-        """ファイルからプロパティを抽出"""
-        pass
+    def apply(self, graph: ProjectGraph) -> ProjectGraph:
+        # ソフト固有の解析ロジック
+        for node in graph.nodes:
+            # ノードのプロパティを充実化
+            # リレーションを追加
+            pass
+        return graph
 ```
 
-### 2.2 アダプター登録
+### 2.2 自動登録
 
-アダプターは自動検出され、レジストリに登録されます。
+`AbstractFileParser.__init_subclass__`により、サブクラス定義時に自動的にパーサーレジストリに登録されます。`abstractmethod`が残っているクラス（ABC中間クラス）は登録されません。
 
 ```python
-class AdapterRegistry:
-    """アダプターの管理"""
+# services/parse/__init__.py でモジュールをimportするだけで自動登録
+import services.parse.connectors.abaqus.inp_parser  # noqa: F401
+```
 
-    def __init__(self):
-        self._adapters: list[CAEAdapter] = []
+### 2.3 実行順序
 
-    def register(self, adapter: CAEAdapter):
-        """アダプターを登録"""
-        self._adapters.append(adapter)
+`parse()`関数が`priority`属性の昇順で全パーサーを適用します。
 
-    def get_adapter(self, file_path: Path) -> CAEAdapter | None:
-        """ファイルに適したアダプターを取得"""
-        for adapter in self._adapters:
-            if adapter.can_handle(file_path):
-                return adapter
-        return None
+---
+
+## 3. Abaqusコネクター
+
+### 3.1 パーサー一覧
+
+| priority | クラス名 | 責務 |
+|----------|---------|------|
+| 60 | `AbaqusInpParser` | `*MATERIAL`ブロック解析、`abaqus_material` Node生成、`defined_in`リレーション |
+| 70 | `AbaqusResultParser` | `.sta/.msg/.dat`ファイル解析、`analysis_status`・エラー・警告プロパティ付与 |
+| 80 | `AbaqusMeshParser` | pymeshによるメッシュ統計（ノード数・要素数・品質等） |
+| 85 | `AbaqusMaterialAssignmentParser` | `*SOLID SECTION`等の材料割り当て解析、`assigned_to`リレーション |
+| 86 | `AbaqusIncludePropertyParser` | includeファイルのプロパティをgo_*.inpに伝搬 |
+| 90 | `AbaqusDiffParser` | バージョン間のINPファイル差分解析 |
+| 98 | `AbaqusElsetParser` | elset名の`abaqus_elset` Node化、`has_elset`リレーション |
+
+### 3.2 対応拡張子
+
+| 拡張子 | 解析内容 |
+|-------|---------|
+| `.inp` | 入力ファイル（`*MATERIAL`, `*PARAMETER`, `*INCLUDE`, `*SOLID SECTION`等） |
+| `.sta` | 解析ステータス（成功/失敗判定、ERROR/WARNING抽出） |
+| `.msg` | メッセージファイル（ERROR/WARNING抽出） |
+| `.dat` | データファイル（CPU時間、Wall Clock時間抽出） |
+
+### 3.3 生成ノードタイプ
+
+| type | format | 説明 |
+|------|--------|------|
+| `abaqus_material` | `material` | `*MATERIAL`ブロックから生成された材料定義 |
+| `abaqus_elset` | `elset` | ELSET名からNode化されたElement Set |
+
+### 3.4 生成リレーション
+
+| label | 説明 |
+|-------|------|
+| `defined_in` | material → 定義元の.inpファイル |
+| `assigned_to` | material → 割り当て先の.inpファイル |
+| `has_elset` | go_*.inp → elsetノード |
+
+### 3.5 プロパティ伝搬
+
+`AbaqusIncludePropertyParser`（priority=86）は、`includes`リレーションを辿り、子ファイルのプロパティを親のgo_*.inpに伝搬します。
+
+伝搬対象:
+- メッシュ統計: `mesh_node_count`, `mesh_element_count`, `mesh_element_types`, `mesh_elset_summary`, `mesh_quality`
+- 解析結果: `analysis_status`, `sta_errors`, `sta_warnings`, `msg_errors`, `msg_warnings`
+- キーワード: `keywords`
+
+---
+
+## 4. Obsidianコネクター
+
+### 4.1 パーサー一覧
+
+| priority | クラス名 | 責務 |
+|----------|---------|------|
+| 95 | `DailyNoteParser` | dailyノートファイルの解析、`mentioned_in`リレーション |
+
+### 4.2 解析内容
+
+- dailyノート（`.md`）からのファイル参照の検出
+- プロパティ・タグ情報の抽出
+- `mentioned_in`リレーションの生成
+
+---
+
+## 5. 新規コネクターの追加方法
+
+新しいCAEソフトへの対応は以下の手順で行います。
+
+### 5.1 ディレクトリ作成
+
+```
+services/parse/connectors/
+└── fluent/                    # 新規ソフト名
+    ├── __init__.py
+    └── cas_parser.py          # パーサーサブクラス
+```
+
+### 5.2 パーサー実装
+
+```python
+# services/parse/connectors/fluent/cas_parser.py
+from services.parse.base import AbstractFileParser
+
+class FluentCasParser(AbstractFileParser):
+    priority = 60
+
+    def apply(self, graph):
+        for node in graph.nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".cas":
+                continue
+            # Fluent固有の解析ロジック
+        return graph
+```
+
+### 5.3 自動登録
+
+```python
+# services/parse/__init__.py に1行追加するだけ
+import services.parse.connectors.fluent.cas_parser  # noqa: F401
 ```
 
 ---
 
-## 3. 対応ソフト一覧
+## 6. 実装状況
 
-### 3.1 Abaqusアダプター
-
-#### 対応拡張子
-
-- `.inp` : 入力ファイル
-- `.cdb` : メッシュファイル
-- `.odb` : 結果ファイル
-
-#### 生成ファイル予測
-
-入力ファイルが `go_sample_v1_idx1.inp` で、jobが `model` の場合:
-
-```python
-predicted_files = [
-    "model.odb",
-    "model.dat",
-    "model.msg",
-    "model.sta",
-    "model.log",
-]
-```
-
-#### プロパティ抽出
-
-```python
-# go_sample_v1_idx1.inp の内容から抽出
-properties = {
-    "cpus": "4",
-    "memory": "8",
-    "solver": "standard",
-}
-```
-
-### 3.2 Fluentアダプター
-
-#### 対応拡張子
-
-- `.cas.h5` : ケースファイル
-- `.dat.h5` : データファイル
-- `.jou` : ジャーナルファイル
-
-#### 生成ファイル予測
-
-入力ファイルが `input.cas.h5` の場合:
-
-```python
-predicted_files = [
-    "output.dat.h5",
-    "convergence.out",
-    "transcript.log",
-]
-```
-
-#### プロパティ抽出
-
-```python
-# input.cas.h5 の内容から抽出
-properties = {
-    "solver": "pressure-based",
-    "turbulence_model": "k-epsilon",
-}
-```
-
-### 3.3 LS-DYNAアダプター
-
-#### 対応拡張子
-
-- `.k` : キーワードファイル
-- `.key` : キーワードファイル
-- `.dat` : データファイル
-
-#### 生成ファイル予測
-
-入力ファイルが `go_sample_v1_idx1.k` の場合:
-
-```python
-predicted_files = [
-    "d3hsp",
-    "messag",
-    "binout0000",
-]
-```
-
-#### プロパティ抽出
-
-```python
-# go_sample_v1_idx1.k の内容から抽出
-properties = {
-    "ncpu": "8",
-    "memory": "2gb",
-}
-```
+- [x] Abaqusコネクター（7パーサー、全てAbstractFileParserサブクラス化）
+- [x] Obsidianコネクター（1パーサー、AbstractFileParserサブクラス化）
+- [x] 自動登録機構（`__init_subclass__`パターン確立）
+- [x] shared/tests/test_asset1 による統合テスト（29件パス）
+- [ ] Fluentコネクター（Phase 4-1）
+- [ ] LS-DYNAコネクター（Phase 4-1）
+- [ ] ANSYSコネクター（Phase 4-1）
 
 ---
 
-## 4. アダプターの実装例
-
-### 4.1 Abaqusアダプター
-
-```python
-from pathlib import Path
-from types import Node
-
-class AbaqusAdapter(CAEAdapter):
-
-    def get_name(self) -> str:
-        return "abaqus"
-
-    def can_handle(self, file_path: Path) -> bool:
-        return file_path.suffix in [".inp", ".cdb", ".odb"]
-
-    def parse_file(self, file_path: Path) -> Node:
-        # FileParse基底クラスを利用
-        from services.parse.file_parse import FileParse
-        parser = FileParse(file_path)
-
-        # Abaqus固有のプロパティを追加
-        properties = parser.get_props()
-        properties.update(self.extract_properties(file_path))
-
-        return Node(
-            id=0,  # IDは後で採番
-            type="file",
-            name=file_path.name,
-            format=file_path.suffix.lstrip('.'),
-            properties=properties,
-        )
-
-    def predict_output_files(self, input_file: Path, command: str) -> list[Path]:
-        # コマンドからjob名を抽出
-        job_name = self._extract_job_name(command)
-
-        return [
-            Path(f"{job_name}.odb"),
-            Path(f"{job_name}.dat"),
-            Path(f"{job_name}.msg"),
-            Path(f"{job_name}.sta"),
-            Path(f"{job_name}.log"),
-        ]
-
-    def extract_properties(self, file_path: Path) -> dict[str, str]:
-        # .inpファイルを解析してプロパティを抽出
-        properties = {}
-
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                if "*HEADING" in line.upper():
-                    properties["heading"] = line.split(",")[1].strip()
-                # 他のキーワードも解析...
-
-        return properties
-
-    def _extract_job_name(self, command: str) -> str:
-        # 'abaqus job=model input=...' からjob名を抽出
-        for part in command.split():
-            if part.startswith("job="):
-                return part.split("=")[1]
-        return "default"
-```
-
----
-
-## 5. アダプターの配置
-
-### 5.1 ディレクトリ構造
-
-```
-services/
-├── parse/
-│   ├── adapters/
-│   │   ├── __init__.py
-│   │   ├── base.py           # CAEAdapterベースクラス
-│   │   ├── registry.py       # AdapterRegistry
-│   │   ├── abaqus.py         # AbaqusAdapter
-│   │   ├── fluent.py         # FluentAdapter
-│   │   └── dyna.py           # DynaAdapter
-│   └── file_parse.py
-├── run/
-│   └── adapters/
-│       ├── __init__.py
-│       ├── abaqus.py
-│       └── fluent.py
-└── file/
-    └── adapters/
-        ├── __init__.py
-        └── templates/
-            ├── abaqus/
-            ├── fluent/
-            └── dyna/
-```
-
-### 5.2 自動登録
-
-アダプターは `__init__.py` で自動的に登録されます。
-
-```python
-# services/parse/adapters/__init__.py
-from .registry import AdapterRegistry
-from .abaqus import AbaqusAdapter
-from .fluent import FluentAdapter
-from .dyna import DynaAdapter
-
-registry = AdapterRegistry()
-registry.register(AbaqusAdapter())
-registry.register(FluentAdapter())
-registry.register(DynaAdapter())
-```
-
----
-
-## 6. アダプターの利用
-
-### 6.1 パーサー層での利用
-
-```python
-from services.parse.adapters import registry
-
-file_path = Path("go_sample_v1_idx1.inp")
-adapter = registry.get_adapter(file_path)
-
-if adapter:
-    node = adapter.parse_file(file_path)
-    properties = adapter.extract_properties(file_path)
-else:
-    # 汎用パーサーを利用
-    parser = FileParse(file_path)
-    node = parser.to_node()
-```
-
-### 6.2 runコマンド層での利用
-
-```python
-from services.run.adapters import registry
-
-command = "abaqus job=model input=go_sample_v1_idx1.inp cpus=4"
-input_file = Path("go_sample_v1_idx1.inp")
-
-adapter = registry.get_adapter(input_file)
-
-if adapter:
-    predicted_files = adapter.predict_output_files(input_file, command)
-    # 実行後に予測ファイルの存在を確認
-```
-
----
-
-## 7. 実装計画
-
-### Phase 1: アダプター基盤の構築（中期）
-
-- [ ] `CAEAdapter` ベースクラスの定義
-- [ ] `AdapterRegistry` の実装
-- [ ] アダプター自動検出機構
-
-### Phase 2: 基本アダプターの実装（中期）
-
-- [ ] Abaqusアダプターの実装
-- [ ] Fluentアダプターの実装
-- [ ] LS-DYNAアダプターの実装
-
-### Phase 3: 高度なアダプター機能（長期）
-
-- [ ] プラグイン方式のアダプター追加
-- [ ] アダプターのバージョン管理
-- [ ] アダプター間の連携（例: AbaqusからFluentへのデータ転送）
-
----
-
-## 8. 設計上の注意事項
-
-### 8.1 拡張性
-
-- 新しいソフトへの対応は新しいアダプタークラスを追加するだけ
-- コアロジックへの変更は不要
-
-### 8.2 互換性
-
-- アダプターのインターフェース変更は慎重に
-- バージョン管理で後方互換性を維持
-
-### 8.3 パフォーマンス
-
-- アダプター選択はファイル拡張子で高速判定
-- ファイル解析は遅延実行
-
----
-
-## 9. テスト方針
-
-### 単体テスト（pytest）
-
-- `tests/services/test_adapters.py` : 各アダプターのテスト
-- `tests/services/test_registry.py` : AdapterRegistryのテスト
-
-### テストケース例
-
-- アダプターの自動選択
-- ファイル解析の正確性
-- 生成ファイル予測の正確性
-- プロパティ抽出の正確性
-- 未対応ファイルのフォールバック
-
----
-
-## 10. 他ドメインとの関係
+## 7. 他ドメインとの関係
 
 | ドメイン | 依存関係 | 説明 |
 |---------|---------|------|
-| パーサー層 | ← アダプター層 | ソフト固有の解析ロジックを提供 |
-| runコマンド層 | ← アダプター層 | 実行ロジックと生成ファイル予測を提供 |
-| fileコマンド層 | ← アダプター層 | テンプレート生成を提供 |
-| 設定管理層 | → アダプター層 | ソフト固有設定を取得 |
+| パーサー層（共通） | → コネクター層 | 共通パーサーの後にコネクターパーサーが実行される |
+| グラフ層 | ← コネクター層 | ProjectGraphを受け取りエンリッチして返す |
+| 設定管理層 | → コネクター層 | `GraphConfig`からソフト固有設定を取得 |
+| export層 | ← コネクター層 | コネクターが付与したプロパティをエクスポート |
 
 ---
 
-## 11. 参考資料
+## 8. 参考資料
 
+- [パーサー層仕様書](./02-parser.md)
 - [実装詳細](../detail.md)
 - [ロードマップ](../roadmap.md)
-- [パーサー層仕様書](./02-parser.md)
-- [runコマンド層仕様書](./04-run-command.md)
