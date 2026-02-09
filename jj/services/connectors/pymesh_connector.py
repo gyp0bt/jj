@@ -27,11 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_import_pymesh():
-    """pymeshを安全にimportする"""
+    """pymeshを安全にimportする
+
+    services.pymesh として配置されたローカルパッケージを参照する。
+    システムの pymesh との競合を回避するため絶対パスインポートは使わない。
+    """
     try:
-        from pymesh.mesh import Mesher
-        from pymesh.mesh import mesher as create_mesher
-        from pymesh.misc.quality import get_element_quality
+        from services.pymesh.mesh import Mesher
+        from services.pymesh.mesh import mesher as create_mesher
+        from services.pymesh.misc.quality import get_element_quality
 
         return create_mesher, get_element_quality
     except ImportError:
@@ -223,13 +227,16 @@ def extract_material_elset_mapping(inp_path: Path) -> dict[str, list[str]]:
                 norm = line.lower().replace(" ", "")
                 # *SOLID SECTION, *SHELL SECTION等
                 if norm.startswith("*solidsection") or norm.startswith("*shellsection"):
-                    tokens = [s.strip() for s in norm.split(",") if s.strip()]
+                    # 元のケースを保持するため、空白除去のみの行からも値を取得
+                    orig_no_space = line.replace(" ", "")
+                    orig_tokens = [s.strip() for s in orig_no_space.split(",") if s.strip()]
                     material_name = ""
                     elset_name = ""
-                    for tok in tokens:
-                        if tok.startswith("material="):
+                    for tok in orig_tokens:
+                        tok_lower = tok.lower()
+                        if tok_lower.startswith("material="):
                             material_name = tok.split("=", 1)[1]
-                        elif tok.startswith("elset="):
+                        elif tok_lower.startswith("elset="):
                             elset_name = tok.split("=", 1)[1]
                     if material_name:
                         if material_name not in mapping:

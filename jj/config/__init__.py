@@ -560,6 +560,7 @@ class GraphConfig:
     file_relations: FileRelationsConfig
     obsidian: ObsidianExportConfig
     token_key_map: TokenKeyMapConfig
+    project_name: str
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
@@ -572,6 +573,7 @@ class GraphConfig:
             file_relations=FileRelationsConfig.from_dict(data.get("file-relations", {})),
             obsidian=ObsidianExportConfig.from_dict(data.get("obsidian", {})),
             token_key_map=TokenKeyMapConfig.from_dict(data.get("token-key-map", {})),
+            project_name=data.get("project-name", ""),
         )
 
     @classmethod
