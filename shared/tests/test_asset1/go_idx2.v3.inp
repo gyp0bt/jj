@@ -1,0 +1,18 @@
+*include, input=material.inp
+*include, input=mesh_shape1_t95.v8.inp
+*********************************
+*********************************
+*********************************
+**
+*PARAMETER
+** props
+ s_coh = 150.0
+ K_coh = 100.e3
+ damage_stabilization = 0.01
+ damage_evolution = 0.001
+ target_strain = 35.0
+*********************************
+*********************************
+*********************************
+**
+*include, input=step_stress_v1.inp

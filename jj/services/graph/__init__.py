@@ -24,6 +24,7 @@ from typing import Any, Iterable, Optional
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
 
+from jj.services.graph.storage import GraphStorage
 from jj.services.parse.connectors.abaqus import (
     diff_abq_blocks,
     format_diff_blocks_markdown,
@@ -39,7 +40,6 @@ from jj.services.parse.connectors.abaqus.mesh import (
 from jj.services.parse.connectors.obsidian.daily import DailyNote, scan_daily_notes
 from services.parse.file_parse import DEFAULT_EXTENSIONS, FileParse, FileType
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
-from services.storage import GraphStorage
 
 # 解析結果ファイルの成否判定用パターン
 _STA_SUCCESS_PATTERN = re.compile(

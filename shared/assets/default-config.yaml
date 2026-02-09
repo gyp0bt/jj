@@ -1,0 +1,145 @@
+# jj デフォルト設定ファイル
+# このファイルは `jj g init` で .jj/config/config.yaml にコピーされます。
+# プロジェクト固有の設定は .jj/config/config.yaml を編集してください。
+#
+# [READMEへ戻る](../README.md)
+
+# プロジェクト名（root directoryノードの名前に使用）
+# 未設定の場合はプロジェクトルートのフォルダ名を使用
+# project-name: my-project
+
+# 語彙マッピング
+# ファイル名パース時にキー名を日本語表記に変換します
+vocab:
+  idx: 番号
+  ver: バージョン
+  v: バージョン
+
+# トークン→キーマッピング
+# ファイル名のトークンを指定したキーのプロパティとして扱います。
+# 通常のトークン分割(文字列+数値)より優先されます。
+# 例: mesh_hogehoge24_v1_idx1.inp で 形状: [hogehoge24] と定義すると
+#   形状: hogehoge24 となり、さらにvocabに hogehoge24: ほげほげ24 があれば
+#   形状: ほげほげ24 と最終変換されます。
+# token-key-map:
+#   形状:
+#     - hogehoge24
+
+# パスパターンによるファイルタイプ指定
+# 上から順に評価し、最初にマッチしたルールを適用します
+# パターンはglobスタイルで、"|" で複数パターンを指定可能
+path-type-map:
+  "**go_* | **go":
+    "*.inp": Abaqusインプット
+    "*.cas.h5": Fluentインプット
+    "*.aedt": HFSSインプット
+    "*.sta": Abaqusステータス
+    "*.dat": Abaqusデータ
+    "*.odb": Abaqus ODB
+    "*": 計算結果
+  "**mesh_* | **mesh":
+    "*.inp": Abaqus用メッシュ
+    "*.msh": Fluent用メッシュ
+    "*.cdb": ANSYS用メッシュ
+  "**material_* | **material":
+    "*.inp": Abaqus用マテリアル
+  "**step_* | **step":
+    "*.inp": Abaqusステップ
+  "./reports/":
+    "*": 報告書
+  "./results/":
+    "*": 計算結果
+  "./tools/":
+    "*": 処理スクリプト
+  "./docs/":
+    "*": 受領ファイル
+
+# パスパターンによるプロパティ指定
+# マッチしたファイルに自動的にプロパティを付与します
+path-property-map:
+  "**old/*":
+    active: false
+  "**archive/*":
+    active: false
+    archived: true
+
+# パスパターンによるタグ指定（オプション）
+# path-tag-map:
+#   "**": projectA
+#   "**/analysis/*": analysis-related
+
+# 除外パターン（.gitignore相当）
+# マッチしたパスはパース対象から除外されます
+ignore:
+  - ".git"
+  - ".git/**"
+  - ".jj"
+  - ".jj/**"
+  - "__pycache__"
+  - "__pycache__/**"
+  - "*.pyc"
+  - "node_modules"
+  - "node_modules/**"
+  - ".venv"
+  - ".venv/**"
+  - "*.tmp"
+  - "*.bak"
+  - "~$*"
+  - ".DS_Store"
+  - "Thumbs.db"
+  - "notes"
+  - "notes/**"
+  - ".obsidian"
+  - ".obsidian/**"
+
+# ファイル関係設定
+# 入力ファイルと結果ファイルの拡張子マッピング
+file-relations:
+  # 入力ファイルとして認識する拡張子
+  input-extensions:
+    - ".inp"      # Abaqus
+    - ".cas.h5"   # Fluent
+    - ".k"        # LS-DYNA
+    - ".key"      # LS-DYNA
+    - ".dat"      # 汎用入力
+  # 結果ファイルとして認識する拡張子（入力ファイルと同じbasenameで関連付け）
+  result-extensions:
+    - ".odb"      # Abaqus ODB
+    - ".sta"      # Abaqus status
+    - ".msg"      # Abaqus message
+    - ".csv"      # 抽出データ
+    - ".json"     # 処理済みデータ
+  # アセットファイルの拡張子（同じbasenameで derived_from 関係を構築）
+  asset-extensions:
+    - ".modfem"   # 修正済みメッシュ
+    - ".stl"      # STLメッシュ
+    - ".cdb"      # ANSYS CDB
+    - ".msh"      # Fluent メッシュ
+
+# Obsidian エクスポート設定
+obsidian:
+  # ノート出力先ディレクトリ
+  notes-dir: notes/props
+  # ベースファイル出力先ディレクトリ
+  bases-dir: notes/bases
+  # Obsidianファイルに付けるプレフィックス
+  prefix: "O-"
+  # デフォルトのビュー設定（.baseファイル用）
+  default-views:
+    - type: table
+      name: Table
+      filters:
+        and:
+          - "file.fullname.endsWith(\".md\")"
+          - "active == true"
+      order:
+        - file.name
+        - idx
+        - ver
+        - success
+        - description
+      sort:
+        - property: idx
+          direction: ASC
+        - property: ver
+          direction: ASC

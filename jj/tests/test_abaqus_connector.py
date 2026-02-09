@@ -5,43 +5,43 @@ read_inp()、各ReadComponent、差分機能、.msg解析のテストを提供�
 [READMEへ戻る](../README.md)
 """
 
-import pytest
-from pathlib import Path
 import textwrap
+from pathlib import Path
 
-from services.parse.abaqus_connector import (
-    read_inp,
-    abq_to_dict,
-    diff_abq_blocks,
-    format_diff_summary_table,
-    format_diff_blocks_markdown,
-    generate_diff_props,
+import pytest
+from services.graph import parse_material_blocks, parse_sta_file
+
+from jj.services.parse.connectors.abaqus import (
+    ABQData,
     Context,
-    ReadNode,
+    RawBlock,
+    ReadBoundary,
+    ReadElastic,
     ReadElement,
-    ReadNset,
     ReadElset,
     ReadMaterial,
-    ReadElastic,
-    ReadPlastic,
-    ReadBoundary,
+    ReadNode,
+    ReadNset,
     ReadParameter,
+    ReadPlastic,
     ReadProcedure,
-    RawBlock,
     StepData,
-    ABQData,
-    _parse_keyline_options,
-    _summarize_node_data,
-    _summarize_element_data,
-    _summarize_set_data,
     _build_nodes_lookup,
-    _serialize_mesh_component,
-    _quad_warp_angle,
     _compute_element_skew,
+    _parse_keyline_options,
+    _quad_warp_angle,
+    _serialize_mesh_component,
+    _summarize_element_data,
+    _summarize_node_data,
+    _summarize_set_data,
+    abq_to_dict,
+    diff_abq_blocks,
     evaluate_expressions,
+    format_diff_blocks_markdown,
+    format_diff_summary_table,
+    generate_diff_props,
+    read_inp,
 )
-from services.graph import parse_sta_file, parse_material_blocks
-
 
 # ==========================
 # フィクスチャ
@@ -587,9 +587,7 @@ class TestDiffAbqBlocks:
 
     def test_generate_diff_props(self, simple_inp):
         """generate_diff_props()が辞書を返すこと"""
-        result = generate_diff_props(
-            str(simple_inp), str(simple_inp), verbose=False
-        )
+        result = generate_diff_props(str(simple_inp), str(simple_inp), verbose=False)
         assert "diff_summary" in result
         assert "diff_details" in result
 
@@ -605,6 +603,7 @@ class TestParseMsgFile:
     def test_parse_msg_with_errors_and_warnings(self, msg_file):
         """エラーと警告を含む.msgファイルの解析"""
         from services.graph import parse_msg_file
+
         result = parse_msg_file(msg_file)
 
         assert len(result["errors"]) >= 1
@@ -612,12 +611,15 @@ class TestParseMsgFile:
         # エラーメッセージの内容確認
         assert any("CONVERGENCE" in e for e in result["errors"])
         # 警告メッセージの内容確認
-        assert any("INACCURATE" in w or "DISPLACEMENT" in w or "DISTORTED" in w
-                    for w in result["warnings"])
+        assert any(
+            "INACCURATE" in w or "DISPLACEMENT" in w or "DISTORTED" in w
+            for w in result["warnings"]
+        )
 
     def test_parse_msg_success(self, msg_success_file):
         """エラーなしの.msgファイルの解析"""
         from services.graph import parse_msg_file
+
         result = parse_msg_file(msg_success_file)
 
         assert len(result["errors"]) == 0
@@ -626,6 +628,7 @@ class TestParseMsgFile:
     def test_parse_msg_nonexistent(self, tmp_path):
         """存在しない.msgファイルの解析"""
         from services.graph import parse_msg_file
+
         result = parse_msg_file(tmp_path / "nonexistent.msg")
 
         assert len(result["errors"]) == 0
@@ -656,7 +659,9 @@ class TestParseMsgFile:
         msg_nodes = [n for n in graph.nodes if n.format == "msg"]
         if msg_nodes:
             msg_node = msg_nodes[0]
-            assert "msg_errors" in msg_node.properties or "errors" in msg_node.properties
+            assert (
+                "msg_errors" in msg_node.properties or "errors" in msg_node.properties
+            )
 
 
 # ==========================
@@ -829,8 +834,14 @@ class TestComputeElementSkew:
     def test_hex_element(self):
         """六面体要素 (C3D8)"""
         coords = [
-            (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0),  # bottom
-            (0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1),  # top
+            (0, 0, 0),
+            (1, 0, 0),
+            (1, 1, 0),
+            (0, 1, 0),  # bottom
+            (0, 0, 1),
+            (1, 0, 1),
+            (1, 1, 1),
+            (0, 1, 1),  # top
         ]
         skew = _compute_element_skew(coords)
         assert skew is not None

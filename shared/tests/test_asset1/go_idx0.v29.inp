@@ -1,0 +1,121 @@
+*include, input=material.inp
+*include, input=mesh_shape1_t95.v7.inp
+*********************************
+*********************************
+*********************************
+**
+*PARAMETER
+** props start
+ s_coh = 100.0
+ K_coh = 100.e3
+ damage_stabilization = 0.05
+ damage_evolution = 0.001
+** props end
+*********************************
+*********************************
+*********************************
+**
+*parameter
+ material = "mat_cu"
+ material_cover = "mat_PI_20do"
+**
+****************************
+****************************
+**************************** wire settings
+**
+*SOLID SECTION, ELSET=Pwire, material=<material>
+*SOLID SECTION, ELSET=Pcover, material=<material_cover>
+*SOLID SECTION, ELSET=Pwire_coh, material=<material>
+*SOLID SECTION, ELSET=Pcover_coh, material=<material_cover>
+*NODE, NSET=REFFRONT
+ 10000001, 0.0, 0., 0.
+*surface, type=node, name=Szmax
+ Gzmax
+*equation
+ 2
+ Gzmax, 3, 1, reffront, 3, -1
+*NODE, NSET=REFBACK
+ 10000002, 0.0, 0., 0.
+*equation
+ 2
+ Gzmin, 3, 1, refback, 3, -1
+***************************
+***************************
+***************************
+*************************** 
+**
+*surface interaction, name=frict010
+*friction
+ 0.1
+*surface interaction, name=scoh
+*cohesive behavior, eligibility=original contacts
+ <K_coh>, <K_coh>, <K_coh>
+*damage initiation, criterion=quads, dependencies=1
+ <s_coh>,<s_coh>,<s_coh>
+*damage evolution, type=displacement, softening=linear, mixed mode behaviori=tabular
+ <damage_evolution>
+*damage stabilization
+ <damage_stabilization>
+** *surface behavior, pressure-overclosure=exponential
+*surface behavior, pressure-overclosure=linear
+ 0.0001, 1.
+*friction
+ 0.01
+***************************
+***************************
+***************************
+*parameter
+ org_length = 10.
+ target_strain = 30.0
+ disp = org_length * target_strain / 100.
+*initial condition, type=velocity
+ REFFRONT, 3, <disp>
+***************************
+***************************
+***************************
+**
+**
+*contact pair, interaction=scoh, adjust=yes, position tolerance=0.1
+ CScover_coh, CSwire_coh
+**
+*STEP, NLGEOM=YES, UNSYMM=YES, INC=1000000
+*dynamic, application=quasi-static
+ 1.e-2, 1., 1.e-12, 1.
+**
+*controls, analysis=discontinuous
+*controls, parameter=timeincrementation
+,,,,,,,16
+*controls, parameter=field
+,,1.e-3
+**
+*amplitude, name=amp1, definition=tabular
+ 0., 0.1
+ 1., 0.1
+*contact controls, RELATIVE PENETRATION TOLERANCE=20.0
+**
+*boundary, type=velocity
+ REFFRONT, 1,2, 0.
+ REFFRONT, 3,3, <disp>
+ REFFRONT, 4,6, 0.
+ REFBACK, 1,2, 0.
+ REFBACK, 3,3, 0.
+ REFBACK, 4,6, 0.
+ Gxmin, 1,1, 0.
+ Gymin, 2,2, 0.
+**
+*OUTPUT, HISTORY, time interval=0.02
+*ENERGY OUTPUT,VARIABLE=PRESELECT
+*node output, nset=REFFRONT
+ RF, U
+*output, field, VARIABLE=PRESELECT, num=15
+*NODE OUTPUT,NSET=GLOBAL
+ U,coord
+*ELEMENT OUTPUT
+ S, LE, PE, E, PEEQ, PRESS
+*contact output
+ cstatus, cforce, csdmg
+*end step
+***************************
+***************************
+***************************
+**
