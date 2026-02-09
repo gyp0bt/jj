@@ -1506,7 +1506,7 @@ class TestActiveAttribute:
 
 
 class TestInpParameterProps:
-    """*PARAMETER/**propsブロックからプロパティを読み取るテスト"""
+    """*PARAMETERブロックから数値リテラルのプロパティを読み取るテスト"""
 
     @pytest.fixture
     def config(self):
@@ -1520,13 +1520,12 @@ class TestInpParameterProps:
             "obsidian": {},
         })
 
-    def test_read_parameter_props(self, tmp_path, config):
-        """*PARAMETER/**propsブロックのkey=valueが読み取られる"""
+    def test_read_parameter_numeric_literals(self, tmp_path, config):
+        """*PARAMETERブロック内の数値リテラル代入が読み取られる"""
         inp = tmp_path / "go_idx1.inp"
         inp.write_text(
             "*HEADING\ntest\n"
             "*PARAMETER\n"
-            "**props\n"
             "w=5\n"
             "t=20\n"
             "*STEP\n"
@@ -1538,6 +1537,45 @@ class TestInpParameterProps:
         assert node.properties.get("width") == "5"
         assert node.properties.get("thickness") == "20"
 
+    def test_expression_values_skipped(self, tmp_path, config):
+        """expression(変数参照・演算)を含む値はスキップされる"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text(
+            "*PARAMETER\n"
+            "w=5\n"
+            "t=20\n"
+            "area=w*t\n"
+            "half_w=w/2\n"
+            "name=static\n"
+            "*STEP\n"
+        )
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        assert node.properties.get("width") == "5"
+        assert node.properties.get("thickness") == "20"
+        # expressionや文字列値はスキップ
+        assert "area" not in node.properties
+        assert "half_w" not in node.properties
+        assert "name" not in node.properties
+
+    def test_float_and_scientific_notation(self, tmp_path, config):
+        """float値や科学的記数法も数値リテラルとして抽出される"""
+        inp = tmp_path / "go_idx1.inp"
+        inp.write_text(
+            "*PARAMETER\n"
+            "ratio=0.5\n"
+            "small=1e-05\n"
+            "negative=-3.14\n"
+            "*STEP\n"
+        )
+
+        gs = GraphService(project_root=tmp_path, config=config)
+        node = gs.file_to_node(inp)
+        assert node.properties.get("ratio") == "0.5"
+        assert node.properties.get("small") == "1e-05"
+        assert node.properties.get("negative") == "-3.14"
+
     def test_no_parameter_block(self, tmp_path, config):
         """*PARAMETERブロックがない場合は何も追加されない"""
         inp = tmp_path / "go_idx1.inp"
@@ -1548,19 +1586,20 @@ class TestInpParameterProps:
         assert "width" not in node.properties
         assert "thickness" not in node.properties
 
-    def test_parameter_without_props_comment(self, tmp_path, config):
-        """*PARAMETERの後に**propsがない場合はスキップ"""
+    def test_comment_lines_skipped(self, tmp_path, config):
+        """コメント行(**で始まる行)はスキップされ、数値リテラルは抽出される"""
         inp = tmp_path / "go_idx1.inp"
         inp.write_text(
             "*PARAMETER\n"
-            "** something else\n"
+            "** this is a comment\n"
             "w=5\n"
             "*STEP\n"
         )
 
         gs = GraphService(project_root=tmp_path, config=config)
         node = gs.file_to_node(inp)
-        assert "width" not in node.properties
+        # コメントの有無に関わらず数値リテラルは抽出される
+        assert node.properties.get("width") == "5"
 
     def test_non_inp_file_skipped(self, tmp_path, config):
         """INP以外のファイルはパラメータ読み取りをスキップ"""
@@ -1704,21 +1743,35 @@ class TestTokenKeyMap:
 
 
 class TestVocabValueTranslation:
-    """vocab値変換のテスト（キーだけでなく値も変換）"""
+    """vocab値変換のテスト（数値リテラルパラメータのキー変換）"""
 
-    def test_vocab_translates_prop_values(self, tmp_path):
-        """vocabがプロパティ値も変換する"""
+    def test_vocab_translates_parameter_keys(self, tmp_path):
+        """vocabがパラメータのキーを変換する"""
+        config = GraphConfig.from_dict({
+            "vocab": {"w": "幅"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+
+        inp = tmp_path / "go_idx1_v1.inp"
+        inp.write_text("*PARAMETER\nw=10\n", encoding="utf-8")
+
+        node = svc.file_to_node(inp)
+        # *PARAMETERの数値リテラルキーがvocabで変換される
+        assert node.properties.get("幅") == "10"
+
+    def test_string_values_not_extracted(self, tmp_path):
+        """文字列値(数値リテラルでない)は抽出されない"""
         config = GraphConfig.from_dict({
             "vocab": {"static": "静的"},
         })
         svc = GraphService(project_root=tmp_path, config=config)
 
         inp = tmp_path / "go_idx1_v1.inp"
-        inp.write_text("*PARAMETER\n**props\nmethod=static\n", encoding="utf-8")
+        inp.write_text("*PARAMETER\nmethod=static\n", encoding="utf-8")
 
         node = svc.file_to_node(inp)
-        # *PARAMETER/**propsの値がvocabで変換される
-        assert node.properties.get("method") == "静的"
+        # 文字列値は数値リテラルではないので抽出されない
+        assert "method" not in node.properties
 
 
 class TestTokenKeyMapConfig:

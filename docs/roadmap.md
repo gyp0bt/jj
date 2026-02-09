@@ -8,6 +8,14 @@
 
 ---
 
+## 設計原則
+
+- **jjとjj-dbは契約のみ共有し、Neo4jへのデータアクセス以外で通信しない**
+- jj serverのAPIをjj-db側から叩くことはしない
+- 共有はNeo4jスキーマ契約（`shared/`パッケージ）のみ
+
+---
+
 ## 完了
 
 ### コアデータモデル層
@@ -65,10 +73,12 @@
 
 #### 3. runコマンド層のproperties抽出拡張（完了）
 
-- [x] コメント記法（`# props start` - `# props end`）の実装（既存実装で対応済み）
+- [x] 数値リテラル代入の自動抽出（Python/Shell共通）
 - [x] `sys.argv` 解析の実装（Python）（既存実装で対応済み）
 - [x] Bash変数（`$1`, `$2`）の解析（Bash）（既存実装で対応済み）
 - [x] 対応フォーマット（Python, Bash）の完全実装（既存実装で対応済み）
+
+> **注**: 旧`# props start` / `# props end`コメントブロック記法は廃止。数値リテラル代入の自動検出に移行（status-038）。
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#5-properties抽出)
 
@@ -109,7 +119,7 @@
   - [x] GraphServiceへの.msgエンリッチメント統合
   - [x] 結果ファイル(sta/msg)属性のAbaqusインプットNodeへの集約
   - [x] active属性の自動判定（oldフォルダ判定）
-  - [x] *PARAMETER/**propsブロックのプロパティ読み取り
+  - [x] *PARAMETERブロック内の数値リテラルパラメータ自動抽出（status-038で**props記法から移行）
   - [x] Obsidianエクスポート: frontmatterのproperty化、バージョンリンク構造改善
 
 **参照**: [services/parse/abaqus_connector.py](../../services/parse/abaqus_connector.py)
@@ -125,9 +135,11 @@
 
 ---
 
-## Phase 2.5: ダッシュボード・API基盤（直近〜中期）
+## Phase 2.5: ダッシュボード基盤（直近〜中期）
 
 ### 優先度: 高
+
+> **注**: jj-dbとの連携はNeo4j経由のみで行う（Phase 2.N参照）。REST API経由のjj-db統合は行わない。
 
 #### D1. データ供給基盤（DashboardDataProvider）
 
@@ -149,20 +161,6 @@
 - [ ] プロットビュー（plotly散布図/線図、X/Y軸選択）
 - [ ] ステータスモニター（実行中/完了/失敗の一覧）
 
-#### D3. REST API（jj serve）
-
-- [ ] `jj serve` CLIコマンド追加（FastAPI + uvicorn）
-- [ ] `/api/v1/nodes`, `/api/v1/relations` エンドポイント
-- [ ] `/api/v1/summary`, `/api/v1/status` エンドポイント
-- [ ] クエリフィルター（type, index, status, props条件）
-
-#### D4. jj-db統合
-
-- [ ] `jj export --target jj-db` の実装（jj-dbアップロード形式）
-- [ ] jj-db側にjjプロジェクトインポート機能追加
-- [ ] API連携（jj serve → jj-db fetch）
-- [ ] jj-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
-
 **参照**: [09-dashboard.md](./specs/09-dashboard.md)
 
 ---
@@ -170,6 +168,8 @@
 ## Phase 2.N: DB統合基盤（jj × jj-db × Neo4j）
 
 ### 優先度: 中（Phase 2.5と並行）
+
+> **設計原則**: jjとjj-dbは互いのコード・APIを直接呼び出さない。Neo4jを唯一の通信手段とし、`shared/`パッケージのスキーマ契約のみを共有する。
 
 #### N1. 基盤構築 ✅ (status-037)
 
@@ -187,24 +187,23 @@
 - [x] upsert対応（UNWIND + MERGE）
 - [x] テスト（71件: 69パス + 2スキップ）
 
-#### N3. jj-db Neo4jクライアント
+#### N3. jj-db Neo4jクライアント（jj-db側で実装）
 
-- [ ] `jj_db/` ディレクトリ構築
-- [ ] `jj_db/neo4j_client.py` 実装
+- [ ] jj-dbリポジトリ内でNeo4jクライアント実装（TypeScript）
 - [ ] 材料データのNeo4j投入
 - [ ] jjデータの読み取りインターフェース
+
+> **注**: jj-db側の実装はjj-dbリポジトリで行う。jjリポジトリ内に`jj_db/`ディレクトリは作成しない。
 
 #### N4. クロスリレーション
 
 - [ ] 材料名マッチングロジック（MATCHES関係の自動生成）
 - [ ] `jj import --source neo4j` 実装
-- [ ] jj-db側のjjプロジェクトビュー
+- [ ] jj-db側のjjプロジェクトビュー（jj-dbリポジトリで実装）
 
 #### N5. submodule移行（アクセス復旧後）
 
-- [ ] jj_db/ を別リポジトリに切り出し
-- [ ] .gitmodules設定
-- [ ] shared/ の独立パッケージ化検討
+- [ ] shared/ の独立パッケージ化検討（pip/npm両対応）
 - [ ] CI/CD分離
 
 **参照**: [10-db-integration.md](./specs/10-db-integration.md)
@@ -292,12 +291,11 @@
 
 #### 12. 出力層の基盤構築
 
+- [x] Neo4jExporter の実装（Phase 2.N N2で完了）
+- [x] `jj export` コマンドの実装（obsidian, csv, json, neo4j, cypher対応済み）
 - [ ] `Exporter` 基底クラスの定義
 - [ ] `ExporterRegistry` の実装
-- [ ] Neo4jExporter の実装
-- [ ] JsonExporter の実装
 - [ ] GraphMLExporter の実装
-- [ ] `jj export` コマンドの実装
 
 **参照**: [08-export.md](./specs/08-export.md#6-実装計画)
 
@@ -413,10 +411,8 @@
 
 **達成条件**:
 - アダプター層の基盤完成
-- 出力層の基盤完成
+- 出力層の基盤完成（ExporterRegistry）
 - 3つ以上のCAEソフトに対応
-- jj serve REST APIが稼働
-- jj-db統合が基本動作（D3-D4完了）
 
 ### M5: 最適化完了（Phase 5完了）
 
@@ -435,5 +431,5 @@
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-037.md)
+- [最新ステータス](./status/status-038.md)
 - [プロジェクトREADME](../README.md)

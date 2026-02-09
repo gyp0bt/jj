@@ -188,24 +188,25 @@ class RunService:
         return command[1:]
 
     def _extract_props_block(self, text: str) -> dict[str, str]:
+        """スクリプト内の数値リテラル代入を抽出する
+
+        Python/Shell スクリプト内で変数に数値リテラルが直接代入されている
+        行を検出し、プロパティとして収集する。
+        旧 ``# props start`` / ``# props end`` ブロック記法は廃止。
+        """
         props: dict[str, str] = {}
-        in_block = False
         for line in text.splitlines():
-            normalized = line.strip().lower()
-            if "props start" in normalized:
-                in_block = True
+            # Python形式: variable = 123 or variable = 1.5e-3
+            m = re.match(r"^\s*([A-Za-z_][\w]*)\s*=\s*([-+]?(?:\d+\.?\d*|\d*\.\d+)(?:[eE][-+]?\d+)?)\s*(?:#.*)?$", line)
+            if m:
+                key, value = m.groups()
+                props[key] = value
                 continue
-            if "props end" in normalized:
-                in_block = False
-                continue
-            if not in_block:
-                continue
-            m = re.match(r"^\s*([A-Za-z_][\w\-]*)\s*=\s*(.+?)\s*$", line)
-            if not m:
-                continue
-            key, value = m.groups()
-            value = value.strip().strip('"').strip("'")
-            props[key] = value
+            # Shell形式: variable=123 (スペースなし)
+            m = re.match(r"^\s*([A-Za-z_][\w]*)=([-+]?(?:\d+\.?\d*|\d*\.\d+)(?:[eE][-+]?\d+)?)\s*(?:#.*)?$", line)
+            if m:
+                key, value = m.groups()
+                props[key] = value
         return props
 
     def _extract_arg_mappings(

@@ -74,6 +74,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-09 / status-038: アーキテクチャ方針修正・パラメータ抽出ロジック変更。jj-dbとの通信をNeo4jのみに統一（旧D3/D4削除）。`*PARAMETER`ブロック内の数値リテラル自動抽出に移行（`**props`記法廃止）。runコマンドの`# props start/end`記法も廃止し数値リテラル代入の自動検出に変更。ロードマップ再策定。テスト366件パス+20スキップ。([status-038](docs/status/status-038.md))
 - 2026-02-08 / status-037: Neo4jエクスポート実装（Phase N1+N2）。shared/パッケージ（スキーマ契約・型定義・接続設定）、Neo4j Docker設定、Neo4jConnector（直接書き込み+Cypherファイル出力）、CLI `--target neo4j/cypher`追加。テスト71件追加（69パス+2スキップ）、既存294件リグレッションなし。([status-037](docs/status/status-037.md))
 - 2026-02-08 / status-036: jj-db統合設計。jj-db（旧mat-db）をNeo4j経由で統合する方針策定。submoduleアクセス不可のため一時モノレポ方式採用。shared/パッケージでデータ型共通化、Phase N1-N5の実装計画策定。jj-dbの技術スタック（Next.js 15/SQLite）を確認、SQLite+Neo4j併用を推奨。([status-036](docs/status/status-036.md))
 - 2026-02-08 / status-035: ダッシュボードアーキテクチャ設計。jj側Streamlit（即時一覧）+ jj-db側Next.js（高機能レンダリング）の役割分担決定。Phase 2.5・M2.5追加、仕様書09-dashboard.md作成。([status-035](docs/status/status-035.md))
@@ -83,7 +84,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 2026-02-06 / status-031: abaqus material読み取りソースをmaterial系/go系.inpに限定、汎用ディレクトリノード（reports等）のグラフ追加、pymeshパーサーの末尾カンマ・*include FileNotFoundError対応。テスト242件パス（+14件）。([status-031](docs/status/status-031.md))
 - 2026-02-06 / status-030: props命名統一（vocab変換を正）、.baseからfile.links削除、token-key-map設定追加、pymesh統合基盤構築、材料割り当て関係のグラフ化。テスト228件パス（+22件）。([status-030](docs/status/status-030.md))
 - 2026-02-06 / status-029: Obsidianエクスポート改善。プロパティ型変換（int/float/bool）、.baseフィルター簡素化（folder条件のみ）、orderにプロパティ積集合追記、同一タイプ.base生成、props/bases上書き前提化。テスト206件パス（+21件）。([status-029](docs/status/status-029.md))
-- 2026-02-06 / status-028: Obsidianエクスポート改善。frontmatterにファイル情報property化（node_type, node_format, file）。バージョンリンク構造改善（最新ver→.base、非最新→次ver）、-group.md廃止。結果ファイル(sta,msg)属性をAbaqusインプットに集約。active属性自動判定、*PARAMETER/**propsプロパティ読み取り。テスト185件パス（+15件）。([status-028](docs/status/status-028.md))
+- 2026-02-06 / status-028: Obsidianエクスポート改善。frontmatterにファイル情報property化（node_type, node_format, file）。バージョンリンク構造改善（最新ver→.base、非最新→次ver）、-group.md廃止。結果ファイル(sta,msg)属性をAbaqusインプットに集約。active属性自動判定、*PARAMETERブロックプロパティ読み取り。テスト185件パス（+15件）。([status-028](docs/status/status-028.md))
 - 2026-02-06 / status-027: Obsidianエクスポート構造改善。props/inp/→props/へフラット化。.base.md→.base（YAMLフィルター形式）に変更、旧内容は-group.mdとしてprops配下に配置。Abaqusコネクタ拡張: .msg解析実装、read_inp()テスト40件追加。テスト170件パス（+40件）。([status-027](docs/status/status-027.md))
 - 2026-02-06 / status-026: `jj g parse`パスパース・型判定バグ修正。`_match_path_pattern`の`./`プレフィックス対応・ディレクトリパターン対応・`**go`basename比較追加。`DEFAULT_EXTENSIONS`にconfigのfile-relations拡張子を自動マージ。フォルダNode構築のパス比較をWindows対応強化。テスト126件パス（+34件）。([status-026](docs/status/status-026.md))
 - 2026-02-05 / status-025: グラフ機能の作り込み（Phase 2）。ロードマップ改定（notes削除、graph最優先化）。Abaqusコネクター4機能実装: has_output関係、contains関係、abaqus_material解析、sta解析。テスト92件パス。([status-025](docs/status/status-025.md))

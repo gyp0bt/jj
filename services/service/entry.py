@@ -1281,45 +1281,42 @@ def get_properties_by_filepath(
     return props
 
 
+def _is_numeric_literal(value: str) -> bool:
+    """値が数値リテラル(expression でない)かどうかを判定"""
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def get_properties_by_inp_parameter(
     inp_filepath: str, vocab: VocabConfig
 ) -> dict[str, str]:
-    """inp内のparameterで'**props'の記載があればパラメータとして収集"""
+    """inp内の*PARAMETERブロックから数値リテラルのパラメータを収集"""
     props: dict[str, str] = {}
     with open(inp_filepath, encoding="utf-8", errors="ignore") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
+        in_parameter = False
+        for line in f:
             s = line.strip()
             s_l = s.lower().replace(" ", "")
             if s_l.startswith("*parameter"):
-                header = f.readline()
-                if not header:
-                    break
-                header_s = header.strip().lower().replace(" ", "")
-                if not header_s.startswith("**props"):
-                    continue
-                while True:
-                    line2 = f.readline()
-                    if not line2:
-                        break
-                    t = line2.strip()
-                    if not t:
-                        continue
-                    if t.startswith("**"):
-                        continue
-                    if t.lstrip().startswith("*"):
-                        break
-                    u = t.replace(" ", "")
-                    if "=" not in u:
-                        continue
-                    k, v = u.split("=", 1)
-                    if k:
-                        k = vocab.mapping.get(k, k)
-                        v = vocab.mapping.get(v, v)
-                        props[k] = v
-                return props
+                in_parameter = True
+                continue
+            if not in_parameter:
+                continue
+            if not s or s.startswith("**"):
+                continue
+            if s.lstrip().startswith("*"):
+                in_parameter = False
+                continue
+            u = s.replace(" ", "")
+            if "=" not in u:
+                continue
+            k, v = u.split("=", 1)
+            if k and _is_numeric_literal(v):
+                k = vocab.mapping.get(k, k)
+                props[k] = v
     return props
 
 

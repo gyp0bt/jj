@@ -32,10 +32,10 @@
 │ ・graph.yaml生成   │         │         │         │ ・材料DB管理(SQLite現行) │
 │ ・parse/export     │         │         │         │ ・テーブル/カード        │
 │ ・Streamlit        │         │         │         │ ・グラフ可視化           │
-│ ・FastAPI          │         └─────────┘         │ ・ユーザー管理           │
+│                    │         └─────────┘         │ ・ユーザー管理           │
 └────────┬───────────┘                              └────────┬────────────────┘
          │                                                   │
-         └───────── 直接的なコード依存は禁止 ─────────────────┘
+         └───────── 直接的なコード依存・API通信は禁止 ────────┘
                     （Neo4jスキーマ契約のみ共有）
 ```
 
@@ -64,7 +64,7 @@
 
 | 原則 | 説明 |
 |------|------|
-| **Neo4j Only** | jjとjj-dbは互いのコード・APIを直接呼び出さない。Neo4jを唯一の通信手段とする |
+| **Neo4j Only** | jjとjj-dbは互いのコード・APIを直接呼び出さない。Neo4jを唯一のデータ通信手段とする。jj serverのAPIをjj-db側から叩くことはしない |
 | **スキーマ契約** | Neo4jのノードラベル・リレーションシップタイプ・プロパティキーを共通仕様として定義 |
 | **共有型定義** | データ型（Node/Relation等）とconfig構造を`shared/`パッケージで共通化 |
 | **独立デプロイ** | jjとjj-dbはそれぞれ単独で動作可能。Neo4jがなくても既存機能は使える |
@@ -101,13 +101,6 @@ jj/                              # リポジトリルート
 │   ├── types.py                 # 共有データ型（jj_typesから昇格する型）
 │   └── config.py                # 共有config定義
 │
-├── jj_db/                      # ★ jj-dbモジュール（新規、将来submodule化）
-│   ├── README.md
-│   ├── __init__.py
-│   ├── package.json             # Next.js依存（jj-dbフロントエンド）
-│   ├── neo4j_client.py          # Neo4jアクセス層（Python）
-│   └── ...                      # jj-db既存コード
-│
 └── neo4j/                       # ★ Neo4j関連設定（新規）
     ├── docker-compose.yml       # Neo4j起動設定
     ├── init/                    # 初期化スクリプト（制約/インデックス定義）
@@ -120,30 +113,20 @@ jj/                              # リポジトリルート
 | ルール | 詳細 |
 |--------|------|
 | `services/` → `shared/` | 参照OK（共有型・スキーマを使用） |
-| `jj_db/` → `shared/` | 参照OK（共有型・スキーマを使用） |
-| `services/` → `jj_db/` | **禁止**（Neo4j経由でのみ通信） |
-| `jj_db/` → `services/` | **禁止**（Neo4j経由でのみ通信） |
+| `jj-db` → `shared/` | 参照OK（共有型・スキーマを使用、jj-dbリポジトリ側で実装） |
+| `services/` → `jj-db` | **禁止**（Neo4j経由でのみ通信） |
+| `jj-db` → `services/` | **禁止**（Neo4j経由でのみ通信） |
 | `shared/` → `services/` | **禁止**（逆依存禁止） |
-| `shared/` → `jj_db/` | **禁止**（逆依存禁止） |
+| `shared/` → `jj-db` | **禁止**（逆依存禁止） |
 
-### 3.4 submodule移行計画
+> **注**: jj-dbの実装はjj-dbリポジトリ（gyp0bt/jj-db）で行う。jjリポジトリ内に`jj_db/`ディレクトリは作成しない。
 
-将来、jj-dbリポジトリへのアクセスが可能になった時点で以下を実施:
+### 3.4 shared/ パッケージの共有方式
 
-1. `jj_db/` を別リポジトリに切り出す
-2. `.gitmodules` に `jj_db` を追加
-3. `shared/` は独立パッケージ（pip installable）化するか、両リポジトリにコピーを持つ
-   - 推奨: `shared/` も独立リポジトリ化 → 両者がsubmoduleとして参照
+`shared/`パッケージはNeo4jスキーマ契約を定義する。将来的にはpip/npm両対応の独立パッケージ化を検討する。
 
-```
-# 将来の.gitmodules
-[submodule "jj_db"]
-    path = jj_db
-    url = <jj-db-repo-url>
-[submodule "shared"]
-    path = shared
-    url = <shared-repo-url>
-```
+- 現状: jjリポジトリ内の`shared/`に配置
+- 将来: 独立パッケージ化し、jj-dbからもnpmまたはpip経由で参照
 
 ---
 
@@ -525,12 +508,13 @@ volumes:
 - [x] upsert（既存データの更新）対応（UNWIND + MERGE）
 - [x] テスト（71件: 69パス + 2スキップ）
 
-### Phase N3: jj-db Neo4jクライアント
+### Phase N3: jj-db Neo4jクライアント（jj-db側で実装）
 
-- [ ] `jj_db/` ディレクトリ構築
-- [ ] `jj_db/neo4j_client.py` 実装
+- [ ] jj-dbリポジトリ内でNeo4jクライアント実装（TypeScript）
 - [ ] 材料データのNeo4j投入
 - [ ] jjデータの読み取りインターフェース
+
+> **注**: jj-db側の実装はjj-dbリポジトリで行う。jjリポジトリ内にjj_db/ディレクトリは作成しない。
 
 ### Phase N4: クロスリレーション
 
@@ -538,11 +522,9 @@ volumes:
 - [ ] `jj import --source neo4j` 実装
 - [ ] jj-db側のjjプロジェクトビュー
 
-### Phase N5: submodule移行（アクセス復旧後）
+### Phase N5: shared/パッケージの独立化
 
-- [ ] jj_db/ を別リポジトリに切り出し
-- [ ] .gitmodules設定
-- [ ] shared/ の独立パッケージ化検討
+- [ ] shared/ の独立パッケージ化検討（pip/npm両対応）
 - [ ] CI/CD分離
 
 ---
@@ -551,9 +533,11 @@ volumes:
 
 | 既存Phase | DB統合との関係 |
 |-----------|---------------|
-| Phase 2.5 D3 (jj serve) | Neo4jエクスポーターの前段。REST APIとNeo4j書き込みは共存可能 |
-| Phase 2.5 D4 (jj-db統合) | 本設計書がD4の詳細化。Neo4j経由の統合がD4の具体策 |
-| Phase 4-12 (出力層基盤) | Neo4jExporterは出力層の一部として実装 |
+| Phase 2.5 (ダッシュボード) | jj側ローカルダッシュボード。jj-dbとのAPI連携は行わない |
+| Phase 2.N (DB統合) | 本設計書の具体化。Neo4j経由のデータ共有がjj-db統合の唯一の手段 |
+| Phase 4-12 (出力層基盤) | Neo4jExporterは出力層の一部として実装済み（Phase 2.N N2） |
+
+> **注**: 旧D3（jj serve REST API）・D4（jj-db API統合）は廃止。jj-dbとの通信はNeo4jのみで行う。
 
 ---
 

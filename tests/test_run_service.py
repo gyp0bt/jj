@@ -9,9 +9,7 @@ def test_run_service_script_mode_tracks_files_and_props(tmp_path: Path) -> None:
     script_path = tmp_path / "script.py"
     script_path.write_text(
         """
-# props start
-ncpu=4
-# props end
+ncpu = 4
 import sys
 size = sys.argv[1]
 with open("output.txt", "w", encoding="utf-8") as f:
@@ -31,6 +29,7 @@ with open("output.txt", "w", encoding="utf-8") as f:
     assert result.exit_code == 0
     assert result.script_path == script_path.resolve()
     assert "output.txt" in result.trace_files
+    # 数値リテラル代入が自動抽出される（# props start/end 記法は廃止）
     assert result.properties["ncpu"] == "4"
     assert result.properties["size"] == "128"
     assert result.log_path is not None

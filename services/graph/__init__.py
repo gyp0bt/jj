@@ -56,6 +56,19 @@ OUTPUT_EXTENSIONS: frozenset[str] = frozenset({
 })
 
 
+def _is_numeric_literal(value: str) -> bool:
+    """値が数値リテラル(expression でない)かどうかを判定
+
+    int, float, 科学的記数法(1e-05等)を数値リテラルとみなす。
+    変数参照や演算子を含む式は False を返す。
+    """
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def parse_sta_file(sta_path: Path) -> dict[str, Any]:
     """Abaqus .sta ファイルを解析して解析結果のステータスを返す
 
@@ -390,7 +403,7 @@ class GraphService:
         if date_formatted:
             properties["date"] = date_formatted
 
-        # Abaqusインプット向け: *PARAMETER/**propsブロックからプロパティを読み取る
+        # Abaqusインプット向け: *PARAMETERブロック内の数値リテラルをプロパティとして読み取る
         inp_param_props = self._read_inp_parameter_props(file_path)
         if inp_param_props:
             properties.update(inp_param_props)
@@ -454,11 +467,11 @@ class GraphService:
         return "_".join(parts)
 
     def _read_inp_parameter_props(self, file_path: Path) -> dict[str, str]:
-        """INPファイルの*PARAMETER/**propsブロックからプロパティを読み取る
+        """INPファイルの*PARAMETERブロックから数値リテラルのプロパティを読み取る
 
-        *PARAMETER キーワードの直後に **props コメントがある場合、
-        そのブロック内のkey=value形式のパラメータをプロパティとして抽出する。
-        vocabマッピングを適用してキーと値を変換する。
+        *PARAMETER ブロック内の key=value 形式のパラメータのうち、
+        値が数値リテラル（expression でないもの）であるものを抽出する。
+        vocabマッピングを適用してキーを変換する。
 
         Args:
             file_path: INPファイルのパス
@@ -475,39 +488,29 @@ class GraphService:
         props: dict[str, str] = {}
         try:
             with file_path.open(encoding="utf-8", errors="ignore") as f:
-                while True:
-                    line = f.readline()
-                    if not line:
-                        break
+                in_parameter = False
+                for line in f:
                     s = line.strip()
                     s_l = s.lower().replace(" ", "")
                     if s_l.startswith("*parameter"):
-                        header = f.readline()
-                        if not header:
-                            break
-                        header_s = header.strip().lower().replace(" ", "")
-                        if not header_s.startswith("**props"):
-                            continue
-                        while True:
-                            line2 = f.readline()
-                            if not line2:
-                                break
-                            t = line2.strip()
-                            if not t:
-                                continue
-                            if t.startswith("**"):
-                                continue
-                            if t.lstrip().startswith("*"):
-                                break
-                            u = t.replace(" ", "")
-                            if "=" not in u:
-                                continue
-                            k, v = u.split("=", 1)
-                            if k:
-                                k = self.config.vocab.get(k, k)
-                                v = self.config.vocab.get(v, v)
-                                props[k] = v
-                        return props
+                        in_parameter = True
+                        continue
+                    if not in_parameter:
+                        continue
+                    # コメント行はスキップ
+                    if not s or s.startswith("**"):
+                        continue
+                    # 次のキーワードでブロック終了
+                    if s.lstrip().startswith("*"):
+                        in_parameter = False
+                        continue
+                    u = s.replace(" ", "")
+                    if "=" not in u:
+                        continue
+                    k, v = u.split("=", 1)
+                    if k and _is_numeric_literal(v):
+                        k = self.config.vocab.get(k, k)
+                        props[k] = v
         except (OSError, IOError):
             pass
         return props
