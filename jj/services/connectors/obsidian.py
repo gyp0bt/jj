@@ -187,6 +187,30 @@ def get_directory_for_type(file_type: str) -> str:
     return dir_name
 
 
+def _split_tag(tag: str) -> list[str]:
+    """タグを'_'で分割して個別の単語タグに分離する
+
+    Args:
+        tag: 分割対象のタグ文字列
+
+    Returns:
+        分割後のタグリスト（'_'がない場合は元のタグを1要素リストで返す）
+
+    Examples:
+        >>> _split_tag("calculation_input")
+        ['calculation', 'input']
+        >>> _split_tag("go")
+        ['go']
+        >>> _split_tag("material/Steel_A")
+        ['material/Steel_A']
+    """
+    # '/'を含むタグ（material/xxx等）は分割しない
+    if "/" in tag:
+        return [tag]
+    parts = [p for p in tag.split("_") if p]
+    return parts if parts else [tag]
+
+
 def _coerce_property_value(value: Any) -> Any:
     """プロパティ値をObsidian向けに適切な型に変換
 
@@ -328,12 +352,20 @@ class ObsidianConnector:
         props["file"] = real_path.replace("\\", "/") if real_path else ""
 
         # タグの拡充: タイプ、材料名などをtags listに追加
+        # '_'を含むタグは単語ごとに分離する
         existing_tags = props.get("tags", [])
         if not isinstance(existing_tags, list):
             existing_tags = [existing_tags] if existing_tags else []
-        # タイプをタグに追加
-        if node.type and node.type not in existing_tags:
-            existing_tags.append(node.type)
+        # 既存タグを'_'で分割して展開
+        split_tags: list[str] = []
+        for t in existing_tags:
+            split_tags.extend(_split_tag(str(t)))
+        existing_tags = split_tags
+        # タイプをタグに追加（'_'で分割）
+        if node.type:
+            for t in _split_tag(node.type):
+                if t not in existing_tags:
+                    existing_tags.append(t)
         # 材料名をタグに追加
         materials = props.get("materials", [])
         if isinstance(materials, list):
@@ -343,11 +375,17 @@ class ObsidianConnector:
                     existing_tags.append(tag)
         props["tags"] = existing_tags
 
-        # includesは実ファイル名 → Obsidianリンク形式に変換
+        # includesはObsidianリンク形式に変換
+        # 相対パス（'/'を含む）はそのまま[[path]]形式、ファイル名は従来のO-プレフィックス形式
         if includes:
-            props["includes"] = [
-                to_obsidian_link(inc, self.config.obsidian_prefix) for inc in includes
-            ]
+            links: list[str] = []
+            for inc in includes:
+                if "/" in inc:
+                    # 相対パス → [[path]]形式（O-プレフィックス不要）
+                    links.append(f"[[{inc}]]")
+                else:
+                    links.append(to_obsidian_link(inc, self.config.obsidian_prefix))
+            props["includes"] = links
 
         # プロパティ値をObsidian向け型に変換（int, float, bool）
         for key, value in props.items():
@@ -428,12 +466,14 @@ class ObsidianConnector:
         verbose_name = node.properties.get("verbose_name", "")
 
         tag_items: list[str] = []
-        # タイプタグ
-        tag_items.append(f"#{node_type_tag}")
-        # ファイルタグ
+        # タイプタグ（'_'で分割）
+        for t in _split_tag(node_type_tag):
+            tag_items.append(f"#{t}")
+        # ファイルタグ（'_'で分割）
         if isinstance(tags, list):
             for t in tags:
-                tag_items.append(f"#{t}")
+                for st in _split_tag(str(t)):
+                    tag_items.append(f"#{st}")
         # 材料タグ
         if isinstance(materials, list):
             for m in materials:
@@ -551,26 +591,30 @@ class ObsidianConnector:
     ) -> dict[int, str]:
         """各ノードの親リンクを構築
 
-        最新ver → {type}_idx{index}.base へのリンク
-        それ以外 → 次のversionのNodeへのリンク
+        最新ver → notes/bases/{dir}/{type}_idx{index}.base への相対パスリンク
+        それ以外 → 次のversionのNodeへのObsidianリンク名
 
         Returns:
             {node_id: parent_link_string} のdict
+            値はそのまま[[...]]で囲んでObsidianリンクにできる形式
         """
         parent_links: dict[int, str] = {}
+        bases_dir_rel = str(self.config.bases_dir).replace("\\", "/")
 
         for (node_type, index), sorted_nodes in version_groups.items():
+            dir_name = get_directory_for_type(node_type)
+            base_filename = f"{node_type}_idx{index}.base"
+            base_path = f"{bases_dir_rel}/{dir_name}/{base_filename}"
+
             if len(sorted_nodes) < 2:
                 # 1つしかない場合は.baseリンクのみ
                 if sorted_nodes:
-                    base_name = f"{node_type}_idx{index}.base"
-                    parent_links[sorted_nodes[0].id] = base_name
+                    parent_links[sorted_nodes[0].id] = base_path
                 continue
 
-            # 最新ver（最後の要素）は.baseリンク
+            # 最新ver（最後の要素）は.base相対パスリンク
             latest = sorted_nodes[-1]
-            base_name = f"{node_type}_idx{index}.base"
-            parent_links[latest.id] = base_name
+            parent_links[latest.id] = base_path
 
             # 最新以外は次のNodeへのリンク
             for i in range(len(sorted_nodes) - 1):
