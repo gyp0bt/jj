@@ -4,6 +4,10 @@
 #
 # [READMEへ戻る](../README.md)
 
+# プロジェクト名（root directoryノードの名前に使用）
+# 未設定の場合はプロジェクトルートのフォルダ名を使用
+# project-name: my-project
+
 # 語彙マッピング
 # ファイル名パース時にキー名を日本語表記に変換します
 vocab:

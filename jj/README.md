@@ -21,6 +21,9 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート
   - `jj export --target neo4j`: Neo4jデータベースにグラフをエクスポート
   - `jj export --target cypher`: Cypherクエリファイルとしてエクスポート（Neo4j不要）
+  - `jj credential set`: Neo4j等の認証情報を暗号化して保存
+  - `jj credential show`: 保存済み認証情報を表示（マスキング付き）
+  - `jj credential delete`: 保存済み認証情報を削除
   - `jj g ...`: 旧コマンド（互換性維持）
 - `jj f` (file)
   - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
@@ -74,6 +77,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-09 / status-040: pymesh移動・jj info強化・材料名ケース保持・credential管理。pymeshをservicesに移動しシステムpymesh競合解消、jj infoメッシュ統計展開表示・Windowsパスparse対応、材料名/elset名の元ケース保持、root directory命名のconfig対応(project-name)、Neo4j認証情報の暗号化保存(`jj credential set/show/delete`)。テスト396件パス+20スキップ、12件追加。([status-040](docs/status/status-040.md))
 - 2026-02-09 / status-039: parseタグ振り・verbose_name改善・Node方針変更。verbose_name由来タグ生成、version/バージョンキー統一、token_key_map verbose_name修正(値のみ)、material.inp材料タグ、elset Node化、.sta/.msg/.dat Node化廃止(情報のみinpに集約)、pymeshインポート修正、root directory Node化。テスト178件パス+18スキップ、20件追加。([status-039](docs/status/status-039.md))
 - 2026-02-09 / status-038: parse export修正（pymesh相対パスインポート、タグ`_`分割、includes相対パス化、directoryノードroot.directoryタグ）+ jj-db統合ロードマップ整備。テスト363件パス+20スキップ、リグレッションなし。([status-038](docs/status/status-038.md))
 - 2026-02-08 / status-037: Neo4jエクスポート実装（Phase N1+N2）。shared/パッケージ（スキーマ契約・型定義・接続設定）、Neo4j Docker設定、Neo4jConnector（直接書き込み+Cypherファイル出力）、CLI `--target neo4j/cypher`追加。テスト71件追加（69パス+2スキップ）、既存294件リグレッションなし。([status-037](docs/status/status-037.md))
