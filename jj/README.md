@@ -62,11 +62,19 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `docs/roadmap.md` : 今後の計画
 - `docs/detail.md` : 実装詳細と仕様リンク
 - `services/` : CLI向けサービス群（詳細は各README）
-  - `services/graph/` : グラフデータの生成・管理（GraphService）
-  - `services/connectors/` : 外部ツールへのエクスポート（ObsidianConnector, Neo4jConnector）
-  - `services/parse/file_parse.py` : FileParse/ObsidianFileParse + レガシー関数
-  - `services/storage/` : グラフデータの永続化（GraphStorage）
+  - `services/graph/` : プロジェクトツリーのスキャンと初期グラフ生成
+  - `services/graph/storage/` : グラフデータの永続化（GraphStorage）
+  - `services/parse/` : グラフへのtag/property/relation付与
+    - `services/parse/base.py` : AbstractFileParser 抽象基底クラス
+    - `services/parse/file_parse.py` : FileParse/ObsidianFileParse（レガシー）
+    - `services/parse/connectors/abaqus/` : Abaqus INP読み込み、メッシュ統計、差分比較
+    - `services/parse/connectors/obsidian/` : Obsidianエクスポート、daily連携
+  - `services/export/connectors/` : 外部ツールへのエクスポート（Neo4jConnector等）
+  - `services/run/` : スクリプトラッパー（jj r）
+  - `services/service/` : サービス横断オーケストレーション
+  - `services/lib/` : 薄いユーティリティ（credentials, file等）
 - `shared/` : jj-dbとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
+- `shared/tests/test_asset1/` : jj/jj-db共通テストアセット（Abaqusプロジェクト）
 - `neo4j/` : Neo4j Docker設定と初期化スクリプト
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
@@ -77,6 +85,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-09 / status-041: services構造改革に伴うロードマップ根本改変。Phase Rを新設（抽象パーサーパターン・ProjectGraph型・graph/__init__.py分解）、完了済みAbaqusグラフ機能をM1.5として整理、旧アダプター層をparseコネクターに再定義。detail.md・README.mdのディレクトリ構成を新構造に更新。([status-041](docs/status/status-041.md))
 - 2026-02-09 / status-040: pymesh移動・jj info強化・材料名ケース保持・credential管理。pymeshをservicesに移動しシステムpymesh競合解消、jj infoメッシュ統計展開表示・Windowsパスparse対応、材料名/elset名の元ケース保持、root directory命名のconfig対応(project-name)、Neo4j認証情報の暗号化保存(`jj credential set/show/delete`)。テスト396件パス+20スキップ、12件追加。([status-040](docs/status/status-040.md))
 - 2026-02-09 / status-039: parseタグ振り・verbose_name改善・Node方針変更。verbose_name由来タグ生成、version/バージョンキー統一、token_key_map verbose_name修正(値のみ)、material.inp材料タグ、elset Node化、.sta/.msg/.dat Node化廃止(情報のみinpに集約)、pymeshインポート修正、root directory Node化。テスト178件パス+18スキップ、20件追加。([status-039](docs/status/status-039.md))
 - 2026-02-09 / status-038: parse export修正（pymesh相対パスインポート、タグ`_`分割、includes相対パス化、directoryノードroot.directoryタグ）+ jj-db統合ロードマップ整備。テスト363件パス+20スキップ、リグレッションなし。([status-038](docs/status/status-038.md))
