@@ -29,14 +29,18 @@ logger = logging.getLogger(__name__)
 def _safe_import_pymesh():
     """pymeshを安全にimportする"""
     try:
-        from pymesh.mesh import Mesher, mesher as create_mesher
-        from pymesh.misc.quality import get_element_quality
+        from ...pymesh.mesh import Mesher
+        from ...pymesh.mesh import mesher as create_mesher
+        from ...pymesh.misc.quality import get_element_quality
+
         return create_mesher, get_element_quality
     except ImportError:
         return None, None
 
 
-def extract_mesh_stats(inp_path: Path, verbose: bool = False) -> Optional[dict[str, Any]]:
+def extract_mesh_stats(
+    inp_path: Path, verbose: bool = False
+) -> Optional[dict[str, Any]]:
     """Abaqus .inpファイルからメッシュ統計情報を抽出
 
     pymeshのMesherクラスを使ってメッシュデータを解析し、
@@ -95,11 +99,11 @@ def extract_mesh_stats(inp_path: Path, verbose: bool = False) -> Optional[dict[s
             elements = mesh.elements_data[key]
             # keyは "name,type=C3D8" のような形式
             elem_type = "unknown"
-            if hasattr(elements, 'options') and 'type' in elements.options:
-                elem_type = elements.options['type']
+            if hasattr(elements, "options") and "type" in elements.options:
+                elem_type = elements.options["type"]
             elif ",type=" in key:
                 elem_type = key.split(",type=")[-1]
-            count = len(elements.data) if hasattr(elements, 'data') else 0
+            count = len(elements.data) if hasattr(elements, "data") else 0
             if elem_type in element_types:
                 element_types[elem_type] += count
             else:
@@ -115,7 +119,7 @@ def extract_mesh_stats(inp_path: Path, verbose: bool = False) -> Optional[dict[s
         elset_summary: dict[str, int] = {}
         for name in mesh.elset_data:
             elset = mesh.elset_data[name]
-            count = len(elset.data) if hasattr(elset, 'data') else 0
+            count = len(elset.data) if hasattr(elset, "data") else 0
             elset_summary[name] = count
         stats["elset_summary"] = elset_summary
     except Exception as e:
