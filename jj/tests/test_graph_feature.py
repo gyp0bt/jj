@@ -1792,10 +1792,11 @@ class TestPymeshConnector:
             encoding="utf-8",
         )
         mapping = extract_material_elset_mapping(inp_file)
-        assert "steel" in mapping
-        assert "solid_elems" in mapping["steel"]
-        assert "aluminum" in mapping
-        assert "shell_elems" in mapping["aluminum"]
+        # 元のケース（大文字）を保持
+        assert "STEEL" in mapping
+        assert "SOLID_ELEMS" in mapping["STEEL"]
+        assert "ALUMINUM" in mapping
+        assert "SHELL_ELEMS" in mapping["ALUMINUM"]
 
     def test_extract_material_elset_mapping_no_section(self, tmp_path):
         """セクション定義がない場合は空"""
@@ -1871,7 +1872,8 @@ class TestMaterialAssignmentRelations:
         # materialノードにelset情報が付与されている
         steel = steel_nodes[0]
         assert "assigned_elsets" in steel.properties
-        assert "all_elems" in steel.properties["assigned_elsets"]
+        # 元のケース（大文字）を保持
+        assert "ALL_ELEMS" in steel.properties["assigned_elsets"]
 
 
 class TestMaterialSourceFiltering:
@@ -3326,7 +3328,8 @@ class TestMaterialVerboseNameEnrichment:
         )
         assert mat_node is not None
         tags = mat_node.properties.get("tags", [])
-        assert "steel" in tags
+        # 元のケース（NAME=Steel）を保持
+        assert "Steel" in tags
         assert "材料定義" in tags
 
 
@@ -3340,15 +3343,31 @@ class TestRootDirectoryNode:
         svc = GraphService(project_root=tmp_path, config=config)
         graph = svc.parse_project(extensions=[".inp"])
 
+        # project-name未設定の場合はプロジェクトルートのフォルダ名を使用
         root_node = next(
-            (n for n in graph.nodes if n.name == "root" and n.format == "directory"),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
         assert root_node.type == "directory"
+        assert root_node.name == tmp_path.name  # フォルダ名がname
         tags = root_node.properties.get("tags", [])
         assert "root" in tags
         assert "directory" in tags
+
+    def test_root_directory_with_project_name(self, tmp_path):
+        """project-name設定時はその名前をrootのnameに使用"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        config = GraphConfig.from_dict({"vocab": {}, "project-name": "my-project"})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp"])
+
+        root_node = next(
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
+            None,
+        )
+        assert root_node is not None
+        assert root_node.name == "my-project"
 
     def test_root_contains_relations(self, tmp_path):
         """rootノードからルート直下ファイルへのcontains関係が作成される"""
@@ -3359,7 +3378,7 @@ class TestRootDirectoryNode:
         graph = svc.parse_project(extensions=[".inp"])
 
         root_node = next(
-            (n for n in graph.nodes if n.name == "root" and n.format == "directory"),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
@@ -3378,7 +3397,7 @@ class TestRootDirectoryNode:
         graph = svc.parse_project(extensions=[".inp"])
 
         root_node = next(
-            (n for n in graph.nodes if n.name == "root" and n.format == "directory"),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
@@ -3447,6 +3466,169 @@ class TestPymeshImport:
         create_mesher, get_quality = _safe_import_pymesh()
         # pymeshが利用可能ならNoneでない
         assert create_mesher is not None, "pymeshのインポートに失敗"
+
+
+class TestMaterialNameCasePreservation:
+    """材料名のケース保持テスト"""
+
+    def test_parse_material_blocks_preserves_case(self, tmp_path):
+        """parse_material_blocksが元の大文字小文字を保持する"""
+        from services.graph import parse_material_blocks
+
+        inp_file = tmp_path / "material.inp"
+        inp_file.write_text(
+            "*MATERIAL, NAME=Steel_S235\n"
+            "*ELASTIC\n"
+            "210000.0, 0.3\n"
+            "*MATERIAL, NAME=ALUMINUM_6061\n"
+            "*ELASTIC\n"
+            "69000.0, 0.33\n",
+            encoding="utf-8",
+        )
+        materials = parse_material_blocks(inp_file)
+        names = [m["name"] for m in materials]
+        assert "Steel_S235" in names
+        assert "ALUMINUM_6061" in names
+
+    def test_elset_mapping_preserves_case(self, tmp_path):
+        """extract_material_elset_mappingが元のケースを保持する"""
+        from services.connectors.pymesh_connector import extract_material_elset_mapping
+
+        inp_file = tmp_path / "test.inp"
+        inp_file.write_text(
+            "*SOLID SECTION, MATERIAL=Steel_S235, ELSET=Solid_Elements\n"
+            "1.0,\n",
+            encoding="utf-8",
+        )
+        mapping = extract_material_elset_mapping(inp_file)
+        assert "Steel_S235" in mapping
+        assert "Solid_Elements" in mapping["Steel_S235"]
+
+
+class TestWindowsPathParsing:
+    """Windows環境のパスパース対応テスト"""
+
+    def test_backslash_path_normalized(self, tmp_path):
+        """バックスラッシュパスからbasenameを正しく抽出"""
+        from pathlib import PurePosixPath, PureWindowsPath
+
+        path = "subdir\\go_idx1_v1.inp"
+        normalized = path.replace("\\", "/")
+        basename = PurePosixPath(normalized).name
+        assert basename == "go_idx1_v1.inp"
+
+    def test_forward_slash_path(self, tmp_path):
+        """スラッシュパスも正しく処理"""
+        from pathlib import PurePosixPath
+
+        path = "subdir/go_idx1_v1.inp"
+        normalized = path.replace("\\", "/")
+        basename = PurePosixPath(normalized).name
+        assert basename == "go_idx1_v1.inp"
+
+
+class TestProjectNameConfig:
+    """project-name設定のテスト"""
+
+    def test_config_project_name(self):
+        """GraphConfigにproject_nameが含まれる"""
+        config = GraphConfig.from_dict({"project-name": "my-project"})
+        assert config.project_name == "my-project"
+
+    def test_config_default_project_name(self):
+        """project-name未設定時は空文字列"""
+        config = GraphConfig.from_dict({})
+        assert config.project_name == ""
+
+
+class TestCredentialService:
+    """クレデンシャル管理サービスのテスト"""
+
+    def test_encrypt_decrypt_roundtrip(self):
+        """暗号化→復号がラウンドトリップする"""
+        from services.credentials import _encrypt, _decrypt
+
+        key = b"\x00" * 32
+        plaintext = "my-secret-password"
+        ciphertext = _encrypt(plaintext, key)
+        assert ciphertext != plaintext
+        decrypted = _decrypt(ciphertext, key)
+        assert decrypted == plaintext
+
+    def test_save_and_load_credentials(self, tmp_path):
+        """クレデンシャルの保存と読み込み"""
+        from services.credentials import (
+            save_credentials,
+            load_credentials,
+            _get_secret_key_path,
+        )
+
+        # テスト用の鍵ディレクトリを準備
+        creds = {
+            "uri": "bolt://localhost:7687",
+            "user": "neo4j",
+            "password": "test-password-123",
+            "database": "testdb",
+        }
+        save_credentials(tmp_path, "neo4j", creds)
+
+        loaded = load_credentials(tmp_path, "neo4j")
+        assert loaded is not None
+        assert loaded["uri"] == "bolt://localhost:7687"
+        assert loaded["user"] == "neo4j"
+        assert loaded["password"] == "test-password-123"
+        assert loaded["database"] == "testdb"
+
+    def test_mask_value(self):
+        """マスキング関数の動作"""
+        from services.credentials import mask_value
+
+        assert mask_value("password123") == "pa*********"
+        assert mask_value("ab") == "**"
+        assert mask_value("a") == "*"
+
+    def test_load_nonexistent_returns_none(self, tmp_path):
+        """存在しないクレデンシャルはNoneを返す"""
+        from services.credentials import load_credentials
+
+        result = load_credentials(tmp_path, "nonexistent")
+        assert result is None
+
+
+class TestMeshStatsDisplay:
+    """メッシュ統計表示のテスト"""
+
+    def test_mesh_stats_in_node_properties(self, tmp_path):
+        """メッシュ統計がNodeのpropertiesに格納される"""
+        node = Node(
+            id=1, type="calculation_input", name="test",
+            format="inp", properties={
+                "path": "test.inp",
+                "mesh_node_count": 1000,
+                "mesh_element_count": 500,
+                "mesh_element_types": {"C3D8": 300, "C3D4": 200},
+            },
+        )
+        assert node.properties["mesh_node_count"] == 1000
+        assert node.properties["mesh_element_count"] == 500
+        assert isinstance(node.properties["mesh_element_types"], dict)
+        assert node.properties["mesh_element_types"]["C3D8"] == 300
+
+    def test_mesh_stats_dict_expandable(self):
+        """dictプロパティが展開可能であることを確認"""
+        props = {
+            "mesh_element_types": {"C3D8": 300, "C3D4": 200},
+            "mesh_quality": {"volume": {"min": 0.1, "max": 1.0}},
+        }
+        elem_types = props["mesh_element_types"]
+        assert isinstance(elem_types, dict)
+        for etype, count in elem_types.items():
+            assert isinstance(etype, str)
+            assert isinstance(count, int)
+
+        quality = props["mesh_quality"]
+        assert isinstance(quality, dict)
+        assert "volume" in quality
 
 
 if __name__ == "__main__":

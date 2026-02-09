@@ -29,15 +29,36 @@ class Neo4jConfig(BaseModel):
 
     @classmethod
     def from_jj_config(cls, base_dir: Optional["Path"] = None) -> "Neo4jConfig":
-        """jjの.jj/config/config.yamlからNeo4j設定を読み込む
+        """jjの設定からNeo4j接続情報を読み込む
 
-        config.yamlのneo4jセクションを参照する。
-        設定がない場合はデフォルト値を返す。
+        優先順位:
+        1. 暗号化クレデンシャル（.jj/config/.credentials）
+        2. config.yamlのneo4jセクション
+        3. デフォルト値
         """
         from pathlib import Path
 
         from config import load_project_config
 
+        if base_dir is None:
+            base_dir = Path.cwd()
+
+        # 暗号化クレデンシャルを優先的に読み込み
+        try:
+            from services.credentials import load_credentials
+
+            creds = load_credentials(base_dir, "neo4j")
+            if creds:
+                return cls(
+                    uri=creds.get("uri", "bolt://localhost:7687"),
+                    user=creds.get("user", "neo4j"),
+                    password=creds.get("password", "password"),
+                    database=creds.get("database", "neo4j"),
+                )
+        except ImportError:
+            pass
+
+        # config.yamlからのフォールバック
         config_data = load_project_config(base_dir)
         neo4j_data = config_data.get("neo4j", {})
         if not neo4j_data:
