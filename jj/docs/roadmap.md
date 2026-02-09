@@ -8,6 +8,94 @@
 
 ---
 
+## アーキテクチャ概要（2026-02-09 構造改革）
+
+### 背景
+
+従来の`services/graph/__init__.py`にparse・graph構築・コネクター連携のすべてが集中し、以下の問題が深刻化していた:
+
+- parseロジックが増えるたびにgraph/__init__.pyが肥大化
+- parseロジック同士の関係性が不明瞭で背反が続出
+- コネクター（Abaqus/Obsidian）の境界が曖昧
+
+### 新構造
+
+```
+services/
+├── graph/                  # プロジェクトツリーのスキャンと初期グラフ生成
+│   ├── __init__.py         # ProjectGraph 生成ロジック
+│   └── storage/            # グラフデータの永続化(.jj/storage/)
+├── parse/                  # グラフへのtag/property/relation付与
+│   ├── base.py             # AbstractFileParser 抽象基底クラス
+│   ├── file_parse.py       # FileParse/ObsidianFileParse（レガシー）
+│   └── connectors/         # ソフト固有のparse/exportロジック
+│       ├── abaqus/         # Abaqus INP読み込み、メッシュ統計、差分比較
+│       │   ├── __init__.py # ABQData, read_inp, diff等
+│       │   └── mesh.py     # pymesh統合メッシュ品質
+│       └── obsidian/       # Obsidianエクスポート、daily連携
+│           ├── __init__.py # ObsidianConnector, export_graph等
+│           └── daily.py    # DailyNote解析
+├── export/                 # グラフの外部出力（ローカル以外）
+│   └── connectors/
+│       └── neo4j.py        # Neo4jConnector
+├── run/                    # スクリプトラッパー
+├── service/                # サービス横断オーケストレーション
+├── cli/                    # CLI（serviceからのみimport）
+└── lib/                    # 薄いユーティリティ
+    ├── credentials.py      # 秘匿情報管理
+    └── file/               # SSH・一括rename
+```
+
+### 抽象パーサーパターン
+
+```python
+parser_list = []
+
+class AbstractFileParser(ABC):
+    def __init_subclass__(cls):
+        parser_list.append(cls)
+
+    @abstractmethod
+    def apply(self, graph: ProjectGraph) -> ProjectGraph:
+        """個々のparseロジックに従いグラフを更新"""
+
+def parse(graph: ProjectGraph) -> ProjectGraph:
+    """全パーサーを順次適用"""
+    for parser_cls in parser_list:
+        graph = parser_cls().apply(graph)
+    return graph
+```
+
+### ProjectGraph型
+
+```python
+@dataclass
+class ProjectFile:
+    path: Path
+    parent_directory: ProjectDirectory
+
+@dataclass
+class ProjectDirectory:
+    path: Path
+    parent_directory: ProjectDirectory | None
+    child_directories: list[ProjectDirectory]
+    files: list[ProjectFile]
+
+@dataclass
+class ProjectGraph:
+    nodes: dict[int, Node]
+    relations: list[Relation]
+
+    def iterate_directories(self) -> Iterator[ProjectDirectory]:
+        """ツリー構造をProjectDirectory/ProjectFileに変換してiterate"""
+```
+
+### テストデータ
+
+`shared/tests/test_asset1/` にAbaqusプロジェクトのテストアセットを配置。jj/jj-db双方でテストデータとして利用する。
+
+---
+
 ## 完了
 
 ### コアデータモデル層
@@ -32,18 +120,153 @@
 - [x] メタ情報の記録（duration, user, host, script_path）
 - [x] 単体テスト
 
-### その他
+### 設定管理層（Phase 1完了）
+
+- [x] `vocab.yaml` の読込機能
+- [x] `extensions.yaml` の読込機能
+- [x] `prefixes.yaml` の読込機能
+- [x] 各設定モデルの定義（`ExtensionsConfig`, `PrefixesConfig`）
+- [x] `.jj/config/` の初期化処理
+- [x] `AppConfig` への統合
+
+### runコマンド層拡張（Phase 1完了）
+
+- [x] コメント記法（`# props start` - `# props end`）の実装
+- [x] `sys.argv` 解析の実装（Python）
+- [x] Bash変数（`$1`, `$2`）の解析
+- [x] 実行前後のスナップショット機能
+- [x] 差分検出ロジック・除外ルール
+- [x] `Relation(label=generated)` の自動生成
+
+### Abaqusグラフ機能（Phase 2大部分完了）
+
+- [x] 同一ファイルタイプの関連付け（has_output, same_index_group）
+- [x] フォルダベースの関連付け（contains）
+- [x] material.inpの高度な解析（abaqus_material Node化）
+- [x] 解析結果ファイルの解析（analysis_status）
+- [x] .msgファイルのERROR/WARNING抽出
+- [x] 結果ファイル属性のAbaqusインプットNodeへの集約
+- [x] active属性の自動判定（oldフォルダ判定）
+- [x] *PARAMETER/**propsブロックのプロパティ読み取り
+- [x] Obsidianエクスポート: frontmatter property化、バージョンリンク構造改善
+- [x] メッシュキーワード要約（Node/Element/Nset/Elset→統計情報）
+- [x] pymesh統合（メッシュ品質統計、材料割り当て関係）
+- [x] Daily noteからのファイル参照・プロパティ・タグ情報抽出
+- [x] verbose_name由来タグ生成、elset Node化
+- [x] root directory Node化
+- [x] 材料名・elset名ケース保持
+
+### Neo4j統合基盤（Phase N1-N2完了）
+
+- [x] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
+- [x] `neo4j/docker-compose.yml` 作成
+- [x] Neo4jConnector 実装（直接書き込み+Cypher出力）
+- [x] CLI `--target neo4j/cypher` 追加
+- [x] credential暗号化管理（jj credential set/show/delete）
+
+### その他完了
 
 - [x] SSH設定（`.pyssh.yaml`）の読込機能
 - [x] CLI構造の整理（`services/service/entry.py`）
+- [x] services構造の大幅リファクタリング設計（status-040追記）
+- [x] shared/tests/test_asset1 テストアセット配置
 
 ---
 
-## Phase 1: 基盤整備（完了）
+## Phase R: services構造リファクタリング（最優先）
 
 ### 優先度: 最高
 
-#### 1. コアデータモデル層の拡張
+services/graph/__init__.pyへの過集中を解消し、抽象パーサーパターンによるプラグイン型parseアーキテクチャを確立する。
+
+#### R1. ProjectGraph型の実装
+
+- [ ] `ProjectFile`, `ProjectDirectory`, `ProjectGraph` dataclass定義
+- [ ] `iterate_directories()` によるツリー走査
+- [ ] 既存の`GraphService.scan_directory()`をProjectGraph生成に変換
+- [ ] テスト（shared/tests/test_asset1を使用）
+
+**対象ファイル**: `services/graph/__init__.py`（新規型定義 or 別ファイル分離）
+
+#### R2. AbstractFileParser.__init_subclass__パターン確立
+
+- [ ] `base.py` に `apply(graph: ProjectGraph) -> ProjectGraph` 抽象メソッド追加
+- [ ] `__init_subclass__` によるサブクラス自動登録
+- [ ] `parse(graph: ProjectGraph) -> ProjectGraph` オーケストレーション関数
+- [ ] パーサー実行順序の制御機構（priority属性等）
+- [ ] テスト
+
+**対象ファイル**: `services/parse/base.py`
+
+#### R3. graph/__init__.py の分解
+
+現在1ファイルに集中しているparse/enrich/connect ロジックを、AbstractFileParserサブクラスとして分散する。
+
+- [ ] **ファイル名解析パーサー**: get_file_type/get_index/get_version/get_props → parse/parsers/filename_parser.py
+- [ ] **バージョン関係パーサー**: next_version/same_index_group → parse/parsers/version_parser.py
+- [ ] **出力ファイル関係パーサー**: has_output/result_of → parse/parsers/output_parser.py
+- [ ] **フォルダ関係パーサー**: contains → parse/parsers/directory_parser.py
+- [ ] **Abaqus INP解析パーサー**: material.inp解析、*PARAMETER抽出 → parse/connectors/abaqus/inp_parser.py
+- [ ] **Abaqus結果パーサー**: .sta/.msg解析 → parse/connectors/abaqus/result_parser.py
+- [ ] **Abaqusメッシュパーサー**: pymesh統計 → parse/connectors/abaqus/mesh_parser.py
+- [ ] **Abaqus差分パーサー**: diff_abq_blocks → parse/connectors/abaqus/diff_parser.py
+- [ ] **Obsidian Dailyパーサー**: dailyノート解析 → parse/connectors/obsidian/daily_parser.py
+- [ ] graph/__init__.py をスキャン+ProjectGraph生成のみに縮小
+
+#### R4. export層の整理
+
+- [ ] Obsidianエクスポートを `export/connectors/obsidian.py` へ移動
+- [ ] Neo4jエクスポートを `export/connectors/neo4j.py` に統合（現状位置）
+- [ ] CSV/JSONエクスポートを `export/connectors/` へ移動
+- [ ] `Exporter` 基底クラスの定義
+
+#### R5. lib層の整理
+
+- [ ] `services/credentials.py` → `services/lib/credentials.py`
+- [ ] SSH/file関連ユーティリティ → `services/lib/file/`
+
+#### R6. テスト移行と検証
+
+- [ ] shared/tests/test_asset1 を活用した統合テスト作成
+- [ ] 既存テスト（396件+20スキップ）の通過を保証
+- [ ] 各パーサーサブクラスの単体テスト
+- [ ] parse()パイプラインのE2Eテスト
+
+**参照**: [services/README.md](../services/README.md)
+
+---
+
+## Phase 2: グラフ機能の仕上げ（Phase R完了後）
+
+### 優先度: 高
+
+Phase R（構造リファクタリング）が完了した新アーキテクチャ上で、残存機能を実装する。
+
+#### 2-1. パーサー層の拡張
+
+- [ ] ファイルグループ機能の実装（AbstractFileParserサブクラスとして）
+- [ ] 旧形式（`.v1`）の完全対応
+- [ ] バイナリファイルの判定と対応方針の明確化
+- [ ] パフォーマンス最適化（大量ファイル対応）
+
+**参照**: [02-parser.md](./specs/02-parser.md#6-実装計画)
+
+#### 2-2. Abaqusコネクターの追加機能
+
+- [ ] 個々のElsetごとの品質統計
+- [ ] ODB連携（Abaqus 2024 Python 3.10対応）
+- [ ] index.csv/yamlとファイルの紐付け
+- [ ] dailyノートをブロックごとに切り出してNodeに逆輸入
+- [ ] config.yamlの拡張
+  - [ ] 配列のスライス指定機能
+  - [ ] type=isoを指定された場合のelasticプロパティの列定義
+  - [ ] type=aniso/orthoの場合の列と値の組み合わせ定義
+  - [ ] パターン一致指示によるprops定義（例: RF3は長手方向荷重）
+- [ ] 事前にラベリングした対処法の部分一致による紐付け
+
+**参照**: `services/parse/connectors/abaqus/`
+
+#### 2-3. コアデータモデル層の拡張
 
 - [ ] グラフのマージ機能（複数グラフの統合）
 - [ ] ノード/関係の更新・削除機能
@@ -51,77 +274,6 @@
 - [ ] バリデーション強化（循環参照チェック、孤立ノード検出）
 
 **参照**: [01-core-data-model.md](./specs/01-core-data-model.md#4-実装計画)
-
-#### 2. 設定管理層の統合（完了）
-
-- [x] `vocab.yaml` の読込機能（既存実装）
-- [x] `extensions.yaml` の読込機能
-- [x] `prefixes.yaml` の読込機能
-- [x] 各設定モデルの定義（`ExtensionsConfig`, `PrefixesConfig`）
-- [x] `.jj/config/` の初期化処理
-- [x] `AppConfig` への統合
-
-**参照**: [03-config.md](./specs/03-config.md#6-実装計画)
-
-#### 3. runコマンド層のproperties抽出拡張（完了）
-
-- [x] コメント記法（`# props start` - `# props end`）の実装（既存実装で対応済み）
-- [x] `sys.argv` 解析の実装（Python）（既存実装で対応済み）
-- [x] Bash変数（`$1`, `$2`）の解析（Bash）（既存実装で対応済み）
-- [x] 対応フォーマット（Python, Bash）の完全実装（既存実装で対応済み）
-
-**参照**: [04-run-command.md](./specs/04-run-command.md#5-properties抽出)
-
-#### 4. runコマンド層のファイル差分検出（完了）
-
-- [x] 実行前後のスナップショット機能（既存実装で対応済み）
-- [x] 差分検出ロジックの実装（既存実装で対応済み）
-- [x] 除外ルールの設定（既存実装で対応済み）
-- [x] `Relation(label=generated)` の自動生成（GraphStorageへの反映機能を実装）
-
-**参照**: [04-run-command.md](./specs/04-run-command.md#6-ファイル差分検出)
-
----
-
-## Phase 2: グラフ機能の作り込み（最優先 - 直近）
-
-### 優先度: 最高
-
-#### 5. Abaqusコネクター: グラフ機能の強化
-
-- [x] 同一ファイルタイプの関連付け
-  - [x] 同じファイルタイプ(go)、同じindex、同じversionでpropsが異なるファイルの検出
-  - [x] csv/png/json/yamlの自動関連付け（`has_output`関係）
-  - [x] 例: go_idx1_v1.inp に対して go_idx1_v1_RF3.csv は RF3キーの値を保持
-- [x] フォルダベースの関連付け
-  - [x] go_idx1_v1 ディレクトリ内部のファイルはすべて`contains`関係で紐付け
-  - [x] ディレクトリ名のpropsも子ファイルに伝搬
-- [x] material.inpの高度な解析
-  - [x] 物性定義データをブロックごとに分解
-  - [x] Node(abaqus_material)として扱う
-  - [x] conductivity/elasticなどのキーワードをpropsに保持
-  - [x] propsに配列データを保持
-- [x] 解析結果ファイルの解析
-  - [x] .sta/.msgからインプットの成否を判定
-  - [x] エラー内容とwarning内容の抽出
-  - [x] analysis_status プロパティへの反映
-  - [x] .msgファイルのERROR/WARNING抽出（parse_msg_file）
-  - [x] GraphServiceへの.msgエンリッチメント統合
-  - [x] 結果ファイル(sta/msg)属性のAbaqusインプットNodeへの集約
-  - [x] active属性の自動判定（oldフォルダ判定）
-  - [x] *PARAMETER/**propsブロックのプロパティ読み取り
-  - [x] Obsidianエクスポート: frontmatterのproperty化、バージョンリンク構造改善
-
-**参照**: [services/parse/abaqus_connector.py](../../services/parse/abaqus_connector.py)
-
-#### 6. パーサー層の拡張機能
-
-- [ ] ファイルグループ機能の実装
-- [ ] 旧形式（`.v1`）の完全対応
-- [ ] バイナリファイルの判定と対応方針の明確化
-- [ ] パフォーマンス最適化（大量ファイル対応）
-
-**参照**: [02-parser.md](./specs/02-parser.md#6-実装計画)
 
 ---
 
@@ -144,7 +296,6 @@
 
 - [ ] `jj dashboard` CLIコマンド追加
 - [ ] テーブルビュー（ag-grid + フィルター）
-  - go_ファイル一覧、プロパティカラム展開、ステータス表示
 - [ ] カードビュー（ノード詳細 + 関連画像表示）
 - [ ] プロットビュー（plotly散布図/線図、X/Y軸選択）
 - [ ] ステータスモニター（実行中/完了/失敗の一覧）
@@ -171,22 +322,19 @@
 
 ### 優先度: 中（Phase 2.5と並行）
 
-### 統合方針（status-038で策定開始）
+### 統合方針
 
-jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を適用する:
-
-- **データ構造**: jjの`Node`, `Relation`, `GraphModel`, `Abaqusインプット`等を優先
+- **データ構造**: jjの`Node`, `Relation`, `GraphModel`を優先
 - **レポジトリ概念**: jj-dbの`Repository`概念を保持（プロジェクト俯瞰機能として活用）
-- **Neo4jスキーマ**: jjの`shared/neo4j_schema.py`を正とし、jj-dbのノードラベル/リレーション定義はこれに合わせる
+- **Neo4jスキーマ**: jjの`shared/neo4j_schema.py`を正とする
 - **データフロー**: `jj parse → jj export --target neo4j → Neo4j ← jj-db（参照のみ）`
-- **DB戦略**: jj-dbはSQLite（アプリ固有データ）+Neo4j（グラフデータ）併用を継続
 - **分離原則**: `services/`と`jj_db/`は直接通信禁止、`shared/`経由のNeo4j契約のみ共有
 
-#### 統合で確認が必要な事項（数回に分けて解決予定）
+#### 統合で確認が必要な事項
 
 - [ ] ID体系の統一: jjは`int`、jj-dbは`string` → Neo4j内での変換ルール
 - [ ] ノードタイプマッピング: jj-db側のEntityとjjのNode.typeの対応表
-- [ ] リレーションラベルの正規化: spec-roadmap6と10-db-integrationの不整合解消
+- [ ] リレーションラベルの正規化
 - [ ] レポジトリタイプのNeo4jラベル追加（JJRepository等）
 - [ ] 全文検索戦略: Cypher CONTAINS vs Lucene index
 - [ ] ユーザー/認証モデル: マルチテナント分離の設計
@@ -194,19 +342,16 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 #### N1. 基盤構築 ✅ (status-037)
 
-- [x] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
+- [x] `shared/` パッケージ作成
 - [x] `neo4j/docker-compose.yml` 作成
-- [x] `neo4j/init/01-schema.cypher` 作成（制約/インデックス）
-- [x] requirements.txtに`neo4j`ドライバ追加
+- [x] `neo4j/init/01-schema.cypher` 作成
 
 #### N2. jj Neo4jエクスポーター ✅ (status-037)
 
-- [x] `services/connectors/neo4j.py` 実装（Neo4jConnector）
-- [x] `jj export --target neo4j` CLI追加
-- [x] `jj export --target cypher` CLI追加（Cypherファイル出力）
-- [x] GraphModel → Neo4j Cypherマッピング実装
+- [x] `Neo4jConnector` 実装
+- [x] CLI `--target neo4j/cypher` 追加
+- [x] GraphModel → Neo4j Cypherマッピング
 - [x] upsert対応（UNWIND + MERGE）
-- [x] テスト（71件: 69パス + 2スキップ）
 
 #### N3. jj-db Neo4jクライアント
 
@@ -236,17 +381,17 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 ### 優先度: 高
 
-#### 7. runコマンド層のジョブ型実装
+#### 3-1. runコマンド層のジョブ型実装
 
 - [ ] `--mode=job` オプションの実装
-- [ ] Abaqusアダプターの基本実装
+- [ ] Abaqusジョブアダプター（parse/connectors/abaqus/ にパーサーとして実装）
 - [ ] 生成ファイル予測機能
 - [ ] ジョブ型の単体テスト
 - [ ] 実行ログのGraphStorageへの反映
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#3-実行モードの分類)
 
-#### 8. fileコマンド層の基本実装
+#### 3-2. fileコマンド層の基本実装
 
 - [ ] テンプレートディレクトリの構造定義
 - [ ] Jinja2によるテンプレートレンダリング
@@ -257,42 +402,14 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 **参照**: [06-file-command.md](./specs/06-file-command.md#8-実装計画)
 
-#### 9. runコマンド層のリモート実行統合
+#### 3-3. runコマンド層のリモート実行統合
 
 - [ ] `--remote` オプションの実装
-- [ ] SSH経由の実行
+- [ ] SSH経由の実行（lib/file/ を活用）
 - [ ] 既存submit機能の移行
 - [ ] リモートログの同期
 
 **参照**: [04-run-command.md](./specs/04-run-command.md#7-既存submit機能のリファクタリング)
-
-#### 10. Abaqusコネクターの追加機能
-
-- [x] pymesh(非公開)のインクルード（基盤構築完了 - status-030）
-  - [x] メッシュ品質の統計情報をmeshファイルから抽出
-  - [x] 要素品質（アスペクト比、ヤコビアン等）の計算
-  - [x] 材料→Elset割り当て関係のグラフ化
-  - [x] メッシュキーワード要約（Node/Element/Nset/Elset→統計情報に自動置換 - status-034）
-  - [ ] 個々のElsetごとの品質統計
-  - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
-- [x] ドキュメント連携（強化 - status-033）
-  - [ ] index.csv/yamlとファイルの紐付け
-  - [x] Obsidian dailyノートとファイルの紐付け
-  - [x] 備考、結果サマリーの自動抽出（dailyからプロパティ付きファイル参照）
-  - [x] Obsidianリンク＋プロパティ記法（[[O-file]]:key:value）対応
-  - [x] ファイルリンク値の自動抽出（[[image.png|表示名]]）
-  - [ ] dailyノートをブロックごとに切り出してNodeに逆輸入
-- [ ] config.yamlの拡張
-  - [ ] 配列のスライス指定機能
-  - [ ] type=isoを指定された場合のelasticプロパティの列定義
-    - 0列目: ヤング率
-    - 1列目: ポアソン比
-    - 2列目: 温度
-  - [ ] type=aniso/orthoの場合の列と値の組み合わせ定義
-  - [ ] パターン一致指示によるprops定義（例: RF3は長手方向荷重）
-- [ ] 事前にラベリングした対処法の部分一致による紐付け
-
-**参照**: [services/parse/abaqus_connector.py](../../services/parse/abaqus_connector.py)
 
 ---
 
@@ -300,33 +417,32 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 ### 優先度: 中
 
-#### 11. アダプター層の基盤構築
+#### 4-1. parseコネクター拡張（新アダプター層）
 
-- [ ] `CAEAdapter` ベースクラスの定義
-- [ ] `AdapterRegistry` の実装
-- [ ] アダプター自動検出機構
-- [ ] Abaqusアダプターの完全実装
-- [ ] Fluentアダプターの実装
-- [ ] LS-DYNAアダプターの実装
+Phase Rで確立した抽象パーサーパターンにより、旧来の「アダプター層」はparse/connectors/配下のパーサーサブクラス群として実現する。
+
+- [ ] Fluent向けparse connector (`parse/connectors/fluent/`)
+- [ ] LS-DYNA向けparse connector (`parse/connectors/dyna/`)
+- [ ] ANSYS向けparse connector (`parse/connectors/ansys/`)
+- [ ] コネクターの自動検出（`__init_subclass__`で自動登録済み）
 
 **参照**: [07-adapter.md](./specs/07-adapter.md#7-実装計画)
 
-#### 12. 出力層の基盤構築
+#### 4-2. export層の拡張
 
-- [ ] `Exporter` 基底クラスの定義
 - [ ] `ExporterRegistry` の実装
-- [ ] Neo4jExporter の実装
-- [ ] JsonExporter の実装
 - [ ] GraphMLExporter の実装
-- [ ] `jj export` コマンドの実装
+- [ ] `jj export` コマンドの統合
+- [ ] カスタムテンプレートサポート
+- [ ] インクリメンタルエクスポート
 
 **参照**: [08-export.md](./specs/08-export.md#6-実装計画)
 
-#### 13. fileコマンド層の高度な機能
+#### 4-3. fileコマンド層の高度な機能
 
 - [ ] カスケードリネーム機能の実装
 - [ ] 関係保持オプションの実装
-- [ ] SSH送信機能の実装
+- [ ] SSH送信機能の実装（lib/file/を活用）
 - [ ] SSH受信機能の実装
 - [ ] 送受信履歴のグラフ化
 
@@ -338,7 +454,7 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 ### 優先度: 低
 
-#### 14. コアデータモデル層の最適化
+#### 5-1. コアデータモデル層の最適化
 
 - [ ] 大規模グラフ対応（遅延読込、インデックス最適化）
 - [ ] キャッシュ機構の導入
@@ -346,7 +462,7 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 **参照**: [01-core-data-model.md](./specs/01-core-data-model.md#4-実装計画)
 
-#### 15. 設定管理層の高度な機能
+#### 5-2. 設定管理層の高度な機能
 
 - [ ] 設定ファイルのバリデーション
 - [ ] 設定エディタ機能（`jj config edit`）
@@ -356,24 +472,15 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 **参照**: [03-config.md](./specs/03-config.md#6-実装計画)
 
-#### 16. アダプター層のプラグイン化
+#### 5-3. parseコネクターのプラグイン化
 
-- [ ] プラグイン方式のアダプター追加
-- [ ] アダプターのバージョン管理
-- [ ] アダプター間の連携（例: AbaqusからFluentへのデータ転送）
+- [ ] 外部パッケージとしてのparseコネクター追加
+- [ ] コネクターのバージョン管理
+- [ ] コネクター間の連携（例: AbaqusからFluentへのデータ転送）
 
 **参照**: [07-adapter.md](./specs/07-adapter.md#7-実装計画)
 
-#### 17. 出力層の高度な機能
-
-- [ ] カスタムテンプレートサポート
-- [ ] インクリメンタルエクスポート
-- [ ] エクスポートプリセット機能
-- [ ] フィルタリング機能の拡張
-
-**参照**: [08-export.md](./specs/08-export.md#6-実装計画)
-
-#### 18. fileコマンド層の複雑な操作
+#### 5-4. 高度なファイル操作
 
 - [ ] 複数ファイル一括操作
 - [ ] ファイル比較機能（diff）
@@ -391,27 +498,42 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 **達成日**: 2026-02-04
 
 **達成条件**:
-- ✅ コアデータモデル層の基本機能完了（GraphModel, Node, Relation）
-- ✅ 設定管理層の統合完了（ExtensionsConfig, PrefixesConfig, AppConfig）
+- ✅ コアデータモデル層の基本機能完了
+- ✅ 設定管理層の統合完了
 - ✅ runコマンドのproperties抽出とファイル差分検出が完全動作
-- ✅ GraphStorageへのRelation(label=generated)自動生成機能を実装
 - ✅ CLI層とservice層の分離
 - ✅ 全テスト成功
 
-### M2: グラフ機能完成（Phase 2完了）
+### M1.5: Abaqusグラフ機能完成 ✅
 
-**目標日**: 2〜4週間以内
+**達成日**: 2026-02-09
 
 **達成条件**:
-- Abaqusコネクターのグラフ機能が完全動作
-- 同一ファイルタイプの関連付け完了
-- material.inpの高度な解析完了
-- 解析結果ファイルの解析完了
+- ✅ Abaqusコネクターの主要機能が全て動作
+- ✅ material解析、結果ファイル解析、メッシュ統計、daily連携完了
+- ✅ Obsidianエクスポート機能完成
+- ✅ Neo4jエクスポート機能完成
+- ✅ テスト396件パス
+
+### MR: services構造改革完了（Phase R完了）
+
+**達成条件**:
+- ProjectGraph型が定義され、graph/がスキャン専任になっている
+- AbstractFileParser.__init_subclass__パターンが確立
+- graph/__init__.py から全てのparseロジックがパーサーサブクラスに移行完了
+- export層が独立しObsidian/Neo4j/CSV/JSON各エクスポーターが配置
+- lib層にcredentials/file等ユーティリティが整理
+- 既存テストが全パス（リグレッションなし）
+- shared/tests/test_asset1 を使った統合テスト追加
+
+### M2: グラフ機能完成（Phase 2完了）
+
+**達成条件**:
 - パーサー層の拡張機能完了
+- Abaqusコネクターの追加機能完了
+- コアデータモデル層の拡張完了
 
 ### M2.5: ダッシュボード基盤完成（Phase 2.5 D1-D2完了）
-
-**目標日**: M2完了後 2〜4週間以内
 
 **達成条件**:
 - DashboardDataProviderが完全動作
@@ -421,8 +543,6 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 ### M3: コマンド機能完成（Phase 3完了）
 
-**目標日**: 3ヶ月以内
-
 **達成条件**:
 - runコマンドのジョブ型実装完了
 - fileコマンドの基本機能実装完了
@@ -430,23 +550,17 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 
 ### M4: 拡張性確保（Phase 4完了）
 
-**目標日**: 6ヶ月以内
-
 **達成条件**:
-- アダプター層の基盤完成
-- 出力層の基盤完成
-- 3つ以上のCAEソフトに対応
+- parseコネクター3つ以上のCAEソフトに対応（Abaqus+2つ）
+- export層の基盤完成
 - jj serve REST APIが稼働
-- jj-db統合が基本動作（D3-D4完了）
 
 ### M5: 最適化完了（Phase 5完了）
-
-**目標日**: 1年以内
 
 **達成条件**:
 - 大規模プロジェクト（10,000ファイル以上）での安定動作
 - 高度な設定管理機能の実装
-- プラグイン方式のアダプター追加が可能
+- 外部プラグイン方式のparseコネクター追加が可能
 
 ---
 
@@ -456,5 +570,6 @@ jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-038.md)
+- [最新ステータス](./status/status-041.md)
+- [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
