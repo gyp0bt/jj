@@ -39,6 +39,7 @@ class RelType:
     DEFINED_IN = "DEFINED_IN"
     ASSIGNED_TO = "ASSIGNED_TO"
     MENTIONED_IN = "MENTIONED_IN"
+    HAS_ELSET = "HAS_ELSET"
 
     # jj-jj-db間のクロスリレーション
     MATCHES = "MATCHES"
@@ -61,6 +62,7 @@ LABEL_TO_RELTYPE: dict[str, str] = {
     "defined_in": RelType.DEFINED_IN,
     "assigned_to": RelType.ASSIGNED_TO,
     "mentioned_in": RelType.MENTIONED_IN,
+    "has_elset": RelType.HAS_ELSET,
 }
 
 # jj Node.type → Neo4j NodeLabel マッピング
@@ -74,8 +76,10 @@ TYPE_TO_LABEL: dict[str, str] = {
     "folder": NodeLabel.JJ_FILE,
     "output": NodeLabel.JJ_FILE,
     "other": NodeLabel.JJ_FILE,
+    "directory": NodeLabel.JJ_FILE,
     # 特殊ノードタイプ
     "abaqus_material": NodeLabel.JJ_MATERIAL,
+    "abaqus_elset": NodeLabel.JJ_FILE,
     "run": NodeLabel.JJ_RUN,
     "tag": NodeLabel.JJ_TAG,
 }

@@ -327,8 +327,8 @@ class TestResultFileRelations:
         # result_of関係を取得
         result_relations = [r for r in graph.relations if r.label == "result_of"]
 
-        # 少なくとも2つのresult_of関係がある（.odb と .sta）
-        assert len(result_relations) >= 2
+        # .odbのresult_of関係がある（.staはNode化されず情報のみgo_*.inpに集約）
+        assert len(result_relations) >= 1
 
         # .odbと.inpの関係を確認
         odb_node = next((n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "odb"), None)
@@ -930,29 +930,45 @@ class TestStaAnalysis:
         return GraphService(project_root=FIXTURE_DIR, config=config)
 
     def test_sta_completed_status(self, graph_service):
-        """成功したstaファイルのanalysis_statusがcompletedになる"""
+        """成功したstaの情報が対応するinpノードに集約される（.staはNode化しない）"""
         extensions = [".inp", ".sta"]
         graph = graph_service.parse_project(extensions=extensions)
 
+        # .staはNode化されない
         sta_node = next(
             (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "sta"),
             None,
         )
-        assert sta_node is not None, "go_idx1_w5_t20.sta ノードが見つからない"
-        assert sta_node.properties.get("analysis_status") == "completed"
+        assert sta_node is None, ".staノードはグラフから除外されるべき"
+
+        # 対応するinpノードにanalysis_statusが集約される
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        assert inp_node is not None, "go_idx1_w5_t20.inp ノードが見つからない"
+        assert inp_node.properties.get("analysis_status") == "completed"
 
     def test_sta_failed_status(self, graph_service):
-        """失敗したstaファイルのanalysis_statusがfailedになる"""
+        """失敗したstaの情報が対応するinpノードに集約される"""
         extensions = [".inp", ".sta"]
         graph = graph_service.parse_project(extensions=extensions)
 
+        # .staはNode化されない
         sta_node = next(
             (n for n in graph.nodes if n.name == "go_idx2" and n.format == "sta"),
             None,
         )
-        assert sta_node is not None, "go_idx2.sta ノードが見つからない"
-        assert sta_node.properties.get("analysis_status") == "failed"
-        assert len(sta_node.properties.get("errors", [])) > 0, "エラーメッセージが抽出されていない"
+        assert sta_node is None, ".staノードはグラフから除外されるべき"
+
+        # 対応するinpノードにanalysis_statusとエラーが集約される
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx2" and n.format == "inp"),
+            None,
+        )
+        assert inp_node is not None, "go_idx2.inp ノードが見つからない"
+        assert inp_node.properties.get("analysis_status") == "failed"
+        assert len(inp_node.properties.get("sta_errors", [])) > 0, "エラーメッセージが集約されていない"
 
     def test_includes_relation_with_content(self, graph_service):
         """go_idx1_w5_t20.inp に実際の *INCLUDE があり、includes関係が構築される"""
@@ -1272,12 +1288,21 @@ class TestScanExtensions:
         inp_nodes = [n for n in graph.nodes if n.format == "inp"]
         assert len(inp_nodes) > 0, "extensions未指定時に.inpファイルが見つからない"
 
-    def test_parse_project_without_extensions_finds_sta(self, graph_service):
-        """extensions未指定でもparse_projectが.staファイルを発見"""
+    def test_parse_project_without_extensions_sta_enriches_inp(self, graph_service):
+        """extensions未指定で.staの情報がinpノードに集約される（.staはNode化しない）"""
         graph = graph_service.parse_project()
 
+        # .staはNode化されない
         sta_nodes = [n for n in graph.nodes if n.format == "sta"]
-        assert len(sta_nodes) > 0, "extensions未指定時に.staファイルが見つからない"
+        assert len(sta_nodes) == 0, ".staノードはグラフから除外されるべき"
+
+        # 対応するinpノードにanalysis_statusが集約される
+        inp_node = next(
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
+            None,
+        )
+        assert inp_node is not None
+        assert inp_node.properties.get("analysis_status") == "completed"
 
 
 class TestPathTypeMapWithDefaultConfig:
@@ -1645,9 +1670,11 @@ class TestTokenKeyMap:
         inp.write_text("", encoding="utf-8")
 
         node = svc.file_to_node(inp)
-        # hogehoge24がtagではなくpropに変換される
+        # hogehoge24がpropに変換される
         assert node.properties.get("形状") == "hogehoge24"
-        assert "hogehoge24" not in node.properties.get("tags", [])
+        # verbose_nameから導出されるtagには含まれる（translateされた値）
+        tags = node.properties.get("tags", [])
+        assert "hogehoge24" in tags  # verbose_name由来
 
     def test_token_key_map_with_vocab_value_translation(self, tmp_path):
         """token-key-map + vocab値変換で最終プロパティが正しい"""
@@ -3079,6 +3106,347 @@ class TestObsidianTagExport:
         content = connector._format_md(fm, node)
         assert "#go" in content
         assert "#test" in content
+
+
+class TestVerboseNameTags:
+    """verbose_name由来のタグ生成テスト"""
+
+    def test_verbose_name_split_creates_tags(self, tmp_path):
+        """verbose_nameを_でsplitした結果がタグに含まれる"""
+        config = GraphConfig.from_dict({
+            "vocab": {"go": "計算入力", "idx": "番号"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1_v1.inp")
+        tags = node.properties.get("tags", [])
+        # verbose_name = "計算入力_番号1_v1" → ["計算入力", "番号1", "v1"]
+        assert "計算入力" in tags
+        assert "番号1" in tags
+
+    def test_verbose_name_tags_no_duplicates(self, tmp_path):
+        """verbose_name由来のタグに重複がない"""
+        config = GraphConfig.from_dict({
+            "vocab": {"go": "計算入力"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1.inp")
+        tags = node.properties.get("tags", [])
+        # 重複なし
+        assert len(tags) == len(set(tags))
+
+
+class TestVersionKeyUnification:
+    """version/バージョンのキー統一テスト"""
+
+    def test_vocab_translates_version_key(self, tmp_path):
+        """vocab定義がある場合、versionキーがバージョンに統一される"""
+        config = GraphConfig.from_dict({
+            "vocab": {"idx": "番号", "v": "バージョン"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1_v2.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1_v2.inp")
+        # 英語キーは存在しない
+        assert "version" not in node.properties
+        assert "index" not in node.properties
+        # 日本語キーが存在する
+        assert node.properties.get("番号") == "1"
+        assert node.properties.get("バージョン") == "2"
+
+    def test_no_vocab_keeps_english_keys(self, tmp_path):
+        """vocab定義がない場合、英語キーが維持される"""
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1_v2.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1_v2.inp")
+        assert node.properties.get("index") == "1"
+        assert node.properties.get("version") == "2"
+
+    def test_empty_version_removed_with_vocab(self, tmp_path):
+        """空のversionはvocab定義があれば除去される"""
+        config = GraphConfig.from_dict({
+            "vocab": {"idx": "番号", "v": "バージョン"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1_w5.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1_w5.inp")
+        # 空のversionは除去
+        assert "version" not in node.properties
+        assert "バージョン" not in node.properties  # 空値は追加しない
+        assert node.properties.get("番号") == "1"
+
+    def test_implicit_version_translated(self, tmp_path):
+        """暗黙のversionもvocabで変換される"""
+        config = GraphConfig.from_dict({
+            "vocab": {"idx": "番号", "v": "バージョン"},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "material.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "material.inp")
+        # material.inpは暗黙のidx=1, v=1
+        assert node.properties.get("番号") == "1"
+        assert node.properties.get("バージョン") == "1"
+        assert "index" not in node.properties
+        assert "version" not in node.properties
+
+
+class TestTokenKeyMapVerboseName:
+    """token_key_mapのverbose_name生成テスト"""
+
+    def test_verbose_name_uses_value_only(self, tmp_path):
+        """token_key_mapで割り当てた場合、verbose_nameにキー名を含めない"""
+        config = GraphConfig.from_dict({
+            "vocab": {"hogehoge24": "ほげほげ24"},
+            "token-key-map": {"形状": ["hogehoge24"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "mesh_hogehoge24_v1_idx1.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "mesh_hogehoge24_v1_idx1.inp")
+        vn = node.properties.get("verbose_name", "")
+        # "形状ほげほげ24" ではなく "ほげほげ24" のみ
+        assert "形状" not in vn
+        assert "ほげほげ24" in vn
+
+    def test_verbose_name_tag_uses_translated_value(self, tmp_path):
+        """token_key_mapのverbose_name→tagは変換後の値を使用"""
+        config = GraphConfig.from_dict({
+            "vocab": {"hogehoge24": "ほげほげ24"},
+            "token-key-map": {"形状": ["hogehoge24"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "mesh_hogehoge24_v1_idx1.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "mesh_hogehoge24_v1_idx1.inp")
+        tags = node.properties.get("tags", [])
+        # verbose_name由来のtagに翻訳済み値が含まれる
+        assert "ほげほげ24" in tags
+
+
+class TestStaEnrichmentOnly:
+    """sta/msg/datファイルの情報集約テスト（Node化しない）"""
+
+    def test_sta_not_node_but_enriches_inp(self, tmp_path):
+        """.staファイルはNodeにならず、対応inpに情報を集約"""
+        sta_content = (
+            " STEP   1  STATIC ANALYSIS\n"
+            "\n\n"
+            " THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        (tmp_path / "go_idx1_v1.sta").write_text(sta_content)
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "file-relations": {"input-extensions": [".inp"], "result-extensions": [".sta"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp", ".sta"])
+
+        # .staノードは存在しない
+        sta_nodes = [n for n in graph.nodes if n.format == "sta"]
+        assert len(sta_nodes) == 0
+
+        # .inpノードにanalysis_statusが集約される
+        inp_node = next((n for n in graph.nodes if n.format == "inp"), None)
+        assert inp_node is not None
+        assert inp_node.properties.get("analysis_status") == "completed"
+
+    def test_msg_not_node(self, tmp_path):
+        """.msgファイルはNodeにならない"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        (tmp_path / "go_idx1_v1.msg").write_text("")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "file-relations": {"input-extensions": [".inp"], "result-extensions": [".msg"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp", ".msg"])
+        msg_nodes = [n for n in graph.nodes if n.format == "msg"]
+        assert len(msg_nodes) == 0
+
+    def test_odb_remains_as_node(self, tmp_path):
+        """.odbファイルはNodeとして残る"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        (tmp_path / "go_idx1_v1.odb").write_text("")
+
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "file-relations": {"input-extensions": [".inp"], "result-extensions": [".odb"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp", ".odb"])
+        odb_nodes = [n for n in graph.nodes if n.format == "odb"]
+        assert len(odb_nodes) == 1
+
+
+class TestMaterialVerboseNameEnrichment:
+    """material.inpのverbose_name更新テスト"""
+
+    def test_material_verbose_name_includes_material_names(self, tmp_path):
+        """material.inpのverbose_nameに材料名が含まれる"""
+        mat_content = (
+            "*MATERIAL, NAME=Steel\n*ELASTIC\n210000.0, 0.3\n"
+            "*MATERIAL, NAME=Rubber\n*ELASTIC\n100.0, 0.49\n"
+        )
+        (tmp_path / "material.inp").write_text(mat_content)
+
+        config = GraphConfig.from_dict({
+            "vocab": {"material": "材料定義"},
+            "file-relations": {"input-extensions": [".inp"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp"])
+
+        mat_node = next(
+            (n for n in graph.nodes if n.name == "material" and n.format == "inp"),
+            None,
+        )
+        assert mat_node is not None
+        vn = mat_node.properties.get("verbose_name", "")
+        assert "rubber" in vn.lower()
+        assert "steel" in vn.lower()
+
+    def test_material_tags_include_material_names(self, tmp_path):
+        """material.inpのタグに材料名が含まれる"""
+        mat_content = "*MATERIAL, NAME=Steel\n*ELASTIC\n210000.0, 0.3\n"
+        (tmp_path / "material.inp").write_text(mat_content)
+
+        config = GraphConfig.from_dict({
+            "vocab": {"material": "材料定義"},
+            "file-relations": {"input-extensions": [".inp"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp"])
+
+        mat_node = next(
+            (n for n in graph.nodes if n.name == "material" and n.format == "inp"),
+            None,
+        )
+        assert mat_node is not None
+        tags = mat_node.properties.get("tags", [])
+        assert "steel" in tags
+        assert "材料定義" in tags
+
+
+class TestRootDirectoryNode:
+    """rootディレクトリNode化テスト"""
+
+    def test_root_directory_created(self, tmp_path):
+        """ルート直下にファイルがある場合、root directoryノードが生成される"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp"])
+
+        root_node = next(
+            (n for n in graph.nodes if n.name == "root" and n.format == "directory"),
+            None,
+        )
+        assert root_node is not None
+        assert root_node.type == "directory"
+        tags = root_node.properties.get("tags", [])
+        assert "root" in tags
+        assert "directory" in tags
+
+    def test_root_contains_relations(self, tmp_path):
+        """rootノードからルート直下ファイルへのcontains関係が作成される"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        (tmp_path / "material.inp").write_text("")
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp"])
+
+        root_node = next(
+            (n for n in graph.nodes if n.name == "root" and n.format == "directory"),
+            None,
+        )
+        assert root_node is not None
+
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == root_node.id]
+        assert len(contains) >= 2  # go_idx1_v1.inp + material.inp
+
+    def test_subdir_files_not_in_root_contains(self, tmp_path):
+        """サブディレクトリ内のファイルはrootのcontainsに含まれない"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        sub = tmp_path / "subdir"
+        sub.mkdir()
+        (sub / "other.inp").write_text("")
+        config = GraphConfig.from_dict({"vocab": {}})
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp"])
+
+        root_node = next(
+            (n for n in graph.nodes if n.name == "root" and n.format == "directory"),
+            None,
+        )
+        assert root_node is not None
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == root_node.id]
+        # ルート直下のgo_idx1_v1.inpのみ
+        assert len(contains) == 1
+
+
+class TestDatEnrichment:
+    """datファイル解析テスト"""
+
+    def test_parse_dat_file_extracts_time(self, tmp_path):
+        """parse_dat_fileがCPU時間とウォールクロック時間を抽出"""
+        from services.graph import parse_dat_file
+
+        dat_content = (
+            "SOME OUTPUT DATA\n"
+            " TOTAL CPU TIME (SEC)      =   123.45\n"
+            " TOTAL WALL CLOCK TIME (SEC) =    67.89\n"
+        )
+        dat_file = tmp_path / "go_idx1.dat"
+        dat_file.write_text(dat_content)
+        result = parse_dat_file(dat_file)
+        assert result["cpu_time"] == 123.45
+        assert result["wallclock_time"] == 67.89
+
+    def test_parse_dat_file_empty(self, tmp_path):
+        """空datファイルは空辞書"""
+        from services.graph import parse_dat_file
+        dat_file = tmp_path / "empty.dat"
+        dat_file.write_text("")
+        result = parse_dat_file(dat_file)
+        assert result == {}
+
+    def test_dat_enriches_inp(self, tmp_path):
+        """.datの計算時間情報がinpに集約される"""
+        (tmp_path / "go_idx1_v1.inp").write_text("")
+        (tmp_path / "go_idx1_v1.dat").write_text(
+            " TOTAL CPU TIME (SEC)      =   100.5\n"
+            " TOTAL WALL CLOCK TIME (SEC) =    50.2\n"
+        )
+        config = GraphConfig.from_dict({
+            "vocab": {},
+            "file-relations": {"input-extensions": [".inp"]},
+        })
+        svc = GraphService(project_root=tmp_path, config=config)
+        graph = svc.parse_project(extensions=[".inp", ".dat"])
+
+        # .datはNode化されない
+        dat_nodes = [n for n in graph.nodes if n.format == "dat"]
+        assert len(dat_nodes) == 0
+
+        # .inpに計算時間が集約
+        inp_node = next((n for n in graph.nodes if n.format == "inp"), None)
+        assert inp_node is not None
+        assert inp_node.properties.get("cpu_time") == 100.5
+        assert inp_node.properties.get("wallclock_time") == 50.2
+
+
+class TestPymeshImport:
+    """pymeshインポート修正の確認テスト"""
+
+    def test_safe_import_pymesh_returns_functions(self):
+        """pymeshが正しくインポートできる（絶対インポート）"""
+        from services.connectors.pymesh_connector import _safe_import_pymesh
+        create_mesher, get_quality = _safe_import_pymesh()
+        # pymeshが利用可能ならNoneでない
+        assert create_mesher is not None, "pymeshのインポートに失敗"
 
 
 if __name__ == "__main__":

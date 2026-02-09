@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 def _safe_import_pymesh():
     """pymeshを安全にimportする"""
     try:
-        from ...pymesh.mesh import Mesher
-        from ...pymesh.mesh import mesher as create_mesher
-        from ...pymesh.misc.quality import get_element_quality
+        from pymesh.mesh import Mesher
+        from pymesh.mesh import mesher as create_mesher
+        from pymesh.misc.quality import get_element_quality
 
         return create_mesher, get_element_quality
     except ImportError:
