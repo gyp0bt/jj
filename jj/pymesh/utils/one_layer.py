@@ -5,8 +5,8 @@ from typing import Any
 
 import numpy as np
 
-from pymesh import Mesher
-from pymesh.etypes import element_type_dict, ElementTypeGroup
+from .. import Mesher
+from ..etypes import element_type_dict, ElementTypeGroup
 
 
 def detect_one_layer_solids(mesh: Mesher) -> dict[str, Any]:

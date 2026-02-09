@@ -171,6 +171,27 @@
 
 ### 優先度: 中（Phase 2.5と並行）
 
+### 統合方針（status-038で策定開始）
+
+jj-dbをjjリポジトリに統合する。統合にあたり以下の原則を適用する:
+
+- **データ構造**: jjの`Node`, `Relation`, `GraphModel`, `Abaqusインプット`等を優先
+- **レポジトリ概念**: jj-dbの`Repository`概念を保持（プロジェクト俯瞰機能として活用）
+- **Neo4jスキーマ**: jjの`shared/neo4j_schema.py`を正とし、jj-dbのノードラベル/リレーション定義はこれに合わせる
+- **データフロー**: `jj parse → jj export --target neo4j → Neo4j ← jj-db（参照のみ）`
+- **DB戦略**: jj-dbはSQLite（アプリ固有データ）+Neo4j（グラフデータ）併用を継続
+- **分離原則**: `services/`と`jj_db/`は直接通信禁止、`shared/`経由のNeo4j契約のみ共有
+
+#### 統合で確認が必要な事項（数回に分けて解決予定）
+
+- [ ] ID体系の統一: jjは`int`、jj-dbは`string` → Neo4j内での変換ルール
+- [ ] ノードタイプマッピング: jj-db側のEntityとjjのNode.typeの対応表
+- [ ] リレーションラベルの正規化: spec-roadmap6と10-db-integrationの不整合解消
+- [ ] レポジトリタイプのNeo4jラベル追加（JJRepository等）
+- [ ] 全文検索戦略: Cypher CONTAINS vs Lucene index
+- [ ] ユーザー/認証モデル: マルチテナント分離の設計
+- [ ] 並行書き込み時の競合解決戦略
+
 #### N1. 基盤構築 ✅ (status-037)
 
 - [x] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
@@ -435,5 +456,5 @@
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-037.md)
+- [最新ステータス](./status/status-038.md)
 - [プロジェクトREADME](../README.md)

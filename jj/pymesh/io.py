@@ -676,8 +676,7 @@ def get_boundary_and_load_condition_from_inp(
     dict[int, tuple[float | bool | None, float | bool | None]],
     dict[int, tuple[float, float]],
 ]:
-    from pymesh import mesher
-    from pymesh.io import parse_inp_structure
+    from . import mesher
 
     mesh = mesher(inp_filepath=inp_path, verbose=False)
     inp_structure = parse_inp_structure(inp_filepath=inp_path)
