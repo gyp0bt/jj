@@ -10,6 +10,10 @@ chardet>=5.0.0
 ftfy>=6.0.0
 numpy>=1.24.0
 
+# pymesh（メッシュ解析）用
+pandas>=2.0.0
+scipy>=1.10.0
+
 # Neo4jコネクター用
 neo4j>=5.0.0
 

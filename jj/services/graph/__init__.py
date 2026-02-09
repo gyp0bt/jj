@@ -148,10 +148,13 @@ def parse_material_blocks(inp_path: Path) -> list[dict[str, Any]]:
                 if current_material:
                     materials.append(current_material)
 
-                # name を取得
+                # name を取得（元の大文字小文字を保持）
+                # 空白除去のみ行い、lowercaseは適用しない
+                orig_no_space = re.sub(r"\s+", "", line)
+                orig_tokens = [s for s in orig_no_space.split(",") if s]
                 name = ""
-                for tok in tokens[1:]:
-                    if tok.startswith("name="):
+                for tok in orig_tokens[1:]:
+                    if tok.lower().startswith("name="):
                         name = tok.split("=", 1)[1]
                         break
 
@@ -1898,6 +1901,10 @@ class GraphService:
         プロジェクトルート直下のファイルに対して、
         root directoryノードを作成しcontains関係を構築する。
 
+        命名規則:
+        - configの``project-name``が設定されていればそれを使用
+        - 未設定の場合はプロジェクトルートのフォルダ名を使用
+
         Returns:
             (rootノード, リレーションのリスト)。rootにファイルがなければ(None, [])
         """
@@ -1919,15 +1926,20 @@ class GraphService:
         if not root_children:
             return None, []
 
+        # プロジェクト名の決定: config > フォルダ名
+        project_name = self.config.project_name
+        if not project_name:
+            project_name = self.project_root.name
+
         root_node = Node(
             id=self._next_node_id(),
             type="directory",
-            name="root",
+            name=project_name,
             format="directory",
             properties={
                 "path": ".",
                 "tags": ["root", "directory"],
-                "verbose_name": "root",
+                "verbose_name": project_name,
             },
         )
 

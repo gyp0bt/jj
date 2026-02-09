@@ -31,6 +31,11 @@ from services.parse.abaqus_connector import (
     format_diff_summary_table,
     format_diff_blocks_markdown,
 )
+from services.credentials import (
+    save_credentials,
+    load_credentials,
+    mask_value,
+)
 from config import init_graph_config
 
 
@@ -212,6 +217,56 @@ def _add_diff_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_credential_args(parser: argparse.ArgumentParser) -> None:
+    """credentialコマンドの引数を追加"""
+    cred_sub = parser.add_subparsers(dest="credential_command", help="クレデンシャル操作")
+
+    # jj credential set
+    set_parser = cred_sub.add_parser(
+        "set",
+        help="クレデンシャルを暗号化して保存",
+    )
+    set_parser.add_argument(
+        "--service",
+        type=str,
+        default="neo4j",
+        help="サービス名（デフォルト: neo4j）",
+    )
+    set_parser.add_argument("--uri", type=str, help="接続URI")
+    set_parser.add_argument("--user", type=str, help="ユーザー名")
+    set_parser.add_argument("--password", type=str, help="パスワード")
+    set_parser.add_argument("--database", type=str, help="データベース名")
+
+    # jj credential show
+    show_parser = cred_sub.add_parser(
+        "show",
+        help="保存済みクレデンシャルを表示（マスキング付き）",
+    )
+    show_parser.add_argument(
+        "--service",
+        type=str,
+        default="neo4j",
+        help="サービス名（デフォルト: neo4j）",
+    )
+    show_parser.add_argument(
+        "--unmask",
+        action="store_true",
+        help="マスキングせずに表示",
+    )
+
+    # jj credential delete
+    del_parser = cred_sub.add_parser(
+        "delete",
+        help="保存済みクレデンシャルを削除",
+    )
+    del_parser.add_argument(
+        "--service",
+        type=str,
+        default="neo4j",
+        help="サービス名（デフォルト: neo4j）",
+    )
+
+
 def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None:
     """トップレベルのグラフサブコマンドを追加（jj init, jj parse等）"""
     # jj init
@@ -255,6 +310,13 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
         help="2つのファイル間のAbaqusキーワードブロック差分を表示",
     )
     _add_diff_args(diff_parser)
+
+    # jj credential
+    cred_parser = subparsers.add_parser(
+        "credential",
+        help="クレデンシャル（認証情報）の管理",
+    )
+    _add_credential_args(cred_parser)
 
 
 def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -344,7 +406,7 @@ def run_graph_command(args: argparse.Namespace) -> int:
 
 
 def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
-    """トップレベルのグラフコマンドを実行（jj init/parse/show/export/info/diff）"""
+    """トップレベルのグラフコマンドを実行（jj init/parse/show/export/info/diff/credential）"""
     project_root = Path.cwd()
 
     if cmd == "init":
@@ -359,6 +421,8 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return _run_info(project_root, args)
     elif cmd == "diff":
         return _run_diff(project_root, args)
+    elif cmd == "credential":
+        return _run_credential(project_root, args)
     else:
         print(f"不明なコマンド: {cmd}")
         return 1
@@ -685,6 +749,48 @@ def _run_export_neo4j(
         connector.close()
 
 
+def _print_mesh_stats_section(node: "Node") -> None:
+    """メッシュ統計情報の専用セクションを表示
+
+    mesh_node_count, mesh_element_count 等のプロパティが存在する場合に
+    見やすく整形して出力する。
+    """
+    props = node.properties
+    has_mesh = any(
+        k.startswith("mesh_") for k in props
+    )
+    if not has_mesh:
+        return
+
+    print(f"\n  メッシュ統計:")
+    if "mesh_node_count" in props:
+        print(f"    節点数: {props['mesh_node_count']}")
+    if "mesh_element_count" in props:
+        print(f"    要素数: {props['mesh_element_count']}")
+
+    elem_types = props.get("mesh_element_types")
+    if isinstance(elem_types, dict) and elem_types:
+        print(f"    要素タイプ:")
+        for etype, count in elem_types.items():
+            print(f"      {etype}: {count}")
+
+    elset_summary = props.get("mesh_elset_summary")
+    if isinstance(elset_summary, dict) and elset_summary:
+        print(f"    Elset:")
+        for eset, count in elset_summary.items():
+            print(f"      {eset}: {count}")
+
+    quality = props.get("mesh_quality")
+    if isinstance(quality, dict) and quality:
+        print(f"    品質統計:")
+        for metric, stats in quality.items():
+            if isinstance(stats, dict):
+                parts = ", ".join(f"{sk}: {sv:.4g}" if isinstance(sv, float) else f"{sk}: {sv}" for sk, sv in stats.items())
+                print(f"      {metric}: {parts}")
+            else:
+                print(f"      {metric}: {stats}")
+
+
 def _run_info(project_root: Path, args: argparse.Namespace) -> int:
     """infoサブコマンドを実行 - ファイルのproperty/relationを表示
 
@@ -711,18 +817,33 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
         matched_nodes = []
 
         # ファイル名で検索（部分一致）
+        # Windows環境でパス込み指定された場合、バックスラッシュをスラッシュに
+        # 正規化し、basename抽出もPureWindowsPathで対応する。
         for filename in filenames:
+            # パスの正規化: バックスラッシュ→スラッシュ
+            normalized = filename.replace("\\", "/")
+            # basename抽出（Windowsパスでもバックスラッシュ分割できるようPurePosixPathも利用）
+            from pathlib import PurePosixPath, PureWindowsPath
+            basename = PurePosixPath(normalized).name
+            # Windows形式のバックスラッシュ区切りもfallback
+            if basename == filename and "\\" in filename:
+                basename = PureWindowsPath(filename).name
+
             for node in graph.nodes:
                 if node in matched_nodes:
                     continue
-                node_path = node.properties.get("path", "")
-                node_file = Path(node_path).name if node_path else ""
+                node_path = node.properties.get("path", "").replace("\\", "/")
+                node_file = PurePosixPath(node_path).name if node_path else ""
                 if (
-                    node.name == filename
+                    node.name == basename
+                    or node_file == basename
+                    or node_path == normalized
+                    or basename in node.name
+                    or normalized in node_path
+                    # 元のファイル名指定でも検索
+                    or node.name == filename
                     or node_file == filename
-                    or node_path == filename
                     or filename in node.name
-                    or filename in node_path
                 ):
                     matched_nodes.append(node)
 
@@ -787,9 +908,19 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                 if isinstance(value, list) and len(value) > 5:
                     print(f"    {key}: [{len(value)} items]")
                 elif isinstance(value, dict):
-                    print(f"    {key}: {{{len(value)} keys}}")
+                    print(f"    {key}:")
+                    for dk, dv in value.items():
+                        if isinstance(dv, dict):
+                            # ネストされたdict（例: mesh_quality の各指標）
+                            parts = ", ".join(f"{sk}: {sv}" for sk, sv in dv.items())
+                            print(f"      {dk}: {{{parts}}}")
+                        else:
+                            print(f"      {dk}: {dv}")
                 else:
                     print(f"    {key}: {value}")
+
+            # メッシュ統計セクション
+            _print_mesh_stats_section(node)
 
             # リレーション表示（-propsでない場合のみ）
             if not props_only:
@@ -810,6 +941,101 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)
+        return 1
+
+
+def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
+    """credentialサブコマンドを実行 - 認証情報の暗号化保存・表示・削除"""
+    cred_cmd = getattr(args, "credential_command", None)
+
+    if cred_cmd is None:
+        print("使用方法: jj credential <set|show|delete>")
+        print("  set    : クレデンシャルを暗号化して保存")
+        print("  show   : 保存済みクレデンシャルを表示")
+        print("  delete : クレデンシャルを削除")
+        return 1
+
+    service = getattr(args, "service", "neo4j")
+
+    if cred_cmd == "set":
+        import getpass
+
+        uri = getattr(args, "uri", None)
+        user = getattr(args, "user", None)
+        password = getattr(args, "password", None)
+        database = getattr(args, "database", None)
+
+        # 未指定の場合はインタラクティブに入力
+        if uri is None:
+            uri = input(f"URI [bolt://localhost:7687]: ").strip()
+            if not uri:
+                uri = "bolt://localhost:7687"
+        if user is None:
+            user = input(f"ユーザー名 [neo4j]: ").strip()
+            if not user:
+                user = "neo4j"
+        if password is None:
+            password = getpass.getpass("パスワード: ")
+        if database is None:
+            database = input(f"データベース名 [neo4j]: ").strip()
+            if not database:
+                database = "neo4j"
+
+        creds = {
+            "uri": uri,
+            "user": user,
+            "password": password,
+            "database": database,
+        }
+        path = save_credentials(project_root, service, creds)
+        print(f"クレデンシャルを暗号化して保存しました: {path}")
+        print("※ .gitignoreに .jj/config/.credentials を追加することを推奨します")
+        return 0
+
+    elif cred_cmd == "show":
+        unmask = getattr(args, "unmask", False)
+        creds = load_credentials(project_root, service)
+
+        if creds is None:
+            print(f"サービス '{service}' のクレデンシャルが見つかりません。")
+            print(f"'jj credential set --service {service}' で設定してください。")
+            return 1
+
+        print(f"=== {service} クレデンシャル ===")
+        for key, value in creds.items():
+            if unmask:
+                print(f"  {key}: {value}")
+            else:
+                print(f"  {key}: {mask_value(value)}")
+        return 0
+
+    elif cred_cmd == "delete":
+        from services.credentials import _get_credentials_path
+        import json as json_mod
+
+        cred_path = _get_credentials_path(project_root)
+        if not cred_path.exists():
+            print(f"クレデンシャルファイルが見つかりません。")
+            return 1
+
+        try:
+            all_creds = json_mod.loads(cred_path.read_text(encoding="utf-8"))
+            if service in all_creds:
+                del all_creds[service]
+                cred_path.write_text(
+                    json_mod.dumps(all_creds, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                print(f"サービス '{service}' のクレデンシャルを削除しました。")
+            else:
+                print(f"サービス '{service}' のクレデンシャルが見つかりません。")
+        except Exception as e:
+            print(f"エラー: {e}", file=sys.stderr)
+            return 1
+        return 0
+
+    else:
+        print(f"不明なサブコマンド: {cred_cmd}")
         return 1
 
 
