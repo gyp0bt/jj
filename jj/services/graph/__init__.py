@@ -191,6 +191,48 @@ def parse_material_blocks(inp_path: Path) -> list[dict[str, Any]]:
     return materials
 
 
+def parse_dat_file(dat_path: Path) -> dict[str, Any]:
+    """Abaqus .dat ファイルから計算時間情報を抽出
+
+    Args:
+        dat_path: .datファイルのパス
+
+    Returns:
+        解析結果の辞書:
+        - cpu_time: CPU時間（秒）
+        - wallclock_time: ウォールクロック時間（秒）
+    """
+    result: dict[str, Any] = {}
+
+    try:
+        with dat_path.open("r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except (OSError, IOError):
+        return result
+
+    # TOTAL CPU TIME (SEC) = 123.45
+    cpu_match = re.search(
+        r"TOTAL\s+CPU\s+TIME\s*\(SEC\)\s*=\s*([\d.]+)", content, re.IGNORECASE
+    )
+    if cpu_match:
+        try:
+            result["cpu_time"] = float(cpu_match.group(1))
+        except ValueError:
+            pass
+
+    # TOTAL WALL CLOCK TIME (SEC) = 67.89
+    wall_match = re.search(
+        r"TOTAL\s+WALL\s+CLOCK\s+TIME\s*\(SEC\)\s*=\s*([\d.]+)", content, re.IGNORECASE
+    )
+    if wall_match:
+        try:
+            result["wallclock_time"] = float(wall_match.group(1))
+        except ValueError:
+            pass
+
+    return result
+
+
 def parse_msg_file(msg_path: Path) -> dict[str, Any]:
     """Abaqus .msg ファイルを解析してエラーと警告を抽出する
 
@@ -348,6 +390,8 @@ class GraphService:
         # token-key-mapの適用: 生トークンに対してマッチングし、
         # マッチしたトークンは指定キーのプロパティに変換。
         # 通常のprop解析で分割された結果は上書きする。
+        # token_key_map適用トークンを記録（verbose_name生成で使用）
+        token_key_mapped_keys: set[str] = set()
         raw_tokens = parser.get_tokens()
         for token in raw_tokens:
             mapped_key = self.config.token_key_map.get_key(token)
@@ -361,6 +405,7 @@ class GraphService:
                     tags.remove(token)
                 # token-key-mapのキーで全トークンを値として設定
                 props[mapped_key] = token
+                token_key_mapped_keys.add(mapped_key)
 
         # vocabを使ってpropsのキーと値を変換
         translated_props: dict[str, Any] = {}
@@ -386,6 +431,19 @@ class GraphService:
             **config_props,  # 設定からのプロパティが優先
         }
 
+        # vocabでidx/vのマッピングが定義されている場合、
+        # 英語キー(index/version)を変換後のキーに統一
+        idx_translated = self.config.vocab.get("idx")
+        if idx_translated:
+            index_val = properties.pop("index", "")
+            if index_val and idx_translated not in properties:
+                properties[idx_translated] = index_val
+        v_translated = self.config.vocab.get("v")
+        if v_translated:
+            version_val = properties.pop("version", "")
+            if version_val and v_translated not in properties:
+                properties[v_translated] = version_val
+
         # 日付がある場合のみ追加
         if date_formatted:
             properties["date"] = date_formatted
@@ -396,12 +454,23 @@ class GraphService:
             properties.update(inp_param_props)
 
         # verbose_name: config vocabで変換した後の表示名を生成
+        # token_key_map適用キーはverbose_nameで値のみ採用（キー名を含めない）
         raw_name = parser.get_basename()
         verbose_name = self._build_verbose_name(
-            raw_name, resolved_type, translated_props, tags + config_tags
+            raw_name, resolved_type, translated_props, tags + config_tags,
+            token_key_mapped_keys=token_key_mapped_keys,
         )
         if verbose_name and verbose_name != raw_name:
             properties["verbose_name"] = verbose_name
+
+        # verbose_nameを"_"でsplitしてタグに追加
+        if verbose_name:
+            verbose_tags = [t for t in verbose_name.split("_") if t]
+            existing_tags = properties.get("tags", [])
+            for vt in verbose_tags:
+                if vt not in existing_tags:
+                    existing_tags.append(vt)
+            properties["tags"] = existing_tags
 
         return Node(
             id=self._next_node_id(),
@@ -417,22 +486,33 @@ class GraphService:
         resolved_type: str,
         translated_props: dict[str, Any],
         tags: list[str],
+        token_key_mapped_keys: set[str] | None = None,
     ) -> str:
         """config vocabで変換した後の表示名を生成
 
         ファイル名を構成要素に分解し、vocabで変換された値を用いて再構成する。
         例: go_idx1_w5_t20 → {type翻訳}_{index翻訳}1_{w翻訳}5_{t翻訳}20
 
+        token_key_mapで割り当てたキーは、verbose_nameに値のみ含める。
+        例: 形状: ほげほげ24 → "ほげほげ24"（"形状ほげほげ24"ではなく）
+
         Args:
             raw_name: 生のbasename
             resolved_type: 解決済みタイプ
             translated_props: vocab変換済みプロパティ
             tags: タグリスト
+            token_key_mapped_keys: token-key-mapで設定されたキーのセット
 
         Returns:
             変換後の表示名
         """
         vocab = self.config.vocab
+        mapped_keys = token_key_mapped_keys or set()
+        # token_key_mapped_keysはvocab変換前のキー名。変換後のキー名も収集
+        translated_mapped_keys: set[str] = set()
+        for mk in mapped_keys:
+            translated_mapped_keys.add(vocab.get(mk, mk))
+
         # タイプ名の変換
         type_name = vocab.get(resolved_type, resolved_type)
 
@@ -444,7 +524,11 @@ class GraphService:
                 continue
             if isinstance(value, (list, dict)):
                 continue
-            parts.append(f"{key}{value}")
+            # token_key_mapで設定されたキーは値のみ（キー名を含めない）
+            if key in translated_mapped_keys or key in mapped_keys:
+                parts.append(str(value))
+            else:
+                parts.append(f"{key}{value}")
 
         # タグを追加
         for tag in tags:
@@ -512,6 +596,24 @@ class GraphService:
             pass
         return props
 
+    def _get_node_index(self, node: Node) -> str:
+        """ノードからindex値を取得（vocab変換後のキーにも対応）"""
+        idx = node.properties.get("index", "")
+        if not idx:
+            translated_key = self.config.vocab.get("idx")
+            if translated_key:
+                idx = str(node.properties.get(translated_key, ""))
+        return idx
+
+    def _get_node_version(self, node: Node) -> str:
+        """ノードからversion値を取得（vocab変換後のキーにも対応）"""
+        ver = node.properties.get("version", "")
+        if not ver:
+            translated_key = self.config.vocab.get("v")
+            if translated_key:
+                ver = str(node.properties.get(translated_key, ""))
+        return ver
+
     def _safe_relative_path(self, file_path: Path) -> str:
         """Windowsでも安全に相対パスを生成
 
@@ -554,6 +656,9 @@ class GraphService:
         ext_set.update(self.config.file_relations.result_extensions)
         ext_set.update(self.config.file_relations.asset_extensions)
         return ext_set
+
+    # .sta, .msg, .dat はNode化せず情報のみgo_*.inpに割り当てる対象拡張子
+    _ENRICHMENT_ONLY_EXTENSIONS: frozenset[str] = frozenset({".sta", ".msg", ".dat"})
 
     def parse_project(
         self,
@@ -617,6 +722,9 @@ class GraphService:
         nodes.extend(mat_nodes)
         relations.extend(mat_relations)
 
+        # material.inpのverbose_nameと材料タグを更新
+        self._enrich_material_verbose_name(nodes, mat_nodes, mat_relations)
+
         # pymeshによるメッシュ統計エンリッチメント
         self._enrich_mesh_stats(nodes)
 
@@ -632,11 +740,19 @@ class GraphService:
         # .msgファイルの解析（errors/warnings抽出）
         self._enrich_msg_status(nodes)
 
+        # .datファイルの解析（計算時間抽出）
+        self._enrich_dat_status(nodes)
+
         # includeファイルのpropertyをgo_*.inpに伝搬
         self._enrich_include_properties(nodes, relations)
 
         # elsetと材料名をgo_*.inpのプロパティに追加
         self._enrich_material_assignment_props(nodes, mat_nodes, mat_assign_relations)
+
+        # go_*.inpのelset名をNode化
+        elset_nodes, elset_relations = self._build_elset_nodes(nodes, relations)
+        nodes.extend(elset_nodes)
+        relations.extend(elset_relations)
 
         # 前バージョンとのキーワードブロック差分をpropertyに追加
         self._enrich_version_diff(nodes)
@@ -647,6 +763,15 @@ class GraphService:
         )
         nodes.extend(daily_nodes)
         relations.extend(daily_relations)
+
+        # root directoryをNode化
+        root_node, root_relations = self._build_root_directory_node(nodes)
+        if root_node:
+            nodes.append(root_node)
+            relations.extend(root_relations)
+
+        # .sta, .msg, .datノードを除外（情報はgo_*.inpに集約済み）
+        nodes, relations = self._filter_enrichment_only_nodes(nodes, relations)
 
         return GraphModel(nodes=nodes, relations=relations)
 
@@ -670,7 +795,7 @@ class GraphService:
         groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
         for node in nodes:
             node_type = node.type
-            index = node.properties.get("index", "")
+            index = self._get_node_index(node)
             if index:  # indexがあるノードのみグループ化
                 groups[(node_type, index)].append(node)
 
@@ -680,7 +805,7 @@ class GraphService:
 
             # version順にソート（versionが空の場合は"1"として扱う）
             def get_version_key(n: Node) -> tuple[int, str]:
-                ver = n.properties.get("version", "")
+                ver = self._get_node_version(n)
                 # versionが空の場合はデフォルトで"1"として扱う
                 if not ver:
                     ver = "1"
@@ -887,7 +1012,7 @@ class GraphService:
 
         for inp_node in input_nodes:
             inp_basename = inp_node.name
-            inp_index = inp_node.properties.get("index", "")
+            inp_index = self._get_node_index(inp_node)
 
             for out_node in output_candidates:
                 # 完全一致はresult_ofで処理済み
@@ -899,7 +1024,7 @@ class GraphService:
                     continue
 
                 # 同じindexか確認
-                out_index = out_node.properties.get("index", "")
+                out_index = self._get_node_index(out_node)
                 if inp_index and out_index and inp_index != out_index:
                     continue
 
@@ -948,18 +1073,31 @@ class GraphService:
             dir_tags = parser.get_tags()
             if "root.directory" not in dir_tags:
                 dir_tags.append("root.directory")
+            # ディレクトリノードのプロパティ構築（vocab変換対応）
+            dir_props: dict[str, Any] = {
+                "path": rel_path,
+                "tags": dir_tags,
+            }
+            idx_val = parser.get_index()
+            ver_val = parser.get_version()
+            idx_key = self.config.vocab.get("idx", "index")
+            ver_key = self.config.vocab.get("v", "version")
+            if idx_val:
+                dir_props[idx_key] = idx_val
+            if ver_val:
+                dir_props[ver_key] = ver_val
+            # parser.get_props()もvocab変換
+            for pk, pv in parser.get_props().items():
+                tk = self.config.vocab.get(pk, pk)
+                tv = self.config.vocab.get(str(pv), str(pv))
+                dir_props[tk] = tv
+
             dir_node = Node(
                 id=self._next_node_id(),
                 type=parser.get_file_type().value + "_directory",
                 name=dirname,
                 format="directory",
-                properties={
-                    "path": rel_path,
-                    "index": parser.get_index(),
-                    "version": parser.get_version(),
-                    "tags": dir_tags,
-                    **parser.get_props(),
-                },
+                properties=dir_props,
             )
             dir_nodes.append(dir_node)
             handled_dir_paths.add(rel_path.replace("\\", "/").rstrip("/"))
@@ -1283,6 +1421,43 @@ class GraphService:
                 if msg_info["warnings"]:
                     inp_node.properties["msg_warnings"] = msg_info["warnings"]
 
+    def _enrich_dat_status(self, nodes: list[Node]) -> None:
+        """データファイル（.dat）の計算時間情報をノードのプロパティに付与
+
+        .datファイルからCPU時間やウォールクロック時間を抽出し、
+        同名の入力ファイル(.inp)ノードのpropertiesに追加する。
+        """
+        # 入力ファイルノードのインデックスを構築
+        input_extensions = self.config.file_relations.input_extensions
+        input_by_name: dict[str, Node] = {}
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() in input_extensions:
+                input_by_name[node.name] = node
+
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".dat":
+                continue
+
+            file_path = self.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            dat_info = parse_dat_file(file_path)
+            if dat_info.get("cpu_time") is not None:
+                node.properties["cpu_time"] = dat_info["cpu_time"]
+            if dat_info.get("wallclock_time") is not None:
+                node.properties["wallclock_time"] = dat_info["wallclock_time"]
+
+            # 同名の入力ファイルにも集約
+            inp_node = input_by_name.get(node.name)
+            if inp_node:
+                if dat_info.get("cpu_time") is not None:
+                    inp_node.properties["cpu_time"] = dat_info["cpu_time"]
+                if dat_info.get("wallclock_time") is not None:
+                    inp_node.properties["wallclock_time"] = dat_info["wallclock_time"]
+
     def _enrich_version_diff(self, nodes: list[Node]) -> None:
         """前バージョンとのキーワードブロック差分をpropertyに追加
 
@@ -1306,7 +1481,7 @@ class GraphService:
             # .inpファイルのみ対象
             if ext.lower() != ".inp":
                 continue
-            index = node.properties.get("index", "")
+            index = self._get_node_index(node)
             if index:
                 groups[(node.type, index)].append(node)
 
@@ -1316,7 +1491,7 @@ class GraphService:
 
             # version順にソート
             def get_ver_key(n: Node) -> tuple[int, str]:
-                ver = n.properties.get("version", "")
+                ver = self._get_node_version(n)
                 if not ver:
                     ver = "1"
                 try:
@@ -1570,6 +1745,234 @@ class GraphService:
                 continue
             node.properties["materials"] = sorted(mat_elset_map.keys())
             node.properties["material_elsets"] = dict(mat_elset_map)
+
+    def _enrich_material_verbose_name(
+        self,
+        all_nodes: list[Node],
+        mat_nodes: list[Node],
+        mat_relations: list[Relation],
+    ) -> None:
+        """material.inpのverbose_nameに含まれる材料名を設定しタグ化
+
+        material系.inpノードに対して、そこから抽出された材料名を
+        verbose_nameに追加し、"_"でsplitしてタグにも追加する。
+        """
+        # defined_in関係: mat_node → source_file_node
+        source_materials: dict[int, list[str]] = defaultdict(list)
+        for rel in mat_relations:
+            if rel.label == "defined_in":
+                mat_node_id = rel.node1_id
+                source_node_id = rel.node2_id
+                for mn in mat_nodes:
+                    if mn.id == mat_node_id:
+                        source_materials[source_node_id].append(mn.name)
+                        break
+
+        for node in all_nodes:
+            if node.id not in source_materials:
+                continue
+            # material系ノードのみ
+            name_lower = node.name.lower()
+            if not (name_lower.startswith("material_") or name_lower == "material"):
+                continue
+
+            mat_names = sorted(source_materials[node.id])
+            vocab = self.config.vocab
+            type_name = vocab.get("material", "material")
+
+            # verbose_name: タイプ名_材料名1_材料名2...
+            vn_parts = [type_name] + mat_names
+            verbose_name = "_".join(vn_parts)
+            node.properties["verbose_name"] = verbose_name
+
+            # verbose_nameを"_"でsplitしてタグに追加
+            tags = node.properties.get("tags", [])
+            for part in vn_parts:
+                if part and part not in tags:
+                    tags.append(part)
+            node.properties["tags"] = tags
+
+    def _build_elset_nodes(
+        self,
+        all_nodes: list[Node],
+        all_relations: list[Relation],
+    ) -> tuple[list[Node], list[Relation]]:
+        """go_*.inpのelset名をNode化し、verbose_nameとタグを割り当て
+
+        go_*.inpファイル（include先含む）で定義されているelset名を
+        Node(type="abaqus_elset")として生成し、
+        go_*.inpとの間にhas_elset関係を作成する。
+
+        Returns:
+            (elsetノードのリスト, リレーションのリスト)
+        """
+        elset_nodes: list[Node] = []
+        elset_relations: list[Relation] = []
+
+        # includes関係を収集: parent_id → [child_ids]
+        includes_map: dict[int, list[int]] = defaultdict(list)
+        for rel in all_relations:
+            if rel.label == "includes":
+                includes_map[rel.node1_id].append(rel.node2_id)
+
+        node_by_id: dict[int, Node] = {n.id: n for n in all_nodes}
+
+        for node in all_nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".inp":
+                continue
+            name_lower = node.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+
+            # このgo_*.inpとinclude先からelset名を収集
+            elset_names: set[str] = set()
+
+            # pymeshの elset_summary があればそこから
+            elset_summary = node.properties.get("mesh_elset_summary", {})
+            if isinstance(elset_summary, dict):
+                elset_names.update(elset_summary.keys())
+
+            # include先のelset情報も収集
+            for child_id in includes_map.get(node.id, []):
+                child = node_by_id.get(child_id)
+                if child is None:
+                    continue
+                child_elsets = child.properties.get("mesh_elset_summary", {})
+                if isinstance(child_elsets, dict):
+                    elset_names.update(child_elsets.keys())
+
+            # material_elsetsからも収集
+            mat_elsets = node.properties.get("material_elsets", {})
+            if isinstance(mat_elsets, dict):
+                for elset_list in mat_elsets.values():
+                    if isinstance(elset_list, list):
+                        elset_names.update(elset_list)
+
+            if not elset_names:
+                continue
+
+            # elset名をノードとしてgo_*.inpにリンク
+            go_elset_names: list[str] = []
+            for elset_name in sorted(elset_names):
+                # verbose_name: elset名をそのまま使用
+                verbose_name = elset_name
+                # タグ: "_"でsplitして生成
+                elset_tags = [t for t in elset_name.split("_") if t]
+
+                elset_node = Node(
+                    id=self._next_node_id(),
+                    type="abaqus_elset",
+                    name=elset_name,
+                    format="elset",
+                    properties={
+                        "verbose_name": verbose_name,
+                        "tags": elset_tags,
+                        "source_file": node.properties.get("path", ""),
+                    },
+                )
+                elset_nodes.append(elset_node)
+                go_elset_names.append(elset_name)
+
+                elset_relations.append(
+                    Relation(
+                        id=self._next_relation_id(),
+                        label="has_elset",
+                        node1_id=node.id,
+                        node2_id=elset_node.id,
+                    )
+                )
+
+            # go_*.inpのプロパティにelset名リストを追加
+            if go_elset_names:
+                node.properties["elsets"] = go_elset_names
+
+        return elset_nodes, elset_relations
+
+    def _build_root_directory_node(
+        self,
+        nodes: list[Node],
+    ) -> tuple[Optional[Node], list[Relation]]:
+        """root directoryをNode化
+
+        プロジェクトルート直下のファイルに対して、
+        root directoryノードを作成しcontains関係を構築する。
+
+        Returns:
+            (rootノード, リレーションのリスト)。rootにファイルがなければ(None, [])
+        """
+        relations: list[Relation] = []
+
+        # ルート直下のファイルノードを収集（pathに "/" が含まれないノード）
+        root_children: list[Node] = []
+        for node in nodes:
+            path = node.properties.get("path", "")
+            if not path:
+                continue
+            # directoryノードは除外
+            if node.format == "directory":
+                continue
+            # pathに "/" が含まれない = ルート直下
+            if "/" not in path:
+                root_children.append(node)
+
+        if not root_children:
+            return None, []
+
+        root_node = Node(
+            id=self._next_node_id(),
+            type="directory",
+            name="root",
+            format="directory",
+            properties={
+                "path": ".",
+                "tags": ["root", "directory"],
+                "verbose_name": "root",
+            },
+        )
+
+        for child in root_children:
+            relations.append(
+                Relation(
+                    id=self._next_relation_id(),
+                    label="contains",
+                    node1_id=root_node.id,
+                    node2_id=child.id,
+                )
+            )
+
+        return root_node, relations
+
+    def _filter_enrichment_only_nodes(
+        self,
+        nodes: list[Node],
+        relations: list[Relation],
+    ) -> tuple[list[Node], list[Relation]]:
+        """enrichment-onlyノード（.sta, .msg, .dat）をグラフから除外
+
+        これらのファイルの情報はgo_*.inpのプロパティに集約済みのため、
+        ノード自体はグラフから除外する。.odbは残す。
+
+        Returns:
+            (フィルタ後のノード, フィルタ後のリレーション)
+        """
+        excluded_ids: set[int] = set()
+        filtered_nodes: list[Node] = []
+
+        for node in nodes:
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() in self._ENRICHMENT_ONLY_EXTENSIONS:
+                excluded_ids.add(node.id)
+            else:
+                filtered_nodes.append(node)
+
+        # 除外ノードに関わるリレーションも除去
+        filtered_relations = [
+            r for r in relations
+            if r.node1_id not in excluded_ids and r.node2_id not in excluded_ids
+        ]
+
+        return filtered_nodes, filtered_relations
 
     def _nodes_have_same_props(self, node1: Node, node2: Node) -> bool:
         """2つのノードが同じ主要プロパティを持つかチェック"""
