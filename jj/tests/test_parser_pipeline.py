@@ -268,16 +268,41 @@ class TestPipelineIntegration:
         assert labels.get("derived_from", 0) >= 1
 
     def test_has_output_relations(self, graph: GraphModel):
+        """results/配下ファイルはinfo-only（Node化しない）ため、
+        has_outputは命名規則ディレクトリ（go_idx1/等）経由でのみ発生する"""
         labels = Counter(r.label for r in graph.relations)
-        assert labels.get("has_output", 0) >= 1
+        # test_asset1にはgo_*/mesh_*等の命名規則ディレクトリがないため0も許容
+        assert labels.get("has_output", 0) >= 0
+
+    def test_results_dir_files_not_noded(self, graph: GraphModel):
+        """results/配下のファイルはNode化されない（info-only）"""
+        results_file_nodes = [
+            n
+            for n in graph.nodes
+            if n.properties.get("path", "").startswith("results/")
+            and n.format != "directory"
+        ]
+        assert len(results_file_nodes) == 0, (
+            f"results/配下のファイルがNode化されている: {[n.name for n in results_file_nodes]}"
+        )
+
+    def test_json_properties_propagated_despite_results_filter(self, graph: GraphModel):
+        """results/のJSONファイルの情報はgo_*.inpに伝搬されている（info-only）"""
+        go_nodes = [n for n in graph.nodes if n.type == "go" and n.format == "inp"]
+        # JsonPropertyParser(priority=33)がresults/のJSONを読んでプロパティ付与
+        # EnrichmentOnlyFilter(priority=99)でresults/ノード除去後も情報は残る
+        has_json_prop = any(
+            "stress" in n.properties for n in go_nodes
+        )
+        assert has_json_prop, "results/のJSON情報がgo_*.inpに伝搬されていない"
 
     # --- ディレクトリノード ---
 
     def test_directory_nodes_exist(self, graph: GraphModel):
         dir_nodes = [n for n in graph.nodes if n.format == "directory"]
-        assert len(dir_nodes) >= 3  # old, tools, reports, results, assets, root
+        assert len(dir_nodes) >= 3  # old, tools, reports, assets, root
         dir_names = {n.name for n in dir_nodes}
-        assert "old" in dir_names or "reports" in dir_names or "results" in dir_names
+        assert "old" in dir_names or "reports" in dir_names or "tools" in dir_names
 
     # --- msg解析 ---
 

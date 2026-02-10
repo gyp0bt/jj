@@ -445,8 +445,6 @@ class ObsidianConnector:
         yaml_str = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
 
         real_path = node.properties.get("path", "")
-        # 実ファイルへのリンク記法: [[path|name]]
-        file_link = to_obsidian_file_link(real_path, node.name)
 
         content = f"""---
 {yaml_str.strip()}
@@ -454,10 +452,14 @@ class ObsidianConnector:
 
 ## ファイル情報
 
-- 実ファイル: {file_link}
-- タイプ: {node.type}
-- フォーマット: {node.format}
 """
+        # directoryノードでは実ファイルリンクを出力しない
+        if node.format != "directory" and real_path:
+            file_link = to_obsidian_file_link(real_path, node.name)
+            content += f"- 実ファイル: {file_link}\n"
+
+        content += f"- タイプ: {node.type}\n"
+        content += f"- フォーマット: {node.format}\n"
 
         # タグ情報を#tagname形式で出力
         tags = node.properties.get("tags", [])

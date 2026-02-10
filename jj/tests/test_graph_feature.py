@@ -771,43 +771,20 @@ class TestOutputRelations:
             "go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv の has_output 関係がない"
         )
 
-    def test_has_output_stress_csv_in_results_dir(self, graph_service):
-        """results/go_idx1_w5_t20_stress.csv にもhas_output関係がある"""
+    def test_results_dir_files_not_noded(self, graph_service):
+        """results/ディレクトリのファイルはNode化されない（info-only）"""
         extensions = [".inp", ".csv"]
         graph = graph_service.parse_project(extensions=extensions)
 
-        has_output_relations = [r for r in graph.relations if r.label == "has_output"]
-
-        inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
-            None,
-        )
-        stress_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20_stress" and n.format == "csv"
-            ),
-            None,
-        )
-
-        assert inp_node is not None
-        assert stress_node is not None
-
-        relation = next(
-            (
-                r
-                for r in has_output_relations
-                if r.node1_id == inp_node.id and r.node2_id == stress_node.id
-            ),
-            None,
-        )
-        assert relation is not None, (
-            "go_idx1_w5_t20.inp → results/go_idx1_w5_t20_stress.csv の has_output 関係がない"
+        # results/配下のファイルはNode化されないことを確認
+        results_nodes = [
+            n
+            for n in graph.nodes
+            if n.properties.get("path", "").startswith("results/")
+            and n.format != "directory"
+        ]
+        assert len(results_nodes) == 0, (
+            f"results/配下のファイルがNode化されている: {[n.name for n in results_nodes]}"
         )
 
 

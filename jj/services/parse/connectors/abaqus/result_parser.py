@@ -31,6 +31,35 @@ _STA_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
 _MSG_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
 _MSG_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
 
+# 数値正規化用パターン（重複排除で使用）
+_NUMBER_PATTERN = re.compile(r"\b\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?\b")
+
+
+def _normalize_numbers(text: str) -> str:
+    """メッセージ中の数値をプレースホルダに置換して正規化する
+
+    例: "THE SYSTEM MATRIX HAS 289 NEGATIVE EIGENVALUES."
+      → "THE SYSTEM MATRIX HAS {N} NEGATIVE EIGENVALUES."
+    """
+    return _NUMBER_PATTERN.sub("{N}", text)
+
+
+def _deduplicate_messages(messages: list[str]) -> list[str]:
+    """メッセージリストから重複を排除する
+
+    数値のみが異なるメッセージは同一とみなす。
+    例: "THE SYSTEM MATRIX HAS 289 NEGATIVE EIGENVALUES." と
+        "THE SYSTEM MATRIX HAS 6 NEGATIVE EIGENVALUES." は重複。
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for msg in messages:
+        normalized = _normalize_numbers(msg)
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append(msg)
+    return result
+
 
 def parse_sta_file(sta_path: Path) -> dict[str, Any]:
     """Abaqus .sta ファイルを解析"""
@@ -55,6 +84,9 @@ def parse_sta_file(sta_path: Path) -> dict[str, Any]:
     for match in _STA_WARNING_PATTERN.finditer(content):
         result["warnings"].append(match.group(1).strip())
 
+    result["errors"] = _deduplicate_messages(result["errors"])
+    result["warnings"] = _deduplicate_messages(result["warnings"])
+
     return result
 
 
@@ -72,6 +104,9 @@ def parse_msg_file(msg_path: Path) -> dict[str, Any]:
     for match in _MSG_WARNING_PATTERN.finditer(content):
         result["warnings"].append(match.group(1).strip())
 
+    result["errors"] = _deduplicate_messages(result["errors"])
+    result["warnings"] = _deduplicate_messages(result["warnings"])
+
     return result
 
 
@@ -86,17 +121,28 @@ def parse_dat_file(dat_path: Path) -> dict[str, Any]:
 
     num = r"([+-]?\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?)"
 
-    cpu_match = re.search(
+    # findallで全マッチを取得し、最後の値（最終サマリー）を採用
+    cpu_matches = re.findall(
         rf"TOTAL\s+CPU\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE
     )
-    if cpu_match:
-        result["cpu_time"] = float(cpu_match.group(1))
+    if cpu_matches:
+        result["cpu_time"] = float(cpu_matches[-1])
 
-    wall_match = re.search(
+    wall_matches = re.findall(
         rf"WALL\s*CLOCK\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE
     )
-    if wall_match:
-        result["wallclock_time"] = float(wall_match.group(1))
+    if wall_matches:
+        result["wallclock_time"] = float(wall_matches[-1])
+
+    # .datファイルからもwarning/errorを抽出
+    for match in _MSG_ERROR_PATTERN.finditer(content):
+        result.setdefault("errors", []).append(match.group(1).strip())
+    for match in _MSG_WARNING_PATTERN.finditer(content):
+        result.setdefault("warnings", []).append(match.group(1).strip())
+    if "errors" in result:
+        result["errors"] = _deduplicate_messages(result["errors"])
+    if "warnings" in result:
+        result["warnings"] = _deduplicate_messages(result["warnings"])
 
     return result
 
@@ -199,6 +245,10 @@ class AbaqusResultParser(AbstractFileParser):
                 node.properties["cpu_time"] = dat_info["cpu_time"]
             if dat_info.get("wallclock_time") is not None:
                 node.properties["wallclock_time"] = dat_info["wallclock_time"]
+            if dat_info.get("errors"):
+                node.properties["dat_errors"] = dat_info["errors"]
+            if dat_info.get("warnings"):
+                node.properties["dat_warnings"] = dat_info["warnings"]
 
             inp_node = input_by_name.get(node.name)
             if inp_node:
@@ -206,6 +256,10 @@ class AbaqusResultParser(AbstractFileParser):
                     inp_node.properties["cpu_time"] = dat_info["cpu_time"]
                 if dat_info.get("wallclock_time") is not None:
                     inp_node.properties["wallclock_time"] = dat_info["wallclock_time"]
+                if dat_info.get("errors"):
+                    inp_node.properties["dat_errors"] = dat_info["errors"]
+                if dat_info.get("warnings"):
+                    inp_node.properties["dat_warnings"] = dat_info["warnings"]
 
 
 class AbaqusIncludePropertyParser(AbstractFileParser):
