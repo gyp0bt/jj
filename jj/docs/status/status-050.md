@@ -68,3 +68,6 @@ CSVカラム指定・単位マッピングへのglobパターン対応。
 
 - [ ] 実プロジェクトでのJSONキー衝突の確認（複数JSONファイルが同一キーを持つ場合の上書き動作）
 - [ ] `--columns` CLI引数のglobパターンドキュメント追記（ヘルプメッセージ等）
+- [ ] **mesh_quality未付加の原因調査・修正**: mesh_*.inpでmesh_qualityが付加されるものとされないものがある。includeエラーではなく法則性不明。メッシュ数が少ないものが読まれている傾向がある可能性。AbaqusMeshParser周辺を調査しfix。
+- [ ] **MeshInheritParser改修: include先プロパティの直下追加**: 現在go_*.inpがincludeしているmesh/material等のファイルからpropertyを読んでinclude_propertiesに一部だけ入れている。これをgo_が持っていないキー全てをinclude_propertiesではなく直下に追加するように変更。テスト要件として「meshをincludeしているgo_*.inpにmesh_qualityを含む属性が付加されること」を追加。
+- [ ] **elset-material mappingの調査**: elsetとmaterial定義のmappingを取ったと報告を受けているが、graphには出ておらずコードのどこで実装されているか不明。調査して、存在して問題なければ報告、問題があればfixして報告。
