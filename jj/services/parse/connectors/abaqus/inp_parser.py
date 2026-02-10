@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from jj_types import Node, Relation
-from services.parse.base import AbstractFileParser
+from services.parse.base import AbstractFileParser, _parse_prop_token
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -128,9 +128,15 @@ class AbaqusInpParser(AbstractFileParser):
         return False
 
     def _build_material_nodes(self, graph: ProjectGraph) -> None:
-        """material.inpの高度な解析 - Node(abaqus_material)を生成"""
+        """material.inpの高度な解析 - Node(abaqus_material)を生成
+
+        materialは.inpから切り出された定義であり、実ファイルが存在しない。
+        vocab/token-key-mapを適用して、材料名のプロパティ変換・verbose_name生成を行う。
+        """
         mat_nodes: list[Node] = []
         mat_relations: list[Relation] = []
+        vocab = graph.config.vocab
+        token_key_map = graph.config.token_key_map
 
         for node in list(graph.nodes):
             if not self._is_material_source_node(node):
@@ -146,10 +152,68 @@ class AbaqusInpParser(AbstractFileParser):
                 if not mat["name"]:
                     continue
 
+                mat_name = mat["name"]
+
+                # 材料名をトークン分割し、token-key-mapとvocabを適用
+                raw_tokens = [t for t in mat_name.split("_") if t]
+                mat_props: dict[str, str] = {}
+                mat_tags: list[str] = []
+                token_key_mapped_keys: set[str] = set()
+
+                for token in raw_tokens:
+                    mapped_key = token_key_map.get_key(token)
+                    if mapped_key:
+                        # token-key-map指定トークンは通常分割を上書き
+                        parsed = _parse_prop_token(token)
+                        if parsed:
+                            mat_props.pop(parsed[0], None)
+                        if token in mat_tags:
+                            mat_tags.remove(token)
+                        mat_props[mapped_key] = token
+                        token_key_mapped_keys.add(mapped_key)
+                    else:
+                        parsed = _parse_prop_token(token)
+                        if parsed:
+                            mat_props[parsed[0]] = parsed[1]
+                        else:
+                            mat_tags.append(token)
+
+                # vocabでpropsのキーと値を変換
+                translated_props: dict[str, Any] = {}
+                for key, value in mat_props.items():
+                    tk = vocab.get(key, key)
+                    tv = vocab.get(str(value), str(value))
+                    translated_props[tk] = tv
+
+                # verbose_name構築
+                translated_mapped_keys: set[str] = set()
+                for mk in token_key_mapped_keys:
+                    translated_mapped_keys.add(vocab.get(mk, mk))
+
+                verbose_parts: list[str] = []
+                for key, value in translated_props.items():
+                    if key in translated_mapped_keys or key in token_key_mapped_keys:
+                        verbose_parts.append(str(value))
+                    else:
+                        verbose_parts.append(f"{key}{value}")
+                for tag in mat_tags:
+                    verbose_parts.append(vocab.get(tag, tag))
+
+                verbose_name = "_".join(verbose_parts) if verbose_parts else mat_name
+
                 properties: dict[str, Any] = {
                     "source_file": node.properties.get("path", ""),
                     "keywords": mat["keywords"],
+                    "tags": list(mat_tags),
+                    **translated_props,
                 }
+
+                if verbose_name and verbose_name != mat_name:
+                    properties["verbose_name"] = verbose_name
+                    # verbose_nameの各部分をタグに追加
+                    for vt in verbose_name.split("_"):
+                        if vt and vt not in properties["tags"]:
+                            properties["tags"].append(vt)
 
                 for keyword, data in mat["properties"].items():
                     properties[keyword] = data
@@ -157,7 +221,7 @@ class AbaqusInpParser(AbstractFileParser):
                 mat_node = Node(
                     id=graph.next_node_id(),
                     type="abaqus_material",
-                    name=mat["name"],
+                    name=mat_name,
                     format="material",
                     properties=properties,
                 )

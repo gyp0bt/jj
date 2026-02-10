@@ -56,6 +56,12 @@ DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".gif",
 )
 
+# スキャンするがNodeの実体を作らない拡張子
+NO_NODE_EXTENSIONS: tuple[str, ...] = (
+    ".odb.json",
+    ".odb",
+)
+
 FILE_TYPE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("go_", "go"),
     ("mesh_", "mesh"),
