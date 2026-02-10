@@ -156,26 +156,33 @@ def _compute_quality_stats(mesh, get_element_quality) -> Optional[dict[str, Any]
 
     try:
         coord_array = mesh.get_element_node_coord_array()
-    except Exception:
+    except Exception as e:
+        logger.debug(f"get_element_node_coord_array failed: {e}")
         return None
 
     if coord_array is None or len(coord_array) == 0:
+        logger.debug("coord_array is None or empty, skipping quality computation")
         return None
+
+    logger.debug(
+        f"coord_array shape: {coord_array.shape if hasattr(coord_array, 'shape') else len(coord_array)}"
+    )
 
     quality_result: dict[str, Any] = {}
     modes = ["volume", "detJ", "aspect", "skewness"]
 
     try:
         quality = get_element_quality(coord_array, mode=modes)
-    except Exception:
+    except Exception as e:
         # 全モードでの計算が失敗した場合、個別に試す
+        logger.debug(f"Batch quality computation failed: {e}, trying individual modes")
         quality = {}
         for mode in modes:
             try:
                 q = get_element_quality(coord_array, mode=[mode])
                 quality.update(q)
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.debug(f"Quality mode '{mode}' failed: {e2}")
 
     metric_name_map = {
         "volume": "volume",
@@ -200,10 +207,77 @@ def _compute_quality_stats(mesh, get_element_quality) -> Optional[dict[str, Any]
     return quality_result if quality_result else None
 
 
+def _parse_parameters(inp_path: Path) -> dict[str, str]:
+    """*PARAMETERブロックからパラメータ名→値のマッピングを抽出
+
+    Abaqusの*PARAMETERブロック内の代入文を解析する。
+    文字列値（"..."で囲まれた値）はクォートを除去して返す。
+
+    Args:
+        inp_path: .inpファイルのパス
+
+    Returns:
+        {パラメータ名: 値} のマッピング
+    """
+    params: dict[str, str] = {}
+    if not inp_path.exists():
+        return params
+
+    in_parameter_block = False
+    try:
+        with inp_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("**"):
+                    continue
+
+                norm = line.lower().replace(" ", "")
+                if norm.startswith("*parameter"):
+                    in_parameter_block = True
+                    continue
+
+                if line.startswith("*") and in_parameter_block:
+                    in_parameter_block = False
+
+                if in_parameter_block and "=" in line:
+                    # 数式を含む場合は最初の=のみ分割
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip()
+                    # 文字列値のクォート除去
+                    if value.startswith('"') and value.endswith('"'):
+                        value = value[1:-1]
+                    elif value.startswith("'") and value.endswith("'"):
+                        value = value[1:-1]
+                    if key:
+                        params[key] = value
+    except (OSError, IOError):
+        pass
+
+    return params
+
+
+def _resolve_parameter_ref(value: str, params: dict[str, str]) -> str:
+    """<param_name>形式のパラメータ参照を解決する
+
+    Args:
+        value: 解決対象の値（例: "<material>"）
+        params: パラメータマッピング
+
+    Returns:
+        解決後の値。参照でない場合はそのまま返す。
+    """
+    if value.startswith("<") and value.endswith(">"):
+        param_name = value[1:-1]
+        return params.get(param_name, value)
+    return value
+
+
 def extract_material_elset_mapping(inp_path: Path) -> dict[str, list[str]]:
     """材料名とElsetの対応関係を抽出
 
     *SOLID SECTION等で定義される材料→Elset割り当てを抽出する。
+    *PARAMETERブロックのパラメータ参照（<param_name>形式）も解決する。
     pymeshを使わない軽量パーサー。
 
     Args:
@@ -214,6 +288,9 @@ def extract_material_elset_mapping(inp_path: Path) -> dict[str, list[str]]:
     """
     if not inp_path.exists():
         return {}
+
+    # *PARAMETERブロックからパラメータを事前に解析
+    params = _parse_parameters(inp_path)
 
     mapping: dict[str, list[str]] = {}
 
@@ -235,7 +312,8 @@ def extract_material_elset_mapping(inp_path: Path) -> dict[str, list[str]]:
                     for tok in orig_tokens:
                         tok_lower = tok.lower()
                         if tok_lower.startswith("material="):
-                            material_name = tok.split("=", 1)[1]
+                            raw_name = tok.split("=", 1)[1]
+                            material_name = _resolve_parameter_ref(raw_name, params)
                         elif tok_lower.startswith("elset="):
                             elset_name = tok.split("=", 1)[1]
                     if material_name:

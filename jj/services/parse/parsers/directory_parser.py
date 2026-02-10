@@ -2,6 +2,9 @@
 
 フォルダベースのcontains関係とroot directoryノードを構築する。
 
+ディレクトリ階層は最終階層まで辿るのがデフォルト動作。
+config の directory-max-depth または CLI --max-depth で制限可能。
+
 [READMEへ戻る](../../../../README.md)
 """
 
@@ -9,6 +12,7 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from jj_types import Node, Relation
@@ -19,25 +23,39 @@ if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
 
 
+def _depth_of(path: str) -> int:
+    """パスの深さ（"/"区切りの階層数）を返す
+
+    例: "a" → 1, "a/b" → 2, "a/b/c" → 3
+    """
+    if not path or path == ".":
+        return 0
+    return path.count("/") + 1
+
+
 class DirectoryRelationParser(AbstractFileParser):
     """フォルダベースの関連付け（contains）を構築
 
-    2種類のディレクトリノードを生成する:
+    3種類のディレクトリ処理を行う:
     1. 命名規則に合致するディレクトリ（go_idx1_v1/等）→ type="{fileType}_directory"
-    2. ファイルノードを含む全ディレクトリ（reports/等）→ type="directory"
+    2. ファイルノードを含む全ディレクトリ + 中間ディレクトリ → type="directory"
+    3. ディレクトリ間の親→子 contains関係
 
-    いずれもcontains関係でディレクトリ内のファイルとリンクする。
-    命名規則合致ディレクトリは同名入力ファイルとhas_output関係も作成する。
+    directory-max-depth設定:
+    - None（デフォルト）: 最終階層まで全ディレクトリをNode化
+    - 1: ルート直下のディレクトリのみ
+    - 2: ルート直下 + その子ディレクトリまで
     """
 
     priority = 50
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         input_extensions = graph.config.file_relations.input_extensions
+        max_depth = graph.config.directory_max_depth  # None = 無制限
         handled_dir_paths: set[str] = set()
 
         # --- (1) 命名規則に合致するディレクトリ ---
-        named_dirs = self._scan_directories(graph)
+        named_dirs = self._scan_directories(graph, max_depth=max_depth)
 
         for dir_path in named_dirs:
             rel_path = graph.safe_relative_path(dir_path)
@@ -108,9 +126,14 @@ class DirectoryRelationParser(AbstractFileParser):
                         )
                     )
 
-        # --- (2) ファイルノードを含む全ディレクトリ ---
+        # --- (2) ファイルノードを含む全ディレクトリ + 中間ディレクトリ ---
+        # ファイルの直接の親ディレクトリだけでなく、中間ディレクトリも全て収集
         parent_dirs: dict[str, list[Node]] = defaultdict(list)
+        all_dir_paths: set[str] = set()  # 中間ディレクトリ含む全パス
+
         for node in graph.nodes:
+            if node.format == "directory":
+                continue
             node_path = node.properties.get("path", "").replace("\\", "/")
             while node_path.startswith("./"):
                 node_path = node_path[2:]
@@ -118,7 +141,18 @@ class DirectoryRelationParser(AbstractFileParser):
                 parent_dir = node_path.rsplit("/", 1)[0]
                 parent_dirs[parent_dir].append(node)
 
-        for dir_rel_path, child_nodes in sorted(parent_dirs.items()):
+                # 中間ディレクトリも登録（最終階層まで）
+                parts = parent_dir.split("/")
+                for i in range(len(parts)):
+                    intermediate = "/".join(parts[: i + 1])
+                    all_dir_paths.add(intermediate)
+
+        # max_depthフィルタを適用
+        if max_depth is not None:
+            all_dir_paths = {p for p in all_dir_paths if _depth_of(p) <= max_depth}
+
+        # 直接の親 + 中間ディレクトリ の両方をNode化
+        for dir_rel_path in sorted(all_dir_paths):
             if dir_rel_path in handled_dir_paths:
                 continue
 
@@ -141,7 +175,8 @@ class DirectoryRelationParser(AbstractFileParser):
             graph.add_node(dir_node)
             handled_dir_paths.add(dir_rel_path)
 
-            for child_node in child_nodes:
+            # このディレクトリの直接の子ファイルのみcontains関係でリンク
+            for child_node in parent_dirs.get(dir_rel_path, []):
                 graph.add_relation(
                     Relation(
                         id=graph.next_relation_id(),
@@ -152,7 +187,7 @@ class DirectoryRelationParser(AbstractFileParser):
                 )
 
         # --- (3) ディレクトリ階層構造のcontains関係 ---
-        # ignore以外のディレクトリ間で親→子のcontains関係を構築
+        # 全ディレクトリノード間で親→子のcontains関係を構築
         dir_node_by_path: dict[str, Node] = {}
         for node in graph.nodes:
             if node.format != "directory":
@@ -177,10 +212,15 @@ class DirectoryRelationParser(AbstractFileParser):
         return graph
 
     @staticmethod
-    def _scan_directories(graph: ProjectGraph) -> list:
-        """命名規則に合致するディレクトリをスキャン"""
-        from pathlib import Path
+    def _scan_directories(
+        graph: ProjectGraph, *, max_depth: int | None = None
+    ) -> list:
+        """命名規則に合致するディレクトリをスキャン
 
+        Args:
+            graph: ProjectGraph
+            max_depth: ディレクトリの最大深さ（None=無制限）
+        """
         default_exclude = {".git", ".jj", "__pycache__", "node_modules", ".venv"}
 
         dirs_found: list[Path] = []
@@ -194,6 +234,12 @@ class DirectoryRelationParser(AbstractFileParser):
 
                 if graph.config.ignore.should_ignore(rel_path):
                     continue
+
+                # max_depthチェック
+                if max_depth is not None:
+                    depth = _depth_of(rel_path.replace("\\", "/"))
+                    if depth > max_depth:
+                        continue
 
                 parser = FileParse(dirname)
                 if parser.get_file_type() != FileType.UNKNOWN:

@@ -76,6 +76,12 @@ def _add_parse_args(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="全パーサーを実行（pymeshメッシュ統計等の重い処理を含む）",
     )
+    parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=None,
+        help="ディレクトリ階層の最大深さ（デフォルト: 無制限＝最終階層まで）",
+    )
 
 
 def _add_show_args(parser: argparse.ArgumentParser) -> None:
@@ -204,7 +210,7 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         nargs="*",
         default=None,
-        help="CSVエクスポートするカラム名を指定（config設定を上書き）",
+        help="CSVエクスポートするカラム名を指定（globパターン対応: stress* mesh_*等。config設定を上書き）",
     )
     # Neo4j固有オプション
     parser.add_argument(
@@ -548,7 +554,14 @@ def _run_init(project_root: Path, args: argparse.Namespace) -> int:
 
 def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
     """parseサブコマンドを実行"""
+    from dataclasses import replace as dc_replace
+
     service = GraphService(project_root=project_root)
+
+    # --max-depth CLI引数でconfigを上書き
+    cli_max_depth = getattr(args, "max_depth", None)
+    if cli_max_depth is not None:
+        service.config = dc_replace(service.config, directory_max_depth=cli_max_depth)
 
     # 出力ファイル名を決定
     output_file = args.output

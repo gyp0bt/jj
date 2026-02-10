@@ -260,6 +260,7 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] NO_NODE_EXTENSIONS（.odb/.odb.json）: スキャンするがNode化しない拡張子 (status-044)
 - [x] materialパーサーvocab/token-key-map対応 (status-044)
 - [x] ディレクトリ階層構造のcontains relation (status-044)
+- [x] 全中間ディレクトリNode化、directory-max-depthオプション (status-051)
 - [x] JsonPropertyParser: go_*.inpへのJSON key-value割り当て (status-044)
 - [x] ProjectGraph.iterate_directories()のnon_file_nodes反映 (status-044)
 - [ ] services/cliのロジックをservices/serviceに切り出す
@@ -591,6 +592,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-050.md)
+- [最新ステータス](./status/status-051.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

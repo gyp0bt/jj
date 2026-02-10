@@ -397,6 +397,226 @@ class TestDirectoryRelationParser:
         contains = [r for r in result.relations if r.label == "contains"]
         assert len(contains) >= 2
 
+    def test_creates_intermediate_directories(self, config: GraphConfig):
+        """深い階層の中間ディレクトリもNode化される"""
+        from services.parse.parsers.directory_parser import DirectoryRelationParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "a/b/c/go_idx1.inp"}),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = DirectoryRelationParser().apply(graph)
+
+        dir_nodes = [n for n in result.nodes if n.format == "directory"]
+        dir_paths = {n.properties.get("path", "") for n in dir_nodes}
+        # a, a/b, a/b/c の3階層すべてがNode化される
+        assert "a" in dir_paths
+        assert "a/b" in dir_paths
+        assert "a/b/c" in dir_paths
+
+    def test_directory_hierarchy_contains_relations(self, config: GraphConfig):
+        """中間ディレクトリ間に親→子のcontains関係が構築される"""
+        from services.parse.parsers.directory_parser import DirectoryRelationParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "a/b/c/go_idx1.inp"}),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = DirectoryRelationParser().apply(graph)
+
+        dir_by_path: dict[str, Node] = {}
+        for n in result.nodes:
+            if n.format == "directory":
+                dir_by_path[n.properties.get("path", "")] = n
+
+        # a → a/b のcontains関係
+        a_to_ab = [
+            r for r in result.relations
+            if r.label == "contains"
+            and r.node1_id == dir_by_path["a"].id
+            and r.node2_id == dir_by_path["a/b"].id
+        ]
+        assert len(a_to_ab) == 1
+
+        # a/b → a/b/c のcontains関係
+        ab_to_abc = [
+            r for r in result.relations
+            if r.label == "contains"
+            and r.node1_id == dir_by_path["a/b"].id
+            and r.node2_id == dir_by_path["a/b/c"].id
+        ]
+        assert len(ab_to_abc) == 1
+
+    def test_max_depth_limits_directories(self):
+        """max-depthでディレクトリ階層を制限できる"""
+        from services.parse.parsers.directory_parser import DirectoryRelationParser
+
+        config_with_depth = GraphConfig.from_dict(
+            {
+                "vocab": {},
+                "file-relations": {"input-extensions": [".inp"]},
+                "directory-max-depth": 1,
+            }
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "a/b/c/go_idx1.inp"}),
+        ]
+        graph = _make_graph(nodes, config=config_with_depth)
+        result = DirectoryRelationParser().apply(graph)
+
+        dir_nodes = [n for n in result.nodes if n.format == "directory"]
+        dir_paths = {n.properties.get("path", "") for n in dir_nodes}
+        # max-depth=1: "a" のみ
+        assert "a" in dir_paths
+        assert "a/b" not in dir_paths
+        assert "a/b/c" not in dir_paths
+
+    def test_max_depth_2(self):
+        """max-depth=2で2階層までNode化"""
+        from services.parse.parsers.directory_parser import DirectoryRelationParser
+
+        config_with_depth = GraphConfig.from_dict(
+            {
+                "vocab": {},
+                "file-relations": {"input-extensions": [".inp"]},
+                "directory-max-depth": 2,
+            }
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "a/b/c/go_idx1.inp"}),
+        ]
+        graph = _make_graph(nodes, config=config_with_depth)
+        result = DirectoryRelationParser().apply(graph)
+
+        dir_nodes = [n for n in result.nodes if n.format == "directory"]
+        dir_paths = {n.properties.get("path", "") for n in dir_nodes}
+        # max-depth=2: "a" と "a/b" まで
+        assert "a" in dir_paths
+        assert "a/b" in dir_paths
+        assert "a/b/c" not in dir_paths
+
+
+# ====================================================================
+# MeshInheritParser テスト
+# ====================================================================
+
+
+class TestMeshInheritParser:
+    """MeshInheritParser の単体テスト"""
+
+    def test_inherits_mesh_properties(self, config: GraphConfig):
+        """go_*.inpがinclude先のmesh_*.inpからプロパティを継承する"""
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
+                 properties={
+                     "path": "mesh_t50_v1.inp", "index": "1", "version": "1",
+                     "t": "50",
+                     "mesh_node_count": 1000,
+                     "mesh_element_count": 500,
+                     "mesh_quality": {"volume": {"min": 0.1, "max": 1.0, "mean": 0.5}},
+                 }),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = MeshInheritParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node is not None
+        # mesh_qualityが継承されている
+        assert "mesh_quality" in go_node.properties
+        assert go_node.properties["mesh_quality"]["volume"]["mean"] == 0.5
+        # t プロパティも継承
+        assert go_node.properties["t"] == "50"
+        # mesh_node_count/element_countも継承
+        assert go_node.properties["mesh_node_count"] == 1000
+        assert go_node.properties["mesh_element_count"] == 500
+
+    def test_does_not_overwrite_existing_keys(self, config: GraphConfig):
+        """go_*が既に持っているキーは上書きしない"""
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1", "version": "1",
+                              "t": "100"}),  # go_*が持つ値を優先
+            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
+                 properties={"path": "mesh_t50_v1.inp", "index": "1", "version": "1",
+                              "t": "50"}),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = MeshInheritParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node.properties["t"] == "100"  # 上書きされない
+
+    def test_inherits_from_all_includes(self, config: GraphConfig):
+        """mesh_*だけでなく全include先からプロパティを継承する"""
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
+                 properties={"path": "mesh_t50_v1.inp", "index": "1", "version": "1",
+                              "mesh_node_count": 500}),
+            Node(id=3, type="step", name="step_stress_v1", format="inp",
+                 properties={"path": "step_stress_v1.inp", "index": "1", "version": "1",
+                              "step_type": "static"}),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+            Relation(id=2, label="includes", node1_id=1, node2_id=3),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = MeshInheritParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        # mesh_*からの継承
+        assert go_node.properties["mesh_node_count"] == 500
+        # step_*からの継承
+        assert go_node.properties["step_type"] == "static"
+
+    def test_skips_meta_properties(self, config: GraphConfig):
+        """path, tags, active, verbose_name等のメタプロパティは継承しない"""
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1", "version": "1",
+                              "active": "true"}),
+            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
+                 properties={
+                     "path": "mesh_t50_v1.inp", "index": "1", "version": "1",
+                     "active": "false", "verbose_name": "メッシュ",
+                     "custom_key": "value",
+                 }),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = MeshInheritParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node.properties["active"] == "true"  # 上書きされない
+        assert "verbose_name" not in go_node.properties  # メタキーは継承しない
+        assert go_node.properties["custom_key"] == "value"  # カスタムキーは継承
+
 
 # ====================================================================
 # IncludesRelationParser テスト（ASSET_DIRベース）
