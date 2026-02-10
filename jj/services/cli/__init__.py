@@ -12,18 +12,18 @@ from pathlib import Path
 
 from config import load_ssh_config
 from modules.pyssh import ssh
-from services.parse import (
-    get_basename,
-    get_index_and_version,
-)
-from services.run import RunService
 
-from cli.graph import (
+from services.cli.graph import (
     add_graph_parser,
     add_top_level_graph_commands,
     run_graph_command,
     run_top_level_graph_command,
 )
+from services.parse import (
+    get_basename,
+    get_index_and_version,
+)
+from services.run import RunService
 
 # =========
 # Config

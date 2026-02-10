@@ -450,7 +450,7 @@ class MaterialPropertyReadComponent(ReadComponent):
             return None
 
         try:
-            rows = [[float(v) for v in values]]
+            rows = [[float(v) if v else None for v in values]]
         except ValueError as e:
             mat = self.context.current_material
             mat_name = mat.options.get("name", "UNKNOWN") if mat else "UNKNOWN"
