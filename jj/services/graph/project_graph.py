@@ -19,6 +19,13 @@ from jj_types import GraphModel, Node, Relation
 
 
 @dataclass
+class ProjectNonFileNode:
+    """実ファイルを持たないノードを表現"""
+
+    node: Node | None = None
+
+
+@dataclass
 class ProjectFile:
     """プロジェクト内のファイルを表現"""
 
@@ -34,6 +41,7 @@ class ProjectDirectory:
     parent: ProjectDirectory | None = None
     children: list[ProjectDirectory] = field(default_factory=list)
     files: list[ProjectFile] = field(default_factory=list)
+    non_file_nodes: list[ProjectNonFileNode] = field(default_factory=list)
 
 
 @dataclass
@@ -119,16 +127,12 @@ class ProjectGraph:
     def get_input_nodes(self) -> list[Node]:
         """入力ファイルノード（input_extensions）を取得"""
         input_exts = self.config.file_relations.input_extensions
-        return [
-            n for n in self.nodes
-            if f".{n.format}".lower() in input_exts
-        ]
+        return [n for n in self.nodes if f".{n.format}".lower() in input_exts]
 
     def get_relations_for_node(self, node_id: int) -> list[Relation]:
         """ノードに関連するリレーションを取得"""
         return [
-            r for r in self.relations
-            if r.node1_id == node_id or r.node2_id == node_id
+            r for r in self.relations if r.node1_id == node_id or r.node2_id == node_id
         ]
 
     def get_relations_by_label(self, label: str) -> list[Relation]:
@@ -169,7 +173,8 @@ class ProjectGraph:
         """指定IDのノードとそれに関わるリレーションを除去"""
         self.nodes = [n for n in self.nodes if n.id not in node_ids]
         self.relations = [
-            r for r in self.relations
+            r
+            for r in self.relations
             if r.node1_id not in node_ids and r.node2_id not in node_ids
         ]
         # インデックス再構築
