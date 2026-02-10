@@ -16,7 +16,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj export --target obsidian`: Obsidian向けにエクスポート
   - `jj export --parse`: parseしてからexport
-  - `jj info <ファイル名>`: ファイルのproperty/relationを表示（-id, -v, -propsオプション対応）
+  - `jj info <ファイル名>`: ファイルのproperty/relationを表示（-id, -v, -all, -type, -prop, -propsオプション対応）
   - `jj diff <file1> <file2>`: ファイル間の差分を表示（Abaqusキーワードブロック差分対応）
   - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート
   - `jj export --target neo4j`: Neo4jデータベースにグラフをエクスポート
@@ -48,6 +48,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 現状は以下を計算inpとして集計しています。
   - 指定拡張子を持ち、`go_`で始まるファイル名
   - 例: Abaqusなら`.inp`、Fluentなら`.cas.h5`、Dynaなら`.k`/`.key`/`.dat`
+- 共通選択記法: `jj {command} -id 1 2 3 -v 1 2 -type Abaqusインプット`。`-id`/`-v`では`1..3`の範囲展開に対応。
 - ファイル/フォルダ名は `go_prop1_v1_idx1` のようにアンダースコア区切りでpropsを記載する。
 - propsは `文字列+数値` または `文字列=数値` を満たすものを採用し、それ以外はtagとして扱う。
 - versionが取得できない場合は旧式の `.v1` 形式も補完対象とする。
@@ -85,6 +86,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-10 / status-047: 共通選択コマンド（-id 1..3範囲展開）、jj info拡張（-all/-prop/-type）、CSVエクスポート改善（プロパティ平坦化・-prop絞り込み）、VocabFinalizer一括置換（パーサー追加プロパティの翻訳漏れ解消）。テスト467件パス、20スキップ。([status-047](docs/status/status-047.md))
 - 2026-02-10 / status-046: warning/error重複排除（数値正規化）、cpu_time/wallclock_time最終値取得修正、jj info YAML出力化、results/ info-only（Node化除外）、Obsidian export directory実ファイルリンク除外、.dat warning/error抽出追加。テスト445件パス、20スキップ。([status-046](docs/status/status-046.md))
 - 2026-02-10 / status-045: idx→条件統一、CLIビジネスロジックのservices.service分離。テスト443件パス、20スキップ。([status-045](docs/status/status-045.md))
 - 2026-02-10 / status-044: NO_NODE_EXTENSIONS(.odb/.odb.json)追加、materialパーサーvocab/token-key-map対応、ディレクトリ階層contains relation追加、JsonPropertyParser新規追加（go_*.inpへのJSON key-value割り当て）、iterate_directories()のnon_file_nodes反映。テスト439件パス、20スキップ。([status-044](docs/status/status-044.md))

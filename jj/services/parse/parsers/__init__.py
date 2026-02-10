@@ -23,6 +23,7 @@ from services.parse.parsers.directory_parser import (
 )
 from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 from services.parse.parsers.json_property_parser import JsonPropertyParser
+from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
 __all__ = [
     "VersionRelationParser",
@@ -34,4 +35,5 @@ __all__ = [
     "RootDirectoryParser",
     "EnrichmentOnlyFilter",
     "JsonPropertyParser",
+    "VocabFinalizer",
 ]

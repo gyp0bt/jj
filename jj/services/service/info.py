@@ -53,6 +53,8 @@ class InfoService:
         filenames: list[str] | None = None,
         index_filters: list[str] | None = None,
         version_filters: list[str] | None = None,
+        type_filter: str | None = None,
+        all_nodes: bool = False,
     ) -> list[Node]:
         """複合条件でノードを検索する
 
@@ -61,61 +63,71 @@ class InfoService:
             filenames: ファイル名で検索（部分一致、複数可）
             index_filters: インデックスで検索（例: ["1", "2"]）
             version_filters: バージョンで検索（例: ["1", "2"]）
+            type_filter: ノードタイプでフィルタリング（例: "Abaqusインプット"）
+            all_nodes: 全ノードを選択
 
         Returns:
             マッチしたノードのリスト
         """
         matched_nodes: list[Node] = []
 
-        # ファイル名で検索（部分一致）
-        if filenames:
-            for filename in filenames:
-                normalized = filename.replace("\\", "/")
-                basename = PurePosixPath(normalized).name
-                if basename == filename and "\\" in filename:
-                    basename = PureWindowsPath(filename).name
+        # -all: 全ノード選択
+        if all_nodes:
+            matched_nodes = list(graph.nodes)
+        else:
+            # ファイル名で検索（部分一致）
+            if filenames:
+                for filename in filenames:
+                    normalized = filename.replace("\\", "/")
+                    basename = PurePosixPath(normalized).name
+                    if basename == filename and "\\" in filename:
+                        basename = PureWindowsPath(filename).name
 
+                    for node in graph.nodes:
+                        if node in matched_nodes:
+                            continue
+                        node_path = node.properties.get("path", "").replace("\\", "/")
+                        node_file = PurePosixPath(node_path).name if node_path else ""
+                        if (
+                            node.name == basename
+                            or node_file == basename
+                            or node_path == normalized
+                            or basename in node.name
+                            or normalized in node_path
+                            or node.name == filename
+                            or node_file == filename
+                            or filename in node.name
+                        ):
+                            matched_nodes.append(node)
+
+            # インデックスで検索
+            if index_filters is not None:
                 for node in graph.nodes:
                     if node in matched_nodes:
                         continue
-                    node_path = node.properties.get("path", "").replace("\\", "/")
-                    node_file = PurePosixPath(node_path).name if node_path else ""
-                    if (
-                        node.name == basename
-                        or node_file == basename
-                        or node_path == normalized
-                        or basename in node.name
-                        or normalized in node_path
-                        or node.name == filename
-                        or node_file == filename
-                        or filename in node.name
-                    ):
+                    node_index = str(node.properties.get("index", ""))
+                    if node_index and node_index in index_filters:
                         matched_nodes.append(node)
 
-        # インデックスで検索
-        if index_filters is not None:
-            for node in graph.nodes:
-                if node in matched_nodes:
-                    continue
-                node_index = str(node.properties.get("index", ""))
-                if node_index and node_index in index_filters:
-                    matched_nodes.append(node)
+            # バージョンで検索（絞り込みまたは単独検索）
+            if version_filters is not None:
+                if filenames or index_filters is not None:
+                    # 既存のマッチ結果から絞り込み
+                    matched_nodes = [
+                        n
+                        for n in matched_nodes
+                        if str(n.properties.get("version", "")) in version_filters
+                    ]
+                else:
+                    # バージョンのみ指定の場合は全ノードから検索
+                    for node in graph.nodes:
+                        node_ver = str(node.properties.get("version", ""))
+                        if node_ver and node_ver in version_filters:
+                            matched_nodes.append(node)
 
-        # バージョンで検索（絞り込みまたは単独検索）
-        if version_filters is not None:
-            if filenames or index_filters is not None:
-                # 既存のマッチ結果から絞り込み
-                matched_nodes = [
-                    n
-                    for n in matched_nodes
-                    if str(n.properties.get("version", "")) in version_filters
-                ]
-            else:
-                # バージョンのみ指定の場合は全ノードから検索
-                for node in graph.nodes:
-                    node_ver = str(node.properties.get("version", ""))
-                    if node_ver and node_ver in version_filters:
-                        matched_nodes.append(node)
+        # タイプフィルタ（他の条件と組み合わせて絞り込み）
+        if type_filter:
+            matched_nodes = [n for n in matched_nodes if n.type == type_filter]
 
         return matched_nodes
 
@@ -137,6 +149,8 @@ class InfoService:
         type_filter: str | None = None,
         select_filter: list[str] | None = None,
         output_file: str | None = None,
+        prop_filters: list[str] | None = None,
+        nodes: list[Node] | None = None,
     ) -> tuple[Path, int]:
         """ノードデータをCSV/JSON形式でエクスポートする
 
@@ -146,54 +160,84 @@ class InfoService:
             type_filter: ノードタイプでフィルタリング
             select_filter: ファイル名でフィルタリング
             output_file: 出力ファイル名
+            prop_filters: プロパティキーフィルタ（指定時はAND条件で絞り込み）
+            nodes: 事前に選択済みのノードリスト（指定時はgraphからの選択を省略）
 
         Returns:
             (出力パス, エクスポートされたノード数)
         """
         # ノードのフィルタリング
-        nodes = list(graph.nodes)
+        if nodes is not None:
+            filtered_nodes = list(nodes)
+        else:
+            filtered_nodes = list(graph.nodes)
 
-        if type_filter:
-            nodes = [n for n in nodes if n.type == type_filter]
-        if select_filter:
-            filtered = []
-            for n in nodes:
-                name_with_ext = f"{n.name}.{n.format}" if n.format else n.name
-                for sel in select_filter:
-                    if n.name == sel or name_with_ext == sel or sel in n.name:
-                        filtered.append(n)
-                        break
-            nodes = filtered
+            if type_filter:
+                filtered_nodes = [n for n in filtered_nodes if n.type == type_filter]
+            if select_filter:
+                selected: list[Node] = []
+                for n in filtered_nodes:
+                    name_with_ext = f"{n.name}.{n.format}" if n.format else n.name
+                    for sel in select_filter:
+                        if n.name == sel or name_with_ext == sel or sel in n.name:
+                            selected.append(n)
+                            break
+                filtered_nodes = selected
 
-        if not nodes:
+        # -prop フィルタ: 指定プロパティを持つノードのみ（AND条件）
+        if prop_filters:
+            filtered_nodes = [
+                n
+                for n in filtered_nodes
+                if all(k in n.properties for k in prop_filters)
+            ]
+
+        if not filtered_nodes:
             raise ValueError("対象ノードが見つかりません。")
 
-        # 全キーの和集合を収集
-        all_keys: list[str] = []
-        seen_keys: set[str] = set()
-        base_keys = ["name", "type", "format"]
-        for k in base_keys:
-            all_keys.append(k)
-            seen_keys.add(k)
-
-        for node in nodes:
-            for key in node.properties:
-                if key not in seen_keys:
-                    all_keys.append(key)
-                    seen_keys.add(key)
-
-        # 行データの構築（null埋め）
-        rows: list[dict[str, Any]] = []
-        for node in nodes:
-            row: dict[str, Any] = {
+        # プロパティを平坦化してからキーを収集
+        flat_rows: list[dict[str, Any]] = []
+        for node in filtered_nodes:
+            base = {
                 "name": node.name,
                 "type": node.type,
                 "format": node.format,
             }
+            flat_props = _flatten_properties(node.properties)
+            base.update(flat_props)
+            flat_rows.append(base)
+
+        # キーの収集（-prop指定時は base + 指定キーのみ）
+        if prop_filters:
+            # prop_filtersのキーが平坦化後のキーに含まれるか、
+            # プレフィックスとしてマッチするキーを収集
+            all_keys: list[str] = ["name", "type", "format"]
+            seen_keys: set[str] = set(all_keys)
+            for row in flat_rows:
+                for key in row:
+                    if key in seen_keys:
+                        continue
+                    for pf in prop_filters:
+                        if key == pf or key.startswith(pf + "."):
+                            all_keys.append(key)
+                            seen_keys.add(key)
+                            break
+        else:
+            # 全キーの和集合を収集
+            all_keys = ["name", "type", "format"]
+            seen_keys = set(all_keys)
+            for row in flat_rows:
+                for key in row:
+                    if key not in seen_keys:
+                        all_keys.append(key)
+                        seen_keys.add(key)
+
+        # null埋めとリスト値のJSON文字列化
+        rows: list[dict[str, Any]] = []
+        for flat_row in flat_rows:
+            row: dict[str, Any] = {}
             for key in all_keys:
-                if key in row:
-                    continue
-                value = node.properties.get(key)
+                value = flat_row.get(key)
                 if value is None:
                     row[key] = None
                 elif isinstance(value, (list, dict)):
@@ -239,3 +283,31 @@ class InfoService:
         for found in project_root.rglob(filename):
             return found
         return None
+
+
+def _flatten_properties(
+    props: dict[str, Any], prefix: str = ""
+) -> dict[str, Any]:
+    """辞書プロパティを"."区切りで平坦化する
+
+    ネストされた辞書は再帰的に展開される。
+    例: {"mesh_quality": {"aspect_ratio": {"min": 0.5, "max": 1.0}}}
+    → {"mesh_quality.aspect_ratio.min": 0.5, "mesh_quality.aspect_ratio.max": 1.0}
+
+    リストは展開せずそのまま保持する。
+
+    Args:
+        props: 平坦化対象の辞書
+        prefix: キーのプレフィックス（再帰用）
+
+    Returns:
+        平坦化された辞書
+    """
+    result: dict[str, Any] = {}
+    for key, value in props.items():
+        full_key = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            result.update(_flatten_properties(value, prefix=full_key))
+        else:
+            result[full_key] = value
+    return result

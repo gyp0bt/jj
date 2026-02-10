@@ -43,6 +43,7 @@ services/
 ├── cli/                    # CLI（serviceからのみimport）
 └── lib/                    # 薄いユーティリティ
     ├── credentials.py      # 秘匿情報管理
+    ├── selection.py         # 共通選択ユーティリティ（範囲展開等）
     └── file/               # SSH・一括rename
 ```
 
