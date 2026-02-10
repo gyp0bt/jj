@@ -327,7 +327,7 @@ class TestResultFileRelations:
         return GraphService(project_root=FIXTURE_DIR, config=config)
 
     def test_inp_and_odb_same_idx(self, graph_service):
-        """go_idx1_w5_t20.inp と go_idx1_w5_t20.odb は同じidx/propsを持つ"""
+        """go_idx1_w5_t20.inp が存在し、.odbはNO_NODE_EXTENSIONSによりNode化されない"""
         extensions = [".inp", ".odb"]
         graph = graph_service.parse_project(extensions=extensions)
 
@@ -339,36 +339,19 @@ class TestResultFileRelations:
         ]
 
         assert len(inp_nodes) == 1
-        assert len(odb_nodes) == 1
-
-        inp_node = inp_nodes[0]
-        odb_node = odb_nodes[0]
-
-        # 同じindex, w, tを持つ
-        assert inp_node.properties.get("index") == odb_node.properties.get("index")
-        assert inp_node.properties.get("w") == odb_node.properties.get("w")
-        assert inp_node.properties.get("t") == odb_node.properties.get("t")
+        # .odbはNO_NODE_EXTENSIONSに含まれるためNode化されない
+        assert len(odb_nodes) == 0
 
     def test_result_of_relation(self, graph_service):
-        """go_idx1_w5_t20.odb は go_idx1_w5_t20.inp の結果としてresult_of関係がある"""
+        """.odbはNO_NODE_EXTENSIONSによりNode化されないため、result_of関係は生成されない"""
         extensions = [".inp", ".odb", ".sta"]
         graph = graph_service.parse_project(extensions=extensions)
 
-        # result_of関係を取得
-        result_relations = [r for r in graph.relations if r.label == "result_of"]
+        # .odbはNode化されないため、.odbベースのresult_of関係は発生しない
+        odb_nodes = [n for n in graph.nodes if n.format == "odb"]
+        assert len(odb_nodes) == 0
 
-        # .odbのresult_of関係がある（.staはNode化されず情報のみgo_*.inpに集約）
-        assert len(result_relations) >= 1
-
-        # .odbと.inpの関係を確認
-        odb_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "odb"
-            ),
-            None,
-        )
+        # .inpは存在する
         inp_node = next(
             (
                 n
@@ -377,20 +360,7 @@ class TestResultFileRelations:
             ),
             None,
         )
-
-        assert odb_node is not None
         assert inp_node is not None
-
-        # result_of関係が存在
-        odb_to_inp = next(
-            (
-                r
-                for r in result_relations
-                if r.node1_id == odb_node.id and r.node2_id == inp_node.id
-            ),
-            None,
-        )
-        assert odb_to_inp is not None
 
 
 class TestVersionSorting:
@@ -3571,8 +3541,8 @@ class TestStaEnrichmentOnly:
         msg_nodes = [n for n in graph.nodes if n.format == "msg"]
         assert len(msg_nodes) == 0
 
-    def test_odb_remains_as_node(self, tmp_path):
-        """.odbファイルはNodeとして残る"""
+    def test_odb_no_longer_creates_node(self, tmp_path):
+        """.odbファイルはNO_NODE_EXTENSIONSによりNode化されない"""
         (tmp_path / "go_idx1_v1.inp").write_text("")
         (tmp_path / "go_idx1_v1.odb").write_text("")
 
@@ -3588,7 +3558,10 @@ class TestStaEnrichmentOnly:
         svc = GraphService(project_root=tmp_path, config=config)
         graph = svc.parse_project(extensions=[".inp", ".odb"])
         odb_nodes = [n for n in graph.nodes if n.format == "odb"]
-        assert len(odb_nodes) == 1
+        assert len(odb_nodes) == 0
+        # .inpノードは生成される
+        inp_nodes = [n for n in graph.nodes if n.format == "inp"]
+        assert len(inp_nodes) == 1
 
 
 class TestMaterialVerboseNameEnrichment:
@@ -3738,8 +3711,8 @@ class TestRootDirectoryNode:
             for r in graph.relations
             if r.label == "contains" and r.node1_id == root_node.id
         ]
-        # ルート直下のgo_idx1_v1.inpのみ
-        assert len(contains) == 1
+        # ルート直下のgo_idx1_v1.inpとsubdirディレクトリ
+        assert len(contains) == 2
 
 
 class TestDatEnrichment:

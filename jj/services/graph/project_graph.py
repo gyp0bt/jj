@@ -232,6 +232,22 @@ class ProjectGraph:
             directory = dir_objects.get(dir_path, root)
             directory.files = files
 
+        # 実ファイルを持たないノード（material, elset等）をnon_file_nodesに配置
+        for node in self.nodes:
+            path_str = node.properties.get("path", "")
+            if path_str or node.format == "directory":
+                continue
+            # source_fileからディレクトリを決定
+            source_file = node.properties.get("source_file", "")
+            if source_file:
+                parent_dir = str(Path(source_file).parent)
+                if parent_dir == ".":
+                    parent_dir = ""
+            else:
+                parent_dir = ""
+            directory = dir_objects.get(parent_dir, root)
+            directory.non_file_nodes.append(ProjectNonFileNode(node=node))
+
         # 幅優先走査
         queue = [root]
         while queue:
