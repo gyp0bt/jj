@@ -156,6 +156,13 @@ class ProjectGraph:
 - [x] verbose_name由来タグ生成、elset Node化
 - [x] root directory Node化
 - [x] 材料名・elset名ケース保持
+- [x] vocab.yamlマージ修正（JSON keyのvocab置換） (status-048)
+- [x] -id/-v検索のvocab対応（変換後キーでの検索） (status-048)
+- [x] Obsidian frontmatterのvocab値消失バグ修正 (status-048)
+- [x] CSVエクスポートUTF-8 BOM付き（日本語文字化け対策） (status-048)
+- [x] JSONエクスポート平坦化オプション（--flatten） (status-048)
+- [x] info -activeオプション（active=trueフィルタ） (status-048)
+- [x] parse --full/--lite（重いパーサーの制御） (status-048)
 
 ### Neo4j統合基盤（Phase N1-N2完了）
 

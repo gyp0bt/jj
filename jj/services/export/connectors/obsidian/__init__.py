@@ -320,26 +320,38 @@ class ObsidianConnector:
         props = dict(node.properties)
         vocab = self.graph_config.vocab
 
-        # index/version の値を取得してから全バリアントを除去
-        index_value = props.pop("index", "")
-        version_value = props.pop("version", "")
-
         # vocab変換後のキー名を正とする
         idx_canonical = vocab.get("idx", "idx")
         ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
 
-        # index系バリアントを全て除去（raw + vocab変換後の重複）
+        # index/version の全バリアントキーを収集（rawキー優先順）
+        idx_keys_ordered = ["index", "idx"]
+        ver_keys_ordered = ["version", "v", "ver"]
+        # vocab変換後キーを末尾に追加
         for k in ("idx", "index"):
-            props.pop(k, None)
             translated = vocab.get(k)
-            if translated:
-                props.pop(translated, None)
-        # version系バリアントを全て除去
+            if translated and translated not in idx_keys_ordered:
+                idx_keys_ordered.append(translated)
+        if idx_canonical not in idx_keys_ordered:
+            idx_keys_ordered.append(idx_canonical)
         for k in ("ver", "v", "version"):
-            props.pop(k, None)
             translated = vocab.get(k)
-            if translated:
-                props.pop(translated, None)
+            if translated and translated not in ver_keys_ordered:
+                ver_keys_ordered.append(translated)
+        if ver_canonical not in ver_keys_ordered:
+            ver_keys_ordered.append(ver_canonical)
+
+        # rawキーを優先して値を取得し、全バリアントを除去
+        index_value = ""
+        for k in idx_keys_ordered:
+            val = props.pop(k, "")
+            if val and not index_value:
+                index_value = val
+        version_value = ""
+        for k in ver_keys_ordered:
+            val = props.pop(k, "")
+            if val and not version_value:
+                version_value = val
 
         # 正規化されたキー名で設定
         props[idx_canonical] = index_value
@@ -557,6 +569,24 @@ class ObsidianConnector:
 
         return content
 
+    def _get_node_index(self, node: Node) -> str:
+        """ノードからindex値を取得（vocab変換後キーにも対応）"""
+        idx = node.properties.get("index", "")
+        if not idx:
+            idx_key = self.graph_config.vocab.get("idx", "")
+            if idx_key:
+                idx = node.properties.get(idx_key, "")
+        return str(idx) if idx else ""
+
+    def _get_node_version(self, node: Node) -> str:
+        """ノードからversion値を取得（vocab変換後キーにも対応）"""
+        ver = node.properties.get("version", "")
+        if not ver:
+            ver_key = self.graph_config.vocab.get("v", "") or self.graph_config.vocab.get("ver", "")
+            if ver_key:
+                ver = node.properties.get(ver_key, "")
+        return str(ver) if ver else ""
+
     def _build_version_groups(
         self, nodes: list[Node]
     ) -> dict[tuple[str, str], list[Node]]:
@@ -567,7 +597,7 @@ class ObsidianConnector:
         """
         groups: dict[tuple[str, str], list[Node]] = defaultdict(list)
         for node in nodes:
-            index = node.properties.get("index", "")
+            index = self._get_node_index(node)
             if index:
                 groups[(node.type, index)].append(node)
 
@@ -577,10 +607,9 @@ class ObsidianConnector:
 
         return groups
 
-    @staticmethod
-    def _get_version_sort_key(node: Node) -> tuple[int, str]:
+    def _get_version_sort_key(self, node: Node) -> tuple[int, str]:
         """ノードのバージョンソートキーを返す"""
-        ver = node.properties.get("version", "")
+        ver = self._get_node_version(node)
         if not ver:
             ver = "1"
         try:
@@ -750,7 +779,7 @@ class ObsidianConnector:
         type_groups: dict[str, list[Node]] = defaultdict(list)
 
         for node in graph.nodes:
-            index = node.properties.get("index", "")
+            index = self._get_node_index(node)
             if index:
                 idx_groups[(node.type, index)].append(node)
             type_groups[node.type].append(node)

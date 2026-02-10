@@ -70,6 +70,12 @@ def _add_parse_args(parser: argparse.ArgumentParser) -> None:
         default="yaml",
         help="出力フォーマット（デフォルト: yaml）",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        default=False,
+        help="全パーサーを実行（pymeshメッシュ統計等の重い処理を含む）",
+    )
 
 
 def _add_show_args(parser: argparse.ArgumentParser) -> None:
@@ -120,6 +126,12 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         help="エクスポート前にparseを実行",
     )
     parser.add_argument(
+        "--full",
+        action="store_true",
+        default=False,
+        help="--parse時に全パーサーを実行（pymeshメッシュ統計等の重い処理を含む）",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -168,6 +180,18 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         nargs="*",
         default=None,
         help="プロパティキーで絞り込み（AND条件）",
+    )
+    parser.add_argument(
+        "-active",
+        "--active",
+        action="store_true",
+        help="activeがtrueのノードのみエクスポート",
+    )
+    parser.add_argument(
+        "--flatten",
+        action="store_true",
+        default=False,
+        help="JSONエクスポート時にプロパティを平坦化する（CSVは常に平坦化）",
     )
     # Neo4j固有オプション
     parser.add_argument(
@@ -240,6 +264,12 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
         nargs="*",
         default=None,
         help="指定プロパティを持つノードのみ表示し、そのプロパティ値を出力",
+    )
+    parser.add_argument(
+        "-active",
+        "--active",
+        action="store_true",
+        help="activeがtrueのノードのみ表示",
     )
     parser.add_argument(
         "-props",
@@ -511,11 +541,13 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
     output_file = args.output
     if output_file is None:
         output_file = f"graph.{args.format}"
+    full_mode = getattr(args, "full", False)
 
-    print(f"プロジェクトをスキャン中: {project_root}")
+    mode_label = "full" if full_mode else "lite"
+    print(f"プロジェクトをスキャン中 ({mode_label}): {project_root}")
 
     try:
-        graph, save_path = service.parse_and_save(filename=output_file)
+        graph, save_path = service.parse_and_save(filename=output_file, full_mode=full_mode)
         summary = service.summary(graph)
 
         print(f"\n=== スキャン完了 ===")
@@ -592,8 +624,10 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
     try:
         # --parse オプション: エクスポート前にparseを実行
         if getattr(args, "parse", False):
-            print(f"プロジェクトをスキャン中: {project_root}")
-            graph, save_path = service.parse_and_save()
+            full_mode = getattr(args, "full", False)
+            mode_label = "full" if full_mode else "lite"
+            print(f"プロジェクトをスキャン中 ({mode_label}): {project_root}")
+            graph, save_path = service.parse_and_save(full_mode=full_mode)
             summary = service.summary(graph)
             print(
                 f"スキャン完了: ノード {summary['total_nodes']}件、リレーション {summary['total_relations']}件"
@@ -665,20 +699,26 @@ def _run_export_data(
     version_filters = expand_ranges(getattr(args, "version", None))
     all_nodes = getattr(args, "all_nodes", False)
     prop_filters = getattr(args, "prop", None)
+    flatten_flag = getattr(args, "flatten", False)
+    active_only = getattr(args, "active", False)
 
     try:
         # 共通選択オプションが指定されている場合は事前にノード絞り込み
         pre_selected: list["Node"] | None = None
-        if index_filters is not None or version_filters is not None or all_nodes:
+        if index_filters is not None or version_filters is not None or all_nodes or active_only:
             pre_selected = info_service.search_nodes(
                 graph,
                 index_filters=index_filters,
                 version_filters=version_filters,
                 type_filter=type_filter,
                 all_nodes=all_nodes,
+                active_only=active_only,
             )
             # search_nodesでtype_filterを適用済みなのでexport_dataには渡さない
             type_filter = None
+
+        # flattenフラグ: --flatten指定時はTrue、未指定はNone（targetに応じたデフォルト）
+        flatten_opt: bool | None = True if flatten_flag else None
 
         output_path, count = info_service.export_data(
             graph,
@@ -688,6 +728,7 @@ def _run_export_data(
             output_file=output_file,
             prop_filters=prop_filters,
             nodes=pre_selected,
+            flatten=flatten_opt,
         )
         label = "CSV" if target == "csv" else "JSON"
         print(f"{label}エクスポート完了: {output_path} ({count}件)")
@@ -831,6 +872,7 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
     all_nodes = getattr(args, "all_nodes", False)
     prop_filters = getattr(args, "prop", None)
     props_only = getattr(args, "props_only", False)
+    active_only = getattr(args, "active", False)
 
     try:
         graph = info_service.load_graph(filename=getattr(args, "file", None))
@@ -858,6 +900,7 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
             version_filters=version_filters,
             type_filter=type_filter,
             all_nodes=all_nodes,
+            active_only=active_only,
         )
 
         # -prop フィルタ: 指定プロパティを持つノードのみに絞り込み

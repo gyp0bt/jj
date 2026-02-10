@@ -12,13 +12,13 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 ## コマンド構成
 - グラフ管理（トップレベル）
   - `jj init`: 設定ファイルを初期化（`--overwrite`で上書き）
-  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存
+  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存（`--full`で重い解析も含む）
   - `jj show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj export --target obsidian`: Obsidian向けにエクスポート
   - `jj export --parse`: parseしてからexport
-  - `jj info <ファイル名>`: ファイルのproperty/relationを表示（-id, -v, -all, -type, -prop, -propsオプション対応）
+  - `jj info <ファイル名>`: ファイルのproperty/relationを表示（-id, -v, -all, -type, -prop, -props, -activeオプション対応）
   - `jj diff <file1> <file2>`: ファイル間の差分を表示（Abaqusキーワードブロック差分対応）
-  - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート
+  - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート（`--flatten`でJSON平坦化、CSV UTF-8 BOM付き）
   - `jj export --target neo4j`: Neo4jデータベースにグラフをエクスポート
   - `jj export --target cypher`: Cypherクエリファイルとしてエクスポート（Neo4j不要）
   - `jj credential set`: Neo4j等の認証情報を暗号化して保存
