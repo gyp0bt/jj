@@ -273,16 +273,21 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 
 #### 2-2. Abaqusコネクターの追加機能
 
-- [ ] **go_inp element/elsetのabaqus_elsetノード化** (status-052追加)
-  - [ ] go_inpで定義されたelement・elsetをabaqus_elsetノードとして生成
-  - [ ] volumeなどのelement_qualityを個々のelsetごとに評価しproperty化
-  - [ ] 材料定義（`*SOLID SECTION`等）を個々のelsetに紐づけてproperty化
-  - [ ] **テスト要件**: goで定義されたelement・elsetがgraph.yamlに書き出されていること
-- [ ] **隣接バージョンdiff差分のプロパティ付加** (status-052追加)
-  - [ ] versionが複数あるgoのプロパティにdiff（diff_from, diff_summary, diff_details）が付加されていることのテスト追加
-  - [ ] node/nsetブロック: 接点数を差分評価対象にする
-  - [ ] element/elsetブロック: 要素数・要素品質を差分評価対象にする
-  - [ ] **テスト要件**: node,nset,element,elsetブロックの接点数・要素数・要素品質が差分プロパティに含まれること
+- [x] **go_inp element/elsetのabaqus_elsetノード化** (status-052追加, status-053実装)
+  - [x] go_inpで定義されたelement・elsetをabaqus_elsetノードとして生成
+  - [x] elset別element_countをproperty化（mesh_elset_summaryから取得）
+  - [x] 材料定義を個々のelsetに紐づけてproperty化（material_elsetsから逆引き）
+  - [x] **テスト**: 7件追加（elset生成、element_count、材料割り当て、include先、relation、elsetsプロパティ）
+  - [ ] volumeなどのelement_qualityを個々のelsetごとに評価しproperty化（pymesh依存、将来対応）
+- [x] **隣接バージョンdiff差分のプロパティ付加** (status-052追加, status-053テスト追加)
+  - [x] versionが複数あるgoのプロパティにdiff（diff_from, diff_summary, diff_details）が付加されていることのテスト追加
+  - [x] node/nsetブロック: 接点数を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
+  - [x] element/elsetブロック: 要素数・要素品質を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
+  - [x] **テスト**: 5件追加（diff付与、node_count変更、element_count変更、nset/elset変更、同一内容no-diff）
+- [ ] **パーサーキャッシュの実装（DRY）** (status-053追加)
+  - [ ] 個々のパーサーがincludeロジックで何度も同じファイルを読む可能性があるため、parseのキャッシュを持っておく
+  - [ ] read_inp()結果のキャッシュ: ABQDataをファイルパスで管理
+  - [ ] IncludesRelationParser、AbaqusDiffParser、AbaqusMeshParser等が共有キャッシュを参照
 - [ ] 個々のElsetごとの品質統計
 - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
 - [ ] index.csv/yamlとファイルの紐付け
@@ -602,6 +607,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-052.md)
+- [最新ステータス](./status/status-053.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

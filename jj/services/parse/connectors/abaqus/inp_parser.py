@@ -384,6 +384,7 @@ class AbaqusElsetParser(AbstractFileParser):
 
     go_*.inpファイル（include先含む）で定義されているelset名を
     Node(type="abaqus_elset")として生成する。
+    各elsetノードにはelement数と材料割り当て情報もproperty化する。
     """
 
     priority = 98
@@ -404,9 +405,13 @@ class AbaqusElsetParser(AbstractFileParser):
 
             elset_names: set[str] = set()
 
+            # mesh_elset_summaryを統合（go_*自身 + include先）
+            merged_elset_summary: dict[str, int] = {}
+
             elset_summary = node.properties.get("mesh_elset_summary", {})
             if isinstance(elset_summary, dict):
                 elset_names.update(elset_summary.keys())
+                merged_elset_summary.update(elset_summary)
 
             for child_id in includes_map.get(node.id, []):
                 child = graph.get_node_by_id(child_id)
@@ -415,6 +420,9 @@ class AbaqusElsetParser(AbstractFileParser):
                 child_elsets = child.properties.get("mesh_elset_summary", {})
                 if isinstance(child_elsets, dict):
                     elset_names.update(child_elsets.keys())
+                    for k, v in child_elsets.items():
+                        if k not in merged_elset_summary:
+                            merged_elset_summary[k] = v
 
             mat_elsets = node.properties.get("material_elsets", {})
             if isinstance(mat_elsets, dict):
@@ -425,20 +433,38 @@ class AbaqusElsetParser(AbstractFileParser):
             if not elset_names:
                 continue
 
+            # material_elsets を逆引き: elset_name → material_name
+            elset_to_material: dict[str, str] = {}
+            if isinstance(mat_elsets, dict):
+                for mat_name, elset_list in mat_elsets.items():
+                    if isinstance(elset_list, list):
+                        for es in elset_list:
+                            elset_to_material[es] = mat_name
+
             go_elset_names: list[str] = []
             for elset_name in sorted(elset_names):
                 elset_tags = [t for t in elset_name.split("_") if t]
+
+                elset_props: dict[str, Any] = {
+                    "verbose_name": elset_name,
+                    "tags": elset_tags,
+                    "source_file": node.properties.get("path", ""),
+                }
+
+                # elset別element数
+                if elset_name in merged_elset_summary:
+                    elset_props["element_count"] = merged_elset_summary[elset_name]
+
+                # 材料割り当て
+                if elset_name in elset_to_material:
+                    elset_props["material"] = elset_to_material[elset_name]
 
                 elset_node = Node(
                     id=graph.next_node_id(),
                     type="abaqus_elset",
                     name=elset_name,
                     format="elset",
-                    properties={
-                        "verbose_name": elset_name,
-                        "tags": elset_tags,
-                        "source_file": node.properties.get("path", ""),
-                    },
+                    properties=elset_props,
                 )
                 graph.add_node(elset_node)
                 go_elset_names.append(elset_name)

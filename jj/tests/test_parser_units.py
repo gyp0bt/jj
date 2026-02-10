@@ -789,6 +789,346 @@ class TestJsonPropertyParser:
 
 
 # ====================================================================
+# AbaqusElsetParser テスト
+# ====================================================================
+
+
+class TestAbaqusElsetParser:
+    """AbaqusElsetParser の単体テスト"""
+
+    def test_creates_elset_nodes_from_mesh_elset_summary(self, config: GraphConfig):
+        """mesh_elset_summaryからabaqus_elsetノードが生成される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = [n for n in result.nodes if n.type == "abaqus_elset"]
+        assert len(elset_nodes) == 2
+        elset_names = {n.name for n in elset_nodes}
+        assert elset_names == {"BODY", "SKIN"}
+
+    def test_elset_has_element_count(self, config: GraphConfig):
+        """elsetノードにelement_countプロパティが付与される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
+        assert elset_nodes["BODY"].properties["element_count"] == 100
+        assert elset_nodes["SKIN"].properties["element_count"] == 50
+
+    def test_elset_has_material_assignment(self, config: GraphConfig):
+        """material_elsetsから各elsetに材料割り当てが付与される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "mesh_elset_summary": {"BODY": 100},
+                     "material_elsets": {"Steel_S235": ["BODY"]},
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
+        assert elset_nodes["BODY"].properties["material"] == "Steel_S235"
+
+    def test_elset_from_include_child(self, config: GraphConfig):
+        """include先のmesh_elset_summaryからもelset名とelement_countが取得される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="mesh", name="mesh_t50", format="inp",
+                 properties={
+                     "path": "mesh_t50.inp",
+                     "mesh_elset_summary": {"PART_A": 200, "PART_B": 300},
+                 }),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
+        assert len(elset_nodes) == 2
+        assert elset_nodes["PART_A"].properties["element_count"] == 200
+        assert elset_nodes["PART_B"].properties["element_count"] == 300
+
+    def test_has_elset_relation_created(self, config: GraphConfig):
+        """go_*.inpとelsetの間にhas_elsetリレーションが生成される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "mesh_elset_summary": {"EALL": 10},
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        has_elset_rels = [r for r in result.relations if r.label == "has_elset"]
+        assert len(has_elset_rels) == 1
+        assert has_elset_rels[0].node1_id == 1
+
+    def test_go_node_gets_elsets_property(self, config: GraphConfig):
+        """go_*.inpノードにelsetsプロパティが設定される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert "elsets" in go_node.properties
+        assert go_node.properties["elsets"] == ["BODY", "SKIN"]
+
+    def test_material_only_elset_no_element_count(self, config: GraphConfig):
+        """material_elsetsのみにあるelsetはelement_countなし"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "material_elsets": {"Aluminum": ["WING"]},
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
+        assert "WING" in elset_nodes
+        assert "element_count" not in elset_nodes["WING"].properties
+        assert elset_nodes["WING"].properties["material"] == "Aluminum"
+
+
+# ====================================================================
+# AbaqusDiffParser パイプラインテスト
+# ====================================================================
+
+
+class TestAbaqusDiffParser:
+    """AbaqusDiffParser の単体テスト"""
+
+    def test_diff_properties_added_for_version_pair(self, tmp_path: Path, config: GraphConfig):
+        """隣接バージョン間でdiff_from, diff_summary, diff_detailsが付与される"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 1, 2\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1., 1e-05, 1.\n"
+            "*END STEP\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 2.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 3, 1\n"
+            "2, 1, 2, 3, 2\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1., 1e-05, 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = AbaqusDiffParser().apply(graph)
+
+        v2_node = result.get_node_by_id(2)
+        assert "diff_from" in v2_node.properties
+        assert v2_node.properties["diff_from"] == "go_idx1_v1.inp"
+        assert "diff_summary" in v2_node.properties
+        assert "diff_details" in v2_node.properties
+
+    def test_diff_contains_node_count_change(self, tmp_path: Path, config: GraphConfig):
+        """diff_summaryにノード数変更が反映される"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 2.0, 0.0, 0.0\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = AbaqusDiffParser().apply(graph)
+
+        v2_node = result.get_node_by_id(2)
+        # diff_detailsにnode_countの差分が含まれる
+        assert "diff_details" in v2_node.properties
+        assert "node_count" in v2_node.properties["diff_details"]
+
+    def test_diff_contains_element_count_change(self, tmp_path: Path, config: GraphConfig):
+        """diff_summaryに要素数変更が反映される"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 3, 4\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 2.0, 0.0, 0.0\n"
+            "3, 2.0, 2.0, 0.0\n"
+            "4, 0.0, 2.0, 0.0\n"
+            "5, 1.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 5, 4\n"
+            "2, 2, 3, 4, 5\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = AbaqusDiffParser().apply(graph)
+
+        v2_node = result.get_node_by_id(2)
+        assert "diff_details" in v2_node.properties
+        assert "element_count" in v2_node.properties["diff_details"]
+
+    def test_diff_contains_nset_elset_changes(self, tmp_path: Path, config: GraphConfig):
+        """diff_detailsにnset/elsetの変更が含まれる"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*NSET, NSET=FIX\n"
+            "1\n"
+            "*ELSET, ELSET=BODY\n"
+            "1\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*NSET, NSET=FIX\n"
+            "1, 2\n"
+            "*ELSET, ELSET=BODY\n"
+            "1\n"
+            "*ELSET, ELSET=SKIN\n"
+            "1\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = AbaqusDiffParser().apply(graph)
+
+        v2_node = result.get_node_by_id(2)
+        assert "diff_details" in v2_node.properties
+        # NSETのFIXが変更（id_count 1→2）
+        details = v2_node.properties["diff_details"]
+        assert "nsets" in details.lower() or "elsets" in details.lower()
+
+    def test_no_diff_for_identical_versions(self, tmp_path: Path, config: GraphConfig):
+        """同一内容のバージョンではdiffプロパティが付与されない"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = AbaqusDiffParser().apply(graph)
+
+        v2_node = result.get_node_by_id(2)
+        assert "diff_from" not in v2_node.properties
+
+
+# ====================================================================
 # ヘルパー: GraphServiceの最小スタブ
 # ====================================================================
 
