@@ -85,6 +85,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-10 / status-046: warning/error重複排除（数値正規化）、cpu_time/wallclock_time最終値取得修正、jj info YAML出力化、results/ info-only（Node化除外）、Obsidian export directory実ファイルリンク除外、.dat warning/error抽出追加。テスト445件パス、20スキップ。([status-046](docs/status/status-046.md))
+- 2026-02-10 / status-045: idx→条件統一、CLIビジネスロジックのservices.service分離。テスト443件パス、20スキップ。([status-045](docs/status/status-045.md))
 - 2026-02-10 / status-044: NO_NODE_EXTENSIONS(.odb/.odb.json)追加、materialパーサーvocab/token-key-map対応、ディレクトリ階層contains relation追加、JsonPropertyParser新規追加（go_*.inpへのJSON key-value割り当て）、iterate_directories()のnon_file_nodes反映。テスト439件パス、20スキップ。([status-044](docs/status/status-044.md))
 - 2026-02-10 / status-043: Phase R4-R6完了（services構造リファクタリング完了）。ObsidianConnectorをexport層へ移動、graph/__init__.pyの旧メソッド削除（2026行→510行）、全テスト新パイプライン対応。pymeshインポートパスをmodules/に修正。テスト443件パス、0失敗。MR（構造改革マイルストーン）達成。([status-043](docs/status/status-043.md))
 - 2026-02-09 / status-042: Phase R1-R3実装完了。ProjectGraph型定義（project_graph.py）、AbstractFileParser.__init_subclass__自動登録パターン確立、graph/__init__.pyから16パーサーサブクラスに分解。parse()パイプラインでtest_asset1を丸ごと解析（47ノード、65リレーション）。統合テスト29件パス。specs/02-parser.md・specs/07-adapter.mdを新アーキテクチャに更新。([status-042](docs/status/status-042.md))

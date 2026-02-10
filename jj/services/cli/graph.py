@@ -23,6 +23,8 @@ import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
+import yaml
+
 from config import init_graph_config
 from services.graph import GraphService
 from services.service.info import InfoService
@@ -794,24 +796,16 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                 if verbose_name:
                     print(f"  表示名: {verbose_name}")
 
-            # プロパティ表示
+            # プロパティ表示（yamlソースをありのまま出力）
             print(f"\n  プロパティ:")
-            for key, value in sorted(node.properties.items()):
-                if isinstance(value, list) and len(value) > 5:
-                    print(f"    {key}: [{len(value)} items]")
-                elif isinstance(value, dict):
-                    print(f"    {key}:")
-                    for dk, dv in value.items():
-                        if isinstance(dv, dict):
-                            parts = ", ".join(f"{sk}: {sv}" for sk, sv in dv.items())
-                            print(f"      {dk}: {{{parts}}}")
-                        else:
-                            print(f"      {dk}: {dv}")
-                else:
-                    print(f"    {key}: {value}")
-
-            # メッシュ統計セクション
-            _print_mesh_stats_section(node)
+            props_yaml = yaml.safe_dump(
+                dict(sorted(node.properties.items())),
+                allow_unicode=True,
+                sort_keys=False,
+                default_flow_style=False,
+            )
+            for line in props_yaml.rstrip("\n").split("\n"):
+                print(f"    {line}")
 
             # リレーション表示（-propsでない場合のみ）
             if not props_only:
