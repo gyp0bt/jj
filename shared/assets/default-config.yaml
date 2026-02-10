@@ -116,6 +116,28 @@ file-relations:
     - ".cdb"      # ANSYS CDB
     - ".msh"      # Fluent メッシュ
 
+# エクスポート設定
+export:
+  # CSVエクスポート時の出力カラム（指定時はこれらのカラムのみ出力）
+  # 未指定の場合は全カラムを出力。name/type/formatは常に含まれます。
+  # csv-columns:
+  #   - 条件
+  #   - バージョン
+  #   - 応力
+
+  # 単位マッピング（カラム名 → 単位）
+  # CSV出力時にカラム名に単位情報を付加します。
+  # units:
+  #   応力: MPa
+  #   荷重: N
+  #   変位: mm
+  #   質量: kg
+
+  # CSV単位表示形式
+  # "header": {column}[{unit}] 形式（デフォルト）
+  # "row": 1行目カラム名、2行目単位行
+  csv-unit-format: header
+
 # Obsidian エクスポート設定
 obsidian:
   # ノート出力先ディレクトリ

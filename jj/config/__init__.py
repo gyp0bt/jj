@@ -557,6 +557,33 @@ class ObsidianExportConfig:
 
 
 @dataclass(frozen=True)
+class ExportConfig:
+    """エクスポート設定: CSVカラム選択・単位マッピング"""
+    csv_columns: list[str] | None
+    units: dict[str, str]
+    csv_unit_format: str  # "header" or "row"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExportConfig":
+        if not data:
+            return cls(csv_columns=None, units={}, csv_unit_format="header")
+        csv_columns = data.get("csv-columns")
+        if csv_columns is not None and not isinstance(csv_columns, list):
+            raise ValueError("csv-columns must be list[str]")
+        units = data.get("units", {})
+        if not isinstance(units, dict):
+            raise ValueError("units must be dict[str, str]")
+        csv_unit_format = data.get("csv-unit-format", "header")
+        if csv_unit_format not in ("header", "row"):
+            raise ValueError("csv-unit-format must be 'header' or 'row'")
+        return cls(
+            csv_columns=[str(c) for c in csv_columns] if csv_columns else None,
+            units={str(k): str(v) for k, v in units.items()},
+            csv_unit_format=str(csv_unit_format),
+        )
+
+
+@dataclass(frozen=True)
 class GraphConfig:
     """グラフ機能用の統合設定"""
     vocab: dict[str, str]
@@ -568,6 +595,7 @@ class GraphConfig:
     obsidian: ObsidianExportConfig
     token_key_map: TokenKeyMapConfig
     project_name: str
+    export: ExportConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
@@ -581,6 +609,7 @@ class GraphConfig:
             obsidian=ObsidianExportConfig.from_dict(data.get("obsidian", {})),
             token_key_map=TokenKeyMapConfig.from_dict(data.get("token-key-map", {})),
             project_name=data.get("project-name", ""),
+            export=ExportConfig.from_dict(data.get("export", {})),
         )
 
     @classmethod
