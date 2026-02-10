@@ -48,6 +48,7 @@ from services.parse.connectors.abaqus import (
 # ==========================
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "graph_test1"
+ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
 
 
 @pytest.fixture
@@ -991,3 +992,316 @@ class TestMeshSummaryInDiff:
             # simple_inp には4ノードあるのでサイズ計算可能
             assert "size" in summary
             assert summary["size"]["min"] > 0
+
+
+# ==========================
+# 実データ（test_asset1）テスト
+# ==========================
+
+
+class TestReadInpRealMeshTest:
+    """test_asset1/old/mesh_test*.inp の実データ read_inp テスト
+
+    Femap出力の自己完結型メッシュファイル。
+    各バージョンでノード数・要素トポロジが異なる。
+    """
+
+    def test_mesh_test_node_count(self):
+        """mesh_test.inp: 540 nodes in GLOBAL nset"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        global_nodes = abq.nodes.get("global")
+        assert global_nodes is not None
+        assert len(global_nodes.data) == 540
+
+    def test_mesh_test_element_count(self):
+        """mesh_test.inp: pwire(C3D8) 180要素 + pcover(C3D8) 120要素 = 300"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        total = sum(len(c.data) for c in abq.elements.values())
+        assert total == 300
+
+    def test_mesh_test_element_types(self):
+        """mesh_test.inp: C3D8要素のみ"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        for name, comp in abq.elements.items():
+            assert comp.options.get("type") == "c3d8"
+
+    def test_mesh_test_nsets(self):
+        """mesh_test.inp: gzmax, gzmin, gxmin, gymin の4 nset"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        expected_nsets = {"gzmax", "gzmin", "gxmin", "gymin"}
+        assert expected_nsets.issubset(set(abq.nsets.keys()))
+
+    def test_mesh_test_elsets(self):
+        """mesh_test.inp: gcoh_cover, gcoh_wire, out_cont の3 elset"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        expected = {"gcoh_cover", "gcoh_wire", "out_cont"}
+        assert expected.issubset(set(abq.elsets.keys()))
+
+    def test_mesh_test_has_material(self):
+        """mesh_test.inp: 材料 Ma を定義"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        assert len(abq.materials) == 1
+        assert "ma" in abq.materials
+
+    def test_mesh_test_has_step(self):
+        """mesh_test.inp: STEP定義あり"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        assert len(abq.steps) == 1
+
+    def test_mesh_test_v2_more_nodes(self):
+        """mesh_test.v2.inp: 568 nodes（v1の540から増加）"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        global_nodes = abq.nodes.get("global")
+        assert len(global_nodes.data) == 568
+
+    def test_mesh_test_v2_has_cohesive_elements(self):
+        """mesh_test.v2.inp: cohesive zone要素(pwire_coh, pcover_coh)が追加"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        elset_names = set(abq.elements.keys())
+        assert any("coh" in name for name in elset_names)
+
+    def test_mesh_test_v3_most_nodes(self):
+        """mesh_test.v3.inp: 588 nodes（v2の568からさらに増加）"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.v3.inp", verbose=False)
+        global_nodes = abq.nodes.get("global")
+        assert len(global_nodes.data) == 588
+
+    def test_mesh_test_version_node_count_monotonic(self):
+        """mesh_test v1→v2→v3 でノード数が単調増加"""
+        counts = []
+        for name in ["mesh_test.inp", "mesh_test.v2.inp", "mesh_test.v3.inp"]:
+            abq = read_inp(ASSET_DIR / "old" / name, verbose=False)
+            counts.append(len(list(abq.nodes.values())[0].data))
+        assert counts[0] < counts[1] < counts[2]
+
+
+class TestReadInpRealLargeMesh:
+    """test_asset1/mesh_shape1_t95.v7.inp の実データテスト（大規模メッシュ）"""
+
+    def test_large_mesh_node_count(self):
+        """mesh_shape1_t95.v7.inp: 67942 nodes"""
+        abq = read_inp(ASSET_DIR / "mesh_shape1_t95.v7.inp", verbose=False)
+        total_nodes = sum(len(c.data) for c in abq.nodes.values())
+        assert total_nodes == 67942
+
+    def test_large_mesh_element_count(self):
+        """mesh_shape1_t95.v7.inp: 51680 elements (C3D8R + C3D6)"""
+        abq = read_inp(ASSET_DIR / "mesh_shape1_t95.v7.inp", verbose=False)
+        total_elems = sum(len(c.data) for c in abq.elements.values())
+        assert total_elems == 51680
+
+    def test_large_mesh_element_types(self):
+        """mesh_shape1_t95.v7.inp: C3D8R と C3D6 を含む"""
+        abq = read_inp(ASSET_DIR / "mesh_shape1_t95.v7.inp", verbose=False)
+        elem_types = {c.options.get("type") for c in abq.elements.values()}
+        assert "c3d8r" in elem_types
+        assert "c3d6" in elem_types
+
+    def test_large_mesh_no_materials(self):
+        """mesh_shape1_t95.v7.inp: メッシュのみで材料定義なし"""
+        abq = read_inp(ASSET_DIR / "mesh_shape1_t95.v7.inp", verbose=False)
+        assert len(abq.materials) == 0
+
+    def test_large_mesh_no_steps(self):
+        """mesh_shape1_t95.v7.inp: STEP定義なし"""
+        abq = read_inp(ASSET_DIR / "mesh_shape1_t95.v7.inp", verbose=False)
+        assert len(abq.steps) == 0
+
+    def test_large_mesh_nsets(self):
+        """mesh_shape1_t95.v7.inp: gzmax, gzmin, gxmin, gymin nset"""
+        abq = read_inp(ASSET_DIR / "mesh_shape1_t95.v7.inp", verbose=False)
+        expected_nsets = {"gzmax", "gzmin", "gxmin", "gymin"}
+        assert expected_nsets.issubset(set(abq.nsets.keys()))
+
+
+class TestReadInpRealErrorCases:
+    """test_asset1の実データで発生するパーサーエラーのテスト
+
+    想定外の発見:
+    - material.inp が test_asset1 に存在しない
+    - *FRICTION が *SURFACE INTERACTION 下に出現するとcurrent material不在エラー
+    """
+
+    def test_go_inp_fails_without_material_inp(self):
+        """go_idx1.v3.inp: material.inp 欠如で *FRICTION 解析がエラー"""
+        with pytest.raises(RuntimeError, match="current material"):
+            read_inp(ASSET_DIR / "go_idx1.v3.inp", verbose=False)
+
+    def test_step_stress_friction_error(self):
+        """step_stress_v1.inp: *FRICTION が *SURFACE INTERACTION 下にあるため
+        current material 不在でエラー（パーサーの既知の制限事項）"""
+        with pytest.raises(RuntimeError, match="current material"):
+            read_inp(ASSET_DIR / "step_stress_v1.inp", verbose=False)
+
+    def test_material_inp_not_found_warning(self, capsys):
+        """material.inp が存在しない場合、Warningを出して続行を試みる"""
+        # read_inp はWarningを出すが*FRICTIONで最終的にエラーになる
+        with pytest.raises(RuntimeError):
+            read_inp(ASSET_DIR / "go_idx1.v3.inp", verbose=False)
+
+
+class TestDiffRealData:
+    """test_asset1の実データを使った diff_abq_blocks テスト"""
+
+    def test_mesh_test_v1_v2_diff_count(self):
+        """mesh_test.inp vs mesh_test.v2.inp: 9件の差分を検出"""
+        abq1 = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        abq2 = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        assert len(diffs) == 9
+
+    def test_mesh_test_v1_v2_node_diff(self):
+        """mesh_test vs mesh_test.v2: ノード数変更がdiffに含まれる"""
+        abq1 = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        abq2 = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        node_diffs = [d for d in diffs if "nodes" in d.location]
+        assert len(node_diffs) >= 1
+
+    def test_mesh_test_v1_v2_element_topology_diff(self):
+        """mesh_test vs mesh_test.v2: 要素トポロジ変更（cohesive zone追加）"""
+        abq1 = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        abq2 = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        elem_diffs = [d for d in diffs if "elements" in d.location]
+        # pwire_coh, pcover_coh が追加、pcover, pwire の変更
+        assert len(elem_diffs) >= 2
+
+    def test_mesh_test_v2_v3_only_node_change(self):
+        """mesh_test.v2 vs mesh_test.v3: ノード数のみ変更（差分1件）"""
+        abq2 = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        abq3 = read_inp(ASSET_DIR / "old" / "mesh_test.v3.inp", verbose=False)
+        diffs = diff_abq_blocks(abq2, abq3)
+        assert len(diffs) == 1
+        assert "nodes" in diffs[0].location
+
+    def test_mesh_test_v1_v2_summary_table(self):
+        """mesh_test v1→v2: サマリーテーブルにnodesとelementsが含まれる"""
+        abq1 = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        abq2 = read_inp(ASSET_DIR / "old" / "mesh_test.v2.inp", verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        table = format_diff_summary_table(diffs)
+        assert "nodes" in table.lower()
+        assert "elements" in table.lower()
+
+
+class TestMsgRealData:
+    """test_asset1の実 .msg ファイル解析テスト"""
+
+    def test_go_idx1_v3_msg_warnings_and_errors(self):
+        """go_idx1.v3.msg: 8 warnings, 2 errors"""
+        from services.graph import parse_msg_file
+
+        result = parse_msg_file(ASSET_DIR / "go_idx1.v3.msg")
+        assert len(result["warnings"]) == 8
+        assert len(result["errors"]) == 2
+
+    def test_go_idx1_v3_msg_error_content(self):
+        """go_idx1.v3.msg: TIME INCREMENT エラーを含む"""
+        from services.graph import parse_msg_file
+
+        result = parse_msg_file(ASSET_DIR / "go_idx1.v3.msg")
+        assert any("TIME INCREMENT" in e for e in result["errors"])
+
+    def test_go_idx0_v29_msg_warnings_only(self):
+        """go_idx0.v29.msg: 6 warnings, 0 errors（正常終了）"""
+        from services.graph import parse_msg_file
+
+        result = parse_msg_file(ASSET_DIR / "go_idx0.v29.msg")
+        assert len(result["warnings"]) == 6
+        assert len(result["errors"]) == 0
+
+    def test_go_idx2_v3_msg_warnings_only(self):
+        """go_idx2.v3.msg: 8 warnings, 0 errors"""
+        from services.graph import parse_msg_file
+
+        result = parse_msg_file(ASSET_DIR / "go_idx2.v3.msg")
+        assert len(result["warnings"]) == 8
+        assert len(result["errors"]) == 0
+
+
+class TestDatRealData:
+    """test_asset1の実 .dat ファイル解析テスト"""
+
+    def test_go_idx1_v3_dat_has_timing(self):
+        """go_idx1.v3.dat: cpu_time, wallclock_time を含む"""
+        from services.graph import parse_dat_file
+
+        result = parse_dat_file(ASSET_DIR / "go_idx1.v3.dat")
+        assert "cpu_time" in result
+        assert "wallclock_time" in result
+
+    def test_go_idx1_v3_dat_has_warnings(self):
+        """go_idx1.v3.dat: warnings キーを含む"""
+        from services.graph import parse_dat_file
+
+        result = parse_dat_file(ASSET_DIR / "go_idx1.v3.dat")
+        assert "warnings" in result
+
+
+class TestStaRealData:
+    """test_asset1の実 .sta ファイル解析テスト（ファイルが存在する場合のみ）"""
+
+    def test_go_idx1_v3_sta(self):
+        """go_idx1.v3.sta: analysis_status を含む（存在する場合）"""
+        sta_path = ASSET_DIR / "go_idx1.v3.sta"
+        if not sta_path.exists():
+            pytest.skip("go_idx1.v3.sta not found")
+        result = parse_sta_file(sta_path)
+        assert "analysis_status" in result
+
+
+class TestMeshSummaryRealData:
+    """test_asset1の実メッシュデータを使った要約機能テスト"""
+
+    def test_mesh_test_node_summary(self):
+        """mesh_test.inp: ノード要約が正しい座標範囲を返す"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        node_comp = list(abq.nodes.values())[0]
+        summary = _summarize_node_data(node_comp.data)
+        assert summary["node_count"] == 540
+        # 座標範囲が妥当な値であること
+        assert summary["x_range"]["min"] <= summary["x_range"]["max"]
+        assert summary["y_range"]["min"] <= summary["y_range"]["max"]
+        assert summary["z_range"]["min"] <= summary["z_range"]["max"]
+
+    def test_mesh_test_element_summary(self):
+        """mesh_test.inp: 要素要約にサイズ情報が含まれる"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        nodes_lookup = _build_nodes_lookup(abq)
+        for name, elem_comp in abq.elements.items():
+            summary = _summarize_element_data(elem_comp.data, nodes_lookup=nodes_lookup)
+            assert summary["element_count"] > 0
+            assert "size" in summary
+            assert summary["size"]["min"] > 0
+
+    def test_abq_to_dict_real_mesh(self):
+        """mesh_test.inp: abq_to_dictで全コンポーネントが要約される"""
+        abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
+        result = abq_to_dict(abq)
+        assert "nodes" in result
+        assert "elements" in result
+        for name, node_dict in result["nodes"].items():
+            assert "summary" in node_dict
+        for name, elem_dict in result["elements"].items():
+            assert "summary" in elem_dict
+
+
+class TestParseMaterialBlocksRealData:
+    """test_asset1の実データを使った parse_material_blocks テスト"""
+
+    def test_mesh_test_has_material_block(self):
+        """mesh_test.inp: 材料 Ma のブロックを抽出"""
+        result = parse_material_blocks(ASSET_DIR / "old" / "mesh_test.inp")
+        assert len(result) == 1
+        assert result[0]["name"].lower() == "ma"
+
+    def test_go_inp_no_material_blocks(self):
+        """go_idx1.v3.inp: material.inp 欠如のためmaterialブロックなし"""
+        result = parse_material_blocks(ASSET_DIR / "go_idx1.v3.inp")
+        assert len(result) == 0
+
+    def test_mesh_shape_no_material_blocks(self):
+        """mesh_shape1_t95.v7.inp: メッシュのみで材料定義なし"""
+        result = parse_material_blocks(ASSET_DIR / "mesh_shape1_t95.v7.inp")
+        assert len(result) == 0

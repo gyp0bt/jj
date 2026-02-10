@@ -1144,3 +1144,394 @@ class GraphService_stub:
         merged_ext = self._svc._build_scan_extensions()
         files = self._svc.scan_files(extensions=merged_ext)
         return [self._svc.file_to_node(f) for f in files]
+
+
+# ====================================================================
+# 実データ用フィクスチャ（test_asset1スキャン結果）
+# ====================================================================
+
+
+@pytest.fixture
+def real_config() -> GraphConfig:
+    """実データ用の拡張コンフィグ"""
+    return GraphConfig.from_dict(
+        {
+            "vocab": {},
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb", ".sta", ".msg", ".dat"],
+                "asset-extensions": [".modfem", ".cdb", ".stp"],
+            },
+        }
+    )
+
+
+@pytest.fixture
+def real_nodes(real_config: GraphConfig) -> list[Node]:
+    """test_asset1をスキャンした実ノードリスト"""
+    svc = GraphService_stub(ASSET_DIR, real_config)
+    return svc.scan_and_create_nodes()
+
+
+@pytest.fixture
+def real_graph(real_nodes: list[Node], real_config: GraphConfig) -> ProjectGraph:
+    """test_asset1の実ノードから構築したProjectGraph（リレーションなし）"""
+    return _make_graph(real_nodes, config=real_config, project_root=ASSET_DIR)
+
+
+# ====================================================================
+# 実データ: VersionRelationParser テスト
+# ====================================================================
+
+
+class TestVersionRelationParserRealData:
+    """test_asset1の実データを使ったVersionRelationParserテスト"""
+
+    def test_go_idx3_next_version(self, real_graph: ProjectGraph):
+        """go_idx3: v1→v2 の next_version が生成される"""
+        from services.parse.parsers.version_parser import VersionRelationParser
+
+        result = VersionRelationParser().apply(real_graph)
+
+        v1 = next((n for n in result.nodes if n.name == "go_idx3.v1"), None)
+        v2 = next((n for n in result.nodes if n.name == "go_idx3.v2"), None)
+        assert v1 is not None and v2 is not None
+        nv = [
+            r for r in result.relations
+            if r.label == "next_version"
+            and r.node1_id == v1.id and r.node2_id == v2.id
+        ]
+        assert len(nv) == 1
+
+    def test_go_idx2_cross_directory_version(self, real_graph: ProjectGraph):
+        """go_idx2: old/v2.inp→root/v3 のバージョンチェーン（ディレクトリ跨ぎ）
+
+        想定外の発見: VersionRelationParserはフォーマット混合でチェーンを構築する。
+        go_idx2.v2.inp → go_idx2.v3.dat → go_idx2.v3.inp → go_idx2.v3.msg
+        のように、v2.inp→v3.datが先に接続され、v3.inp直結ではない。
+        """
+        from services.parse.parsers.version_parser import VersionRelationParser
+
+        result = VersionRelationParser().apply(real_graph)
+
+        v2_inp = next(
+            (n for n in result.nodes
+             if n.name == "go_idx2.v2" and n.format == "inp"),
+            None,
+        )
+        assert v2_inp is not None
+
+        # v2.inp から始まる next_version がある（先は v3.dat かもしれない）
+        nv = [
+            r for r in result.relations
+            if r.label == "next_version" and r.node1_id == v2_inp.id
+        ]
+        assert len(nv) == 1
+        next_node = result.get_node_by_id(nv[0].node2_id)
+        assert next_node.properties.get("version") == "3"
+        assert next_node.type == "go"
+
+    def test_same_index_group_count(self, real_graph: ProjectGraph):
+        """same_index_group が複数生成される"""
+        from services.parse.parsers.version_parser import VersionRelationParser
+
+        result = VersionRelationParser().apply(real_graph)
+
+        groups = [r for r in result.relations if r.label == "same_index_group"]
+        assert len(groups) >= 2  # idx2, idx3 等のグループ
+
+
+# ====================================================================
+# 実データ: ResultRelationParser テスト
+# ====================================================================
+
+
+class TestResultRelationParserRealData:
+    """test_asset1の実データを使ったResultRelationParserテスト"""
+
+    def test_dat_result_of_inp(self, real_graph: ProjectGraph):
+        """go_*.dat → go_*.inp の result_of が生成される"""
+        from services.parse.parsers.output_parser import ResultRelationParser
+
+        result = ResultRelationParser().apply(real_graph)
+        result_rels = [r for r in result.relations if r.label == "result_of"]
+
+        dat_to_inp = []
+        for r in result_rels:
+            src = result.get_node_by_id(r.node1_id)
+            dst = result.get_node_by_id(r.node2_id)
+            if src and dst and src.format == "dat" and dst.format == "inp":
+                dat_to_inp.append((src.name, dst.name))
+        # go_idx0, go_idx1, go_idx2 の3ペア
+        assert len(dat_to_inp) == 3
+
+    def test_msg_result_of_inp(self, real_graph: ProjectGraph):
+        """go_*.msg → go_*.inp の result_of が生成される"""
+        from services.parse.parsers.output_parser import ResultRelationParser
+
+        result = ResultRelationParser().apply(real_graph)
+        result_rels = [r for r in result.relations if r.label == "result_of"]
+
+        msg_to_inp = []
+        for r in result_rels:
+            src = result.get_node_by_id(r.node1_id)
+            dst = result.get_node_by_id(r.node2_id)
+            if src and dst and src.format == "msg" and dst.format == "inp":
+                msg_to_inp.append((src.name, dst.name))
+        assert len(msg_to_inp) == 3
+
+
+# ====================================================================
+# 実データ: AssetRelationParser テスト
+# ====================================================================
+
+
+class TestAssetRelationParserRealData:
+    """test_asset1の実データを使ったAssetRelationParserテスト"""
+
+    def test_modfem_derived_from_inp(self, real_graph: ProjectGraph):
+        """mesh_*.modfem と mesh_*.inp 間に derived_from が生成される"""
+        from services.parse.parsers.output_parser import AssetRelationParser
+
+        result = AssetRelationParser().apply(real_graph)
+        derived = [r for r in result.relations if r.label == "derived_from"]
+
+        # mesh_shape1_t95 v6/v7/v8 + mesh_test v1/v2/v3 = 6ペア
+        assert len(derived) == 6
+
+    def test_derived_from_links_inp_to_modfem(self, real_graph: ProjectGraph):
+        """derived_from: inp → modfem（入力元→アセット）の方向"""
+        from services.parse.parsers.output_parser import AssetRelationParser
+
+        result = AssetRelationParser().apply(real_graph)
+        derived = [r for r in result.relations if r.label == "derived_from"]
+
+        for r in derived:
+            src = result.get_node_by_id(r.node1_id)
+            dst = result.get_node_by_id(r.node2_id)
+            assert src.format == "inp"
+            assert dst.format == "modfem"
+
+
+# ====================================================================
+# 実データ: IncludesRelationParser テスト
+# ====================================================================
+
+
+class TestIncludesRelationParserRealData:
+    """test_asset1の実データを使ったIncludesRelationParserテスト"""
+
+    def test_total_includes_count(self, real_graph: ProjectGraph):
+        """8件の includes リレーションが生成される"""
+        from services.parse.parsers.output_parser import IncludesRelationParser
+
+        result = IncludesRelationParser().apply(real_graph)
+        includes = [r for r in result.relations if r.label == "includes"]
+        assert len(includes) == 8
+
+    def test_go_idx1_includes_mesh_and_step(self, real_graph: ProjectGraph):
+        """go_idx1.v3 → mesh_shape1_t95.v8 + step_stress_v1"""
+        from services.parse.parsers.output_parser import IncludesRelationParser
+
+        result = IncludesRelationParser().apply(real_graph)
+        go = next(
+            (n for n in result.nodes
+             if n.name == "go_idx1.v3" and n.format == "inp"),
+            None,
+        )
+        assert go is not None
+        includes = [
+            r for r in result.relations
+            if r.label == "includes" and r.node1_id == go.id
+        ]
+        target_names = set()
+        for r in includes:
+            target = result.get_node_by_id(r.node2_id)
+            target_names.add(target.name)
+        assert "mesh_shape1_t95.v8" in target_names
+        assert "step_stress_v1" in target_names
+
+    def test_go_idx0_includes_mesh_only(self, real_graph: ProjectGraph):
+        """go_idx0.v29 → mesh_shape1_t95.v7（material.inpは不在）"""
+        from services.parse.parsers.output_parser import IncludesRelationParser
+
+        result = IncludesRelationParser().apply(real_graph)
+        go = next(
+            (n for n in result.nodes
+             if n.name == "go_idx0.v29" and n.format == "inp"),
+            None,
+        )
+        assert go is not None
+        includes = [
+            r for r in result.relations
+            if r.label == "includes" and r.node1_id == go.id
+        ]
+        target_names = set()
+        for r in includes:
+            target = result.get_node_by_id(r.node2_id)
+            target_names.add(target.name)
+        assert "mesh_shape1_t95.v7" in target_names
+        # material.inp は不在なのでincludesに含まれない
+        assert all("material" not in name for name in target_names)
+
+    def test_old_go_includes_cross_directory(self, real_graph: ProjectGraph):
+        """old/go_idx2.v2 → mesh_shape1_t95.v7（ディレクトリ跨ぎのinclude検出）"""
+        from services.parse.parsers.output_parser import IncludesRelationParser
+
+        result = IncludesRelationParser().apply(real_graph)
+        go = next(
+            (n for n in result.nodes
+             if n.name == "go_idx2.v2" and n.format == "inp"
+             and "old/" in n.properties.get("path", "")),
+            None,
+        )
+        assert go is not None
+        includes = [
+            r for r in result.relations
+            if r.label == "includes" and r.node1_id == go.id
+        ]
+        assert len(includes) >= 1
+        target = result.get_node_by_id(includes[0].node2_id)
+        assert "mesh_shape1_t95" in target.name
+
+
+# ====================================================================
+# 実データ: DirectoryRelationParser テスト
+# ====================================================================
+
+
+class TestDirectoryRelationParserRealData:
+    """test_asset1の実データを使ったDirectoryRelationParserテスト"""
+
+    def test_creates_known_directories(self, real_graph: ProjectGraph):
+        """old, tools, reports, assets, results のディレクトリが作成される"""
+        from services.parse.parsers.directory_parser import DirectoryRelationParser
+
+        result = DirectoryRelationParser().apply(real_graph)
+        dir_nodes = [n for n in result.nodes if n.format == "directory"]
+        dir_names = {n.name for n in dir_nodes}
+        for expected in ["old", "tools", "reports", "assets", "results"]:
+            assert expected in dir_names, f"directory '{expected}' not found"
+
+    def test_old_directory_contains_files(self, real_graph: ProjectGraph):
+        """old/ 配下に多数のファイルが contains される"""
+        from services.parse.parsers.directory_parser import DirectoryRelationParser
+
+        result = DirectoryRelationParser().apply(real_graph)
+        old_dir = next(
+            (n for n in result.nodes
+             if n.name == "old" and n.format == "directory"),
+            None,
+        )
+        assert old_dir is not None
+        contains = [
+            r for r in result.relations
+            if r.label == "contains" and r.node1_id == old_dir.id
+        ]
+        # old/ has go_idx2.v2, go_idx3.v1, go_idx3.v2, mesh_*... (>15 files)
+        assert len(contains) >= 15
+
+
+# ====================================================================
+# 実データ: JsonPropertyParser テスト
+# ====================================================================
+
+
+class TestJsonPropertyParserRealData:
+    """test_asset1の実データを使ったJsonPropertyParserテスト
+
+    results/go_idx0.v29_stress.json → go_idx0.v29.inp
+    results/go_idx1.v3_stress.json → go_idx1.v3.inp
+    results/go_idx2.v3_stress.json → go_idx2.v3.inp
+    """
+
+    def test_json_properties_propagated_to_go_node(
+        self, real_graph: ProjectGraph,
+    ):
+        """results/のJSONキーがgo_*.inpノードに伝搬される"""
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        result = JsonPropertyParser().apply(real_graph)
+        go_idx1 = next(
+            (n for n in result.nodes
+             if n.name == "go_idx1.v3" and n.format == "inp"),
+            None,
+        )
+        assert go_idx1 is not None
+        # go_idx1.v3_stress.json: {"0(center)": 0.5, "1": 0.5625, "2(edge)": 0.5}
+        assert "0(center)" in go_idx1.properties
+        assert go_idx1.properties["0(center)"] == 0.5
+        assert go_idx1.properties["2(edge)"] == 0.5
+
+    def test_nan_converted_to_none(self, real_graph: ProjectGraph):
+        """go_idx0.v29_stress.json のNaN値がNone変換される"""
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        result = JsonPropertyParser().apply(real_graph)
+        go_idx0 = next(
+            (n for n in result.nodes
+             if n.name == "go_idx0.v29" and n.format == "inp"),
+            None,
+        )
+        assert go_idx0 is not None
+        # go_idx0.v29_stress.json: {"0(center)": 0.25, "1": NaN, "2(edge)": NaN}
+        assert go_idx0.properties["0(center)"] == 0.25
+        assert go_idx0.properties["1"] is None  # NaN → None
+        assert go_idx0.properties["2(edge)"] is None  # NaN → None
+
+    def test_all_three_go_nodes_get_json_props(
+        self, real_graph: ProjectGraph,
+    ):
+        """go_idx0, go_idx1, go_idx2 の3ノードにJSON情報が伝搬"""
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        result = JsonPropertyParser().apply(real_graph)
+        for name in ["go_idx0.v29", "go_idx1.v3", "go_idx2.v3"]:
+            go = next(
+                (n for n in result.nodes
+                 if n.name == name and n.format == "inp"),
+                None,
+            )
+            assert go is not None, f"{name} not found"
+            assert "0(center)" in go.properties, (
+                f"{name} missing JSON property '0(center)'"
+            )
+
+
+# ====================================================================
+# 実データ: EnrichmentOnlyFilter テスト
+# ====================================================================
+
+
+class TestEnrichmentOnlyFilterRealData:
+    """test_asset1の実データを使ったEnrichmentOnlyFilterテスト"""
+
+    def test_dat_msg_nodes_removed(self, real_graph: ProjectGraph):
+        """フィルタ後、.dat/.msg ノードが除去される"""
+        from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
+
+        result = EnrichmentOnlyFilter().apply(real_graph)
+        remaining_formats = {n.format for n in result.nodes}
+        assert "dat" not in remaining_formats
+        assert "msg" not in remaining_formats
+
+    def test_inp_nodes_preserved(self, real_graph: ProjectGraph):
+        """フィルタ後も .inp ノードは残る"""
+        from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
+
+        before_inp = [n for n in real_graph.nodes if n.format == "inp"]
+        result = EnrichmentOnlyFilter().apply(real_graph)
+        after_inp = [n for n in result.nodes if n.format == "inp"]
+        assert len(after_inp) == len(before_inp)
+
+    def test_results_directory_files_removed(self, real_graph: ProjectGraph):
+        """results/ 配下のJSON(info-only)がフィルタで除去される"""
+        from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
+
+        result = EnrichmentOnlyFilter().apply(real_graph)
+        results_nodes = [
+            n for n in result.nodes
+            if n.properties.get("path", "").startswith("results/")
+            and n.format != "directory"
+        ]
+        assert len(results_nodes) == 0

@@ -386,6 +386,172 @@ class TestDirectoryRelations:
 
 
 # ====================================================================
+# 実データ: パイプライン統合テスト（具体的プロパティ検証）
+# ====================================================================
+
+
+class TestGoNodeParametersPipeline:
+    """go_*.inpのAbaqusパラメータが実データパイプラインで正しく抽出されるか"""
+
+    def test_go_idx1_v3_parameter_values(self, graph: GraphModel):
+        """go_idx1.v3.inp: s_coh=100.0, K_coh=100.e3, target_strain=35.0"""
+        node = _find_node(graph, name="go_idx1.v3", format="inp")
+        assert node is not None
+        assert node.properties["s_coh"] == "100.0"
+        assert node.properties["K_coh"] == "100.e3"
+        assert node.properties["target_strain"] == "35.0"
+
+    def test_go_idx2_v3_different_s_coh(self, graph: GraphModel):
+        """go_idx2.v3.inp: s_coh=150.0（idx1と異なる値）"""
+        node = _find_node(graph, name="go_idx2.v3", format="inp")
+        assert node is not None
+        assert node.properties["s_coh"] == "150.0"
+
+    def test_go_idx0_v29_parameters(self, graph: GraphModel):
+        """go_idx0.v29.inp: damage_stabilization=0.05（他のidxと異なる）"""
+        node = _find_node(graph, name="go_idx0.v29", format="inp")
+        assert node is not None
+        assert node.properties["damage_stabilization"] == "0.05"
+
+    def test_old_go_idx3_v1_parameters(self, graph: GraphModel):
+        """old/go_idx3.v1.inp: s_coh=200.0（old/のファイルもパラメータ抽出される）"""
+        node = _find_node(graph, name="go_idx3.v1", format="inp")
+        assert node is not None
+        assert node.properties["s_coh"] == "200.0"
+
+
+class TestJsonPropertyPropagationPipeline:
+    """results/のJSONプロパティが実データパイプラインでgo_*.inpに正しく伝搬されるか"""
+
+    def test_go_idx1_json_stress_values(self, graph: GraphModel):
+        """go_idx1.v3: stress JSON {0(center): 0.5, 1: 0.5625, 2(edge): 0.5}"""
+        node = _find_node(graph, name="go_idx1.v3", format="inp")
+        assert node is not None
+        assert node.properties["0(center)"] == 0.5
+        assert node.properties["1"] == 0.5625
+        assert node.properties["2(edge)"] == 0.5
+
+    def test_go_idx0_json_nan_to_none(self, graph: GraphModel):
+        """go_idx0.v29: NaN値がNone変換 {1: NaN, 2(edge): NaN}"""
+        node = _find_node(graph, name="go_idx0.v29", format="inp")
+        assert node is not None
+        assert node.properties["0(center)"] == 0.25
+        assert node.properties["1"] is None  # NaN → None
+        assert node.properties["2(edge)"] is None
+
+    def test_go_idx2_json_stress_values(self, graph: GraphModel):
+        """go_idx2.v3: stress JSON {0(center): 0.0, 1: 0.125, 2(edge): 0.125}"""
+        node = _find_node(graph, name="go_idx2.v3", format="inp")
+        assert node is not None
+        assert node.properties["0(center)"] == 0.0
+        assert node.properties["2(edge)"] == 0.125
+
+
+class TestIncludesRelationPipeline:
+    """includesリレーションの実データパイプライン検証"""
+
+    def test_go_idx1_includes_mesh_and_step(self, graph: GraphModel):
+        """go_idx1.v3 → mesh_shape1_t95.v8 + step_stress_v1"""
+        go = _find_node(graph, name="go_idx1.v3", format="inp")
+        assert go is not None
+        includes = [
+            r for r in graph.relations
+            if r.label == "includes" and r.node1_id == go.id
+        ]
+        target_names = set()
+        for r in includes:
+            target = next(
+                (n for n in graph.nodes if n.id == r.node2_id), None
+            )
+            if target:
+                target_names.add(target.name)
+        assert "mesh_shape1_t95.v8" in target_names
+        assert "step_stress_v1" in target_names
+
+    def test_missing_material_inp_not_in_includes(self, graph: GraphModel):
+        """material.inpは不在のため、includes先に含まれない"""
+        all_includes_targets = set()
+        for r in graph.relations:
+            if r.label == "includes":
+                target = next(
+                    (n for n in graph.nodes if n.id == r.node2_id), None
+                )
+                if target:
+                    all_includes_targets.add(target.name)
+        assert all(
+            "material" not in name for name in all_includes_targets
+        ), "material.inpは不在なのにincludes先に含まれている"
+
+
+class TestDerivedFromRelationPipeline:
+    """derived_fromリレーションの実データパイプライン検証"""
+
+    def test_modfem_to_inp_count(self, graph: GraphModel):
+        """derived_from が6ペア存在（mesh_shape1_t95 v6/v7/v8 + mesh_test v1/v2/v3）"""
+        derived = [r for r in graph.relations if r.label == "derived_from"]
+        assert len(derived) == 6
+
+    def test_derived_from_direction(self, graph: GraphModel):
+        """derived_from: inp(node1) → modfem(node2)"""
+        derived = [r for r in graph.relations if r.label == "derived_from"]
+        for r in derived:
+            src = next((n for n in graph.nodes if n.id == r.node1_id), None)
+            dst = next((n for n in graph.nodes if n.id == r.node2_id), None)
+            assert src.format == "inp", f"src should be inp, got {src.format}"
+            assert dst.format == "modfem", f"dst should be modfem, got {dst.format}"
+
+
+class TestNodeCountsPipeline:
+    """パイプライン出力のノード・リレーション数の実データ検証"""
+
+    def test_total_node_count(self, graph: GraphModel):
+        """パイプライン出力: 44ノード以上"""
+        assert len(graph.nodes) >= 44
+
+    def test_total_relation_count(self, graph: GraphModel):
+        """パイプライン出力: 61リレーション以上"""
+        assert len(graph.relations) >= 61
+
+    def test_go_node_count(self, graph: GraphModel):
+        """go タイプノード: 6個（idx0,idx1,idx2@root + idx2.v2,idx3.v1,idx3.v2@old）"""
+        go_nodes = [n for n in graph.nodes if n.type == "go" and n.format == "inp"]
+        assert len(go_nodes) == 6
+
+    def test_mesh_node_count(self, graph: GraphModel):
+        """mesh タイプノード: 22個以上（inp + modfem）"""
+        mesh_nodes = [n for n in graph.nodes if n.type == "mesh"]
+        assert len(mesh_nodes) >= 22
+
+    def test_step_node_count(self, graph: GraphModel):
+        """step タイプノード: 1個（step_stress_v1.inp）"""
+        step_nodes = [n for n in graph.nodes if n.type == "step"]
+        assert len(step_nodes) == 1
+
+    def test_directory_node_count(self, graph: GraphModel):
+        """directory ノード: 6個（root + old + tools + reports + assets + results）"""
+        dir_nodes = [n for n in graph.nodes if n.format == "directory"]
+        assert len(dir_nodes) == 6
+
+
+class TestMsgPropagationPipeline:
+    """msg/dat情報のgo_*.inpへの伝搬（パイプライン全体）"""
+
+    def test_go_idx1_has_msg_errors(self, graph: GraphModel):
+        """go_idx1.v3.inp: msg_errors伝搬（2エラー）"""
+        node = _find_node(graph, name="go_idx1.v3", format="inp")
+        assert node is not None
+        if "msg_errors" in node.properties:
+            assert len(node.properties["msg_errors"]) == 2
+
+    def test_go_idx0_no_msg_errors(self, graph: GraphModel):
+        """go_idx0.v29.inp: msg_errors なし（正常終了）"""
+        node = _find_node(graph, name="go_idx0.v29", format="inp")
+        assert node is not None
+        if "msg_errors" in node.properties:
+            assert len(node.properties["msg_errors"]) == 0
+
+
+# ====================================================================
 # ヘルパー
 # ====================================================================
 
