@@ -24,7 +24,12 @@ from jj_types import GraphModel, Node, Relation
 
 from services.graph.storage import GraphStorage
 from services.parse.base import parse as run_parser_pipeline
-from services.parse.file_parse import DEFAULT_EXTENSIONS, FileParse, FileType
+from services.parse.file_parse import (
+    DEFAULT_EXTENSIONS,
+    NO_NODE_EXTENSIONS,
+    FileParse,
+    FileType,
+)
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
 
 # パーサーサブクラスのimport（自動登録用）
@@ -426,9 +431,14 @@ class GraphService:
         files = self.scan_files(extensions=merged_extensions, exclude_dirs=exclude_dirs)
 
         nodes: list[Node] = []
+        no_node_exts = tuple(e.lower() for e in NO_NODE_EXTENSIONS)
 
         # ノード生成（GraphServiceの責務: ファイルスキャンとNode変換）
+        # NO_NODE_EXTENSIONS に該当するファイルはスキャンされるがNode化しない
         for file_path in files:
+            lower_name = file_path.name.lower()
+            if any(lower_name.endswith(ext) for ext in no_node_exts):
+                continue
             node = self.file_to_node(file_path)
             nodes.append(node)
 
