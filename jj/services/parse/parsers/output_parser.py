@@ -70,7 +70,7 @@ class ResultRelationParser(AbstractFileParser):
 
             for input_node in input_nodes:
                 for result_node in result_nodes:
-                    if _nodes_have_same_props(input_node, result_node):
+                    if _nodes_have_same_props(input_node, result_node, vocab=graph.config.vocab):
                         graph.add_relation(
                             Relation(
                                 id=graph.next_relation_id(),
@@ -116,7 +116,7 @@ class AssetRelationParser(AbstractFileParser):
 
             for input_node in input_nodes:
                 for asset_node in asset_nodes:
-                    if _nodes_have_same_props(input_node, asset_node):
+                    if _nodes_have_same_props(input_node, asset_node, vocab=graph.config.vocab):
                         graph.add_relation(
                             Relation(
                                 id=graph.next_relation_id(),
@@ -240,9 +240,24 @@ class OutputRelationParser(AbstractFileParser):
         return graph
 
 
-def _nodes_have_same_props(node1: Node, node2: Node) -> bool:
-    """2つのノードが同じ主要プロパティを持つかチェック"""
-    compare_keys = {"index", "w", "t", "番号"}
+def _nodes_have_same_props(
+    node1: Node,
+    node2: Node,
+    vocab: dict[str, str] | None = None,
+) -> bool:
+    """2つのノードが同じ主要プロパティを持つかチェック
+
+    Args:
+        node1: 比較元ノード
+        node2: 比較先ノード
+        vocab: config.vocabマッピング。idxのvocab変換後キーも比較対象に含める。
+    """
+    compare_keys: set[str] = {"index", "w", "t"}
+    # vocabでidxが変換されている場合、変換後のキーも比較対象に含める
+    if vocab:
+        idx_translated = vocab.get("idx")
+        if idx_translated:
+            compare_keys.add(idx_translated)
 
     for key in compare_keys:
         val1 = node1.properties.get(key, "")

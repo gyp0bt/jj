@@ -524,7 +524,7 @@ class TestFrontmatterPropertyTypes:
             properties={"path": "go_idx1_v1.inp", "index": "1", "version": "2", "w": "5"},
         )
         fm = connector.node_to_frontmatter(node)
-        # デフォルトvocab: idx→番号, v→バージョン
+        # デフォルトvocab: idx→条件, v→バージョン
         idx_key = connector.graph_config.vocab.get("idx", "idx")
         ver_key = connector.graph_config.vocab.get("v",
                   connector.graph_config.vocab.get("ver", "ver"))
@@ -783,16 +783,16 @@ class TestVocabPropsUnification:
     def connector(self, tmp_path):
         return ObsidianConnector(project_root=tmp_path)
 
-    def test_default_vocab_idx_to_bangou(self, connector):
-        """デフォルトvocabでidx→番号に変換される"""
+    def test_default_vocab_idx_to_jouken(self, connector):
+        """デフォルトvocabでidx→条件に変換される"""
         node = Node(
             id=1, type="go", name="go_idx1_v1", format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1"},
         )
         fm = connector.node_to_frontmatter(node)
-        # デフォルトvocab: idx→番号
-        assert "番号" in fm
-        assert fm["番号"] == 1
+        # デフォルトvocab: idx→条件
+        assert "条件" in fm
+        assert fm["条件"] == 1
         # 変換前のキーは存在しない
         assert "index" not in fm
         assert "idx" not in fm
@@ -820,13 +820,13 @@ class TestVocabPropsUnification:
                 "path": "go.inp",
                 "index": "1",
                 "version": "2",
-                "番号": "99",  # 事前にvocab変換済みの重複
+                "条件": "99",  # 事前にvocab変換済みの重複
                 "バージョン": "99",
             },
         )
         fm = connector.node_to_frontmatter(node)
         # indexの値が優先される
-        assert fm["番号"] == 1
+        assert fm["条件"] == 1
         assert fm["バージョン"] == 2
 
     def test_custom_vocab_connector(self, tmp_path):
@@ -874,7 +874,7 @@ class TestVocabPropsUnification:
         idx_base = [p for p in written if p.name == "go_idx1.base"][0]
         content = idx_base.read_text(encoding="utf-8")
         # vocab変換後のキー名がorderに含まれる
-        assert "- 番号" in content or "番号" in content
+        assert "- 条件" in content or "条件" in content
         assert "- バージョン" in content or "バージョン" in content
         # 変換前のキー名がorderに含まれない
         assert "- idx\n" not in content
@@ -895,7 +895,7 @@ class TestVocabPropsUnification:
         idx_base = [p for p in written if p.name == "go_idx1.base"][0]
         content = idx_base.read_text(encoding="utf-8")
         # sortのproperty名もvocab変換済み
-        assert "property: 番号" in content or "property: '\\u756A\\u53F7'" in content or "property: \"\\u756A\\u53F7\"" in content or "番号" in content
+        assert "property: 条件" in content or "property: '\\u6761\\u4EF6'" in content or "property: \"\\u6761\\u4EF6\"" in content or "条件" in content
         assert "property: idx" not in content
 
     def test_base_no_file_links(self, connector, tmp_path):

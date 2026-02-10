@@ -185,7 +185,7 @@ class TestGraphServiceParse:
         """テスト用設定"""
         return GraphConfig.from_dict(
             {
-                "vocab": {"idx": "番号", "v": "バージョン"},
+                "vocab": {"idx": "条件", "v": "バージョン"},
                 "path-type-map": {
                     "**go_*": {
                         "*.inp": "Abaqusインプット",
@@ -1465,7 +1465,7 @@ class TestPathTypeMapWithDefaultConfig:
         """デフォルト設定を模したconfig"""
         return GraphConfig.from_dict(
             {
-                "vocab": {"idx": "番号", "v": "バージョン"},
+                "vocab": {"idx": "条件", "v": "バージョン"},
                 "path-type-map": {
                     "**go_* | **go": {
                         "*.inp": "Abaqusインプット",
@@ -3368,16 +3368,16 @@ class TestVerboseNameTags:
         """verbose_nameを_でsplitした結果がタグに含まれる"""
         config = GraphConfig.from_dict(
             {
-                "vocab": {"go": "計算入力", "idx": "番号"},
+                "vocab": {"go": "計算入力", "idx": "条件"},
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "go_idx1_v1.inp").write_text("")
         node = svc.file_to_node(tmp_path / "go_idx1_v1.inp")
         tags = node.properties.get("tags", [])
-        # verbose_name = "計算入力_番号1_v1" → ["計算入力", "番号1", "v1"]
+        # verbose_name = "計算入力_条件1_v1" → ["計算入力", "条件1", "v1"]
         assert "計算入力" in tags
-        assert "番号1" in tags
+        assert "条件1" in tags
 
     def test_verbose_name_tags_no_duplicates(self, tmp_path):
         """verbose_name由来のタグに重複がない"""
@@ -3401,7 +3401,7 @@ class TestVersionKeyUnification:
         """vocab定義がある場合、versionキーがバージョンに統一される"""
         config = GraphConfig.from_dict(
             {
-                "vocab": {"idx": "番号", "v": "バージョン"},
+                "vocab": {"idx": "条件", "v": "バージョン"},
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)
@@ -3411,7 +3411,7 @@ class TestVersionKeyUnification:
         assert "version" not in node.properties
         assert "index" not in node.properties
         # 日本語キーが存在する
-        assert node.properties.get("番号") == "1"
+        assert node.properties.get("条件") == "1"
         assert node.properties.get("バージョン") == "2"
 
     def test_no_vocab_keeps_english_keys(self, tmp_path):
@@ -3427,7 +3427,7 @@ class TestVersionKeyUnification:
         """空のversionはvocab定義があれば除去される"""
         config = GraphConfig.from_dict(
             {
-                "vocab": {"idx": "番号", "v": "バージョン"},
+                "vocab": {"idx": "条件", "v": "バージョン"},
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)
@@ -3436,20 +3436,20 @@ class TestVersionKeyUnification:
         # 空のversionは除去
         assert "version" not in node.properties
         assert "バージョン" not in node.properties  # 空値は追加しない
-        assert node.properties.get("番号") == "1"
+        assert node.properties.get("条件") == "1"
 
     def test_implicit_version_translated(self, tmp_path):
         """暗黙のversionもvocabで変換される"""
         config = GraphConfig.from_dict(
             {
-                "vocab": {"idx": "番号", "v": "バージョン"},
+                "vocab": {"idx": "条件", "v": "バージョン"},
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "material.inp").write_text("")
         node = svc.file_to_node(tmp_path / "material.inp")
         # material.inpは暗黙のidx=1, v=1
-        assert node.properties.get("番号") == "1"
+        assert node.properties.get("条件") == "1"
         assert node.properties.get("バージョン") == "1"
         assert "index" not in node.properties
         assert "version" not in node.properties
