@@ -16,9 +16,13 @@ if TYPE_CHECKING:
 
 
 class AbaqusMeshParser(AbstractFileParser):
-    """pymeshを使ってメッシュ統計情報をノードのプロパティに付与"""
+    """pymeshを使ってメッシュ統計情報をノードのプロパティに付与
+
+    pymeshによる.inp読み込みは重いため、--fullオプション時のみ実行する。
+    """
 
     priority = 80
+    requires_full = True
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus.mesh import extract_mesh_stats

@@ -585,8 +585,19 @@ class GraphConfig:
 
     @classmethod
     def load(cls, base_dir: Optional[Path] = None) -> "GraphConfig":
-        """プロジェクト設定を読み込んでGraphConfigを生成"""
+        """プロジェクト設定を読み込んでGraphConfigを生成
+
+        config.yamlのvocabセクションとvocab.yamlのmappingをマージする。
+        vocab.yamlのmappingが優先される（config.yamlの同一キーを上書き）。
+        """
         config_data = load_project_config(base_dir)
+        # vocab.yamlのmappingをGraphConfig.vocabにマージ
+        vocab_config = load_vocab_config(base_dir)
+        config_vocab = config_data.get("vocab", {})
+        if not isinstance(config_vocab, dict):
+            config_vocab = {}
+        merged_vocab = {**config_vocab, **vocab_config.mapping}
+        config_data["vocab"] = merged_vocab
         return cls.from_dict(config_data)
 
 

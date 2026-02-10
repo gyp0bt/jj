@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Optional
 
 from jj_types import GraphModel, Node, Relation
+from config import GraphConfig
 from services.graph import GraphService
 
 
@@ -27,6 +28,7 @@ class InfoService:
     def __init__(self, project_root: Path) -> None:
         self.project_root = project_root
         self.service = GraphService(project_root=project_root)
+        self._vocab = self.service.config.vocab
 
     def load_graph(self, filename: str | None = None) -> GraphModel:
         """グラフデータをロード"""
@@ -55,6 +57,7 @@ class InfoService:
         version_filters: list[str] | None = None,
         type_filter: str | None = None,
         all_nodes: bool = False,
+        active_only: bool = False,
     ) -> list[Node]:
         """複合条件でノードを検索する
 
@@ -100,34 +103,53 @@ class InfoService:
                         ):
                             matched_nodes.append(node)
 
-            # インデックスで検索
+            # インデックスで検索（vocab変換後のキーにも対応）
             if index_filters is not None:
+                idx_key = self._vocab.get("idx", "")
                 for node in graph.nodes:
                     if node in matched_nodes:
                         continue
-                    node_index = str(node.properties.get("index", ""))
+                    node_index = str(
+                        node.properties.get("index", "")
+                        or (node.properties.get(idx_key, "") if idx_key else "")
+                    )
                     if node_index and node_index in index_filters:
                         matched_nodes.append(node)
 
-            # バージョンで検索（絞り込みまたは単独検索）
+            # バージョンで検索（絞り込みまたは単独検索、vocab変換後のキーにも対応）
             if version_filters is not None:
+                ver_key = self._vocab.get("v", "") or self._vocab.get("ver", "")
+
+                def _get_version(n: Node) -> str:
+                    v = str(n.properties.get("version", ""))
+                    if not v and ver_key:
+                        v = str(n.properties.get(ver_key, ""))
+                    return v
+
                 if filenames or index_filters is not None:
                     # 既存のマッチ結果から絞り込み
                     matched_nodes = [
                         n
                         for n in matched_nodes
-                        if str(n.properties.get("version", "")) in version_filters
+                        if _get_version(n) in version_filters
                     ]
                 else:
                     # バージョンのみ指定の場合は全ノードから検索
                     for node in graph.nodes:
-                        node_ver = str(node.properties.get("version", ""))
+                        node_ver = _get_version(node)
                         if node_ver and node_ver in version_filters:
                             matched_nodes.append(node)
 
         # タイプフィルタ（他の条件と組み合わせて絞り込み）
         if type_filter:
             matched_nodes = [n for n in matched_nodes if n.type == type_filter]
+
+        # active フィルタ: active == "true" のノードのみ
+        if active_only:
+            matched_nodes = [
+                n for n in matched_nodes
+                if str(n.properties.get("active", "")).lower() == "true"
+            ]
 
         return matched_nodes
 
@@ -151,6 +173,7 @@ class InfoService:
         output_file: str | None = None,
         prop_filters: list[str] | None = None,
         nodes: list[Node] | None = None,
+        flatten: bool | None = None,
     ) -> tuple[Path, int]:
         """ノードデータをCSV/JSON形式でエクスポートする
 
@@ -162,6 +185,7 @@ class InfoService:
             output_file: 出力ファイル名
             prop_filters: プロパティキーフィルタ（指定時はAND条件で絞り込み）
             nodes: 事前に選択済みのノードリスト（指定時はgraphからの選択を省略）
+            flatten: プロパティを平坦化するか（CSVはデフォルトTrue、JSONはデフォルトFalse）
 
         Returns:
             (出力パス, エクスポートされたノード数)
@@ -195,25 +219,30 @@ class InfoService:
         if not filtered_nodes:
             raise ValueError("対象ノードが見つかりません。")
 
-        # プロパティを平坦化してからキーを収集
-        flat_rows: list[dict[str, Any]] = []
+        # 平坦化のデフォルト: CSVはTrue、JSONはFalse
+        if flatten is None:
+            flatten = (target == "csv")
+
+        # プロパティを収集（flattenフラグに応じて平坦化）
+        data_rows: list[dict[str, Any]] = []
         for node in filtered_nodes:
-            base = {
+            base: dict[str, Any] = {
                 "name": node.name,
                 "type": node.type,
                 "format": node.format,
             }
-            flat_props = _flatten_properties(node.properties)
-            base.update(flat_props)
-            flat_rows.append(base)
+            if flatten:
+                props = _flatten_properties(node.properties)
+            else:
+                props = dict(node.properties)
+            base.update(props)
+            data_rows.append(base)
 
         # キーの収集（-prop指定時は base + 指定キーのみ）
         if prop_filters:
-            # prop_filtersのキーが平坦化後のキーに含まれるか、
-            # プレフィックスとしてマッチするキーを収集
             all_keys: list[str] = ["name", "type", "format"]
             seen_keys: set[str] = set(all_keys)
-            for row in flat_rows:
+            for row in data_rows:
                 for key in row:
                     if key in seen_keys:
                         continue
@@ -223,24 +252,23 @@ class InfoService:
                             seen_keys.add(key)
                             break
         else:
-            # 全キーの和集合を収集
             all_keys = ["name", "type", "format"]
             seen_keys = set(all_keys)
-            for row in flat_rows:
+            for row in data_rows:
                 for key in row:
                     if key not in seen_keys:
                         all_keys.append(key)
                         seen_keys.add(key)
 
-        # null埋めとリスト値のJSON文字列化
+        # null埋めとリスト/辞書値のJSON文字列化（CSVのみ）
         rows: list[dict[str, Any]] = []
-        for flat_row in flat_rows:
+        for data_row in data_rows:
             row: dict[str, Any] = {}
             for key in all_keys:
-                value = flat_row.get(key)
+                value = data_row.get(key)
                 if value is None:
                     row[key] = None
-                elif isinstance(value, (list, dict)):
+                elif isinstance(value, (list, dict)) and target == "csv":
                     row[key] = json_mod.dumps(value, ensure_ascii=False)
                 else:
                     row[key] = value
@@ -252,7 +280,8 @@ class InfoService:
         output_path = self.project_root / output_file
 
         if target == "csv":
-            with output_path.open("w", encoding="utf-8", newline="") as f:
+            # UTF-8 BOM付きで出力（Excel等での日本語文字化け対策）
+            with output_path.open("w", encoding="utf-8-sig", newline="") as f:
                 writer = csv.DictWriter(
                     f, fieldnames=all_keys, extrasaction="ignore"
                 )

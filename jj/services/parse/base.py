@@ -341,6 +341,7 @@ class AbstractFileParser(ABC):
     パーサーレジストリに登録される。
 
     priority属性で実行順序を制御する（小さいほど先に実行）。
+    requires_full属性がTrueのパーサーは--fullオプション時のみ実行される。
 
     パーサー実行順序の指針:
         10: ファイル名解析（ノード生成）
@@ -350,7 +351,7 @@ class AbstractFileParser(ABC):
         50: ディレクトリ関係
         60: Abaqus INP解析（material, *PARAMETER）
         70: Abaqus結果ファイル解析（.sta, .msg, .dat）
-        80: Abaqusメッシュ統計
+        80: Abaqusメッシュ統計（requires_full）
         85: プロパティ伝搬（include, material assignment）
         90: Abaqusバージョン差分
         95: Daily note解析
@@ -359,6 +360,7 @@ class AbstractFileParser(ABC):
     """
 
     priority: int = 100
+    requires_full: bool = False  # Trueの場合は--fullオプション時のみ実行
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -389,16 +391,37 @@ def clear_parser_registry() -> None:
     _parser_registry.clear()
 
 
-def parse(graph: ProjectGraph) -> ProjectGraph:
+def parse(graph: ProjectGraph, *, full_mode: bool = False) -> ProjectGraph:
     """全登録パーサーをpriority順に適用する
 
     Args:
         graph: 処理対象のProjectGraph
+        full_mode: Trueの場合、requires_full=Trueのパーサーも実行する
 
     Returns:
         全パーサー適用後のProjectGraph
     """
+    import sys
+    import time
+
     sorted_parsers = sorted(_parser_registry, key=lambda cls: cls.priority)
+    node_count = len(graph.nodes) or 1  # ゼロ除算防止
+
     for parser_cls in sorted_parsers:
+        if parser_cls.requires_full and not full_mode:
+            continue
+
+        start_time = time.monotonic()
         graph = parser_cls().apply(graph)
+        elapsed = time.monotonic() - start_time
+
+        # --fullでない場合、1ファイルあたり1秒超のパーサーは警告
+        if not full_mode and elapsed > 0 and (elapsed / node_count) > 1.0:
+            print(
+                f"警告: {parser_cls.__name__} の実行に {elapsed:.1f}秒かかりました"
+                f"（{elapsed / node_count:.1f}秒/ファイル）。"
+                f"--fullオプションでの実行を推奨します。",
+                file=sys.stderr,
+            )
+
     return graph
