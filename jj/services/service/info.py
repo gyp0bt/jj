@@ -1,0 +1,241 @@
+"""InfoService: グラフ情報検索・エクスポートのビジネスロジック
+
+CLI graph.pyのinfo/export/diffコマンドで使用されるビジネスロジックを集約。
+CLI層はargparse解析と出力整形のみに責務を限定する。
+
+[READMEへ戻る](../../../README.md)
+"""
+
+from __future__ import annotations
+
+import csv
+import json as json_mod
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any, Optional
+
+from jj_types import GraphModel, Node, Relation
+from services.graph import GraphService
+
+
+class InfoService:
+    """グラフ情報検索・エクスポートのビジネスロジック
+
+    GraphServiceのラッパーとして、ノード検索やデータ変換等の
+    ビジネスロジックを提供する。
+    """
+
+    def __init__(self, project_root: Path) -> None:
+        self.project_root = project_root
+        self.service = GraphService(project_root=project_root)
+
+    def load_graph(self, filename: str | None = None) -> GraphModel:
+        """グラフデータをロード"""
+        return self.service.load(filename=filename)
+
+    def parse_and_save(
+        self, filename: str | None = None
+    ) -> tuple[GraphModel, Path]:
+        """プロジェクトをパースして保存"""
+        return self.service.parse_and_save(filename=filename)
+
+    def summary(self, graph: GraphModel) -> dict[str, Any]:
+        """グラフのサマリーを生成"""
+        return self.service.summary(graph)
+
+    # =========
+    # ノード検索
+    # =========
+
+    def search_nodes(
+        self,
+        graph: GraphModel,
+        *,
+        filenames: list[str] | None = None,
+        index_filters: list[str] | None = None,
+        version_filters: list[str] | None = None,
+    ) -> list[Node]:
+        """複合条件でノードを検索する
+
+        Args:
+            graph: 検索対象のグラフ
+            filenames: ファイル名で検索（部分一致、複数可）
+            index_filters: インデックスで検索（例: ["1", "2"]）
+            version_filters: バージョンで検索（例: ["1", "2"]）
+
+        Returns:
+            マッチしたノードのリスト
+        """
+        matched_nodes: list[Node] = []
+
+        # ファイル名で検索（部分一致）
+        if filenames:
+            for filename in filenames:
+                normalized = filename.replace("\\", "/")
+                basename = PurePosixPath(normalized).name
+                if basename == filename and "\\" in filename:
+                    basename = PureWindowsPath(filename).name
+
+                for node in graph.nodes:
+                    if node in matched_nodes:
+                        continue
+                    node_path = node.properties.get("path", "").replace("\\", "/")
+                    node_file = PurePosixPath(node_path).name if node_path else ""
+                    if (
+                        node.name == basename
+                        or node_file == basename
+                        or node_path == normalized
+                        or basename in node.name
+                        or normalized in node_path
+                        or node.name == filename
+                        or node_file == filename
+                        or filename in node.name
+                    ):
+                        matched_nodes.append(node)
+
+        # インデックスで検索
+        if index_filters is not None:
+            for node in graph.nodes:
+                if node in matched_nodes:
+                    continue
+                node_index = str(node.properties.get("index", ""))
+                if node_index and node_index in index_filters:
+                    matched_nodes.append(node)
+
+        # バージョンで検索（絞り込みまたは単独検索）
+        if version_filters is not None:
+            if filenames or index_filters is not None:
+                # 既存のマッチ結果から絞り込み
+                matched_nodes = [
+                    n
+                    for n in matched_nodes
+                    if str(n.properties.get("version", "")) in version_filters
+                ]
+            else:
+                # バージョンのみ指定の場合は全ノードから検索
+                for node in graph.nodes:
+                    node_ver = str(node.properties.get("version", ""))
+                    if node_ver and node_ver in version_filters:
+                        matched_nodes.append(node)
+
+        return matched_nodes
+
+    def get_relations_for_node(
+        self, graph: GraphModel, node_id: int
+    ) -> list[Relation]:
+        """ノードに関連するリレーションを取得"""
+        return self.service.get_relations_for_node(graph, node_id)
+
+    # =========
+    # データエクスポート
+    # =========
+
+    def export_data(
+        self,
+        graph: GraphModel,
+        target: str,
+        *,
+        type_filter: str | None = None,
+        select_filter: list[str] | None = None,
+        output_file: str | None = None,
+    ) -> tuple[Path, int]:
+        """ノードデータをCSV/JSON形式でエクスポートする
+
+        Args:
+            graph: エクスポート対象のグラフ
+            target: "csv" or "json"
+            type_filter: ノードタイプでフィルタリング
+            select_filter: ファイル名でフィルタリング
+            output_file: 出力ファイル名
+
+        Returns:
+            (出力パス, エクスポートされたノード数)
+        """
+        # ノードのフィルタリング
+        nodes = list(graph.nodes)
+
+        if type_filter:
+            nodes = [n for n in nodes if n.type == type_filter]
+        if select_filter:
+            filtered = []
+            for n in nodes:
+                name_with_ext = f"{n.name}.{n.format}" if n.format else n.name
+                for sel in select_filter:
+                    if n.name == sel or name_with_ext == sel or sel in n.name:
+                        filtered.append(n)
+                        break
+            nodes = filtered
+
+        if not nodes:
+            raise ValueError("対象ノードが見つかりません。")
+
+        # 全キーの和集合を収集
+        all_keys: list[str] = []
+        seen_keys: set[str] = set()
+        base_keys = ["name", "type", "format"]
+        for k in base_keys:
+            all_keys.append(k)
+            seen_keys.add(k)
+
+        for node in nodes:
+            for key in node.properties:
+                if key not in seen_keys:
+                    all_keys.append(key)
+                    seen_keys.add(key)
+
+        # 行データの構築（null埋め）
+        rows: list[dict[str, Any]] = []
+        for node in nodes:
+            row: dict[str, Any] = {
+                "name": node.name,
+                "type": node.type,
+                "format": node.format,
+            }
+            for key in all_keys:
+                if key in row:
+                    continue
+                value = node.properties.get(key)
+                if value is None:
+                    row[key] = None
+                elif isinstance(value, (list, dict)):
+                    row[key] = json_mod.dumps(value, ensure_ascii=False)
+                else:
+                    row[key] = value
+            rows.append(row)
+
+        # 出力
+        if output_file is None:
+            output_file = f"export.{target}"
+        output_path = self.project_root / output_file
+
+        if target == "csv":
+            with output_path.open("w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(
+                    f, fieldnames=all_keys, extrasaction="ignore"
+                )
+                writer.writeheader()
+                writer.writerows(rows)
+        elif target == "json":
+            with output_path.open("w", encoding="utf-8") as f:
+                json_mod.dump(rows, f, ensure_ascii=False, indent=2, default=str)
+
+        return output_path, len(rows)
+
+    # =========
+    # ファイルパス解決
+    # =========
+
+    @staticmethod
+    def resolve_file_path(project_root: Path, filename: str) -> Path | None:
+        """ファイル名からファイルパスを解決
+
+        直接パス指定、プロジェクトルート相対パス、再帰検索の順に試行する。
+        """
+        direct = Path(filename)
+        if direct.exists():
+            return direct
+        relative = project_root / filename
+        if relative.exists():
+            return relative
+        for found in project_root.rglob(filename):
+            return found
+        return None
