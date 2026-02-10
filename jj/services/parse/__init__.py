@@ -1,3 +1,4 @@
+from .base import AbstractFileParser, FileNameParser, parse
 from .connectors.abaqus import (
     ABQData,
     BlockDiff,
@@ -23,10 +24,20 @@ from .file_parse import (
     safe_relative_path,
 )
 
+# パーサーサブクラスをimportして自動登録
+import services.parse.parsers  # noqa: F401
+import services.parse.connectors.abaqus.inp_parser  # noqa: F401
+import services.parse.connectors.abaqus.result_parser  # noqa: F401
+import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
+import services.parse.connectors.abaqus.diff_parser  # noqa: F401
+import services.parse.connectors.obsidian.daily_parser  # noqa: F401
+
 __all__ = [
     "ABQData",
+    "AbstractFileParser",
     "BlockDiff",
     "FileGroup",
+    "FileNameParser",
     "FileParse",
     "FileType",
     "ObsidianFileParse",
@@ -42,6 +53,7 @@ __all__ = [
     "get_index_and_version",
     "get_index_and_version_legacy",
     "normalize_extension_to_inp",
+    "parse",
     "read_inp",
     "safe_relative_path",
 ]

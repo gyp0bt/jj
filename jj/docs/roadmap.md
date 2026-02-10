@@ -179,39 +179,41 @@ class ProjectGraph:
 
 services/graph/__init__.pyへの過集中を解消し、抽象パーサーパターンによるプラグイン型parseアーキテクチャを確立する。
 
-#### R1. ProjectGraph型の実装
+#### R1. ProjectGraph型の実装 ✅ (status-042)
 
-- [ ] `ProjectFile`, `ProjectDirectory`, `ProjectGraph` dataclass定義
-- [ ] `iterate_directories()` によるツリー走査
-- [ ] 既存の`GraphService.scan_directory()`をProjectGraph生成に変換
-- [ ] テスト（shared/tests/test_asset1を使用）
+- [x] `ProjectFile`, `ProjectDirectory`, `ProjectGraph` dataclass定義
+- [x] `iterate_directories()` によるツリー走査
+- [x] 既存の`GraphService.scan_directory()`をProjectGraph生成に変換
+- [x] テスト（shared/tests/test_asset1を使用、7件パス）
 
-**対象ファイル**: `services/graph/__init__.py`（新規型定義 or 別ファイル分離）
+**対象ファイル**: `services/graph/project_graph.py`（新規作成）
 
-#### R2. AbstractFileParser.__init_subclass__パターン確立
+#### R2. AbstractFileParser.__init_subclass__パターン確立 ✅ (status-042)
 
-- [ ] `base.py` に `apply(graph: ProjectGraph) -> ProjectGraph` 抽象メソッド追加
-- [ ] `__init_subclass__` によるサブクラス自動登録
-- [ ] `parse(graph: ProjectGraph) -> ProjectGraph` オーケストレーション関数
-- [ ] パーサー実行順序の制御機構（priority属性等）
-- [ ] テスト
+- [x] `base.py` に `apply(graph: ProjectGraph) -> ProjectGraph` 抽象メソッド追加
+- [x] `__init_subclass__` によるサブクラス自動登録
+- [x] `parse(graph: ProjectGraph) -> ProjectGraph` オーケストレーション関数
+- [x] パーサー実行順序の制御機構（priority属性）
+- [x] テスト（4件パス）
 
 **対象ファイル**: `services/parse/base.py`
 
-#### R3. graph/__init__.py の分解
+#### R3. graph/__init__.py の分解 ✅ (status-042)
 
-現在1ファイルに集中しているparse/enrich/connect ロジックを、AbstractFileParserサブクラスとして分散する。
+現在1ファイルに集中していたparse/enrich/connect ロジックを、16個のAbstractFileParserサブクラスとして分散完了。
 
-- [ ] **ファイル名解析パーサー**: get_file_type/get_index/get_version/get_props → parse/parsers/filename_parser.py
-- [ ] **バージョン関係パーサー**: next_version/same_index_group → parse/parsers/version_parser.py
-- [ ] **出力ファイル関係パーサー**: has_output/result_of → parse/parsers/output_parser.py
-- [ ] **フォルダ関係パーサー**: contains → parse/parsers/directory_parser.py
-- [ ] **Abaqus INP解析パーサー**: material.inp解析、*PARAMETER抽出 → parse/connectors/abaqus/inp_parser.py
-- [ ] **Abaqus結果パーサー**: .sta/.msg解析 → parse/connectors/abaqus/result_parser.py
-- [ ] **Abaqusメッシュパーサー**: pymesh統計 → parse/connectors/abaqus/mesh_parser.py
-- [ ] **Abaqus差分パーサー**: diff_abq_blocks → parse/connectors/abaqus/diff_parser.py
-- [ ] **Obsidian Dailyパーサー**: dailyノート解析 → parse/connectors/obsidian/daily_parser.py
-- [ ] graph/__init__.py をスキャン+ProjectGraph生成のみに縮小
+- [x] **バージョン関係パーサー**: next_version/same_index_group → parse/parsers/version_parser.py (priority=20)
+- [x] **出力ファイル関係パーサー**: result_of/derived_from/has_output/includes → parse/parsers/output_parser.py (priority=30-40)
+- [x] **フォルダ関係パーサー**: contains → parse/parsers/directory_parser.py (priority=50)
+- [x] **Abaqus INP解析パーサー**: material.inp解析 → parse/connectors/abaqus/inp_parser.py (priority=60,85,98)
+- [x] **Abaqus結果パーサー**: .sta/.msg/.dat解析 → parse/connectors/abaqus/result_parser.py (priority=70,86)
+- [x] **Abaqusメッシュパーサー**: pymesh統計 → parse/connectors/abaqus/mesh_parser.py (priority=80)
+- [x] **Abaqus差分パーサー**: diff_abq_blocks → parse/connectors/abaqus/diff_parser.py (priority=90)
+- [x] **Obsidian Dailyパーサー**: dailyノート解析 → parse/connectors/obsidian/daily_parser.py (priority=95)
+- [x] **エンリッチメントフィルター**: .sta/.msg/.dat除外 → parse/parsers/enrichment_filter.py (priority=99)
+- [x] **ルートディレクトリパーサー**: root Node化 → parse/parsers/directory_parser.py (priority=98)
+- [x] graph/__init__.py の`parse_project()`をProjectGraph+パイプライン委譲に変更
+- [x] 統合テスト29件パス（test_parser_pipeline.py）
 
 #### R4. export層の整理
 
@@ -227,10 +229,10 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 
 #### R6. テスト移行と検証
 
-- [ ] shared/tests/test_asset1 を活用した統合テスト作成
-- [ ] 既存テスト（396件+20スキップ）の通過を保証
-- [ ] 各パーサーサブクラスの単体テスト
-- [ ] parse()パイプラインのE2Eテスト
+- [x] shared/tests/test_asset1 を活用した統合テスト作成（29件パス）
+- [ ] 既存テスト（レガシー）の新パイプライン対応
+- [x] parse()パイプラインのE2Eテスト
+- [ ] 各パーサーサブクラスの単体テスト追加
 
 **参照**: [services/README.md](../services/README.md)
 
@@ -570,6 +572,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-041.md)
+- [最新ステータス](./status/status-042.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
