@@ -21,7 +21,7 @@ class AbaqusMeshParser(AbstractFileParser):
     priority = 80
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        from jj.services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
 
         for node in graph.nodes:
             ext = f".{node.format}" if node.format else ""
