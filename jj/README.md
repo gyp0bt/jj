@@ -18,7 +18,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj export --parse`: parseしてからexport
   - `jj info <ファイル名>`: ファイルのproperty/relationを表示（-id, -v, -all, -type, -prop, -props, -activeオプション対応）
   - `jj diff <file1> <file2>`: ファイル間の差分を表示（Abaqusキーワードブロック差分対応）
-  - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート（`--flatten`でJSON平坦化、CSV UTF-8 BOM付き）
+  - `jj export --target csv/json`: ノード属性をCSV/JSON形式でエクスポート（`--flatten`でJSON平坦化、CSV UTF-8 BOM付き、`--unit-format`で単位表示形式、`--columns`でカラム選択）
   - `jj export --target neo4j`: Neo4jデータベースにグラフをエクスポート
   - `jj export --target cypher`: Cypherクエリファイルとしてエクスポート（Neo4j不要）
   - `jj credential set`: Neo4j等の認証情報を暗号化して保存
@@ -86,6 +86,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-10 / status-049: エクスポート機能強化（CSV単位系・カラム選択・キー順保持）、JSONプロパティ"."繋ぎ平坦化、JSONファイル名vocab置換（_区切り）、MeshInheritParser新規追加、ダッシュボード要件定義（post.py分析）。50テストパス、14テスト追加。([status-049](docs/status/status-049.md))
+- 2026-02-10 / status-048: vocab.yamlマージ修正、-id/-v vocab対応、Obsidian frontmatter修正、CSV UTF-8 BOM、JSON --flatten、info -active、parse --full/--lite。480テストパス、13テスト追加。([status-048](docs/status/status-048.md))
 - 2026-02-10 / status-047: 共通選択コマンド（-id 1..3範囲展開）、jj info拡張（-all/-prop/-type）、CSVエクスポート改善（プロパティ平坦化・-prop絞り込み）、VocabFinalizer一括置換（パーサー追加プロパティの翻訳漏れ解消）。テスト467件パス、20スキップ。([status-047](docs/status/status-047.md))
 - 2026-02-10 / status-046: warning/error重複排除（数値正規化）、cpu_time/wallclock_time最終値取得修正、jj info YAML出力化、results/ info-only（Node化除外）、Obsidian export directory実ファイルリンク除外、.dat warning/error抽出追加。テスト445件パス、20スキップ。([status-046](docs/status/status-046.md))
 - 2026-02-10 / status-045: idx→条件統一、CLIビジネスロジックのservices.service分離。テスト443件パス、20スキップ。([status-045](docs/status/status-045.md))
@@ -119,6 +121,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)
 - [ダッシュボード仕様書](docs/specs/09-dashboard.md)
+- [ダッシュボード要件定義](docs/specs/11-dashboard-requirements.md)
 - [DB統合設計書](docs/specs/10-db-integration.md)
 - [実装詳細](docs/detail.md)
 - [ロードマップ](docs/roadmap.md)

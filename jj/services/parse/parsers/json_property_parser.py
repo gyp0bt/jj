@@ -1,11 +1,17 @@
 """JSONプロパティパーサー
 
 go_*.inpに紐づいた".odb.json"以外の".json"ファイルの中を開き、
-第一階層のkey-valueをgo_*.inpノードのプロパティに割り当てる。
+JSON内のキー名を採用してgo_*.inpノードのプロパティに平坦化して割り当てる。
 
-例: results/go_idx0.v29_stress.json → go_idx0.v29.inpに
-    {"0(center)": 0.25, "1": NaN, "2(edge)": NaN} を割り当て
-    → node.properties["stress"] = {"0(center)": 0.25, "1": null, "2(edge)": null}
+JSONファイル名のサフィックスをプレフィックスとして使用し、
+JSON内の階層は"."繋ぎでカラム名を作成する。
+
+例: results/go_idx0.v29_stress.json（内容: {"center": 0.25, "edge": 1.0}）
+    → go_idx0.v29.inpに
+    properties["stress.center"] = 0.25
+    properties["stress.edge"] = 1.0
+
+サフィックスにはvocab置換を"_"区切りで適用する。
 
 [READMEへ戻る](../../../../README.md)
 """
@@ -13,7 +19,6 @@ go_*.inpに紐づいた".odb.json"以外の".json"ファイルの中を開き、
 from __future__ import annotations
 
 import json
-import math
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -25,15 +30,15 @@ if TYPE_CHECKING:
 
 
 class JsonPropertyParser(AbstractFileParser):
-    """go_*.inpに紐づくJSONの第一階層key-valueをプロパティとして割り当て
+    """go_*.inpに紐づくJSONのキーを"."繋ぎで平坦化してプロパティに割り当て
 
     OutputRelationParserのhas_output関係を利用して、
     go_*.inpノードに紐づく.jsonファイル（.odb.json除外）を特定し、
-    JSONの第一階層key-valueをgo_*.inpのプロパティに追加する。
+    JSON内のキー名を採用してgo_*.inpのプロパティに追加する。
 
-    JSONファイル名からinp basenameを除いたサフィックスをキーとし、
-    第一階層の辞書全体を値として格納する。
-    例: go_idx0.v29_stress.json → properties["stress"] = {...}
+    JSONファイル名からinp basenameを除いたサフィックスをプレフィックスとし、
+    JSON内の階層を"."繋ぎで平坦化してプロパティキーとする。
+    例: go_idx0.v29_stress.json → properties["stress.center"] = 0.25
     """
 
     priority = 33  # OutputRelationParser(32)の直後
@@ -78,7 +83,7 @@ class JsonPropertyParser(AbstractFileParser):
                 if inp_index and json_index and inp_index != json_index:
                     continue
 
-                # サフィックスを取得（例: "stress"）
+                # サフィックスを取得（例: "stress", "dat_warning"）
                 suffix = json_name[len(inp_basename) + 1:]
                 if not suffix:
                     continue
@@ -89,8 +94,18 @@ class JsonPropertyParser(AbstractFileParser):
                 if json_data is None:
                     continue
 
-                # 第一階層key-valueをgo_*.inpのプロパティに割り当て
-                inp_node.properties[suffix] = json_data
+                # サフィックスにvocab置換を適用（"_"区切りで各パートを変換）
+                vocab = graph.config.vocab
+                if vocab:
+                    translated_suffix = "_".join(
+                        vocab.get(part, part) for part in suffix.split("_")
+                    )
+                else:
+                    translated_suffix = suffix
+
+                # JSON内のキー名を"."繋ぎで平坦化してプロパティに割り当て
+                flattened = _flatten_json(json_data, prefix=translated_suffix)
+                inp_node.properties.update(flattened)
 
         return graph
 
@@ -117,3 +132,30 @@ class JsonPropertyParser(AbstractFileParser):
             return None
 
         return data
+
+
+def _flatten_json(
+    data: dict[str, Any], prefix: str = ""
+) -> dict[str, Any]:
+    """辞書を"."区切りで再帰的に平坦化する
+
+    Args:
+        data: 平坦化対象の辞書
+        prefix: キーのプレフィックス
+
+    Returns:
+        平坦化された辞書
+
+    例:
+        {"center": 0.25, "nested": {"a": 1, "b": 2}}
+        prefix="stress"
+        → {"stress.center": 0.25, "stress.nested.a": 1, "stress.nested.b": 2}
+    """
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        full_key = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            result.update(_flatten_json(value, prefix=full_key))
+        else:
+            result[full_key] = value
+    return result

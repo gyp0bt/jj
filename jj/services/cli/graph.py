@@ -193,6 +193,19 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="JSONエクスポート時にプロパティを平坦化する（CSVは常に平坦化）",
     )
+    parser.add_argument(
+        "--unit-format",
+        choices=["header", "row"],
+        default=None,
+        help="CSV単位表示形式: header={column}[{unit}]、row=2行目に単位行（デフォルト: config設定）",
+    )
+    parser.add_argument(
+        "--columns",
+        type=str,
+        nargs="*",
+        default=None,
+        help="CSVエクスポートするカラム名を指定（config設定を上書き）",
+    )
     # Neo4j固有オプション
     parser.add_argument(
         "--clear",
@@ -701,6 +714,8 @@ def _run_export_data(
     prop_filters = getattr(args, "prop", None)
     flatten_flag = getattr(args, "flatten", False)
     active_only = getattr(args, "active", False)
+    unit_format = getattr(args, "unit_format", None)
+    columns = getattr(args, "columns", None)
 
     try:
         # 共通選択オプションが指定されている場合は事前にノード絞り込み
@@ -729,6 +744,8 @@ def _run_export_data(
             prop_filters=prop_filters,
             nodes=pre_selected,
             flatten=flatten_opt,
+            unit_format=unit_format,
+            columns=columns,
         )
         label = "CSV" if target == "csv" else "JSON"
         print(f"{label}エクスポート完了: {output_path} ({count}件)")

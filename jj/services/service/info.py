@@ -174,6 +174,8 @@ class InfoService:
         prop_filters: list[str] | None = None,
         nodes: list[Node] | None = None,
         flatten: bool | None = None,
+        unit_format: str | None = None,
+        columns: list[str] | None = None,
     ) -> tuple[Path, int]:
         """ノードデータをCSV/JSON形式でエクスポートする
 
@@ -186,10 +188,14 @@ class InfoService:
             prop_filters: プロパティキーフィルタ（指定時はAND条件で絞り込み）
             nodes: 事前に選択済みのノードリスト（指定時はgraphからの選択を省略）
             flatten: プロパティを平坦化するか（CSVはデフォルトTrue、JSONはデフォルトFalse）
+            unit_format: 単位表示形式 ("header" or "row")。Noneの場合config設定に従う
+            columns: エクスポートするカラム名リスト。Noneの場合config設定に従う
 
         Returns:
             (出力パス, エクスポートされたノード数)
         """
+        export_config = self.service.config.export
+
         # ノードのフィルタリング
         if nodes is not None:
             filtered_nodes = list(nodes)
@@ -260,6 +266,27 @@ class InfoService:
                         all_keys.append(key)
                         seen_keys.add(key)
 
+        # CSVカラム制限（config.export.csv-columns またはCLI --columns）
+        # configで指定したキー順を保持する
+        if target == "csv":
+            csv_columns = columns or export_config.csv_columns
+            if csv_columns:
+                base_keys = ["name", "type", "format"]
+                available = set(all_keys)
+                ordered_keys: list[str] = []
+                seen: set[str] = set()
+                # base_keysを先頭に
+                for k in base_keys:
+                    if k in available and k not in seen:
+                        ordered_keys.append(k)
+                        seen.add(k)
+                # config指定順にカラム追加
+                for k in csv_columns:
+                    if k in available and k not in seen:
+                        ordered_keys.append(k)
+                        seen.add(k)
+                all_keys = ordered_keys
+
         # null埋めとリスト/辞書値のJSON文字列化（CSVのみ）
         rows: list[dict[str, Any]] = []
         for data_row in data_rows:
@@ -280,13 +307,31 @@ class InfoService:
         output_path = self.project_root / output_file
 
         if target == "csv":
+            # 単位マッピングと表示形式を決定
+            units = export_config.units
+            fmt = unit_format or export_config.csv_unit_format
+
             # UTF-8 BOM付きで出力（Excel等での日本語文字化け対策）
             with output_path.open("w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.DictWriter(
-                    f, fieldnames=all_keys, extrasaction="ignore"
-                )
-                writer.writeheader()
-                writer.writerows(rows)
+                writer = csv.writer(f)
+
+                if fmt == "row":
+                    # 1行目: カラム名、2行目: 単位
+                    writer.writerow(all_keys)
+                    unit_row = [units.get(k, "") for k in all_keys]
+                    writer.writerow(unit_row)
+                else:
+                    # デフォルト(header): {column}[{unit}] 形式
+                    header = [
+                        f"{k}[{units[k]}]" if k in units else k
+                        for k in all_keys
+                    ]
+                    writer.writerow(header)
+
+                # データ行
+                for row in rows:
+                    writer.writerow([row.get(k) for k in all_keys])
+
         elif target == "json":
             with output_path.open("w", encoding="utf-8") as f:
                 json_mod.dump(rows, f, ensure_ascii=False, indent=2, default=str)

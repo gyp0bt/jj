@@ -505,3 +505,258 @@ class TestGraphConfigVocabMerge:
         assert gc.vocab.get("v") == "バージョン"
         # vocab.yamlのmappingもマージされている
         assert gc.vocab.get("stress-result") == "応力結果"
+
+
+# =========
+# ExportConfig テスト
+# =========
+class TestExportConfig:
+    def test_default_export_config(self):
+        from config import ExportConfig
+
+        ec = ExportConfig.from_dict({})
+        assert ec.csv_columns is None
+        assert ec.units == {}
+        assert ec.csv_unit_format == "header"
+
+    def test_csv_columns_and_units(self):
+        from config import ExportConfig
+
+        data = {
+            "csv-columns": ["条件", "バージョン", "応力"],
+            "units": {"応力": "MPa", "変位": "mm"},
+            "csv-unit-format": "row",
+        }
+        ec = ExportConfig.from_dict(data)
+        assert ec.csv_columns == ["条件", "バージョン", "応力"]
+        assert ec.units == {"応力": "MPa", "変位": "mm"}
+        assert ec.csv_unit_format == "row"
+
+    def test_invalid_unit_format_raises(self):
+        from config import ExportConfig
+
+        with pytest.raises(ValueError, match="csv-unit-format"):
+            ExportConfig.from_dict({"csv-unit-format": "invalid"})
+
+    def test_graph_config_includes_export(self, tmp_path):
+        import yaml
+        from config import GraphConfig
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "csv-columns": ["応力"],
+                "units": {"応力": "MPa"},
+                "csv-unit-format": "header",
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        gc = GraphConfig.load(base_dir=tmp_path)
+        assert gc.export.csv_columns == ["応力"]
+        assert gc.export.units == {"応力": "MPa"}
+
+
+# =========
+# CSVエクスポート 単位付きヘッダーテスト
+# =========
+class TestCsvExportUnits:
+    @pytest.fixture
+    def unit_graph(self):
+        return GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={"path": "go_idx1.inp", "応力": 100.5, "変位": 2.3},
+                ),
+            ],
+            relations=[],
+        )
+
+    def test_csv_header_unit_format(self, unit_graph, tmp_path):
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "units": {"応力": "MPa", "変位": "mm"},
+                "csv-unit-format": "header",
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            unit_graph, "csv", nodes=unit_graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        lines = content.strip().split("\n")
+        header = lines[0]
+        # ヘッダーに単位が含まれる
+        assert "応力[MPa]" in header
+        assert "変位[mm]" in header
+        # name等は単位なし
+        assert "name[" not in header
+
+    def test_csv_row_unit_format(self, unit_graph, tmp_path):
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "units": {"応力": "MPa", "変位": "mm"},
+                "csv-unit-format": "row",
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            unit_graph, "csv", nodes=unit_graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        lines = content.strip().split("\n")
+        # 1行目: カラム名（単位なし）
+        assert "応力[MPa]" not in lines[0]
+        assert "応力" in lines[0]
+        # 2行目: 単位行
+        assert "MPa" in lines[1]
+        assert "mm" in lines[1]
+        # 3行目: データ
+        assert "100.5" in lines[2]
+
+
+# =========
+# CSVエクスポート カラム制限テスト
+# =========
+class TestCsvExportColumns:
+    def test_csv_columns_from_config(self, tmp_path):
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "csv-columns": ["応力"],
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={"path": "go.inp", "応力": 100, "変位": 2.3, "dat_warning": "x"},
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        header = content.strip().split("\n")[0]
+        # 応力はある
+        assert "応力" in header
+        # dat_warningはない
+        assert "dat_warning" not in header
+        # baseキー(name/type/format)は常に含まれる
+        assert "name" in header
+
+    def test_csv_columns_preserve_config_order(self, tmp_path):
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "csv-columns": ["変位", "応力"],
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={"path": "go.inp", "応力": 100, "変位": 2.3},
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        header = content.strip().split("\n")[0]
+        # config順: 変位 → 応力
+        idx_henni = header.index("変位")
+        idx_ouryoku = header.index("応力")
+        assert idx_henni < idx_ouryoku
+
+
+# =========
+# JSONプロパティ平坦化テスト
+# =========
+class TestJsonPropertyFlatten:
+    def test_flatten_json_simple(self):
+        from services.parse.parsers.json_property_parser import _flatten_json
+
+        data = {"center": 0.25, "edge": 1.0}
+        result = _flatten_json(data, prefix="stress")
+        assert result == {"stress.center": 0.25, "stress.edge": 1.0}
+
+    def test_flatten_json_nested(self):
+        from services.parse.parsers.json_property_parser import _flatten_json
+
+        data = {"results": {"max": 1.5, "min": 0.1}}
+        result = _flatten_json(data, prefix="stress")
+        assert result == {
+            "stress.results.max": 1.5,
+            "stress.results.min": 0.1,
+        }
+
+    def test_flatten_json_no_prefix(self):
+        from services.parse.parsers.json_property_parser import _flatten_json
+
+        data = {"a": 1, "b": {"c": 2}}
+        result = _flatten_json(data, prefix="")
+        assert result == {"a": 1, "b.c": 2}
+
+    def test_flatten_json_list_values(self):
+        from services.parse.parsers.json_property_parser import _flatten_json
+
+        data = {"values": [1, 2, 3], "scalar": 5}
+        result = _flatten_json(data, prefix="test")
+        assert result == {"test.values": [1, 2, 3], "test.scalar": 5}
+
+
+# =========
+# MeshInheritParser テスト
+# =========
+class TestMeshInheritParser:
+    def test_parser_registered(self):
+        from services.parse.base import get_parser_registry
+
+        registry = get_parser_registry()
+        assert any(p.__name__ == "MeshInheritParser" for p in registry)
+
+    def test_priority_after_includes_and_mesh(self):
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        assert MeshInheritParser.priority > 40  # IncludesRelationParser
+        assert MeshInheritParser.priority > 80  # AbaqusMeshParser
