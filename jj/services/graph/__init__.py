@@ -3,12 +3,11 @@
 このモジュールはjjのコアとなるグラフ機能を提供します。
 - プロジェクトフォルダのスキャンとファイル解析
 - GraphModelへの変換
-- サブバージョン関係・グループ関係の構築
-- 同一ファイルタイプの関連付け（has_output）
-- フォルダベースの関連付け（contains）
-- material.inpの高度な解析（abaqus_material）
-- 解析結果ファイルの解析（analysis_status）
+- AbstractFileParserパイプラインによるグラフエンリッチメント
 - グラフデータの保存・読み込み
+
+Phase R リファクタリングにより、parse/enrich/connectロジックは
+AbstractFileParserサブクラス群に分散されました。
 
 [READMEへ戻る](../../../README.md)
 """
@@ -25,21 +24,17 @@ from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
 
 from jj.services.graph.storage import GraphStorage
-from jj.services.parse.connectors.abaqus import (
-    diff_abq_blocks,
-    format_diff_blocks_markdown,
-    format_diff_summary_table,
-)
-from jj.services.parse.connectors.abaqus import (
-    read_inp as abq_read_inp,
-)
-from jj.services.parse.connectors.abaqus.mesh import (
-    extract_material_elset_mapping,
-    extract_mesh_stats,
-)
-from jj.services.parse.connectors.obsidian.daily import DailyNote, scan_daily_notes
+from services.parse.base import parse as run_parser_pipeline
 from services.parse.file_parse import DEFAULT_EXTENSIONS, FileParse, FileType
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
+
+# パーサーサブクラスのimport（自動登録用）
+import services.parse.parsers  # noqa: F401
+import services.parse.connectors.abaqus.inp_parser  # noqa: F401
+import services.parse.connectors.abaqus.result_parser  # noqa: F401
+import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
+import services.parse.connectors.abaqus.diff_parser  # noqa: F401
+import services.parse.connectors.obsidian.daily_parser  # noqa: F401
 
 # 解析結果ファイルの成否判定用パターン
 _STA_SUCCESS_PATTERN = re.compile(
@@ -696,6 +691,10 @@ class GraphService:
     ) -> GraphModel:
         """プロジェクトをパースしてGraphModelを生成
 
+        Phase R リファクタリングにより、ファイルスキャンとノード生成のみを
+        GraphServiceが担当し、グラフエンリッチメント（リレーション構築、
+        プロパティ付与等）はAbstractFileParserパイプラインに委譲する。
+
         Args:
             extensions: 対象拡張子（Noneの場合はDEFAULT_EXTENSIONS + config file-relationsを使用）
             exclude_dirs: 除外ディレクトリ
@@ -703,108 +702,36 @@ class GraphService:
         Returns:
             生成されたGraphModel
         """
+        from services.graph.project_graph import ProjectGraph
+
         merged_extensions = self._build_scan_extensions(extensions)
         files = self.scan_files(extensions=merged_extensions, exclude_dirs=exclude_dirs)
 
         nodes: list[Node] = []
-        node_by_path: dict[str, Node] = {}
 
-        # ノード生成
+        # ノード生成（GraphServiceの責務: ファイルスキャンとNode変換）
         for file_path in files:
             node = self.file_to_node(file_path)
             nodes.append(node)
-            node_by_path[node.properties.get("path", "")] = node
 
-        # リレーション生成
-        relations: list[Relation] = []
-
-        # サブバージョン関係とグループ関係を構築
-        version_relations, group_relations = self._build_version_and_group_relations(
-            nodes
+        # ProjectGraphを構築してパーサーパイプラインに委譲
+        project_graph = ProjectGraph.from_graph_service(
+            nodes=nodes,
+            relations=[],
+            project_root=self.project_root,
+            config=self.config,
+            node_id_counter=self._node_id_counter,
+            relation_id_counter=self._relation_id_counter,
         )
-        relations.extend(version_relations)
-        relations.extend(group_relations)
 
-        # 入力-結果関係を構築
-        result_relations = self._build_result_relations(nodes)
-        relations.extend(result_relations)
+        # 全登録パーサーをpriority順に適用
+        project_graph = run_parser_pipeline(project_graph)
 
-        # アセット関係を構築
-        asset_relations = self._build_asset_relations(nodes)
-        relations.extend(asset_relations)
+        # IDカウンタを同期
+        self._node_id_counter = project_graph._node_id_counter
+        self._relation_id_counter = project_graph._relation_id_counter
 
-        # includes関係を構築（inpファイルの*includeディレクティブ）
-        includes_relations = self._build_includes_relations(nodes, node_by_path)
-        relations.extend(includes_relations)
-
-        # 同一ファイルタイプのprops差分関連付け（has_output）
-        output_relations = self._build_output_relations(nodes)
-        relations.extend(output_relations)
-
-        # フォルダベースの関連付け（contains）
-        dir_nodes, contains_relations = self._build_directory_relations(
-            nodes, extensions=extensions, exclude_dirs=exclude_dirs
-        )
-        nodes.extend(dir_nodes)
-        relations.extend(contains_relations)
-
-        # material.inpの高度な解析（abaqus_material）
-        mat_nodes, mat_relations = self._build_material_nodes(nodes)
-        nodes.extend(mat_nodes)
-        relations.extend(mat_relations)
-
-        # material.inpのverbose_nameと材料タグを更新
-        self._enrich_material_verbose_name(nodes, mat_nodes, mat_relations)
-
-        # pymeshによるメッシュ統計エンリッチメント
-        self._enrich_mesh_stats(nodes)
-
-        # 材料割り当て関係の構築（material→elset→element）
-        mat_assign_relations = self._build_material_assignment_relations(
-            nodes, mat_nodes
-        )
-        relations.extend(mat_assign_relations)
-
-        # 解析結果ファイルの解析（analysis_status）
-        self._enrich_sta_status(nodes)
-
-        # .msgファイルの解析（errors/warnings抽出）
-        self._enrich_msg_status(nodes)
-
-        # .datファイルの解析（計算時間抽出）
-        self._enrich_dat_status(nodes)
-
-        # includeファイルのpropertyをgo_*.inpに伝搬
-        self._enrich_include_properties(nodes, relations)
-
-        # elsetと材料名をgo_*.inpのプロパティに追加
-        self._enrich_material_assignment_props(nodes, mat_nodes, mat_assign_relations)
-
-        # go_*.inpのelset名をNode化
-        elset_nodes, elset_relations = self._build_elset_nodes(nodes, relations)
-        nodes.extend(elset_nodes)
-        relations.extend(elset_relations)
-
-        # 前バージョンとのキーワードブロック差分をpropertyに追加
-        self._enrich_version_diff(nodes)
-
-        # notes/dailyの日報解析
-        daily_nodes, daily_relations = self._build_daily_note_relations(
-            nodes, node_by_path
-        )
-        nodes.extend(daily_nodes)
-        relations.extend(daily_relations)
-
-        # root directoryをNode化
-        root_node, root_relations = self._build_root_directory_node(nodes)
-        if root_node:
-            nodes.append(root_node)
-            relations.extend(root_relations)
-
-        # .sta, .msg, .datノードを除外（情報はgo_*.inpに集約済み）
-        nodes, relations = self._filter_enrichment_only_nodes(nodes, relations)
-
-        return GraphModel(nodes=nodes, relations=relations)
+        return project_graph.to_graph_model()
 
     def _build_version_and_group_relations(
         self, nodes: list[Node]
