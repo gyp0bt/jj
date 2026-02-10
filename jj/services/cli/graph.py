@@ -27,6 +27,7 @@ import yaml
 
 from config import init_graph_config
 from services.graph import GraphService
+from services.lib.selection import expand_ranges
 from services.service.info import InfoService
 
 from services.lib.credentials import (
@@ -138,6 +139,36 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="エクスポートするファイル名を指定（複数可）",
     )
+    parser.add_argument(
+        "-id",
+        "--index",
+        type=str,
+        nargs="*",
+        default=None,
+        help="インデックスで選択（例: -id 1 2、1..3で範囲展開）",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        type=str,
+        nargs="*",
+        default=None,
+        help="バージョンで選択（例: -v 1 2、1..3で範囲展開）",
+    )
+    parser.add_argument(
+        "-all",
+        "--all-nodes",
+        action="store_true",
+        help="全ノードを選択",
+    )
+    parser.add_argument(
+        "-prop",
+        "--prop",
+        type=str,
+        nargs="*",
+        default=None,
+        help="プロパティキーで絞り込み（AND条件）",
+    )
     # Neo4j固有オプション
     parser.add_argument(
         "--clear",
@@ -179,7 +210,7 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         nargs="*",
         default=None,
-        help="インデックスで指定（例: -id 1 2）",
+        help="インデックスで指定（例: -id 1 2、1..3で範囲展開）",
     )
     parser.add_argument(
         "-v",
@@ -187,7 +218,28 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         nargs="*",
         default=None,
-        help="バージョンで指定（例: -v 1 2）",
+        help="バージョンで指定（例: -v 1 2、1..3で範囲展開）",
+    )
+    parser.add_argument(
+        "-type",
+        "--type",
+        type=str,
+        default=None,
+        help="ノードタイプでフィルタリング（例: -type Abaqusインプット）",
+    )
+    parser.add_argument(
+        "-all",
+        "--all-nodes",
+        action="store_true",
+        help="全ノードを選択",
+    )
+    parser.add_argument(
+        "-prop",
+        "--prop",
+        type=str,
+        nargs="*",
+        default=None,
+        help="指定プロパティを持つノードのみ表示し、そのプロパティ値を出力",
     )
     parser.add_argument(
         "-props",
@@ -600,19 +652,42 @@ def _run_export_data(
     target: str,
     args: argparse.Namespace,
 ) -> int:
-    """CSV/JSONデータエクスポートを実行（InfoServiceに委譲）"""
+    """CSV/JSONデータエクスポートを実行（InfoServiceに委譲）
+
+    共通選択オプション（-id, -v, -type, -all）が指定されている場合は
+    InfoService.search_nodesで事前にノードを絞り込んでからエクスポートする。
+    """
     info_service = InfoService(project_root=project_root)
     type_filter = getattr(args, "type", None)
     select_filter = getattr(args, "select", None)
     output_file = getattr(args, "output", None)
+    index_filters = expand_ranges(getattr(args, "index", None))
+    version_filters = expand_ranges(getattr(args, "version", None))
+    all_nodes = getattr(args, "all_nodes", False)
+    prop_filters = getattr(args, "prop", None)
 
     try:
+        # 共通選択オプションが指定されている場合は事前にノード絞り込み
+        pre_selected: list["Node"] | None = None
+        if index_filters is not None or version_filters is not None or all_nodes:
+            pre_selected = info_service.search_nodes(
+                graph,
+                index_filters=index_filters,
+                version_filters=version_filters,
+                type_filter=type_filter,
+                all_nodes=all_nodes,
+            )
+            # search_nodesでtype_filterを適用済みなのでexport_dataには渡さない
+            type_filter = None
+
         output_path, count = info_service.export_data(
             graph,
             target,
             type_filter=type_filter,
             select_filter=select_filter,
             output_file=output_file,
+            prop_filters=prop_filters,
+            nodes=pre_selected,
         )
         label = "CSV" if target == "csv" else "JSON"
         print(f"{label}エクスポート完了: {output_path} ({count}件)")
@@ -741,14 +816,20 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
     指定方法:
     - ファイル名直打ち（複数可）: jj info go_idx1.inp mesh.inp
-    - インデックス指定: jj info -id 1 2
-    - バージョン指定: jj info -v 1 2
+    - インデックス指定: jj info -id 1 2（1..3で範囲展開）
+    - バージョン指定: jj info -v 1 2（1..3で範囲展開）
+    - タイプフィルタ: jj info -type Abaqusインプット
+    - 全ノード選択: jj info -all
+    - プロパティフィルタ: jj info -all -prop 応力
     - プロパティのみ表示: jj info -props go_idx1.inp
     """
     info_service = InfoService(project_root=project_root)
     filenames = getattr(args, "filename", []) or []
-    index_filters = getattr(args, "index", None)
-    version_filters = getattr(args, "version", None)
+    index_filters = expand_ranges(getattr(args, "index", None))
+    version_filters = expand_ranges(getattr(args, "version", None))
+    type_filter = getattr(args, "type", None)
+    all_nodes = getattr(args, "all_nodes", False)
+    prop_filters = getattr(args, "prop", None)
     props_only = getattr(args, "props_only", False)
 
     try:
@@ -760,8 +841,13 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
             return 1
 
         # 何も指定がない場合
-        if not filenames and index_filters is None and version_filters is None:
-            print("ファイル名、-id、-v のいずれかを指定してください。")
+        if (
+            not filenames
+            and index_filters is None
+            and version_filters is None
+            and not all_nodes
+        ):
+            print("ファイル名、-id、-v、-all のいずれかを指定してください。")
             return 1
 
         # InfoServiceでノード検索
@@ -770,7 +856,17 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
             filenames=filenames or None,
             index_filters=index_filters,
             version_filters=version_filters,
+            type_filter=type_filter,
+            all_nodes=all_nodes,
         )
+
+        # -prop フィルタ: 指定プロパティを持つノードのみに絞り込み
+        if prop_filters:
+            matched_nodes = [
+                n
+                for n in matched_nodes
+                if all(k in n.properties for k in prop_filters)
+            ]
 
         if not matched_nodes:
             criteria = []
@@ -780,6 +876,12 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                 criteria.append(f"index: {', '.join(index_filters)}")
             if version_filters:
                 criteria.append(f"version: {', '.join(version_filters)}")
+            if type_filter:
+                criteria.append(f"type: {type_filter}")
+            if all_nodes:
+                criteria.append("all")
+            if prop_filters:
+                criteria.append(f"prop: {', '.join(prop_filters)}")
             print(f"条件 ({'; '.join(criteria)}) に一致するノードが見つかりません。")
             return 1
 
@@ -788,7 +890,7 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
         for node in matched_nodes:
             print(f"\n=== {node.name} ===")
-            if not props_only:
+            if not props_only and not prop_filters:
                 print(f"  ID: {node.id}")
                 print(f"  タイプ: {node.type}")
                 print(f"  フォーマット: {node.format}")
@@ -796,19 +898,26 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                 if verbose_name:
                     print(f"  表示名: {verbose_name}")
 
-            # プロパティ表示（yamlソースをありのまま出力）
-            print(f"\n  プロパティ:")
-            props_yaml = yaml.safe_dump(
-                dict(sorted(node.properties.items())),
-                allow_unicode=True,
-                sort_keys=False,
-                default_flow_style=False,
-            )
-            for line in props_yaml.rstrip("\n").split("\n"):
-                print(f"    {line}")
+            if prop_filters:
+                # -prop指定時: 指定プロパティのみ表示
+                for prop_key in prop_filters:
+                    value = node.properties.get(prop_key)
+                    if value is not None:
+                        print(f"  {prop_key}: {_format_prop_value(value)}")
+            else:
+                # プロパティ表示（yamlソースをありのまま出力）
+                print(f"\n  プロパティ:")
+                props_yaml = yaml.safe_dump(
+                    dict(sorted(node.properties.items())),
+                    allow_unicode=True,
+                    sort_keys=False,
+                    default_flow_style=False,
+                )
+                for line in props_yaml.rstrip("\n").split("\n"):
+                    print(f"    {line}")
 
-            # リレーション表示（-propsでない場合のみ）
-            if not props_only:
+            # リレーション表示（-propsでない場合のみ、-prop指定時は非表示）
+            if not props_only and not prop_filters:
                 rels = info_service.get_relations_for_node(graph, node.id)
                 if rels:
                     print(f"\n  リレーション ({len(rels)}件):")
@@ -831,6 +940,19 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)
         return 1
+
+
+def _format_prop_value(value: Any) -> str:
+    """プロパティ値を表示用にフォーマット"""
+    if isinstance(value, dict):
+        return yaml.safe_dump(
+            value, allow_unicode=True, default_flow_style=False
+        ).rstrip("\n")
+    if isinstance(value, list):
+        return yaml.safe_dump(
+            value, allow_unicode=True, default_flow_style=False
+        ).rstrip("\n")
+    return str(value)
 
 
 def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
