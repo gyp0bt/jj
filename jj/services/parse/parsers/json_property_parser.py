@@ -3,15 +3,16 @@
 go_*.inpに紐づいた".odb.json"以外の".json"ファイルの中を開き、
 JSON内のキー名を採用してgo_*.inpノードのプロパティに平坦化して割り当てる。
 
-JSONファイル名のサフィックスをプレフィックスとして使用し、
-JSON内の階層は"."繋ぎでカラム名を作成する。
+JSON内の階層は"."繋ぎでカラム名を作成する（ファイル名サフィックスはプレフィックスに使用しない）。
 
 例: results/go_idx0.v29_stress.json（内容: {"center": 0.25, "edge": 1.0}）
     → go_idx0.v29.inpに
-    properties["stress.center"] = 0.25
-    properties["stress.edge"] = 1.0
+    properties["center"] = 0.25
+    properties["edge"] = 1.0
 
-サフィックスにはvocab置換を"_"区切りで適用する。
+例: results/go_idx0.v29_stress.json（内容: {"results": {"max": 1.5}}）
+    → go_idx0.v29.inpに
+    properties["results.max"] = 1.5
 
 [READMEへ戻る](../../../../README.md)
 """
@@ -36,9 +37,9 @@ class JsonPropertyParser(AbstractFileParser):
     go_*.inpノードに紐づく.jsonファイル（.odb.json除外）を特定し、
     JSON内のキー名を採用してgo_*.inpのプロパティに追加する。
 
-    JSONファイル名からinp basenameを除いたサフィックスをプレフィックスとし、
     JSON内の階層を"."繋ぎで平坦化してプロパティキーとする。
-    例: go_idx0.v29_stress.json → properties["stress.center"] = 0.25
+    ファイル名サフィックスはプレフィックスとして使用しない。
+    例: go_idx0.v29_stress.json → properties["center"] = 0.25
     """
 
     priority = 33  # OutputRelationParser(32)の直後
@@ -94,17 +95,9 @@ class JsonPropertyParser(AbstractFileParser):
                 if json_data is None:
                     continue
 
-                # サフィックスにvocab置換を適用（"_"区切りで各パートを変換）
-                vocab = graph.config.vocab
-                if vocab:
-                    translated_suffix = "_".join(
-                        vocab.get(part, part) for part in suffix.split("_")
-                    )
-                else:
-                    translated_suffix = suffix
-
                 # JSON内のキー名を"."繋ぎで平坦化してプロパティに割り当て
-                flattened = _flatten_json(json_data, prefix=translated_suffix)
+                # ファイル名サフィックスはプレフィックスに使用しない
+                flattened = _flatten_json(json_data, prefix="")
                 inp_node.properties.update(flattened)
 
         return graph

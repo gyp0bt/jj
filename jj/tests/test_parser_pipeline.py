@@ -291,8 +291,9 @@ class TestPipelineIntegration:
         go_nodes = [n for n in graph.nodes if n.type == "go" and n.format == "inp"]
         # JsonPropertyParser(priority=33)がresults/のJSONを読んでプロパティ付与
         # EnrichmentOnlyFilter(priority=99)でresults/ノード除去後も情報は残る
+        # JSONキーはファイル名サフィックスなしで直接割り当て（key:value形式）
         has_json_prop = any(
-            "stress" in n.properties for n in go_nodes
+            "0(center)" in n.properties for n in go_nodes
         )
         assert has_json_prop, "results/のJSON情報がgo_*.inpに伝搬されていない"
 

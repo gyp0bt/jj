@@ -591,6 +591,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-044.md)
+- [最新ステータス](./status/status-050.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

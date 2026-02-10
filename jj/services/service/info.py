@@ -9,6 +9,7 @@ CLI層はargparse解析と出力整形のみに責務を限定する。
 from __future__ import annotations
 
 import csv
+import fnmatch
 import json as json_mod
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Optional
@@ -267,24 +268,24 @@ class InfoService:
                         seen_keys.add(key)
 
         # CSVカラム制限（config.export.csv-columns またはCLI --columns）
-        # configで指定したキー順を保持する
+        # configで指定したキー順を保持する。glob パターンに対応。
         if target == "csv":
             csv_columns = columns or export_config.csv_columns
             if csv_columns:
                 base_keys = ["name", "type", "format"]
-                available = set(all_keys)
                 ordered_keys: list[str] = []
                 seen: set[str] = set()
                 # base_keysを先頭に
                 for k in base_keys:
-                    if k in available and k not in seen:
+                    if k in all_keys and k not in seen:
                         ordered_keys.append(k)
                         seen.add(k)
-                # config指定順にカラム追加
-                for k in csv_columns:
-                    if k in available and k not in seen:
-                        ordered_keys.append(k)
-                        seen.add(k)
+                # config指定順にカラム追加（globパターン対応）
+                for pattern in csv_columns:
+                    for k in all_keys:
+                        if k not in seen and fnmatch.fnmatch(k, pattern):
+                            ordered_keys.append(k)
+                            seen.add(k)
                 all_keys = ordered_keys
 
         # null埋めとリスト/辞書値のJSON文字列化（CSVのみ）
@@ -318,14 +319,14 @@ class InfoService:
                 if fmt == "row":
                     # 1行目: カラム名、2行目: 単位
                     writer.writerow(all_keys)
-                    unit_row = [units.get(k, "") for k in all_keys]
+                    unit_row = [_match_unit(k, units) for k in all_keys]
                     writer.writerow(unit_row)
                 else:
                     # デフォルト(header): {column}[{unit}] 形式
-                    header = [
-                        f"{k}[{units[k]}]" if k in units else k
-                        for k in all_keys
-                    ]
+                    header = []
+                    for k in all_keys:
+                        u = _match_unit(k, units)
+                        header.append(f"{k}[{u}]" if u else k)
                     writer.writerow(header)
 
                 # データ行
@@ -357,6 +358,28 @@ class InfoService:
         for found in project_root.rglob(filename):
             return found
         return None
+
+
+def _match_unit(key: str, units: dict[str, str]) -> str:
+    """カラム名に対応する単位を返す（globパターン対応）
+
+    完全一致を優先し、見つからなければglobパターンでマッチングを試みる。
+
+    Args:
+        key: カラム名
+        units: カラム名→単位のマッピング（globパターン可）
+
+    Returns:
+        マッチした単位文字列。マッチしない場合は空文字列
+    """
+    # 完全一致を優先
+    if key in units:
+        return units[key]
+    # globパターンマッチ
+    for pattern, unit in units.items():
+        if fnmatch.fnmatch(key, pattern):
+            return unit
+    return ""
 
 
 def _flatten_properties(

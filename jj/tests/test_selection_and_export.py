@@ -760,3 +760,220 @@ class TestMeshInheritParser:
 
         assert MeshInheritParser.priority > 40  # IncludesRelationParser
         assert MeshInheritParser.priority > 80  # AbaqusMeshParser
+
+
+# =========
+# CSVカラムglobパターンテスト
+# =========
+class TestCsvExportColumnsGlob:
+    def test_csv_columns_glob_pattern(self, tmp_path):
+        """csv-columnsでglobパターンが使える"""
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "csv-columns": ["stress.*"],
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={
+                        "path": "go.inp",
+                        "stress.center": 100.5,
+                        "stress.edge": 200.3,
+                        "displacement": 2.3,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        header = content.strip().split("\n")[0]
+        # stress.*にマッチするカラムはある
+        assert "stress.center" in header
+        assert "stress.edge" in header
+        # displacementはマッチしないので含まれない
+        assert "displacement" not in header
+        # baseキーは常に含まれる
+        assert "name" in header
+
+    def test_csv_columns_glob_preserves_order(self, tmp_path):
+        """globパターンでもconfig順が保持される"""
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "csv-columns": ["disp*", "stress*"],
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={
+                        "path": "go.inp",
+                        "stress.center": 100,
+                        "displacement": 2.3,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        header = content.strip().split("\n")[0]
+        idx_disp = header.index("displacement")
+        idx_stress = header.index("stress.center")
+        # disp* が先に来る
+        assert idx_disp < idx_stress
+
+
+# =========
+# CSV単位globパターンテスト
+# =========
+class TestCsvExportUnitsGlob:
+    def test_units_glob_pattern_header_format(self, tmp_path):
+        """unitsでglobパターンが使える（header形式）"""
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "units": {"stress*": "MPa", "displacement": "mm"},
+                "csv-unit-format": "header",
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={
+                        "path": "go.inp",
+                        "stress.center": 100.5,
+                        "stress.edge": 200.3,
+                        "displacement": 2.3,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        header = content.strip().split("\n")[0]
+        # globパターン stress* にマッチするカラムに単位が付く
+        assert "stress.center[MPa]" in header
+        assert "stress.edge[MPa]" in header
+        # 完全一致のカラムにも単位が付く
+        assert "displacement[mm]" in header
+        # name等は単位なし
+        assert "name[" not in header
+
+    def test_units_glob_pattern_row_format(self, tmp_path):
+        """unitsでglobパターンが使える（row形式）"""
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "units": {"stress*": "MPa"},
+                "csv-unit-format": "row",
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={
+                        "path": "go.inp",
+                        "stress.center": 100.5,
+                        "stress.edge": 200.3,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        lines = content.strip().split("\n")
+        # 1行目: カラム名（単位なし）
+        assert "stress.center[MPa]" not in lines[0]
+        assert "stress.center" in lines[0]
+        # 2行目: 単位行にMPaが含まれる
+        assert "MPa" in lines[1]
+
+    def test_units_exact_match_priority(self, tmp_path):
+        """完全一致がglobパターンより優先される"""
+        import yaml
+        from services.service.info import InfoService
+
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        config_data = {
+            "export": {
+                "units": {"stress*": "MPa", "stress.center": "GPa"},
+                "csv-unit-format": "header",
+            }
+        }
+        with (config_dir / "config.yaml").open("w", encoding="utf-8") as f:
+            yaml.safe_dump(config_data, f, allow_unicode=True)
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_idx1", format="inp",
+                    properties={
+                        "path": "go.inp",
+                        "stress.center": 100.5,
+                        "stress.edge": 200.3,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        service = InfoService(project_root=tmp_path)
+        output_path, count = service.export_data(
+            graph, "csv", nodes=graph.nodes, output_file="test.csv"
+        )
+        content = output_path.read_text(encoding="utf-8-sig")
+        header = content.strip().split("\n")[0]
+        # stress.centerは完全一致でGPa
+        assert "stress.center[GPa]" in header
+        # stress.edgeはglob stress* でMPa
+        assert "stress.edge[MPa]" in header
