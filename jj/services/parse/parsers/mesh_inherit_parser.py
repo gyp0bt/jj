@@ -1,11 +1,12 @@
-"""メッシュプロパティ継承パーサー
+"""include先プロパティ継承パーサー
 
-go_*.inpが*INCLUDEで参照するmesh_*.inpのプロパティを
-go_*.inpノードに継承する。
+go_*.inpが*INCLUDEで参照する全ファイル（mesh_*, material_*, step_*等）の
+プロパティをgo_*.inpノードに直接継承する。
 
 継承対象:
 - ファイル名から解析されたプロパティ（例: mesh_t50_v1.inp → t:50）
 - メッシュ統計情報（mesh_node_count, mesh_element_count, mesh_quality等）
+- material/step等のinclude先が持つ任意のプロパティ
 
 除外:
 - index/version相当のキー（idx/v/条件/バージョン等）
@@ -40,11 +41,12 @@ _SKIP_KEYS: frozenset[str] = frozenset({
 
 
 class MeshInheritParser(AbstractFileParser):
-    """go_*.inpにincludeされたmesh_*.inpのプロパティを継承する
+    """go_*.inpにincludeされた全ファイルのプロパティを継承する
 
-    includes関係を辿り、mesh_*.inpノードのプロパティのうち
-    index/version以外をgo_*.inpに複製する。
-    メッシュ統計情報（mesh_node_count等）も含めて継承する。
+    includes関係を辿り、include先ノードのプロパティのうち
+    index/version/メタプロパティ以外をgo_*.inpの直下プロパティに追加する。
+    メッシュ統計情報（mesh_node_count, mesh_quality等）も含めて継承する。
+    go_*が既に持っているキーは上書きしない（go_*自身の値を優先）。
     """
 
     priority = 81  # IncludesRelationParser(40), AbaqusMeshParser(80)の後
@@ -58,7 +60,7 @@ class MeshInheritParser(AbstractFileParser):
             if translated:
                 skip_keys.add(translated)
 
-        # includes関係マップ: node1_id(go) → [node2_id(mesh)]
+        # includes関係マップ: node1_id(go) → [node2_id(included)]
         includes_map: dict[int, list[int]] = defaultdict(list)
         for rel in graph.relations:
             if rel.label == "includes":
@@ -72,16 +74,13 @@ class MeshInheritParser(AbstractFileParser):
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
 
-            # includeされたmesh_*.inpを探す
+            # includeされた全ファイルのプロパティを継承
             for child_id in includes_map.get(node.id, []):
                 child = graph.get_node_by_id(child_id)
                 if child is None:
                     continue
-                child_lower = child.name.lower()
-                if not (child_lower.startswith("mesh_") or child_lower == "mesh"):
-                    continue
 
-                # meshのプロパティを継承（既存キーは上書きしない）
+                # include先のプロパティを直下に追加（既存キーは上書きしない）
                 for key, value in child.properties.items():
                     if key in skip_keys:
                         continue

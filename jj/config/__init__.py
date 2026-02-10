@@ -596,9 +596,15 @@ class GraphConfig:
     token_key_map: TokenKeyMapConfig
     project_name: str
     export: ExportConfig
+    directory_max_depth: Optional[int]  # None=無制限（最終階層まで）
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
+        raw_depth = data.get("directory-max-depth")
+        if raw_depth is not None:
+            raw_depth = int(raw_depth)
+            if raw_depth < 1:
+                raise ValueError("directory-max-depth must be >= 1")
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -610,6 +616,7 @@ class GraphConfig:
             token_key_map=TokenKeyMapConfig.from_dict(data.get("token-key-map", {})),
             project_name=data.get("project-name", ""),
             export=ExportConfig.from_dict(data.get("export", {})),
+            directory_max_depth=raw_depth,
         )
 
     @classmethod

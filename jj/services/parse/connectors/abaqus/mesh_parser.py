@@ -7,6 +7,7 @@ pymeshを使ってメッシュ統計情報をノードのプロパティに付�
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from services.parse.base import AbstractFileParser
@@ -14,11 +15,19 @@ from services.parse.base import AbstractFileParser
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
 
+logger = logging.getLogger(__name__)
+
 
 class AbaqusMeshParser(AbstractFileParser):
     """pymeshを使ってメッシュ統計情報をノードのプロパティに付与
 
     pymeshによる.inp読み込みは重いため、--fullオプション時のみ実行する。
+
+    mesh_qualityが付加されないケースの原因:
+    - get_element_node_coord_array()がNone/空を返す（要素タイプ未対応）
+    - 品質メトリクス計算がすべてのモードで失敗（2D要素等）
+    - NaN率100%で有効な統計値が得られない
+    デバッグログ（DEBUG level）で詳細を確認可能。
     """
 
     priority = 80
@@ -38,6 +47,7 @@ class AbaqusMeshParser(AbstractFileParser):
 
             stats = extract_mesh_stats(file_path, verbose=False)
             if stats is None:
+                logger.debug(f"extract_mesh_stats returned None for {node.name}")
                 continue
 
             if stats.get("node_count"):
@@ -50,5 +60,11 @@ class AbaqusMeshParser(AbstractFileParser):
                 node.properties["mesh_elset_summary"] = stats["elset_summary"]
             if stats.get("quality"):
                 node.properties["mesh_quality"] = stats["quality"]
+            else:
+                logger.debug(
+                    f"mesh_quality not computed for {node.name} "
+                    f"(node_count={stats.get('node_count', 0)}, "
+                    f"element_count={stats.get('element_count', 0)})"
+                )
 
         return graph
