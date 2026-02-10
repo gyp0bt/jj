@@ -26,20 +26,20 @@ from typing import Any, Optional, Sequence
 from config import init_graph_config
 from services.graph import GraphService
 
-from jj.services.lib.credentials import (
+from services.lib.credentials import (
     load_credentials,
     mask_value,
     save_credentials,
 )
-from jj.services.parse.connectors.abaqus import (
+from services.parse.connectors.abaqus import (
     diff_abq_blocks,
     format_diff_blocks_markdown,
     format_diff_summary_table,
 )
-from jj.services.parse.connectors.abaqus import (
+from services.parse.connectors.abaqus import (
     read_inp as abq_read_inp,
 )
-from jj.services.parse.connectors.obsidian import ObsidianConnector
+from services.export.connectors.obsidian import ObsidianConnector
 
 
 def _add_init_args(parser: argparse.ArgumentParser) -> None:
@@ -1022,7 +1022,7 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
     elif cred_cmd == "delete":
         import json as json_mod
 
-        from jj.services.lib.credentials import _get_credentials_path
+        from services.lib.credentials import _get_credentials_path
 
         cred_path = _get_credentials_path(project_root)
         if not cred_path.exists():

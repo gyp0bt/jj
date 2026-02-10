@@ -225,7 +225,7 @@ class AbaqusMaterialAssignmentParser(AbstractFileParser):
     priority = 85
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        from jj.services.parse.connectors.abaqus.mesh import (
+        from services.parse.connectors.abaqus.mesh import (
             extract_material_elset_mapping,
         )
 

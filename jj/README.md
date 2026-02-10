@@ -85,6 +85,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-10 / status-043: Phase R4-R6完了（services構造リファクタリング完了）。ObsidianConnectorをexport層へ移動、graph/__init__.pyの旧メソッド削除（2026行→510行）、全テスト新パイプライン対応。pymeshインポートパスをmodules/に修正。テスト443件パス、0失敗。MR（構造改革マイルストーン）達成。([status-043](docs/status/status-043.md))
 - 2026-02-09 / status-042: Phase R1-R3実装完了。ProjectGraph型定義（project_graph.py）、AbstractFileParser.__init_subclass__自動登録パターン確立、graph/__init__.pyから16パーサーサブクラスに分解。parse()パイプラインでtest_asset1を丸ごと解析（47ノード、65リレーション）。統合テスト29件パス。specs/02-parser.md・specs/07-adapter.mdを新アーキテクチャに更新。([status-042](docs/status/status-042.md))
 - 2026-02-09 / status-041: services構造改革に伴うロードマップ根本改変。Phase Rを新設（抽象パーサーパターン・ProjectGraph型・graph/__init__.py分解）、完了済みAbaqusグラフ機能をM1.5として整理、旧アダプター層をparseコネクターに再定義。detail.md・README.mdのディレクトリ構成を新構造に更新。([status-041](docs/status/status-041.md))
 - 2026-02-09 / status-040: pymesh移動・jj info強化・材料名ケース保持・credential管理。pymeshをservicesに移動しシステムpymesh競合解消、jj infoメッシュ統計展開表示・Windowsパスparse対応、材料名/elset名の元ケース保持、root directory命名のconfig対応(project-name)、Neo4j認証情報の暗号化保存(`jj credential set/show/delete`)。テスト396件パス+20スキップ、12件追加。([status-040](docs/status/status-040.md))

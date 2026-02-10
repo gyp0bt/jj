@@ -215,24 +215,27 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] graph/__init__.py の`parse_project()`をProjectGraph+パイプライン委譲に変更
 - [x] 統合テスト29件パス（test_parser_pipeline.py）
 
-#### R4. export層の整理
+#### R4. export層の整理 ✅ (status-043)
 
-- [ ] Obsidianエクスポートを `export/connectors/obsidian.py` へ移動
-- [ ] Neo4jエクスポートを `export/connectors/neo4j.py` に統合（現状位置）
-- [ ] CSV/JSONエクスポートを `export/connectors/` へ移動
-- [ ] `Exporter` 基底クラスの定義
+- [x] Obsidianエクスポートを `export/connectors/obsidian/` へ移動（後方互換re-export維持）
+- [x] Neo4jエクスポートは `export/connectors/neo4j.py` に配置済み
+- [ ] CSV/JSONエクスポートを `export/connectors/` へ移動（将来対応）
+- [ ] `Exporter` 基底クラスの定義（将来対応）
 
-#### R5. lib層の整理
+#### R5. lib層の整理 ✅ (status-043)
 
-- [ ] `services/credentials.py` → `services/lib/credentials.py`
-- [ ] SSH/file関連ユーティリティ → `services/lib/file/`
+- [x] `services/lib/credentials.py` に配置済み
+- [x] SSH/file関連ユーティリティは `services/lib/file/` に配置済み
 
-#### R6. テスト移行と検証
+#### R6. テスト移行と検証 ✅ (status-043)
 
 - [x] shared/tests/test_asset1 を活用した統合テスト作成（29件パス）
-- [ ] 既存テスト（レガシー）の新パイプライン対応
+- [x] 既存テスト（レガシー）の新パイプライン対応（インポートパス修正、参照先パーサークラス更新）
 - [x] parse()パイプラインのE2Eテスト
-- [ ] 各パーサーサブクラスの単体テスト追加
+- [x] 各パーサーサブクラスの単体テスト追加（18件）
+- [x] graph/__init__.pyの旧メソッド削除（2026行→510行）
+- [x] pymeshインポートパス修正（services.pymesh→modules.pymesh）
+- [x] テスト443件パス、0失敗、20スキップ
 
 **参照**: [services/README.md](../services/README.md)
 
@@ -517,16 +520,18 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - ✅ Neo4jエクスポート機能完成
 - ✅ テスト396件パス
 
-### MR: services構造改革完了（Phase R完了）
+### MR: services構造改革完了（Phase R完了） ✅
+
+**達成日**: 2026-02-10
 
 **達成条件**:
-- ProjectGraph型が定義され、graph/がスキャン専任になっている
-- AbstractFileParser.__init_subclass__パターンが確立
-- graph/__init__.py から全てのparseロジックがパーサーサブクラスに移行完了
-- export層が独立しObsidian/Neo4j/CSV/JSON各エクスポーターが配置
-- lib層にcredentials/file等ユーティリティが整理
-- 既存テストが全パス（リグレッションなし）
-- shared/tests/test_asset1 を使った統合テスト追加
+- ✅ ProjectGraph型が定義され、graph/がスキャン専任になっている
+- ✅ AbstractFileParser.__init_subclass__パターンが確立
+- ✅ graph/__init__.py から全てのparseロジックがパーサーサブクラスに移行完了（2026行→510行）
+- ✅ export層が独立しObsidian/Neo4j各エクスポーターが配置
+- ✅ lib層にcredentials/file等ユーティリティが整理
+- ✅ 既存テストが全パス（443件パス、0失敗、20スキップ）
+- ✅ shared/tests/test_asset1 を使った統合テスト追加（29件+18件単体テスト）
 
 ### M2: グラフ機能完成（Phase 2完了）
 
@@ -572,6 +577,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-042.md)
+- [最新ステータス](./status/status-043.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

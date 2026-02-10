@@ -1985,7 +1985,7 @@ class TestPymeshConnector:
 
     def test_extract_material_elset_mapping_basic(self, tmp_path):
         """基本的な材料→Elsetマッピング抽出"""
-        from jj.services.parse.connectors.abaqus.mesh import (
+        from services.parse.connectors.abaqus.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -2006,7 +2006,7 @@ class TestPymeshConnector:
 
     def test_extract_material_elset_mapping_no_section(self, tmp_path):
         """セクション定義がない場合は空"""
-        from jj.services.parse.connectors.abaqus.mesh import (
+        from services.parse.connectors.abaqus.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -2020,7 +2020,7 @@ class TestPymeshConnector:
 
     def test_extract_material_elset_mapping_missing_file(self, tmp_path):
         """ファイルが存在しない場合は空"""
-        from jj.services.parse.connectors.abaqus.mesh import (
+        from services.parse.connectors.abaqus.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -2029,14 +2029,14 @@ class TestPymeshConnector:
 
     def test_extract_mesh_stats_missing_file(self, tmp_path):
         """存在しないファイルに対してNoneを返す"""
-        from jj.services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
 
         result = extract_mesh_stats(tmp_path / "nonexistent.inp")
         assert result is None
 
     def test_extract_mesh_stats_non_inp_file(self, tmp_path):
         """非.inpファイルに対してNoneを返す"""
-        from jj.services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
 
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("hello", encoding="utf-8")
@@ -2185,35 +2185,37 @@ class TestMaterialSourceFiltering:
 
     def test_is_material_source_node_static(self):
         """_is_material_source_nodeの静的テスト"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusInpParser
+
         # go系.inp → True
         go_node = Node(id=1, type="go", name="go_idx1", format="inp", properties={})
-        assert GraphService._is_material_source_node(go_node) is True
+        assert AbaqusInpParser._is_material_source_node(go_node) is True
 
         # material系.inp → True
         mat_node = Node(
             id=2, type="material", name="material", format="inp", properties={}
         )
-        assert GraphService._is_material_source_node(mat_node) is True
+        assert AbaqusInpParser._is_material_source_node(mat_node) is True
 
         # material_v2.inp → True
         mat2_node = Node(
             id=3, type="material", name="material_v2", format="inp", properties={}
         )
-        assert GraphService._is_material_source_node(mat2_node) is True
+        assert AbaqusInpParser._is_material_source_node(mat2_node) is True
 
         # go_idx3.dat → False
         dat_node = Node(id=4, type="go", name="go_idx3", format="dat", properties={})
-        assert GraphService._is_material_source_node(dat_node) is False
+        assert AbaqusInpParser._is_material_source_node(dat_node) is False
 
         # step_static.inp → False
         step_node = Node(
             id=5, type="step", name="step_static", format="inp", properties={}
         )
-        assert GraphService._is_material_source_node(step_node) is False
+        assert AbaqusInpParser._is_material_source_node(step_node) is False
 
         # mesh.inp → False
         mesh_node = Node(id=6, type="mesh", name="mesh", format="inp", properties={})
-        assert GraphService._is_material_source_node(mesh_node) is False
+        assert AbaqusInpParser._is_material_source_node(mesh_node) is False
 
 
 class TestGenericDirectoryNodes:
@@ -2321,7 +2323,7 @@ class TestTrailingCommaInMaterialProperty:
 
     def test_trailing_comma_in_density(self):
         """末尾カンマがある行をNoneで埋めてパースできる"""
-        from jj.services.parse.connectors.abaqus import (
+        from services.parse.connectors.abaqus import (
             Context,
             MaterialPropertyReadComponent,
             ReadMaterial,
@@ -2345,7 +2347,7 @@ class TestTrailingCommaInMaterialProperty:
 
     def test_no_trailing_comma(self):
         """末尾カンマなしの通常行は正常にパースされる"""
-        from jj.services.parse.connectors.abaqus import (
+        from services.parse.connectors.abaqus import (
             Context,
             MaterialPropertyReadComponent,
             ReadMaterial,
@@ -2366,7 +2368,7 @@ class TestIncludeFileNotFound:
 
     def test_missing_include_file_skipped(self, tmp_path):
         """存在しない*includeファイルはスキップして親ファイルの残りを処理"""
-        from jj.services.parse.connectors.abaqus import read_files_with_unknown_encoding
+        from services.parse.connectors.abaqus import read_files_with_unknown_encoding
 
         inp = tmp_path / "main.inp"
         inp.write_text(
@@ -2388,7 +2390,7 @@ class TestIncludeFileNotFound:
 
     def test_missing_include_does_not_crash_read_inp(self, tmp_path):
         """存在しない*includeファイルがあってもread_inpがクラッシュしない"""
-        from jj.services.parse.connectors.abaqus import read_inp
+        from services.parse.connectors.abaqus import read_inp
 
         inp = tmp_path / "main.inp"
         inp.write_text(
@@ -2663,7 +2665,7 @@ class TestObsidianWarningDisplay:
 
     def test_warnings_in_markdown_body(self, tmp_path):
         """warning情報がmarkdown本文に記載される"""
-        from jj.services.parse.connectors.obsidian import ObsidianConnector
+        from services.parse.connectors.obsidian import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2689,7 +2691,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_in_markdown_body(self, tmp_path):
         """diff情報がmarkdown本文に記載される"""
-        from jj.services.parse.connectors.obsidian import ObsidianConnector
+        from services.parse.connectors.obsidian import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2716,7 +2718,7 @@ class TestObsidianWarningDisplay:
 
     def test_no_warnings_section_when_clean(self, tmp_path):
         """warning/errorがない場合はセクションが表示されない"""
-        from jj.services.parse.connectors.obsidian import ObsidianConnector
+        from services.parse.connectors.obsidian import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2743,7 +2745,7 @@ class TestDailyNotesParsing:
 
     def test_parse_daily_note_file_references(self, tmp_path):
         """日報からファイル参照を検出"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily_content = """---
 tags:
@@ -2770,7 +2772,7 @@ tags:
 
     def test_parse_daily_note_with_properties(self, tmp_path):
         """コロン区切りのプロパティ付きファイル参照を検出"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily_content = """## メモ
 go_idx1.inp:  備考: 最終版
@@ -2794,7 +2796,7 @@ go_idx2.inp: status: completed
 
     def test_parse_daily_note_section_detection(self, tmp_path):
         """セクション名が正しく取得される"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily_content = """## 応力振幅1
 - go_idx1.inp
@@ -2816,7 +2818,7 @@ go_idx2.inp: status: completed
 
     def test_parse_daily_note_tags(self, tmp_path):
         """タグの検出"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily_content = """---
 tags:
@@ -2835,7 +2837,7 @@ tags:
 
     def test_scan_daily_notes_empty_dir(self, tmp_path):
         """日報ディレクトリが空の場合は空リストを返す"""
-        from jj.services.parse.connectors.obsidian.daily import scan_daily_notes
+        from services.parse.connectors.obsidian.daily import scan_daily_notes
 
         daily_dir = tmp_path / "notes" / "daily"
         daily_dir.mkdir(parents=True)
@@ -2845,7 +2847,7 @@ tags:
 
     def test_scan_daily_notes_nonexistent_dir(self, tmp_path):
         """日報ディレクトリが存在しない場合は空リストを返す"""
-        from jj.services.parse.connectors.obsidian.daily import scan_daily_notes
+        from services.parse.connectors.obsidian.daily import scan_daily_notes
 
         daily_dir = tmp_path / "notes" / "daily"
         notes = scan_daily_notes(daily_dir)
@@ -2935,7 +2937,7 @@ class TestDailyConnectorEnhanced:
 
     def test_obsidian_link_with_property(self, tmp_path):
         """[[O-go_idx1.inp]]:備考:条件1 でプロパティがセットされる"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -2950,7 +2952,7 @@ class TestDailyConnectorEnhanced:
 
     def test_obsidian_link_display_name_with_property(self, tmp_path):
         """[[go_idx1.inp|表示名]]:status:completed でプロパティがセットされる"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -2965,7 +2967,7 @@ class TestDailyConnectorEnhanced:
 
     def test_plain_filename_with_property(self, tmp_path):
         """go_idx1.inp:備考:条件1 でもプロパティがセットされる"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -2979,7 +2981,7 @@ class TestDailyConnectorEnhanced:
 
     def test_file_link_value_extraction(self, tmp_path):
         """プロパティ値が[[image.png]]の場合、ファイルパスを抽出"""
-        from jj.services.parse.connectors.obsidian.daily import (
+        from services.parse.connectors.obsidian.daily import (
             _extract_file_path_from_value,
         )
 
@@ -2993,7 +2995,7 @@ class TestDailyConnectorEnhanced:
 
     def test_strip_obsidian_prefix(self):
         """O-プレフィックスの除去テスト"""
-        from jj.services.parse.connectors.obsidian.daily import _strip_obsidian_prefix
+        from services.parse.connectors.obsidian.daily import _strip_obsidian_prefix
 
         assert _strip_obsidian_prefix("O-go_idx1.inp") == "go_idx1.inp"
         assert _strip_obsidian_prefix("O-go_idx1.inp.md") == "go_idx1.inp"
@@ -3001,7 +3003,7 @@ class TestDailyConnectorEnhanced:
 
     def test_file_link_value_in_property(self, tmp_path):
         """go_idx1.inp: image: [[image.png|画像1]] でファイルパスが抽出される"""
-        from jj.services.parse.connectors.obsidian.daily import parse_daily_note
+        from services.parse.connectors.obsidian.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -3278,10 +3280,12 @@ class TestMaterialAssignmentProps:
         """_enrich_material_assignment_propsで材料名とelsetが追加される"""
         from config import GraphConfig
         from jj_types import Relation
-        from services.graph import GraphService
+        from services.parse.connectors.abaqus.inp_parser import (
+            AbaqusMaterialAssignmentParser,
+        )
+        from services.graph.project_graph import ProjectGraph
 
         config = GraphConfig.from_dict({})
-        service = GraphService(project_root=Path("/tmp"), config=config)
 
         go_node = Node(
             id=1,
@@ -3300,7 +3304,16 @@ class TestMaterialAssignmentProps:
 
         mat_rel = Relation(id=1, label="assigned_to", node1_id=2, node2_id=1)
 
-        service._enrich_material_assignment_props([go_node], [mat_node], [mat_rel])
+        graph = ProjectGraph(
+            nodes=[go_node, mat_node],
+            relations=[mat_rel],
+            project_root=Path("/tmp"),
+            config=config,
+        )
+
+        AbaqusMaterialAssignmentParser._enrich_material_assignment_props(
+            graph, [mat_node], [mat_rel]
+        )
 
         assert "materials" in go_node.properties
         assert "Steel" in go_node.properties["materials"]
@@ -3313,7 +3326,7 @@ class TestObsidianTagExport:
 
     def test_tags_in_frontmatter(self):
         """frontmatterにタイプタグが追加される"""
-        from jj.services.parse.connectors.obsidian import ObsidianConnector
+        from services.parse.connectors.obsidian import ObsidianConnector
 
         node = Node(
             id=1,
@@ -3334,7 +3347,7 @@ class TestObsidianTagExport:
 
     def test_material_tags_in_frontmatter(self):
         """材料タグがfrontmatterのtagsに追加される"""
-        from jj.services.parse.connectors.obsidian import ObsidianConnector
+        from services.parse.connectors.obsidian import ObsidianConnector
 
         node = Node(
             id=1,
@@ -3357,7 +3370,7 @@ class TestObsidianTagExport:
 
     def test_tags_in_markdown_body(self):
         """markdown本文に#tag形式でタグが出力される"""
-        from jj.services.parse.connectors.obsidian import ObsidianConnector
+        from services.parse.connectors.obsidian import ObsidianConnector
 
         node = Node(
             id=1,
@@ -3788,7 +3801,7 @@ class TestPymeshImport:
 
     def test_safe_import_pymesh_returns_functions(self):
         """pymeshが正しくインポートできる（絶対インポート）"""
-        from jj.services.parse.connectors.abaqus.mesh import _safe_import_pymesh
+        from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
         create_mesher, get_quality = _safe_import_pymesh()
         # pymeshが利用可能ならNoneでない
@@ -3819,7 +3832,7 @@ class TestMaterialNameCasePreservation:
 
     def test_elset_mapping_preserves_case(self, tmp_path):
         """extract_material_elset_mappingが元のケースを保持する"""
-        from jj.services.parse.connectors.abaqus.mesh import (
+        from services.parse.connectors.abaqus.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -3874,7 +3887,7 @@ class TestCredentialService:
 
     def test_encrypt_decrypt_roundtrip(self):
         """暗号化→復号がラウンドトリップする"""
-        from jj.services.lib.credentials import _decrypt, _encrypt
+        from services.lib.credentials import _decrypt, _encrypt
 
         key = b"\x00" * 32
         plaintext = "my-secret-password"
@@ -3885,7 +3898,7 @@ class TestCredentialService:
 
     def test_save_and_load_credentials(self, tmp_path):
         """クレデンシャルの保存と読み込み"""
-        from jj.services.lib.credentials import (
+        from services.lib.credentials import (
             _get_secret_key_path,
             load_credentials,
             save_credentials,
@@ -3909,7 +3922,7 @@ class TestCredentialService:
 
     def test_mask_value(self):
         """マスキング関数の動作"""
-        from jj.services.lib.credentials import mask_value
+        from services.lib.credentials import mask_value
 
         assert mask_value("password123") == "pa*********"
         assert mask_value("ab") == "**"
@@ -3917,7 +3930,7 @@ class TestCredentialService:
 
     def test_load_nonexistent_returns_none(self, tmp_path):
         """存在しないクレデンシャルはNoneを返す"""
-        from jj.services.lib.credentials import load_credentials
+        from services.lib.credentials import load_credentials
 
         result = load_credentials(tmp_path, "nonexistent")
         assert result is None

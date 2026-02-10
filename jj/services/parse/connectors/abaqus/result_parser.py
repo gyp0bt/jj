@@ -93,7 +93,7 @@ def parse_dat_file(dat_path: Path) -> dict[str, Any]:
         result["cpu_time"] = float(cpu_match.group(1))
 
     wall_match = re.search(
-        rf"WALLCLOCK\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE
+        rf"WALL\s*CLOCK\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE
     )
     if wall_match:
         result["wallclock_time"] = float(wall_match.group(1))

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from services.graph import parse_material_blocks, parse_sta_file
 
-from jj.services.parse.connectors.abaqus import (
+from services.parse.connectors.abaqus import (
     ABQData,
     Context,
     RawBlock,
