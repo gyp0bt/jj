@@ -416,10 +416,10 @@ def parse(graph: ProjectGraph, *, full_mode: bool = False) -> ProjectGraph:
         elapsed = time.monotonic() - start_time
 
         # --fullでない場合、1ファイルあたり1秒超のパーサーは警告
-        if not full_mode and elapsed > 0 and (elapsed / node_count) > 1.0:
+        if not full_mode and elapsed > 0 and (elapsed / node_count) > 0.1:
             print(
-                f"警告: {parser_cls.__name__} の実行に {elapsed:.1f}秒かかりました"
-                f"（{elapsed / node_count:.1f}秒/ファイル）。"
+                f"警告: {parser_cls.__name__} の実行に {elapsed:.1e}秒かかりました"
+                f"（{elapsed / node_count:.1e}秒/ファイル）。"
                 f"--fullオプションでの実行を推奨します。",
                 file=sys.stderr,
             )

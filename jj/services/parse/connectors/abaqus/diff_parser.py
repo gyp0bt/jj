@@ -25,12 +25,15 @@ class AbaqusDiffParser(AbstractFileParser):
     """
 
     priority = 90
+    requires_full = True
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus import (
             diff_abq_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,
+        )
+        from services.parse.connectors.abaqus import (
             read_inp as abq_read_inp,
         )
 
@@ -78,9 +81,7 @@ class AbaqusDiffParser(AbstractFileParser):
                     diffs = diff_abq_blocks(prev_abq, next_abq)
 
                     if diffs:
-                        prev_file = prev_node.properties.get(
-                            "path", prev_node.name
-                        )
+                        prev_file = prev_node.properties.get("path", prev_node.name)
                         next_node.properties["diff_from"] = prev_file
                         next_node.properties["diff_summary"] = (
                             format_diff_summary_table(diffs)
