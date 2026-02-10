@@ -14,7 +14,7 @@ import pytest
 from config import GraphConfig
 from jj_types import GraphModel, Node
 
-from jj.services.parse.connectors.obsidian import (
+from services.parse.connectors.obsidian import (
     ObsidianConfig,
     ObsidianConnector,
     _coerce_property_value,

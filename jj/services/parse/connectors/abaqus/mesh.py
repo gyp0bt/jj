@@ -29,13 +29,13 @@ logger = logging.getLogger(__name__)
 def _safe_import_pymesh():
     """pymeshを安全にimportする
 
-    services.pymesh として配置されたローカルパッケージを参照する。
+    modules.pymesh として配置されたローカルパッケージを参照する。
     システムの pymesh との競合を回避するため絶対パスインポートは使わない。
     """
     try:
-        from services.pymesh.mesh import Mesher
-        from services.pymesh.mesh import mesher as create_mesher
-        from services.pymesh.misc.quality import get_element_quality
+        from modules.pymesh.mesh import Mesher
+        from modules.pymesh.mesh import mesher as create_mesher
+        from modules.pymesh.misc.quality import get_element_quality
 
         return create_mesher, get_element_quality
     except ImportError:

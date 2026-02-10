@@ -45,7 +45,7 @@ class Neo4jConfig(BaseModel):
 
         # 暗号化クレデンシャルを優先的に読み込み
         try:
-            from jj.services.lib.credentials import load_credentials
+            from services.lib.credentials import load_credentials
 
             creds = load_credentials(base_dir, "neo4j")
             if creds:

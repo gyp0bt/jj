@@ -12,7 +12,7 @@ from typing import Iterable
 
 from jj_types import GraphModel, Node, Relation
 
-from jj.services.graph.storage import GraphStorage
+from services.graph.storage import GraphStorage
 
 
 @dataclass

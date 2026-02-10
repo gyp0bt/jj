@@ -27,7 +27,7 @@ class AbaqusDiffParser(AbstractFileParser):
     priority = 90
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        from jj.services.parse.connectors.abaqus import (
+        from services.parse.connectors.abaqus import (
             diff_abq_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,

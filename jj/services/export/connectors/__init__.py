@@ -9,7 +9,7 @@
 [READMEへ戻る](../../../README.md)
 """
 
-from ..parse.connectors.obsidian import ObsidianConfig, ObsidianConnector
+from .obsidian import ObsidianConfig, ObsidianConnector
 from .neo4j import Neo4jConnector
 
 __all__ = ["ObsidianConnector", "ObsidianConfig", "Neo4jConnector"]
