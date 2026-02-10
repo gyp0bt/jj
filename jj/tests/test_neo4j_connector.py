@@ -28,7 +28,7 @@ from shared.neo4j_schema import (
 )
 from shared.types import Neo4jNodeData, Neo4jRelationData
 from shared.config import Neo4jConfig
-from services.connectors.neo4j import (
+from services.export.connectors.neo4j import (
     Neo4jConnector,
     _sanitize_property_value,
     _is_homogeneous_list,
