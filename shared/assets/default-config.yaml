@@ -120,15 +120,18 @@ file-relations:
 export:
   # CSVエクスポート時の出力カラム（指定時はこれらのカラムのみ出力）
   # 未指定の場合は全カラムを出力。name/type/formatは常に含まれます。
+  # globパターン対応（例: "stress*" で stress.center, stress.edge 等にマッチ）
   # csv-columns:
   #   - 条件
   #   - バージョン
-  #   - 応力
+  #   - stress*
 
   # 単位マッピング（カラム名 → 単位）
   # CSV出力時にカラム名に単位情報を付加します。
+  # globパターン対応（例: "stress*": MPa で stress.center, stress.edge 等に適用）
+  # 完全一致が優先されます。
   # units:
-  #   応力: MPa
+  #   stress*: MPa
   #   荷重: N
   #   変位: mm
   #   質量: kg
