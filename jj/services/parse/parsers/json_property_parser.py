@@ -112,9 +112,10 @@ class JsonPropertyParser(AbstractFileParser):
             return None
 
         # NaN/Infinityをnullに置換してからパース
+        # -Infinityを先に置換しないとInfinity置換で-nullになる
         content = re.sub(r'\bNaN\b', 'null', content)
+        content = re.sub(r'-Infinity\b', 'null', content)
         content = re.sub(r'\bInfinity\b', 'null', content)
-        content = re.sub(r'\b-Infinity\b', 'null', content)
 
         try:
             data = json.loads(content)

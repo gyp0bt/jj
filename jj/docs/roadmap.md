@@ -273,6 +273,16 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 
 #### 2-2. Abaqusコネクターの追加機能
 
+- [ ] **go_inp element/elsetのabaqus_elsetノード化** (status-052追加)
+  - [ ] go_inpで定義されたelement・elsetをabaqus_elsetノードとして生成
+  - [ ] volumeなどのelement_qualityを個々のelsetごとに評価しproperty化
+  - [ ] 材料定義（`*SOLID SECTION`等）を個々のelsetに紐づけてproperty化
+  - [ ] **テスト要件**: goで定義されたelement・elsetがgraph.yamlに書き出されていること
+- [ ] **隣接バージョンdiff差分のプロパティ付加** (status-052追加)
+  - [ ] versionが複数あるgoのプロパティにdiff（diff_from, diff_summary, diff_details）が付加されていることのテスト追加
+  - [ ] node/nsetブロック: 接点数を差分評価対象にする
+  - [ ] element/elsetブロック: 要素数・要素品質を差分評価対象にする
+  - [ ] **テスト要件**: node,nset,element,elsetブロックの接点数・要素数・要素品質が差分プロパティに含まれること
 - [ ] 個々のElsetごとの品質統計
 - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
 - [ ] index.csv/yamlとファイルの紐付け
@@ -592,6 +602,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-051.md)
+- [最新ステータス](./status/status-052.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
