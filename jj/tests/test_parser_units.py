@@ -641,6 +641,154 @@ class TestIncludesRelationParser:
 
 
 # ====================================================================
+# JsonPropertyParser テスト
+# ====================================================================
+
+
+class TestJsonPropertyParser:
+    """JsonPropertyParser の単体テスト
+
+    JSON内のキー名がプロパティキーとして使われ、
+    ファイル名サフィックスはプレフィックスに使用されないことを検証する。
+    """
+
+    def test_flat_json_keys_used_as_property_keys(self, tmp_path: Path):
+        """フラットなJSONのキーがそのままプロパティキーになる
+        go_idx1_result1.json: {"key1": "value1"} → key1: "value1"
+        """
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        # JSONファイル作成
+        import json
+        (tmp_path / "go_idx1_result1.json").write_text(
+            json.dumps({"key1": "value1"})
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="unknown", name="go_idx1_result1", format="json",
+                 properties={"path": "go_idx1_result1.json", "index": "1"}),
+        ]
+        graph = _make_graph(nodes, project_root=tmp_path)
+        result = JsonPropertyParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        # JSON内キー "key1" がそのままプロパティキーになる
+        assert "key1" in go_node.properties
+        assert go_node.properties["key1"] == "value1"
+        # ファイル名サフィックス "result1" がプレフィックスに使われていない
+        assert "result1.key1" not in go_node.properties
+        assert "result1" not in go_node.properties
+
+    def test_nested_json_keys_flattened_with_dot(self, tmp_path: Path):
+        """ネストしたJSONは"."繋ぎで平坦化される
+        go_idx1_result2.json: {"key1": {"key2": "v1"}, "key3": "v2"}
+        → key1.key2: "v1", key3: "v2"
+        """
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        import json
+        (tmp_path / "go_idx1_result2.json").write_text(
+            json.dumps({"key1": {"key2": "v1"}, "key3": "v2"})
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="unknown", name="go_idx1_result2", format="json",
+                 properties={"path": "go_idx1_result2.json", "index": "1"}),
+        ]
+        graph = _make_graph(nodes, project_root=tmp_path)
+        result = JsonPropertyParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        # ネストされた key1.key2 が"."区切りで平坦化
+        assert "key1.key2" in go_node.properties
+        assert go_node.properties["key1.key2"] == "v1"
+        # トップレベルキー key3
+        assert "key3" in go_node.properties
+        assert go_node.properties["key3"] == "v2"
+        # ファイル名が使われていないことを確認
+        assert "result2.key1.key2" not in go_node.properties
+        assert "result2.key3" not in go_node.properties
+
+    def test_multiple_json_files_merge_keys(self, tmp_path: Path):
+        """複数のJSONファイルからキーがマージされる"""
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        import json
+        (tmp_path / "go_idx1_stress.json").write_text(
+            json.dumps({"center": 0.25, "edge": 1.0})
+        )
+        (tmp_path / "go_idx1_strain.json").write_text(
+            json.dumps({"max_strain": 0.001})
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="unknown", name="go_idx1_stress", format="json",
+                 properties={"path": "go_idx1_stress.json", "index": "1"}),
+            Node(id=3, type="unknown", name="go_idx1_strain", format="json",
+                 properties={"path": "go_idx1_strain.json", "index": "1"}),
+        ]
+        graph = _make_graph(nodes, project_root=tmp_path)
+        result = JsonPropertyParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        # 両方のJSONからキーが統合される
+        assert go_node.properties["center"] == 0.25
+        assert go_node.properties["edge"] == 1.0
+        assert go_node.properties["max_strain"] == 0.001
+
+    def test_nan_infinity_replaced_with_null(self, tmp_path: Path):
+        """NaN/Infinityはnull(None)に変換される"""
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        (tmp_path / "go_idx1_data.json").write_text(
+            '{"val_nan": NaN, "val_inf": Infinity, "val_neg_inf": -Infinity, "val_ok": 1.5}'
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="unknown", name="go_idx1_data", format="json",
+                 properties={"path": "go_idx1_data.json", "index": "1"}),
+        ]
+        graph = _make_graph(nodes, project_root=tmp_path)
+        result = JsonPropertyParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node.properties["val_nan"] is None
+        assert go_node.properties["val_inf"] is None
+        assert go_node.properties["val_neg_inf"] is None
+        assert go_node.properties["val_ok"] == 1.5
+
+    def test_odb_json_excluded(self, tmp_path: Path):
+        """.odb.jsonファイルは除外される"""
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        import json
+        (tmp_path / "go_idx1_result.odb.json").write_text(
+            json.dumps({"should_not_appear": True})
+        )
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            # .odb.json: nameが"go_idx1_result.odb"でformatが"json"
+            Node(id=2, type="unknown", name="go_idx1_result.odb", format="json",
+                 properties={"path": "go_idx1_result.odb.json", "index": "1"}),
+        ]
+        graph = _make_graph(nodes, project_root=tmp_path)
+        result = JsonPropertyParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert "should_not_appear" not in go_node.properties
+
+
+# ====================================================================
 # ヘルパー: GraphServiceの最小スタブ
 # ====================================================================
 
