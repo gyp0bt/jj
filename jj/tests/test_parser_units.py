@@ -362,10 +362,12 @@ class TestRootDirectoryParser:
         graph = _make_graph(nodes, config=config)
         result = RootDirectoryParser().apply(graph)
 
-        # rootノードが作られ、go_idx1.inpへのcontainsだけ（directoryノードはスキップ）
+        # rootノードが作られ、go_idx1.inpとsubdirへのcontains（ルート直下ディレクトリも含む）
         contains = [r for r in result.relations if r.label == "contains"]
-        assert len(contains) == 1
-        assert contains[0].node2_id == 1
+        assert len(contains) == 2
+        linked_ids = {r.node2_id for r in contains}
+        assert 1 in linked_ids  # go_idx1.inp
+        assert 2 in linked_ids  # subdir
 
 
 # ====================================================================

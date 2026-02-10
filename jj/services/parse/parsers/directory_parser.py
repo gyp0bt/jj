@@ -151,6 +151,29 @@ class DirectoryRelationParser(AbstractFileParser):
                     )
                 )
 
+        # --- (3) ディレクトリ階層構造のcontains関係 ---
+        # ignore以外のディレクトリ間で親→子のcontains関係を構築
+        dir_node_by_path: dict[str, Node] = {}
+        for node in graph.nodes:
+            if node.format != "directory":
+                continue
+            node_path = node.properties.get("path", "").replace("\\", "/").rstrip("/")
+            if node_path and node_path != ".":
+                dir_node_by_path[node_path] = node
+
+        for dir_path, dir_node in dir_node_by_path.items():
+            parent_path = dir_path.rsplit("/", 1)[0] if "/" in dir_path else ""
+            parent_node = dir_node_by_path.get(parent_path)
+            if parent_node:
+                graph.add_relation(
+                    Relation(
+                        id=graph.next_relation_id(),
+                        label="contains",
+                        node1_id=parent_node.id,
+                        node2_id=dir_node.id,
+                    )
+                )
+
         return graph
 
     @staticmethod
@@ -228,5 +251,23 @@ class RootDirectoryParser(AbstractFileParser):
                     node2_id=child.id,
                 )
             )
+
+        # ルート直下のディレクトリノードもcontainsでリンク
+        for node in graph.nodes:
+            if node.format != "directory" or node.id == root_node.id:
+                continue
+            path = node.properties.get("path", "").replace("\\", "/")
+            if not path or path == ".":
+                continue
+            # ルート直下 = パスに "/" を含まない
+            if "/" not in path:
+                graph.add_relation(
+                    Relation(
+                        id=graph.next_relation_id(),
+                        label="contains",
+                        node1_id=root_node.id,
+                        node2_id=node.id,
+                    )
+                )
 
         return graph

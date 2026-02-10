@@ -37,6 +37,13 @@ DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".gif",
 )
 
+# スキャンするがNodeの実体を作らない拡張子
+# これらのファイルは存在が認識されるが、グラフ上のNodeとしては生成されない
+NO_NODE_EXTENSIONS: tuple[str, ...] = (
+    ".odb.json",  # ODBメタデータ（長い拡張子を先に評価）
+    ".odb",       # Abaqus ODBバイナリ
+)
+
 FILE_TYPE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("go_", "go"),
     ("mesh_", "mesh"),
