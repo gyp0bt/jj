@@ -25,6 +25,7 @@ from typing import Any, Optional, Sequence
 
 from config import init_graph_config
 from services.graph import GraphService
+from services.service.info import InfoService
 
 from services.lib.credentials import (
     load_credentials,
@@ -597,88 +598,26 @@ def _run_export_data(
     target: str,
     args: argparse.Namespace,
 ) -> int:
-    """CSV/JSONデータエクスポートを実行
-
-    選択したノードのプロパティを全キーのAND（積集合ではなく和集合）で
-    null埋めしてCSV/JSON形式で書き出す。
-    """
-    import csv
-    import json as json_mod
-
-    # ノードのフィルタリング
-    nodes = list(graph.nodes)
+    """CSV/JSONデータエクスポートを実行（InfoServiceに委譲）"""
+    info_service = InfoService(project_root=project_root)
     type_filter = getattr(args, "type", None)
     select_filter = getattr(args, "select", None)
-
-    if type_filter:
-        nodes = [n for n in nodes if n.type == type_filter]
-    if select_filter:
-        filtered = []
-        for n in nodes:
-            name_with_ext = f"{n.name}.{n.format}" if n.format else n.name
-            for sel in select_filter:
-                if n.name == sel or name_with_ext == sel or sel in n.name:
-                    filtered.append(n)
-                    break
-        nodes = filtered
-
-    if not nodes:
-        print("対象ノードが見つかりません。")
-        return 1
-
-    # 全キーの和集合を収集
-    all_keys: list[str] = []
-    seen_keys: set[str] = set()
-    # 基本属性キー
-    base_keys = ["name", "type", "format"]
-    for k in base_keys:
-        all_keys.append(k)
-        seen_keys.add(k)
-
-    for node in nodes:
-        for key in node.properties:
-            if key not in seen_keys:
-                all_keys.append(key)
-                seen_keys.add(key)
-
-    # 行データの構築（null埋め）
-    rows: list[dict[str, Any]] = []
-    for node in nodes:
-        row: dict[str, Any] = {
-            "name": node.name,
-            "type": node.type,
-            "format": node.format,
-        }
-        for key in all_keys:
-            if key in row:
-                continue
-            value = node.properties.get(key)
-            if value is None:
-                row[key] = None
-            elif isinstance(value, (list, dict)):
-                row[key] = json_mod.dumps(value, ensure_ascii=False)
-            else:
-                row[key] = value
-        rows.append(row)
-
-    # 出力ファイル名の決定
     output_file = getattr(args, "output", None)
-    if output_file is None:
-        output_file = f"export.{target}"
-    output_path = project_root / output_file
 
-    if target == "csv":
-        with output_path.open("w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(rows)
-        print(f"CSVエクスポート完了: {output_path} ({len(rows)}件)")
-    elif target == "json":
-        with output_path.open("w", encoding="utf-8") as f:
-            json_mod.dump(rows, f, ensure_ascii=False, indent=2, default=str)
-        print(f"JSONエクスポート完了: {output_path} ({len(rows)}件)")
-
-    return 0
+    try:
+        output_path, count = info_service.export_data(
+            graph,
+            target,
+            type_filter=type_filter,
+            select_filter=select_filter,
+            output_file=output_file,
+        )
+        label = "CSV" if target == "csv" else "JSON"
+        print(f"{label}エクスポート完了: {output_path} ({count}件)")
+        return 0
+    except ValueError as e:
+        print(str(e))
+        return 1
 
 
 def _run_export_neo4j(
@@ -804,85 +743,32 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
     - バージョン指定: jj info -v 1 2
     - プロパティのみ表示: jj info -props go_idx1.inp
     """
-    service = GraphService(project_root=project_root)
+    info_service = InfoService(project_root=project_root)
     filenames = getattr(args, "filename", []) or []
     index_filters = getattr(args, "index", None)
     version_filters = getattr(args, "version", None)
     props_only = getattr(args, "props_only", False)
 
     try:
-        graph = service.load(filename=getattr(args, "file", None))
+        graph = info_service.load_graph(filename=getattr(args, "file", None))
 
         if not graph.nodes:
             print("グラフデータが見つかりません。")
             print("まず 'jj parse' を実行してください。")
             return 1
 
-        matched_nodes = []
-
-        # ファイル名で検索（部分一致）
-        # Windows環境でパス込み指定された場合、バックスラッシュをスラッシュに
-        # 正規化し、basename抽出もPureWindowsPathで対応する。
-        for filename in filenames:
-            # パスの正規化: バックスラッシュ→スラッシュ
-            normalized = filename.replace("\\", "/")
-            # basename抽出（Windowsパスでもバックスラッシュ分割できるようPurePosixPathも利用）
-            from pathlib import PurePosixPath, PureWindowsPath
-
-            basename = PurePosixPath(normalized).name
-            # Windows形式のバックスラッシュ区切りもfallback
-            if basename == filename and "\\" in filename:
-                basename = PureWindowsPath(filename).name
-
-            for node in graph.nodes:
-                if node in matched_nodes:
-                    continue
-                node_path = node.properties.get("path", "").replace("\\", "/")
-                node_file = PurePosixPath(node_path).name if node_path else ""
-                if (
-                    node.name == basename
-                    or node_file == basename
-                    or node_path == normalized
-                    or basename in node.name
-                    or normalized in node_path
-                    # 元のファイル名指定でも検索
-                    or node.name == filename
-                    or node_file == filename
-                    or filename in node.name
-                ):
-                    matched_nodes.append(node)
-
-        # インデックスで検索
-        if index_filters is not None:
-            for node in graph.nodes:
-                if node in matched_nodes:
-                    continue
-                node_index = str(node.properties.get("index", ""))
-                if node_index and node_index in index_filters:
-                    matched_nodes.append(node)
-
-        # バージョンで検索
-        if version_filters is not None:
-            # バージョンフィルタはマッチ済みノードに対して絞り込み、
-            # または他の条件と組み合わせて使う
-            if filenames or index_filters is not None:
-                # 既存のマッチ結果から絞り込み
-                matched_nodes = [
-                    n
-                    for n in matched_nodes
-                    if str(n.properties.get("version", "")) in version_filters
-                ]
-            else:
-                # バージョンのみ指定の場合は全ノードから検索
-                for node in graph.nodes:
-                    node_ver = str(node.properties.get("version", ""))
-                    if node_ver and node_ver in version_filters:
-                        matched_nodes.append(node)
-
         # 何も指定がない場合
         if not filenames and index_filters is None and version_filters is None:
             print("ファイル名、-id、-v のいずれかを指定してください。")
             return 1
+
+        # InfoServiceでノード検索
+        matched_nodes = info_service.search_nodes(
+            graph,
+            filenames=filenames or None,
+            index_filters=index_filters,
+            version_filters=version_filters,
+        )
 
         if not matched_nodes:
             criteria = []
@@ -917,7 +803,6 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                     print(f"    {key}:")
                     for dk, dv in value.items():
                         if isinstance(dv, dict):
-                            # ネストされたdict（例: mesh_quality の各指標）
                             parts = ", ".join(f"{sk}: {sv}" for sk, sv in dv.items())
                             print(f"      {dk}: {{{parts}}}")
                         else:
@@ -930,7 +815,7 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
             # リレーション表示（-propsでない場合のみ）
             if not props_only:
-                rels = service.get_relations_for_node(graph, node.id)
+                rels = info_service.get_relations_for_node(graph, node.id)
                 if rels:
                     print(f"\n  リレーション ({len(rels)}件):")
                     for rel in rels:
@@ -1051,19 +936,8 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
 
 
 def _resolve_file_path(project_root: Path, filename: str) -> Path | None:
-    """ファイル名からファイルパスを解決
-
-    直接パス指定、プロジェクトルート相対パス、再帰検索の順に試行する。
-    """
-    direct = Path(filename)
-    if direct.exists():
-        return direct
-    relative = project_root / filename
-    if relative.exists():
-        return relative
-    for found in project_root.rglob(filename):
-        return found
-    return None
+    """ファイル名からファイルパスを解決（InfoServiceに委譲）"""
+    return InfoService.resolve_file_path(project_root, filename)
 
 
 def _run_diff(project_root: Path, args: argparse.Namespace) -> int:
