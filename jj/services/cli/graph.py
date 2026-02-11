@@ -1,6 +1,6 @@
 """jj graph コマンド: グラフデータの管理
 
-このモジュールはCLI層のみを担当し、ビジネスロジックはservicesから呼び出します。
+このモジュールはCLI層のみを担当し、ビジネスロジックはservices.serviceから呼び出します。
 
 サブコマンド（トップレベル）:
 - jj init: 設定ファイルを初期化
@@ -21,29 +21,12 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import yaml
 
-from config import init_graph_config
-from services.graph import GraphService
 from services.lib.selection import expand_ranges
-from services.service.info import InfoService
-
-from services.lib.credentials import (
-    load_credentials,
-    mask_value,
-    save_credentials,
-)
-from services.parse.connectors.abaqus import (
-    diff_abq_blocks,
-    format_diff_blocks_markdown,
-    format_diff_summary_table,
-)
-from services.parse.connectors.abaqus import (
-    read_inp as abq_read_inp,
-)
-from services.export.connectors.obsidian import ObsidianConnector
+from services.service.graph_command import GraphCommandService
 
 
 def _add_init_args(parser: argparse.ArgumentParser) -> None:
@@ -537,12 +520,18 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return 1
 
 
+# =========
+# 各コマンド実行（CLI層：出力整形のみ）
+# =========
+
+
 def _run_init(project_root: Path, args: argparse.Namespace) -> int:
     """initサブコマンドを実行"""
     overwrite = getattr(args, "overwrite", False)
+    service = GraphCommandService(project_root)
 
     try:
-        config_path = init_graph_config(base_dir=project_root, overwrite=overwrite)
+        config_path = service.init_config(overwrite=overwrite)
         print(f"設定ファイルを初期化しました: {config_path}")
         if overwrite:
             print("（既存ファイルを上書きしました）")
@@ -554,35 +543,31 @@ def _run_init(project_root: Path, args: argparse.Namespace) -> int:
 
 def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
     """parseサブコマンドを実行"""
-    from dataclasses import replace as dc_replace
+    service = GraphCommandService(project_root)
 
-    service = GraphService(project_root=project_root)
-
-    # --max-depth CLI引数でconfigを上書き
-    cli_max_depth = getattr(args, "max_depth", None)
-    if cli_max_depth is not None:
-        service.config = dc_replace(service.config, directory_max_depth=cli_max_depth)
-
-    # 出力ファイル名を決定
-    output_file = args.output
-    if output_file is None:
-        output_file = f"graph.{args.format}"
+    output_file = getattr(args, "output", None)
+    fmt = getattr(args, "format", "yaml")
     full_mode = getattr(args, "full", False)
+    max_depth = getattr(args, "max_depth", None)
 
     mode_label = "full" if full_mode else "lite"
     print(f"プロジェクトをスキャン中 ({mode_label}): {project_root}")
 
     try:
-        graph, save_path = service.parse_and_save(filename=output_file, full_mode=full_mode)
-        summary = service.summary(graph)
+        result = service.parse(
+            output_file=output_file,
+            format=fmt,
+            full_mode=full_mode,
+            max_depth=max_depth,
+        )
 
         print(f"\n=== スキャン完了 ===")
-        print(f"ノード数: {summary['total_nodes']}")
-        print(f"リレーション数: {summary['total_relations']}")
+        print(f"ノード数: {result.summary['total_nodes']}")
+        print(f"リレーション数: {result.summary['total_relations']}")
         print(f"\nノードタイプ別:")
-        for node_type, count in summary["nodes_by_type"].items():
+        for node_type, count in result.summary["nodes_by_type"].items():
             print(f"  {node_type}: {count}")
-        print(f"\n保存先: {save_path}")
+        print(f"\n保存先: {result.save_path}")
         return 0
 
     except Exception as e:
@@ -592,33 +577,31 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
 
 def _run_show(project_root: Path, args: argparse.Namespace) -> int:
     """showサブコマンドを実行"""
-    service = GraphService(project_root=project_root)
+    service = GraphCommandService(project_root)
 
     try:
-        graph = service.load(filename=args.file)
+        result = service.show(
+            filename=getattr(args, "file", None),
+            type_filter=getattr(args, "type", None),
+            summary_only=getattr(args, "summary", False),
+        )
 
-        if not graph.nodes and not graph.relations:
+        if result.empty:
             print("グラフデータが見つかりません。")
             print("まず 'jj g parse' を実行してください。")
             return 1
 
-        if args.summary:
-            summary = service.summary(graph)
+        if result.summary:
             print("=== グラフサマリー ===")
-            print(f"ノード数: {summary['total_nodes']}")
-            print(f"リレーション数: {summary['total_relations']}")
+            print(f"ノード数: {result.summary['total_nodes']}")
+            print(f"リレーション数: {result.summary['total_relations']}")
             print(f"\nノードタイプ別:")
-            for node_type, count in summary["nodes_by_type"].items():
+            for node_type, count in result.summary["nodes_by_type"].items():
                 print(f"  {node_type}: {count}")
             return 0
 
-        # フィルタリング
-        nodes = graph.nodes
-        if args.type:
-            nodes = service.get_nodes_by_type(graph, args.type)
-
-        print(f"=== ノード一覧 ({len(nodes)}件) ===\n")
-        for node in nodes:
+        print(f"=== ノード一覧 ({len(result.nodes)}件) ===\n")
+        for node in result.nodes:
             print(f"[{node.id}] {node.name}")
             print(f"    タイプ: {node.type}")
             print(f"    フォーマット: {node.format}")
@@ -627,9 +610,9 @@ def _run_show(project_root: Path, args: argparse.Namespace) -> int:
                 print(f"    パス: {path}")
             print()
 
-        if graph.relations:
-            print(f"=== リレーション ({len(graph.relations)}件) ===\n")
-            for rel in graph.relations:
+        if result.relations:
+            print(f"=== リレーション ({len(result.relations)}件) ===\n")
+            for rel in result.relations:
                 print(f"[{rel.id}] {rel.node1_id} --{rel.label}--> {rel.node2_id}")
 
         return 0
@@ -640,27 +623,28 @@ def _run_show(project_root: Path, args: argparse.Namespace) -> int:
 
 
 def _run_export(project_root: Path, args: argparse.Namespace) -> int:
-    """exportサブコマンドを実行
-
-    --parse オプションが指定された場合、エクスポート前にparseを実行する。
-    --target csv/json の場合、ノード属性をCSV/JSON形式で書き出す。
-    """
-    service = GraphService(project_root=project_root)
+    """exportサブコマンドを実行"""
+    service = GraphCommandService(project_root)
 
     try:
-        # --parse オプション: エクスポート前にparseを実行
-        if getattr(args, "parse", False):
-            full_mode = getattr(args, "full", False)
+        # グラフデータのロード（--parse オプションで事前parse可能）
+        do_parse = getattr(args, "parse", False)
+        full_mode = getattr(args, "full", False)
+
+        graph, parse_result = service.load_or_parse(
+            filename=getattr(args, "file", None),
+            do_parse=do_parse,
+            full_mode=full_mode,
+        )
+
+        if parse_result:
             mode_label = "full" if full_mode else "lite"
             print(f"プロジェクトをスキャン中 ({mode_label}): {project_root}")
-            graph, save_path = service.parse_and_save(full_mode=full_mode)
-            summary = service.summary(graph)
             print(
-                f"スキャン完了: ノード {summary['total_nodes']}件、リレーション {summary['total_relations']}件"
+                f"スキャン完了: ノード {parse_result.summary['total_nodes']}件、"
+                f"リレーション {parse_result.summary['total_relations']}件"
             )
-            print(f"保存先: {save_path}")
-        else:
-            graph = service.load(filename=getattr(args, "file", None))
+            print(f"保存先: {parse_result.save_path}")
 
         if not graph.nodes:
             print("グラフデータが見つかりません。")
@@ -670,32 +654,13 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
         target = getattr(args, "target", "obsidian")
 
         if target == "obsidian":
-            connector = ObsidianConnector(project_root=project_root)
-            print(f"Obsidianにエクスポート中...")
-            written = connector.export_graph(
-                graph, overwrite=getattr(args, "overwrite", False)
-            )
-
-            print(f"\n=== エクスポート完了 ===")
-            print(f"書き込みファイル数: {len(written)}")
-            if written:
-                print("\n書き込んだファイル:")
-                for path in written[:10]:
-                    rel_path = path.relative_to(project_root)
-                    print(f"  {rel_path}")
-                if len(written) > 10:
-                    print(f"  ... 他 {len(written) - 10} 件")
-            return 0
-
+            return _print_export_obsidian(service, graph, project_root, args)
         elif target in ("csv", "json"):
-            return _run_export_data(project_root, graph, service, target, args)
-
+            return _print_export_data(service, graph, target, args)
         elif target == "neo4j":
-            return _run_export_neo4j(project_root, graph, args, direct=True)
-
+            return _print_export_neo4j(service, graph, args, direct=True)
         elif target == "cypher":
-            return _run_export_neo4j(project_root, graph, args, direct=False)
-
+            return _print_export_neo4j(service, graph, args, direct=False)
         else:
             print(f"未対応のエクスポート先: {target}")
             return 1
@@ -705,125 +670,96 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
         return 1
 
 
-def _run_export_data(
-    project_root: Path,
+def _print_export_obsidian(
+    service: GraphCommandService,
     graph: "GraphModel",
-    service: GraphService,
+    project_root: Path,
+    args: argparse.Namespace,
+) -> int:
+    """Obsidianエクスポートの出力整形"""
+    print(f"Obsidianにエクスポート中...")
+    result = service.export_obsidian(
+        graph, overwrite=getattr(args, "overwrite", False)
+    )
+
+    print(f"\n=== エクスポート完了 ===")
+    print(f"書き込みファイル数: {len(result.written_paths)}")
+    if result.written_paths:
+        print("\n書き込んだファイル:")
+        for path in result.written_paths[:10]:
+            rel_path = path.relative_to(project_root)
+            print(f"  {rel_path}")
+        if len(result.written_paths) > 10:
+            print(f"  ... 他 {len(result.written_paths) - 10} 件")
+    return 0
+
+
+def _print_export_data(
+    service: GraphCommandService,
+    graph: "GraphModel",
     target: str,
     args: argparse.Namespace,
 ) -> int:
-    """CSV/JSONデータエクスポートを実行（InfoServiceに委譲）
-
-    共通選択オプション（-id, -v, -type, -all）が指定されている場合は
-    InfoService.search_nodesで事前にノードを絞り込んでからエクスポートする。
-    """
-    info_service = InfoService(project_root=project_root)
-    type_filter = getattr(args, "type", None)
-    select_filter = getattr(args, "select", None)
-    output_file = getattr(args, "output", None)
-    index_filters = expand_ranges(getattr(args, "index", None))
-    version_filters = expand_ranges(getattr(args, "version", None))
-    all_nodes = getattr(args, "all_nodes", False)
-    prop_filters = getattr(args, "prop", None)
-    flatten_flag = getattr(args, "flatten", False)
-    active_only = getattr(args, "active", False)
-    unit_format = getattr(args, "unit_format", None)
-    columns = getattr(args, "columns", None)
-
+    """CSV/JSONエクスポートの出力整形"""
     try:
-        # 共通選択オプションが指定されている場合は事前にノード絞り込み
-        pre_selected: list["Node"] | None = None
-        if index_filters is not None or version_filters is not None or all_nodes or active_only:
-            pre_selected = info_service.search_nodes(
-                graph,
-                index_filters=index_filters,
-                version_filters=version_filters,
-                type_filter=type_filter,
-                all_nodes=all_nodes,
-                active_only=active_only,
-            )
-            # search_nodesでtype_filterを適用済みなのでexport_dataには渡さない
-            type_filter = None
-
-        # flattenフラグ: --flatten指定時はTrue、未指定はNone（targetに応じたデフォルト）
-        flatten_opt: bool | None = True if flatten_flag else None
-
-        output_path, count = info_service.export_data(
+        result = service.export_data(
             graph,
             target,
-            type_filter=type_filter,
-            select_filter=select_filter,
-            output_file=output_file,
-            prop_filters=prop_filters,
-            nodes=pre_selected,
-            flatten=flatten_opt,
-            unit_format=unit_format,
-            columns=columns,
+            type_filter=getattr(args, "type", None),
+            select_filter=getattr(args, "select", None),
+            output_file=getattr(args, "output", None),
+            index_filters=expand_ranges(getattr(args, "index", None)),
+            version_filters=expand_ranges(getattr(args, "version", None)),
+            all_nodes=getattr(args, "all_nodes", False),
+            prop_filters=getattr(args, "prop", None),
+            flatten=getattr(args, "flatten", False),
+            active_only=getattr(args, "active", False),
+            unit_format=getattr(args, "unit_format", None),
+            columns=getattr(args, "columns", None),
         )
         label = "CSV" if target == "csv" else "JSON"
-        print(f"{label}エクスポート完了: {output_path} ({count}件)")
+        print(f"{label}エクスポート完了: {result.output_path} ({result.count}件)")
         return 0
     except ValueError as e:
         print(str(e))
         return 1
 
 
-def _run_export_neo4j(
-    project_root: Path,
+def _print_export_neo4j(
+    service: GraphCommandService,
     graph: "GraphModel",
     args: argparse.Namespace,
     direct: bool = True,
 ) -> int:
-    """Neo4j/Cypherエクスポートを実行
-
-    Args:
-        project_root: プロジェクトルート
-        graph: エクスポート対象のグラフ
-        args: CLIの引数
-        direct: Trueの場合Neo4jに直接書き込み、Falseの場合Cypherファイル出力
-    """
-    from services.connectors.neo4j import Neo4jConnector
-    from shared.config import Neo4jConfig
-
-    clear_project = getattr(args, "clear", False)
-
-    # Neo4j接続設定の構築
-    neo4j_config = Neo4jConfig.from_jj_config(project_root)
-    # CLIオプションで上書き
-    uri = getattr(args, "neo4j_uri", None)
-    user = getattr(args, "neo4j_user", None)
-    password = getattr(args, "neo4j_password", None)
-    if uri:
-        neo4j_config.uri = uri
-    if user:
-        neo4j_config.user = user
-    if password:
-        neo4j_config.password = password
-
-    connector = Neo4jConnector(project_root=project_root, config=neo4j_config)
-
+    """Neo4j/Cypherエクスポートの出力整形"""
     try:
-        if direct:
-            # Neo4jに直接書き込み
-            print(f"Neo4jにエクスポート中... ({neo4j_config.uri})")
-            stats = connector.export_graph(graph, clear_project=clear_project)
+        result = service.export_neo4j(
+            graph,
+            direct=direct,
+            clear_project=getattr(args, "clear", False),
+            neo4j_uri=getattr(args, "neo4j_uri", None),
+            neo4j_user=getattr(args, "neo4j_user", None),
+            neo4j_password=getattr(args, "neo4j_password", None),
+            output_file=getattr(args, "output", None),
+        )
+
+        if result.direct:
+            print(f"Neo4jにエクスポート中... ({result.uri})")
             print(f"\n=== Neo4jエクスポート完了 ===")
-            print(f"ノード: {stats['nodes_created']}件")
-            print(f"リレーション: {stats['relations_created']}件")
-            if clear_project:
+            print(f"ノード: {result.node_count}件")
+            print(f"リレーション: {result.relation_count}件")
+            if result.clear_project:
                 print("（既存プロジェクトデータを削除後に投入）")
         else:
-            # Cypherファイルとしてエクスポート
-            output_file = getattr(args, "output", None)
-            output_path = connector.export_cypher(
-                graph,
-                output_path=output_file,
-                clear_project=clear_project,
-            )
-            rel_path = output_path.relative_to(project_root)
-            print(f"Cypherエクスポート完了: {rel_path}")
+            if result.output_path:
+                try:
+                    rel_path = result.output_path.relative_to(service.project_root)
+                except ValueError:
+                    rel_path = result.output_path
+                print(f"Cypherエクスポート完了: {rel_path}")
             print(
-                f"ノード: {len(graph.nodes)}件、リレーション: {len(graph.relations)}件"
+                f"ノード: {result.node_count}件、"
+                f"リレーション: {result.relation_count}件"
             )
 
         return 0
@@ -835,66 +771,12 @@ def _run_export_neo4j(
     except Exception as e:
         print(f"Neo4jエクスポートエラー: {e}", file=sys.stderr)
         return 1
-    finally:
-        connector.close()
-
-
-def _print_mesh_stats_section(node: "Node") -> None:
-    """メッシュ統計情報の専用セクションを表示
-
-    mesh_node_count, mesh_element_count 等のプロパティが存在する場合に
-    見やすく整形して出力する。
-    """
-    props = node.properties
-    has_mesh = any(k.startswith("mesh_") for k in props)
-    if not has_mesh:
-        return
-
-    print(f"\n  メッシュ統計:")
-    if "mesh_node_count" in props:
-        print(f"    節点数: {props['mesh_node_count']}")
-    if "mesh_element_count" in props:
-        print(f"    要素数: {props['mesh_element_count']}")
-
-    elem_types = props.get("mesh_element_types")
-    if isinstance(elem_types, dict) and elem_types:
-        print(f"    要素タイプ:")
-        for etype, count in elem_types.items():
-            print(f"      {etype}: {count}")
-
-    elset_summary = props.get("mesh_elset_summary")
-    if isinstance(elset_summary, dict) and elset_summary:
-        print(f"    Elset:")
-        for eset, count in elset_summary.items():
-            print(f"      {eset}: {count}")
-
-    quality = props.get("mesh_quality")
-    if isinstance(quality, dict) and quality:
-        print(f"    品質統計:")
-        for metric, stats in quality.items():
-            if isinstance(stats, dict):
-                parts = ", ".join(
-                    f"{sk}: {sv:.4g}" if isinstance(sv, float) else f"{sk}: {sv}"
-                    for sk, sv in stats.items()
-                )
-                print(f"      {metric}: {parts}")
-            else:
-                print(f"      {metric}: {stats}")
 
 
 def _run_info(project_root: Path, args: argparse.Namespace) -> int:
-    """infoサブコマンドを実行 - ファイルのproperty/relationを表示
+    """infoサブコマンドを実行 - ファイルのproperty/relationを表示"""
+    service = GraphCommandService(project_root)
 
-    指定方法:
-    - ファイル名直打ち（複数可）: jj info go_idx1.inp mesh.inp
-    - インデックス指定: jj info -id 1 2（1..3で範囲展開）
-    - バージョン指定: jj info -v 1 2（1..3で範囲展開）
-    - タイプフィルタ: jj info -type Abaqusインプット
-    - 全ノード選択: jj info -all
-    - プロパティフィルタ: jj info -all -prop 応力
-    - プロパティのみ表示: jj info -props go_idx1.inp
-    """
-    info_service = InfoService(project_root=project_root)
     filenames = getattr(args, "filename", []) or []
     index_filters = expand_ranges(getattr(args, "index", None))
     version_filters = expand_ranges(getattr(args, "version", None))
@@ -905,43 +787,27 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
     active_only = getattr(args, "active", False)
 
     try:
-        graph = info_service.load_graph(filename=getattr(args, "file", None))
-
-        if not graph.nodes:
-            print("グラフデータが見つかりません。")
-            print("まず 'jj parse' を実行してください。")
-            return 1
-
-        # 何も指定がない場合
-        if (
-            not filenames
-            and index_filters is None
-            and version_filters is None
-            and not all_nodes
-        ):
-            print("ファイル名、-id、-v、-all のいずれかを指定してください。")
-            return 1
-
-        # InfoServiceでノード検索
-        matched_nodes = info_service.search_nodes(
-            graph,
+        result = service.info(
             filenames=filenames or None,
             index_filters=index_filters,
             version_filters=version_filters,
             type_filter=type_filter,
             all_nodes=all_nodes,
+            prop_filters=prop_filters,
             active_only=active_only,
+            graph_filename=getattr(args, "file", None),
         )
 
-        # -prop フィルタ: 指定プロパティを持つノードのみに絞り込み
-        if prop_filters:
-            matched_nodes = [
-                n
-                for n in matched_nodes
-                if all(k in n.properties for k in prop_filters)
-            ]
+        if result.empty:
+            print("グラフデータが見つかりません。")
+            print("まず 'jj parse' を実行してください。")
+            return 1
 
-        if not matched_nodes:
+        if result.no_criteria:
+            print("ファイル名、-id、-v、-all のいずれかを指定してください。")
+            return 1
+
+        if not result.nodes:
             criteria = []
             if filenames:
                 criteria.append(f"ファイル名: {', '.join(filenames)}")
@@ -959,9 +825,9 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
             return 1
 
         # ノードIDからノードへのマッピング
-        node_by_id = {node.id: node for node in graph.nodes}
+        node_by_id = {node.id: node for node in result.graph.nodes}
 
-        for node in matched_nodes:
+        for node in result.nodes:
             print(f"\n=== {node.name} ===")
             if not props_only and not prop_filters:
                 print(f"  ID: {node.id}")
@@ -991,7 +857,7 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
             # リレーション表示（-propsでない場合のみ、-prop指定時は非表示）
             if not props_only and not prop_filters:
-                rels = info_service.get_relations_for_node(graph, node.id)
+                rels = service.get_relations_for_node(result.graph, node.id)
                 if rels:
                     print(f"\n  リレーション ({len(rels)}件):")
                     for rel in rels:
@@ -1039,7 +905,8 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
         print("  delete : クレデンシャルを削除")
         return 1
 
-    service = getattr(args, "service", "neo4j")
+    service_name = getattr(args, "service", "neo4j")
+    service = GraphCommandService(project_root)
 
     if cred_cmd == "set":
         import getpass
@@ -1071,52 +938,34 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
             "password": password,
             "database": database,
         }
-        path = save_credentials(project_root, service, creds)
+        path = service.credential_set(service_name, creds)
         print(f"クレデンシャルを暗号化して保存しました: {path}")
         print("※ .gitignoreに .jj/config/.credentials を追加することを推奨します")
         return 0
 
     elif cred_cmd == "show":
         unmask = getattr(args, "unmask", False)
-        creds = load_credentials(project_root, service)
+        result = service.credential_show(service_name, unmask=unmask)
 
-        if creds is None:
-            print(f"サービス '{service}' のクレデンシャルが見つかりません。")
-            print(f"'jj credential set --service {service}' で設定してください。")
+        if not result.found:
+            print(f"サービス '{service_name}' のクレデンシャルが見つかりません。")
+            print(f"'jj credential set --service {service_name}' で設定してください。")
             return 1
 
-        print(f"=== {service} クレデンシャル ===")
-        for key, value in creds.items():
-            if unmask:
+        print(f"=== {service_name} クレデンシャル ===")
+        if result.credentials:
+            for key, value in result.credentials.items():
                 print(f"  {key}: {value}")
-            else:
-                print(f"  {key}: {mask_value(value)}")
         return 0
 
     elif cred_cmd == "delete":
-        import json as json_mod
+        deleted = service.credential_delete(service_name)
 
-        from services.lib.credentials import _get_credentials_path
-
-        cred_path = _get_credentials_path(project_root)
-        if not cred_path.exists():
-            print(f"クレデンシャルファイルが見つかりません。")
+        if not deleted:
+            print(f"サービス '{service_name}' のクレデンシャルが見つかりません。")
             return 1
 
-        try:
-            all_creds = json_mod.loads(cred_path.read_text(encoding="utf-8"))
-            if service in all_creds:
-                del all_creds[service]
-                cred_path.write_text(
-                    json_mod.dumps(all_creds, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-                print(f"サービス '{service}' のクレデンシャルを削除しました。")
-            else:
-                print(f"サービス '{service}' のクレデンシャルが見つかりません。")
-        except Exception as e:
-            print(f"エラー: {e}", file=sys.stderr)
-            return 1
+        print(f"サービス '{service_name}' のクレデンシャルを削除しました。")
         return 0
 
     else:
@@ -1124,71 +973,38 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
         return 1
 
 
-def _resolve_file_path(project_root: Path, filename: str) -> Path | None:
-    """ファイル名からファイルパスを解決（InfoServiceに委譲）"""
-    return InfoService.resolve_file_path(project_root, filename)
-
-
 def _run_diff(project_root: Path, args: argparse.Namespace) -> int:
     """diffサブコマンドを実行 - 2つのファイル間の差分を表示"""
+    service = GraphCommandService(project_root)
+
     file1_arg = getattr(args, "file1", "")
     file2_arg = getattr(args, "file2", "")
     show_detail = getattr(args, "detail", False)
 
     try:
-        file1 = _resolve_file_path(project_root, file1_arg)
-        if file1 is None:
-            print(f"ファイルが見つかりません: {file1_arg}", file=sys.stderr)
+        result = service.diff(file1_arg, file2_arg, show_detail=show_detail)
+
+        if result.error:
+            print(result.error, file=sys.stderr)
             return 1
 
-        file2 = _resolve_file_path(project_root, file2_arg)
-        if file2 is None:
-            print(f"ファイルが見つかりません: {file2_arg}", file=sys.stderr)
-            return 1
-
-        print(f"比較: {file1.name} ← → {file2.name}")
+        print(f"比較: {result.file1.name} ← → {result.file2.name}")
         print()
 
-        if file1.suffix.lower() == ".inp" and file2.suffix.lower() == ".inp":
-            left_abq = abq_read_inp(str(file1), verbose=False)
-            right_abq = abq_read_inp(str(file2), verbose=False)
-            diffs = diff_abq_blocks(left_abq, right_abq)
+        if not result.has_diffs:
+            print("差分はありません。")
+            return 0
 
-            if not diffs:
-                print("差分はありません。")
-                return 0
+        if result.is_inp:
+            if result.summary_table:
+                print("=== サマリー ===")
+                print(result.summary_table)
 
-            summary = format_diff_summary_table(diffs)
-            print("=== サマリー ===")
-            print(summary)
-
-            if show_detail:
-                details = format_diff_blocks_markdown(diffs)
+            if result.detail_markdown:
                 print("\n=== 詳細 ===")
-                print(details)
+                print(result.detail_markdown)
         else:
-            import difflib
-
-            try:
-                text1 = file1.read_text(encoding="utf-8", errors="ignore").splitlines()
-                text2 = file2.read_text(encoding="utf-8", errors="ignore").splitlines()
-            except (OSError, IOError) as e:
-                print(f"ファイル読み込みエラー: {e}", file=sys.stderr)
-                return 1
-
-            diff = difflib.unified_diff(
-                text1,
-                text2,
-                fromfile=str(file1.name),
-                tofile=str(file2.name),
-                lineterm="",
-            )
-            diff_lines = list(diff)
-            if not diff_lines:
-                print("差分はありません。")
-                return 0
-
-            for line in diff_lines:
+            for line in result.unified_diff_lines:
                 print(line)
 
         return 0
