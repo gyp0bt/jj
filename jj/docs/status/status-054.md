@@ -91,7 +91,7 @@ test_abaqus_connector.py: 100 passed, 1 skipped (既存62 + 新規38)
 - [x] test_abaqus_connector.py に実データテスト追加 → 38件全PASS
 - [x] test_parser_units.py に実データテスト追加 → 19件全PASS
 - [x] test_parser_pipeline.py に実データテスト追加 → 19件全PASS
-- [ ] `*FRICTION` under `*SURFACE INTERACTION` の read_inp() サポート（パーサー拡張）
+- [x] `*FRICTION` under `*SURFACE INTERACTION` の read_inp() サポート（status-059で修正）
 - [ ] material.inp を test_asset1 に追加するか、欠如テストとして維持するか判断
 - [ ] VersionRelationParser: 同一version内のフォーマット間 next_version 抑制の検討
 - [ ] パーサーキャッシュの実装（DRY、status-053からの継続TODO）

@@ -1115,11 +1115,10 @@ class TestReadInpRealLargeMesh:
 
 
 class TestReadInpRealErrorCases:
-    """test_asset1の実データで発生するパーサーエラーのテスト
+    """test_asset1の実データで発生するパーサーのエッジケーステスト
 
-    material.inp追加後:
     - go_idx1.v3.inpはmaterial.inpを正常に読み込める
-    - *FRICTION が *SURFACE INTERACTION 下に出現するケースはstep_stress_v1.inpで残る
+    - step_stress_v1.inpは *SURFACE INTERACTION 下の材料サブキーワードも正常にパースできる
     """
 
     def test_go_inp_reads_with_material_inp(self):
@@ -1128,11 +1127,15 @@ class TestReadInpRealErrorCases:
         assert abq is not None
         assert len(abq.materials) >= 1
 
-    def test_step_stress_friction_error(self):
-        """step_stress_v1.inp: *FRICTION が *SURFACE INTERACTION 下にあるため
-        current material 不在でエラー（パーサーの既知の制限事項）"""
-        with pytest.raises(RuntimeError, match="current material"):
-            read_inp(ASSET_DIR / "step_stress_v1.inp", verbose=False)
+    def test_step_stress_parses_without_error(self):
+        """step_stress_v1.inp: *SURFACE INTERACTION 下の *DAMAGE INITIATION 等が
+        *MATERIAL 外でもエラーにならずパースできる"""
+        abq = read_inp(ASSET_DIR / "step_stress_v1.inp", verbose=False)
+        assert abq is not None
+        # step_stress_v1.inp は *MATERIAL を含まないので材料は0
+        assert len(abq.materials) == 0
+        # *STEP ブロックが1つ存在する
+        assert len(abq.steps) == 1
 
     def test_material_inp_parsed_correctly(self):
         """material.inpが正常にパースされ材料が取得できる"""
