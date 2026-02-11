@@ -33,7 +33,11 @@ class AbaqusDiffParser(AbstractFileParser):
 
     @staticmethod
     def _get_or_parse_inp(graph: ProjectGraph, file_path: str) -> object:
-        """read_inp()結果をキャッシュから取得、なければパースしてキャッシュに保存"""
+        """read_inp()結果をキャッシュから取得、なければパースしてキャッシュに保存
+
+        タイムスタンプ差分: ファイルが変更されていない場合もキャッシュが無ければ
+        パースが必要（diffは両ファイルのABQDataが必要なため）。
+        """
         from services.parse.connectors.abaqus import read_inp as abq_read_inp
 
         cached = graph.get_cached_abq_data(file_path)
@@ -42,6 +46,15 @@ class AbaqusDiffParser(AbstractFileParser):
         abq = abq_read_inp(file_path, verbose=False)
         graph.set_cached_abq_data(file_path, abq)
         return abq
+
+    @staticmethod
+    def _pair_needs_diff(graph: ProjectGraph, path1: str, path2: str) -> bool:
+        """バージョンペアのdiff計算が必要かどうかを判定
+
+        どちらかのファイルが変更されていればdiff計算が必要。
+        前回タイムスタンプがない場合（初回実行）は全てのペアを計算する。
+        """
+        return graph.is_file_modified(path1) or graph.is_file_modified(path2)
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus import (
@@ -86,6 +99,10 @@ class AbaqusDiffParser(AbstractFileParser):
                 next_path = graph.project_root / next_node.properties.get("path", "")
 
                 if not prev_path.exists() or not next_path.exists():
+                    continue
+
+                # タイムスタンプ差分: どちらも変更されていなければスキップ
+                if not self._pair_needs_diff(graph, str(prev_path), str(next_path)):
                     continue
 
                 try:

@@ -290,10 +290,16 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
   - [x] node/nsetブロック: 接点数を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
   - [x] element/elsetブロック: 要素数・要素品質を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
   - [x] **テスト**: 5件更新（diffノード作成、node_count変更、element_count変更、nset/elset変更、同一内容no-diff）
-- [ ] **パーサーキャッシュの実装（DRY）** (status-053追加)
-  - [ ] 個々のパーサーがincludeロジックで何度も同じファイルを読む可能性があるため、parseのキャッシュを持っておく
-  - [ ] read_inp()結果のキャッシュ: ABQDataをファイルパスで管理
-  - [ ] IncludesRelationParser、AbaqusDiffParser、AbaqusMeshParser等が共有キャッシュを参照
+- [x] **パーサーキャッシュの実装（DRY）** (status-053追加, status-060/061実装)
+  - [x] ProjectGraph._parser_cacheでABQDataキャッシュを共有
+  - [x] AbaqusDiffParser: キャッシュ使用（status-060）
+  - [x] AbaqusMeshParser: キャッシュ使用（status-061）
+  - [x] pymesh mesher(): cached_abq_dataパラメータ追加（status-061）
+- [x] **タイムスタンプ差分パース** (status-061)
+  - [x] parse_timestamps.json永続化（前回パース時のmtime記録）
+  - [x] is_file_modified()による変更ファイル判定
+  - [x] AbaqusMeshParser/AbaqusDiffParserでの未変更ファイルスキップ
+  - [x] テスト13件追加
 - [ ] 個々のElsetごとの品質統計
 - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
 - [ ] index.csv/yamlとファイルの紐付け
@@ -615,6 +621,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-060.md)
+- [最新ステータス](./status/status-061.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
