@@ -99,3 +99,46 @@ class GraphStorage:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         else:
             raise ValueError("対応していない拡張子です。")
+
+    # =========================================================
+    # タイムスタンプキャッシュの永続化
+    # =========================================================
+
+    _TIMESTAMP_FILENAME = "parse_timestamps.json"
+
+    def load_timestamps(self, project_root: Path) -> dict[str, float]:
+        """前回パース時のファイルタイムスタンプを読み込む
+
+        Returns:
+            {相対パス: mtime} のマッピング。ファイルが存在しない場合は空辞書。
+        """
+        storage_dir = self._storage_dir(project_root)
+        path = storage_dir / self._TIMESTAMP_FILENAME
+        if not path.exists():
+            return {}
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return {k: float(v) for k, v in data.items()}
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
+        return {}
+
+    def save_timestamps(
+        self, project_root: Path, timestamps: dict[str, float]
+    ) -> Path:
+        """パース時のファイルタイムスタンプを保存する
+
+        Args:
+            project_root: プロジェクトルート
+            timestamps: {相対パス: mtime} のマッピング
+
+        Returns:
+            保存先パス
+        """
+        storage_dir = self._storage_dir(project_root)
+        path = storage_dir / self._TIMESTAMP_FILENAME
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(timestamps, f, ensure_ascii=False, indent=2)
+        return path

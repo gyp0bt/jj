@@ -1687,3 +1687,285 @@ class TestEnrichmentOnlyFilterRealData:
             and n.format != "directory"
         ]
         assert len(results_nodes) == 0
+
+
+# ====================================================================
+# タイムスタンプ差分キャッシュ テスト
+# ====================================================================
+
+
+class TestTimestampCache:
+    """ProjectGraphのタイムスタンプ差分キャッシュ機能テスト"""
+
+    def test_is_file_modified_no_prev_timestamps(self, config: GraphConfig, tmp_path: Path):
+        """前回タイムスタンプなしの場合、常にTrue"""
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        assert graph.is_file_modified("/any/path") is True
+
+    def test_is_file_modified_new_file(self, config: GraphConfig, tmp_path: Path):
+        """前回タイムスタンプに存在しないファイルはTrue"""
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        graph._prev_timestamps = {"/some/old/file": 1000.0}
+        assert graph.is_file_modified("/some/new/file") is True
+
+    def test_is_file_modified_unchanged_file(self, config: GraphConfig, tmp_path: Path):
+        """mtimeが変わっていないファイルはFalse"""
+        f = tmp_path / "test.inp"
+        f.write_text("test", encoding="utf-8")
+        mtime = f.stat().st_mtime
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        graph._prev_timestamps = {str(f): mtime}
+        assert graph.is_file_modified(str(f)) is False
+
+    def test_is_file_modified_changed_file(self, config: GraphConfig, tmp_path: Path):
+        """mtimeが変わったファイルはTrue"""
+        f = tmp_path / "test.inp"
+        f.write_text("test", encoding="utf-8")
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        graph._prev_timestamps = {str(f): 0.0}  # 古いタイムスタンプ
+        assert graph.is_file_modified(str(f)) is True
+
+    def test_record_file_timestamp(self, config: GraphConfig, tmp_path: Path):
+        """タイムスタンプの記録と取得"""
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        graph.record_file_timestamp("/path/to/file", 12345.0)
+        ts = graph.collect_file_timestamps()
+        assert ts["/path/to/file"] == 12345.0
+
+
+class TestTimestampPersistence:
+    """GraphStorageのタイムスタンプ永続化テスト"""
+
+    def test_save_and_load_timestamps(self, tmp_path: Path):
+        """タイムスタンプの保存と読み込み"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        timestamps = {"/path/a": 1000.0, "/path/b": 2000.0}
+        storage.save_timestamps(tmp_path, timestamps)
+        loaded = storage.load_timestamps(tmp_path)
+        assert loaded == timestamps
+
+    def test_load_timestamps_no_file(self, tmp_path: Path):
+        """ファイルが存在しない場合は空辞書"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        loaded = storage.load_timestamps(tmp_path)
+        assert loaded == {}
+
+
+class TestMeshParserCache:
+    """AbaqusMeshParserのキャッシュ機能テスト"""
+
+    def test_mesh_parser_uses_cache(self, tmp_path: Path, config: GraphConfig):
+        """AbaqusMeshParserがキャッシュを使い、同一ファイルの再パースを避ける"""
+        from unittest.mock import patch
+
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 3, 4\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+
+        # 先にキャッシュを投入
+        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+        abq_data = abq_read_inp(str(tmp_path / "go_idx1_v1.inp"), verbose=False)
+        graph.set_cached_abq_data(str(tmp_path / "go_idx1_v1.inp"), abq_data)
+
+        # read_inp呼び出しをカウント
+        call_count = 0
+        original_read_inp = None
+
+        def counting_read_inp(path, verbose=True):
+            nonlocal call_count
+            call_count += 1
+            return original_read_inp(path, verbose=verbose)
+
+        from services.parse.connectors import abaqus
+        original_read_inp = abaqus.read_inp
+
+        with patch.object(abaqus, "read_inp", side_effect=counting_read_inp):
+            AbaqusMeshParser().apply(graph)
+
+        # キャッシュヒットによりread_inpは呼ばれない
+        assert call_count == 0
+
+    def test_mesh_parser_skips_unchanged_file(self, tmp_path: Path, config: GraphConfig):
+        """タイムスタンプが変わっていないファイルをスキップ"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+        )
+        f = tmp_path / "go_idx1_v1.inp"
+        f.write_text(content, encoding="utf-8")
+        mtime = f.stat().st_mtime
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        graph._prev_timestamps = {str(f): mtime}
+
+        AbaqusMeshParser().apply(graph)
+
+        # スキップされたのでmesh_node_countは付与されない
+        assert "mesh_node_count" not in graph.nodes[0].properties
+
+
+class TestDiffParserTimestamp:
+    """AbaqusDiffParserのタイムスタンプ差分テスト"""
+
+    def test_diff_parser_skips_unchanged_pair(self, tmp_path: Path, config: GraphConfig):
+        """両方のファイルが未変更の場合、diffノードが作成されない"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n"
+        content_v2 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n"
+
+        f1 = tmp_path / "go_idx1_v1.inp"
+        f2 = tmp_path / "go_idx1_v2.inp"
+        f1.write_text(content_v1, encoding="utf-8")
+        f2.write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        # 両方を「未変更」に設定
+        graph._prev_timestamps = {
+            str(f1): f1.stat().st_mtime,
+            str(f2): f2.stat().st_mtime,
+        }
+
+        result = AbaqusDiffParser().apply(graph)
+
+        diff_nodes = [n for n in result.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 0
+
+    def test_diff_parser_runs_when_one_changed(self, tmp_path: Path, config: GraphConfig):
+        """片方のファイルが変更されている場合、diffノードが作成される"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 1, 2\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1., 1e-05, 1.\n"
+            "*END STEP\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 2.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 3, 1\n"
+            "2, 1, 2, 3, 2\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1., 1e-05, 1.\n"
+            "*END STEP\n"
+        )
+
+        f1 = tmp_path / "go_idx1_v1.inp"
+        f2 = tmp_path / "go_idx1_v2.inp"
+        f1.write_text(content_v1, encoding="utf-8")
+        f2.write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        # v1は未変更、v2は変更済み
+        graph._prev_timestamps = {
+            str(f1): f1.stat().st_mtime,
+            str(f2): 0.0,  # 古いタイムスタンプ
+        }
+
+        result = AbaqusDiffParser().apply(graph)
+
+        diff_nodes = [n for n in result.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 1
+
+
+class TestPymeshWithModules:
+    """modules/pymeshを使ったテスト"""
+
+    def test_mesher_with_cached_abq_data(self, tmp_path: Path):
+        """cached_abq_dataを渡した場合、read_inp()がスキップされる"""
+        from modules.pymesh.read_inp import read_inp
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 3, 4\n"
+        )
+        inp_file = tmp_path / "test.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        # 事前にread_inp()で解析
+        abq_data = read_inp(str(inp_file), verbose=False)
+
+        # cached_abq_dataを渡してmesher生成
+        from modules.pymesh.mesh import mesher
+        mesh = mesher(str(inp_file), verbose=False, cached_abq_data=abq_data)
+
+        assert mesh.get_number_of_nodes() == 4
+
+    def test_extract_mesh_stats_with_cache(self, tmp_path: Path):
+        """extract_mesh_statsにcached_abq_dataを渡した場合の動作"""
+        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4, ELSET=EALL\n"
+            "1, 1, 2, 3, 4\n"
+        )
+        inp_file = tmp_path / "test.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        from modules.pymesh.read_inp import read_inp
+        abq_data = read_inp(str(inp_file), verbose=False)
+
+        stats = extract_mesh_stats(inp_file, verbose=False, cached_abq_data=abq_data)
+        assert stats is not None
+        assert stats["node_count"] == 4
+        # キャッシュ経由でもキャッシュなしと同じ結果になること
+        stats_no_cache = extract_mesh_stats(inp_file, verbose=False)
+        assert stats["node_count"] == stats_no_cache["node_count"]
+        assert stats["element_count"] == stats_no_cache["element_count"]

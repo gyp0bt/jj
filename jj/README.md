@@ -86,6 +86,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-11 / status-061: パーサーキャッシュ拡張 & タイムスタンプ差分パース。ABQDataキャッシュをAbaqusMeshParserに展開（mesher()にcached_abq_dataパラメータ追加）、タイムスタンプ差分による増分パース（parse_timestamps.json永続化、is_file_modified()判定、重いパーサーの未変更ファイルスキップ）、pymeshテスト追加（modules/pymesh使用）。641テストパス、21スキップ。([status-061](docs/status/status-061.md))
+- 2026-02-11 / status-060: パーサーキャッシュ基盤実装、DashboardDataProvider完全実装。ABQDataキャッシュをAbaqusDiffParserで使用開始。([status-060](docs/status/status-060.md))
 - 2026-02-11 / status-059: *SURFACE INTERACTION下の材料サブキーワード（*DAMAGE INITIATION等）パースエラー修正。MaterialPropertyReadComponentでcurrent_material未設定時にRuntimeErrorを投げず紐付けスキップに変更。2ファイル同一修正、テスト更新。599テストパス、リグレッションなし。([status-059](docs/status/status-059.md))
 - 2026-02-11 / status-058: Obsidian全ノード出力（index_group/version_diff含む全メタノードをmd出力）、include解決ロジック改善（file親→cwd→再帰N階層探索でold/フォルダ対応）、elsetノードにuses_material relation追加。594テストパス、リグレッションなし。([status-058](docs/status/status-058.md))
 - 2026-02-11 / status-057: CLI→Service分離完了。RunCommandService新規作成、SubmitServiceにlist_jobs()追加、cli/__init__.pyのモジュールレベル副作用除去（SSH設定遅延初期化）。FastAPIサーバー化準備完了。600テストパス、リグレッションなし。([status-057](docs/status/status-057.md))

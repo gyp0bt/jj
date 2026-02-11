@@ -1,10 +1,10 @@
 from io import StringIO
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import pandas as pd
 
 from ..misc.decorators import TimeitMeta
-from ..read_inp import read_inp
+from ..read_inp import ABQData, read_inp
 from .grandpa import BaseGrandpaComponent
 from .mesh import Mesher
 
@@ -13,7 +13,16 @@ def mesher(
     inp_filepath: Optional[str | List[str]],
     verbose: bool = True,
     timeit_cutoff: float | None = None,
+    cached_abq_data: Optional[Any] = None,
 ) -> Mesher:
+    """Mesherインスタンスを生成する
+
+    Args:
+        inp_filepath: .inpファイルのパス
+        verbose: 詳細ログを出力するか
+        timeit_cutoff: タイムアウト設定
+        cached_abq_data: キャッシュ済みABQData（指定時はread_inp()をスキップ）
+    """
     if timeit_cutoff:
 
         class DebugMesher(Mesher, metaclass=TimeitMeta): ...
@@ -23,7 +32,10 @@ def mesher(
     else:
         instance = Mesher()
 
-    mesh_data = read_inp(inp_filepath=inp_filepath, verbose=verbose)
+    if cached_abq_data is not None:
+        mesh_data = cached_abq_data
+    else:
+        mesh_data = read_inp(inp_filepath=inp_filepath, verbose=verbose)
     for mesh_data_i, key in zip(
         (mesh_data.nodes, mesh_data.elements, mesh_data.nsets, mesh_data.elsets),
         ("nodes_data", "elements_data", "nset_data", "elset_data"),

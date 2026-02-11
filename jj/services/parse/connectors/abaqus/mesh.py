@@ -43,7 +43,9 @@ def _safe_import_pymesh():
 
 
 def extract_mesh_stats(
-    inp_path: Path, verbose: bool = False
+    inp_path: Path,
+    verbose: bool = False,
+    cached_abq_data: Optional[Any] = None,
 ) -> Optional[dict[str, Any]]:
     """Abaqus .inpファイルからメッシュ統計情報を抽出
 
@@ -53,6 +55,7 @@ def extract_mesh_stats(
     Args:
         inp_path: .inpファイルのパス
         verbose: 詳細ログを出力するか
+        cached_abq_data: キャッシュ済みABQData（指定時はread_inp()をスキップ）
 
     Returns:
         メッシュ統計情報の辞書。pymesh未導入やパース失敗時はNone。
@@ -78,7 +81,9 @@ def extract_mesh_stats(
         return None
 
     try:
-        mesh = create_mesher(str(inp_path), verbose=verbose)
+        mesh = create_mesher(
+            str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data
+        )
     except Exception as e:
         logger.warning(f"pymesh failed to parse {inp_path}: {e}")
         return None

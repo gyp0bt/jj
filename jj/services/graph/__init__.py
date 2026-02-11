@@ -420,6 +420,10 @@ class GraphService:
         GraphServiceが担当し、グラフエンリッチメント（リレーション構築、
         プロパティ付与等）はAbstractFileParserパイプラインに委譲する。
 
+        タイムスタンプ差分: 前回パース時のファイルタイムスタンプを読み込み、
+        変更されたファイルのみを重い処理（read_inp等）の対象とする。
+        パース完了後にタイムスタンプを保存する。
+
         Args:
             extensions: 対象拡張子（Noneの場合はDEFAULT_EXTENSIONS + config file-relationsを使用）
             exclude_dirs: 除外ディレクトリ
@@ -429,12 +433,20 @@ class GraphService:
         Returns:
             生成されたGraphModel
         """
+        import logging
+
         from services.graph.project_graph import ProjectGraph
+
+        logger = logging.getLogger(__name__)
 
         merged_extensions = self._build_scan_extensions(extensions)
         files = self.scan_files(extensions=merged_extensions, exclude_dirs=exclude_dirs)
 
+        # 前回パース時のタイムスタンプを読み込み
+        prev_timestamps = self.storage.load_timestamps(self.project_root)
+
         nodes: list[Node] = []
+        current_timestamps: dict[str, float] = {}
         no_node_exts = tuple(e.lower() for e in NO_NODE_EXTENSIONS)
 
         # ノード生成（GraphServiceの責務: ファイルスキャンとNode変換）
@@ -446,6 +458,13 @@ class GraphService:
             node = self.file_to_node(file_path)
             nodes.append(node)
 
+            # 各ファイルの現在のmtimeを記録
+            try:
+                abs_path = str(file_path.resolve())
+                current_timestamps[abs_path] = file_path.stat().st_mtime
+            except OSError:
+                pass
+
         # ProjectGraphを構築してパーサーパイプラインに委譲
         project_graph = ProjectGraph.from_graph_service(
             nodes=nodes,
@@ -456,8 +475,25 @@ class GraphService:
             relation_id_counter=self._relation_id_counter,
         )
 
+        # タイムスタンプ情報をProjectGraphに設定
+        project_graph._prev_timestamps = prev_timestamps
+        project_graph._file_timestamps = current_timestamps
+
+        modified_count = sum(
+            1 for p in current_timestamps
+            if p not in prev_timestamps or prev_timestamps.get(p) != current_timestamps[p]
+        )
+        total_count = len(current_timestamps)
+        if prev_timestamps:
+            logger.info(
+                f"タイムスタンプ差分: {modified_count}/{total_count}ファイルが変更済み"
+            )
+
         # 全登録パーサーをpriority順に適用
         project_graph = run_parser_pipeline(project_graph, full_mode=full_mode, debug=debug)
+
+        # パース完了後にタイムスタンプを保存
+        self.storage.save_timestamps(self.project_root, current_timestamps)
 
         # IDカウンタを同期
         self._node_id_counter = project_graph._node_id_counter

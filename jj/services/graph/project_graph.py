@@ -68,6 +68,8 @@ class ProjectGraph:
     _node_by_path: dict[str, Node] = field(default_factory=dict, repr=False)
     _node_by_id: dict[int, Node] = field(default_factory=dict, repr=False)
     _parser_cache: dict[str, Any] = field(default_factory=dict, repr=False)
+    _file_timestamps: dict[str, float] = field(default_factory=dict, repr=False)
+    _prev_timestamps: dict[str, float] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         """既存ノードのインデックスを構築"""
@@ -225,6 +227,34 @@ class ProjectGraph:
             abq_data: キャッシュするABQData
         """
         self._parser_cache[f"abq:{file_path}"] = abq_data
+
+    # =========================================================
+    # タイムスタンプ差分キャッシュ
+    # =========================================================
+
+    def record_file_timestamp(self, file_path: str, mtime: float) -> None:
+        """現在のパース実行時のファイルタイムスタンプを記録"""
+        self._file_timestamps[file_path] = mtime
+
+    def is_file_modified(self, file_path: str) -> bool:
+        """ファイルが前回パース時から変更されているかを判定
+
+        前回のタイムスタンプ情報がない場合（初回実行等）はTrueを返す。
+        """
+        if not self._prev_timestamps:
+            return True
+        prev_mtime = self._prev_timestamps.get(file_path)
+        if prev_mtime is None:
+            return True
+        try:
+            current_mtime = Path(file_path).stat().st_mtime
+        except OSError:
+            return True
+        return current_mtime != prev_mtime
+
+    def collect_file_timestamps(self) -> dict[str, float]:
+        """現在のパースで記録されたタイムスタンプを返す"""
+        return dict(self._file_timestamps)
 
     def iterate_directories(self) -> Iterator[ProjectDirectory]:
         """ノードのパス情報からディレクトリツリーを構築してイテレート

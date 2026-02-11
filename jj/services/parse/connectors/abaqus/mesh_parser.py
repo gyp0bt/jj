@@ -33,6 +33,18 @@ class AbaqusMeshParser(AbstractFileParser):
     priority = 80
     requires_full = True
 
+    @staticmethod
+    def _get_or_parse_inp(graph: ProjectGraph, file_path: str) -> object:
+        """read_inp()結果をキャッシュから取得、なければパースしてキャッシュに保存"""
+        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+
+        cached = graph.get_cached_abq_data(file_path)
+        if cached is not None:
+            return cached
+        abq = abq_read_inp(file_path, verbose=False)
+        graph.set_cached_abq_data(file_path, abq)
+        return abq
+
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus.mesh import extract_mesh_stats
 
@@ -45,7 +57,17 @@ class AbaqusMeshParser(AbstractFileParser):
             if not file_path.exists():
                 continue
 
-            stats = extract_mesh_stats(file_path, verbose=False)
+            # タイムスタンプ差分: 変更されていなければスキップ
+            if not graph.is_file_modified(str(file_path)):
+                logger.debug(f"Skipping unchanged file: {node.name}")
+                continue
+
+            # キャッシュからABQDataを取得（または新規パースしてキャッシュに保存）
+            cached_abq = self._get_or_parse_inp(graph, str(file_path))
+
+            stats = extract_mesh_stats(
+                file_path, verbose=False, cached_abq_data=cached_abq
+            )
             if stats is None:
                 logger.debug(f"extract_mesh_stats returned None for {node.name}")
                 continue
