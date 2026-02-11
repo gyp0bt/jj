@@ -512,7 +512,9 @@ class MaterialPropertyReadComponent(ReadComponent):
     def __init__(self, context: Context) -> None:
         super().__init__(context)
         if context.current_material is None:
-            raise RuntimeError("current material がありません")
+            # *MATERIAL 外（例: *SURFACE INTERACTION 下）で出現した場合
+            # エラーにせず、材料への紐付けをスキップする
+            return
         context.current_material.data.append(self)
         if self.default_options:
             for k, v in self.default_options.items():
