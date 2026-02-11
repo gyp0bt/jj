@@ -156,6 +156,9 @@ class ProjectGraph:
 - [x] verbose_name由来タグ生成、elset Node化
 - [x] root directory Node化
 - [x] 材料名・elset名ケース保持
+- [x] Obsidian全ノード出力（index_group/version_diff含む） (status-057)
+- [x] include解決ロジック改善（file親→cwd→再帰N階層探索） (status-057)
+- [x] elset→abaqus_material uses_material relation (status-057)
 - [x] vocab.yamlマージ修正（JSON keyのvocab置換） (status-048)
 - [x] -id/-v検索のvocab対応（変換後キーでの検索） (status-048)
 - [x] Obsidian frontmatterのvocab値消失バグ修正 (status-048)
@@ -607,6 +610,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-057.md)
+- [最新ステータス](./status/status-058.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

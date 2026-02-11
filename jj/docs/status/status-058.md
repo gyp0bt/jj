@@ -1,6 +1,6 @@
 [READMEへ戻る](../../README.md)
 
-# status-057: Obsidian全ノード出力・Include解決改善・Elset material relation (2026-02-11)
+# status-058: Obsidian全ノード出力・Include解決改善・Elset material relation (2026-02-11)
 
 ## 概要
 
