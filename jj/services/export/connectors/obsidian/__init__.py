@@ -596,6 +596,54 @@ class ObsidianConnector:
             if diff_details and diff_details != "差分なし":
                 content += f"### 詳細\n\n{diff_details}\n"
 
+        # version_diffノード専用: 比較元/比較先ファイルへのリンク
+        if node.type == "version_diff":
+            content += "\n## バージョン比較\n\n"
+            diff_from_file = props.get("diff_from", "")
+            diff_to_file = props.get("diff_to", "")
+            has_diffs = props.get("has_diffs", False)
+            if diff_from_file:
+                from_link = to_obsidian_link(
+                    Path(diff_from_file).name, self.config.obsidian_prefix
+                )
+                content += f"- 旧バージョン: {from_link}\n"
+            if diff_to_file:
+                to_link = to_obsidian_link(
+                    Path(diff_to_file).name, self.config.obsidian_prefix
+                )
+                content += f"- 新バージョン: {to_link}\n"
+            content += f"- 差分有無: {'あり' if has_diffs else 'なし'}\n"
+
+        # abaqus_elsetノード専用: 材料・親ファイルへのリンク・品質統計
+        if node.type == "abaqus_elset":
+            content += "\n## Elset情報\n\n"
+            element_count = props.get("element_count")
+            if element_count is not None:
+                content += f"- 要素数: {element_count}\n"
+            material = props.get("material", "")
+            if material:
+                content += f"- 割り当て材料: {material}\n"
+            source_file = props.get("source_file", "")
+            if source_file:
+                source_link = to_obsidian_link(
+                    Path(source_file).name, self.config.obsidian_prefix
+                )
+                content += f"- ソースファイル: {source_link}\n"
+            # 品質統計があれば表で表示
+            quality = node.properties.get("quality", {})
+            if isinstance(quality, dict) and quality:
+                content += "\n### メッシュ品質\n\n"
+                content += "| メトリクス | min | max | mean |\n"
+                content += "|-----------|-----|-----|------|\n"
+                for metric_name, metric_vals in quality.items():
+                    if isinstance(metric_vals, dict):
+                        content += (
+                            f"| {metric_name} "
+                            f"| {metric_vals.get('min', '-')} "
+                            f"| {metric_vals.get('max', '-')} "
+                            f"| {metric_vals.get('mean', '-')} |\n"
+                        )
+
         return content
 
     def _get_node_index(self, node: Node) -> str:

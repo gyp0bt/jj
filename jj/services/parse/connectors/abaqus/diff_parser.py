@@ -35,16 +35,49 @@ class AbaqusDiffParser(AbstractFileParser):
     def _get_or_parse_inp(graph: ProjectGraph, file_path: str) -> object:
         """read_inp()結果をキャッシュから取得、なければパースしてキャッシュに保存
 
-        タイムスタンプ差分: ファイルが変更されていない場合もキャッシュが無ければ
-        パースが必要（diffは両ファイルのABQDataが必要なため）。
+        キャッシュ探索順序:
+        1. インメモリキャッシュ（_parser_cache）
+        2. ディスク永続化キャッシュ（.jj/storage/abq_cache/）
+        3. キャッシュなし → read_inp()で新規パースし、両方に保存
         """
-        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+        import logging
+        from pathlib import Path
 
+        import services.parse.connectors.abaqus as abaqus_mod
+        from services.graph.storage import GraphStorage
+
+        _logger = logging.getLogger(__name__)
+
+        # 1. インメモリキャッシュ
         cached = graph.get_cached_abq_data(file_path)
         if cached is not None:
             return cached
-        abq = abq_read_inp(file_path, verbose=False)
+
+        # 2. ディスク永続化キャッシュ
+        try:
+            mtime = Path(file_path).stat().st_mtime
+            storage = GraphStorage()
+            disk_cached = storage.load_abq_data(graph.project_root, file_path, mtime)
+            if disk_cached is not None:
+                _logger.debug(f"ABQData disk cache hit: {file_path}")
+                graph.set_cached_abq_data(file_path, disk_cached)
+                return disk_cached
+        except OSError:
+            mtime = 0.0
+
+        # 3. 新規パース → キャッシュに保存
+        # モジュール属性経由で呼び出し（テストのmonkeypatch対応）
+        include_depth = graph.config.include_search_depth
+        abq = abaqus_mod.read_inp(file_path, verbose=False, include_max_depth=include_depth)
         graph.set_cached_abq_data(file_path, abq)
+
+        # ディスクにも永続化
+        try:
+            storage = GraphStorage()
+            storage.save_abq_data(graph.project_root, file_path, abq, mtime)
+        except Exception:
+            pass
+
         return abq
 
     @staticmethod

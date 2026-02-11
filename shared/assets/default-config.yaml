@@ -14,6 +14,11 @@
 # CLI: --max-depth で上書き可能
 # directory-max-depth:
 
+# *INCLUDE探索の最大階層数
+# Abaqus INPファイルの*INCLUDEディレクティブで参照されるファイルを
+# cwdから再帰的に探索する際の最大階層数（デフォルト: 5）
+# include-search-depth: 5
+
 # 語彙マッピング
 # ファイル名パース時にキー名を日本語表記に変換します
 vocab:

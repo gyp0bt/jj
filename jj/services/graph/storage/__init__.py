@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
+import pickle
 from pathlib import Path
 from typing import Any, Optional
 
 import yaml
 
 from jj_types import GraphModel
+
+logger = logging.getLogger(__name__)
 
 
 class GraphStorage:
@@ -142,3 +147,111 @@ class GraphStorage:
         with path.open("w", encoding="utf-8") as f:
             json.dump(timestamps, f, ensure_ascii=False, indent=2)
         return path
+
+    # =========================================================
+    # ABQData永続化キャッシュ（pickle）
+    # =========================================================
+
+    _ABQ_CACHE_DIRNAME = "abq_cache"
+
+    def _abq_cache_dir(self, project_root: Path) -> Path:
+        """ABQDataキャッシュ用ディレクトリを取得"""
+        cache_dir = self._storage_dir(project_root) / self._ABQ_CACHE_DIRNAME
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir
+
+    @staticmethod
+    def _abq_cache_key(file_path: str) -> str:
+        """ファイルパスからキャッシュキー（ファイル名）を生成
+
+        パスのハッシュを使用してファイル名の衝突を回避する。
+        """
+        digest = hashlib.sha256(file_path.encode("utf-8")).hexdigest()[:16]
+        return f"{digest}.pickle"
+
+    def load_abq_data(
+        self, project_root: Path, file_path: str, expected_mtime: float
+    ) -> Any:
+        """永続化されたABQDataキャッシュを読み込む
+
+        キャッシュファイルが存在し、かつmtimeが一致する場合のみロードする。
+        mtime不一致（ファイル変更）時はNoneを返す。
+
+        Args:
+            project_root: プロジェクトルート
+            file_path: 元のINPファイルパス
+            expected_mtime: 期待するファイルのmtime
+
+        Returns:
+            キャッシュされたABQData。キャッシュなしまたは無効の場合はNone。
+        """
+        cache_dir = self._abq_cache_dir(project_root)
+        cache_key = self._abq_cache_key(file_path)
+        cache_path = cache_dir / cache_key
+
+        if not cache_path.exists():
+            return None
+
+        try:
+            with cache_path.open("rb") as f:
+                cached = pickle.load(f)
+            if not isinstance(cached, dict):
+                return None
+            if cached.get("mtime") != expected_mtime:
+                logger.debug(
+                    f"ABQData cache mtime mismatch for {file_path}: "
+                    f"cached={cached.get('mtime')}, expected={expected_mtime}"
+                )
+                return None
+            if cached.get("source_path") != file_path:
+                return None
+            return cached.get("abq_data")
+        except (pickle.UnpicklingError, OSError, EOFError, KeyError) as e:
+            logger.debug(f"ABQData cache load failed for {file_path}: {e}")
+            return None
+
+    def save_abq_data(
+        self, project_root: Path, file_path: str, abq_data: Any, mtime: float
+    ) -> Path:
+        """ABQDataをpickleでディスクに永続化
+
+        Args:
+            project_root: プロジェクトルート
+            file_path: 元のINPファイルパス
+            abq_data: 保存するABQData
+            mtime: INPファイルのmtime（検証用）
+
+        Returns:
+            保存先パス
+        """
+        cache_dir = self._abq_cache_dir(project_root)
+        cache_key = self._abq_cache_key(file_path)
+        cache_path = cache_dir / cache_key
+
+        cached = {
+            "source_path": file_path,
+            "mtime": mtime,
+            "abq_data": abq_data,
+        }
+        try:
+            with cache_path.open("wb") as f:
+                pickle.dump(cached, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except (OSError, pickle.PicklingError) as e:
+            logger.warning(f"ABQData cache save failed for {file_path}: {e}")
+        return cache_path
+
+    def clear_abq_cache(self, project_root: Path) -> int:
+        """ABQDataキャッシュを全て削除
+
+        Returns:
+            削除したファイル数
+        """
+        cache_dir = self._abq_cache_dir(project_root)
+        count = 0
+        for f in cache_dir.glob("*.pickle"):
+            try:
+                f.unlink()
+                count += 1
+            except OSError:
+                pass
+        return count

@@ -116,7 +116,7 @@ def detect_and_fix_encoding(text: bytes) -> str:
 
 
 def read_files_with_unknown_encoding(
-    file_paths: PathList, verbose: bool = True
+    file_paths: PathList, verbose: bool = True, include_max_depth: int = 5
 ) -> Generator[tuple[Path, str], None, None]:
     """未知のエンコーディングの複数ファイルを行単位で読み込む
 
@@ -161,7 +161,7 @@ def read_files_with_unknown_encoding(
                             continue
                         include_name = m.group(1)
                         include_path = _resolve_include_path(
-                            include_name, file_path
+                            include_name, file_path, max_depth=include_max_depth
                         )
                         if include_path is None:
                             print(
@@ -172,7 +172,8 @@ def read_files_with_unknown_encoding(
                         if verbose:
                             print(f"Reading included file: {include_path}")
                         yield from read_files_with_unknown_encoding(
-                            include_path, verbose=verbose
+                            include_path, verbose=verbose,
+                            include_max_depth=include_max_depth
                         )
                     else:
                         yield file_path, line_stripped
@@ -731,7 +732,7 @@ class ABQData:
 # ==========================
 
 
-def read_inp(inp_filepath: PathList, verbose: bool = True) -> ABQData:
+def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: int = 5) -> ABQData:
     """Abaqus inpファイルを読み込み、ABQData に変換する
 
     要件:
@@ -751,7 +752,7 @@ def read_inp(inp_filepath: PathList, verbose: bool = True) -> ABQData:
 
     # ---- パースループ ----
     for file_path, raw_line in read_files_with_unknown_encoding(
-        inp_filepath, verbose=verbose
+        inp_filepath, verbose=verbose, include_max_depth=include_max_depth
     ):
         if not raw_line or raw_line.lstrip().startswith("**"):
             continue

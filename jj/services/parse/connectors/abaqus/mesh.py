@@ -212,6 +212,139 @@ def _compute_quality_stats(mesh, get_element_quality) -> Optional[dict[str, Any]
     return quality_result if quality_result else None
 
 
+def extract_elset_quality_stats(
+    inp_path: Path,
+    verbose: bool = False,
+    cached_abq_data: Optional[Any] = None,
+) -> Optional[dict[str, dict[str, Any]]]:
+    """Elsetごとのメッシュ品質統計を抽出
+
+    各Elsetに属する要素のみを対象として品質メトリクスを計算する。
+
+    Args:
+        inp_path: .inpファイルのパス
+        verbose: 詳細ログを出力するか
+        cached_abq_data: キャッシュ済みABQData
+
+    Returns:
+        {Elset名: {element_count: int, quality: {...}}} の辞書。
+        pymesh未導入やパース失敗時はNone。
+    """
+    create_mesher, get_element_quality = _safe_import_pymesh()
+    if create_mesher is None:
+        logger.debug("pymesh not available, skipping elset quality stats")
+        return None
+
+    if not inp_path.exists() or not str(inp_path).lower().endswith(".inp"):
+        return None
+
+    try:
+        mesh = create_mesher(
+            str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data
+        )
+    except Exception as e:
+        logger.warning(f"pymesh failed to parse {inp_path}: {e}")
+        return None
+
+    if get_element_quality is None:
+        return None
+
+    # 全要素の座標配列を取得
+    try:
+        coord_array = mesh.get_element_node_coord_array()
+    except Exception as e:
+        logger.debug(f"get_element_node_coord_array failed: {e}")
+        return None
+
+    if coord_array is None or len(coord_array) == 0:
+        return None
+
+    # 全要素のラベルリスト（座標配列と同じ順序）
+    try:
+        all_labels = list(mesh.get_element_labels())
+    except Exception:
+        return None
+
+    if len(all_labels) != len(coord_array):
+        logger.debug(
+            f"Label count ({len(all_labels)}) != coord_array count ({len(coord_array)})"
+        )
+        return None
+
+    # label → index のマッピング
+    label_to_idx: dict[int, int] = {}
+    for i, lbl in enumerate(all_labels):
+        label_to_idx[int(lbl)] = i
+
+    # 全要素の品質を一括計算
+    modes = ["volume", "detJ", "aspect", "skewness"]
+    try:
+        quality = get_element_quality(coord_array, mode=modes)
+    except Exception:
+        quality = {}
+        for mode in modes:
+            try:
+                q = get_element_quality(coord_array, mode=[mode])
+                quality.update(q)
+            except Exception:
+                pass
+
+    if not quality:
+        return None
+
+    metric_name_map = {
+        "volume": "volume",
+        "detJ": "detJ",
+        "aspect": "aspect_ratio",
+        "skewness": "skewness",
+    }
+
+    result: dict[str, dict[str, Any]] = {}
+
+    for name in mesh.elset_data:
+        elset = mesh.elset_data[name]
+        elset_labels = elset.data if hasattr(elset, "data") else []
+        if not elset_labels:
+            continue
+
+        # elset要素のインデックスを取得
+        indices = []
+        for lbl in elset_labels:
+            idx = label_to_idx.get(int(lbl))
+            if idx is not None:
+                indices.append(idx)
+
+        if not indices:
+            result[name] = {"element_count": len(elset_labels)}
+            continue
+
+        elset_entry: dict[str, Any] = {"element_count": len(indices)}
+        elset_quality: dict[str, Any] = {}
+
+        for mode_key, display_name in metric_name_map.items():
+            if mode_key not in quality:
+                continue
+            arr = quality[mode_key]
+            if not isinstance(arr, np.ndarray) or len(arr) == 0:
+                continue
+
+            # elset要素のみ抽出
+            subset = arr[indices]
+            valid = subset[~np.isnan(subset)]
+            if len(valid) > 0:
+                elset_quality[display_name] = {
+                    "min": float(np.min(valid)),
+                    "max": float(np.max(valid)),
+                    "mean": float(np.mean(valid)),
+                }
+
+        if elset_quality:
+            elset_entry["quality"] = elset_quality
+        result[name] = elset_entry
+
+    return result if result else None
+
+
 def _parse_parameters(inp_path: Path) -> dict[str, str]:
     """*PARAMETERブロックからパラメータ名→値のマッピングを抽出
 

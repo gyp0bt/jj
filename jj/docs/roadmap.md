@@ -284,7 +284,7 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
   - [x] elset別element_countをproperty化（mesh_elset_summaryから取得）
   - [x] 材料定義を個々のelsetに紐づけてproperty化（material_elsetsから逆引き）
   - [x] **テスト**: 7件追加（elset生成、element_count、材料割り当て、include先、relation、elsetsプロパティ）
-  - [ ] volumeなどのelement_qualityを個々のelsetごとに評価しproperty化（pymesh依存、将来対応）
+  - [x] volumeなどのelement_qualityを個々のelsetごとに評価しproperty化 (status-062)
 - [x] **隣接バージョンdiffのノード化** (status-052追加, status-053テスト追加, status-056ノード化)
   - [x] version_diffノードとしてdiff情報を保存（diff_from/diff_to relation経由で新旧ノード参照）
   - [x] node/nsetブロック: 接点数を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
@@ -300,7 +300,18 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
   - [x] is_file_modified()による変更ファイル判定
   - [x] AbaqusMeshParser/AbaqusDiffParserでの未変更ファイルスキップ
   - [x] テスト13件追加
-- [ ] 個々のElsetごとの品質統計
+- [x] **Elsetごとの品質統計** (status-062)
+  - [x] extract_elset_quality_stats()でElset別品質メトリクス計算
+  - [x] AbaqusElsetParserでelsetノードにquality property付与
+- [x] **config-driven include search depth** (status-062)
+  - [x] include-search-depth設定項目追加（デフォルト5）
+- [x] **ABQData永続化キャッシュ** (status-062)
+  - [x] pickle形式でディスクに保存（.jj/storage/abq_cache/）
+  - [x] 3段階キャッシュ探索（メモリ→ディスク→新規パース）
+- [x] **軽量パーサーのタイムスタンプ差分** (status-062)
+  - [x] IncludesRelationParser/JsonPropertyParser キャッシュ対応
+- [x] **Obsidian version_diff/elset可視化** (status-062)
+  - [x] version_diff/abaqus_elsetノードに専用セクション追加
 - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
 - [ ] index.csv/yamlとファイルの紐付け
 - [ ] dailyノートをブロックごとに切り出してNodeに逆輸入
@@ -621,6 +632,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-061.md)
+- [最新ステータス](./status/status-062.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
