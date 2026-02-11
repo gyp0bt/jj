@@ -255,3 +255,67 @@ class GraphStorage:
             except OSError:
                 pass
         return count
+
+    def cleanup_abq_cache(
+        self,
+        project_root: Path,
+        *,
+        max_age_days: int = 30,
+        max_count: int = 100,
+    ) -> int:
+        """古いABQDataキャッシュを自動クリーンアップ
+
+        以下のポリシーで不要なキャッシュを削除する:
+        1. max_age_days日以上前のキャッシュを削除
+        2. 残ったキャッシュがmax_countを超える場合、古い順に削除
+
+        Args:
+            project_root: プロジェクトルート
+            max_age_days: キャッシュ保持期間（日数、デフォルト30日）
+            max_count: キャッシュファイルの最大保持数（デフォルト100）
+
+        Returns:
+            削除したファイル数
+        """
+        import time
+
+        cache_dir = self._abq_cache_dir(project_root)
+        cache_files = list(cache_dir.glob("*.pickle"))
+
+        if not cache_files:
+            return 0
+
+        now = time.time()
+        max_age_seconds = max_age_days * 86400  # 1日 = 86400秒
+        deleted = 0
+
+        # 1. 古いキャッシュを削除
+        remaining: list[tuple[Path, float]] = []
+        for f in cache_files:
+            try:
+                mtime = f.stat().st_mtime
+                if (now - mtime) > max_age_seconds:
+                    f.unlink()
+                    deleted += 1
+                    logger.debug(f"ABQData cache expired: {f.name}")
+                else:
+                    remaining.append((f, mtime))
+            except OSError:
+                pass
+
+        # 2. 残数制限: 古い順にソートして超過分を削除
+        if len(remaining) > max_count:
+            remaining.sort(key=lambda x: x[1])  # mtimeの古い順
+            excess = remaining[: len(remaining) - max_count]
+            for f, _ in excess:
+                try:
+                    f.unlink()
+                    deleted += 1
+                    logger.debug(f"ABQData cache evicted (over max_count): {f.name}")
+                except OSError:
+                    pass
+
+        if deleted > 0:
+            logger.info(f"ABQData cache cleanup: {deleted} files removed")
+
+        return deleted

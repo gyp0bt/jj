@@ -86,6 +86,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-11 / status-063: Export基盤整備・キャッシュクリーンアップ・Obsidian Elset-材料可視化。AbstractExporter基底クラス定義（__init_subclass__自動登録）、CSV/JSONエクスポートをexport/connectors/に移動、Elset品質統計CSVエクスポート対応、ABQDataキャッシュ自動クリーンアップ（max_age_days/max_count）、Obsidian Dataviewクエリ（elset/material/goノード）、Obsidian Canvas elset-materialマップ生成。670テストパス、21スキップ。([status-063](docs/status/status-063.md))
 - 2026-02-11 / status-062: Elset品質統計・ABQDataキャッシュ永続化・設定駆動include探索。Elsetごとの品質統計（extract_elset_quality_stats）、config-driven include search depth（include-search-depth設定）、ABQData永続化キャッシュ（pickle/.jj/storage/abq_cache/）、軽量パーサーキャッシュ展開（IncludesRelationParser/JsonPropertyParser）、Obsidian version_diff/elset可視化改善。649テストパス、21スキップ。([status-062](docs/status/status-062.md))
 - 2026-02-11 / status-061: パーサーキャッシュ拡張 & タイムスタンプ差分パース。ABQDataキャッシュをAbaqusMeshParserに展開（mesher()にcached_abq_dataパラメータ追加）、タイムスタンプ差分による増分パース（parse_timestamps.json永続化、is_file_modified()判定、重いパーサーの未変更ファイルスキップ）、pymeshテスト追加（modules/pymesh使用）。641テストパス、21スキップ。([status-061](docs/status/status-061.md))
 - 2026-02-11 / status-060: パーサーキャッシュ基盤実装、DashboardDataProvider完全実装。ABQDataキャッシュをAbaqusDiffParserで使用開始。([status-060](docs/status/status-060.md))

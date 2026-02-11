@@ -598,6 +598,8 @@ class GraphConfig:
     export: ExportConfig
     directory_max_depth: Optional[int]  # None=無制限（最終階層まで）
     include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
+    cache_max_age_days: int  # ABQDataキャッシュ保持期間（日数、デフォルト30）
+    cache_max_count: int  # ABQDataキャッシュ最大保持数（デフォルト100）
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
@@ -610,6 +612,8 @@ class GraphConfig:
         include_depth = int(raw_include_depth)
         if include_depth < 0:
             raise ValueError("include-search-depth must be >= 0")
+        cache_max_age = int(data.get("cache-max-age-days", 30))
+        cache_max_count = int(data.get("cache-max-count", 100))
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -623,6 +627,8 @@ class GraphConfig:
             export=ExportConfig.from_dict(data.get("export", {})),
             directory_max_depth=raw_depth,
             include_search_depth=include_depth,
+            cache_max_age_days=cache_max_age,
+            cache_max_count=cache_max_count,
         )
 
     @classmethod
