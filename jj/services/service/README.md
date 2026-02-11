@@ -7,8 +7,17 @@
 ## 役割
 - 各サービスの依存注入と初期化。
 - CLI向けのユースケース関数を集約。
-- `entry.py` がCLIの実体を保持し、`main.py` から呼び出される想定。
+- CLI層はservice層のみからインポートし、ビジネスロジックを直接実装しない。
 
-## 例
-- `build_services(config: AppConfig) -> ServiceContainer`
-- `ServiceContainer` が `parse`, `storage`, `run`, `file` を保持。
+## サービス一覧
+
+| クラス | ファイル | 責務 |
+|--------|---------|------|
+| `GraphCommandService` | `graph_command.py` | グラフコマンドのビジネスロジック（init/parse/show/export/info/diff/credential） |
+| `InfoService` | `info.py` | グラフ情報検索・データエクスポート |
+| `SubmitService` | `submit.py` | submit/files/syntax コマンドのビジネスロジック |
+
+## 依存関係
+```
+CLI (services/cli/) → services/service/ → services/graph/, services/parse/, services/export/, services/lib/
+```

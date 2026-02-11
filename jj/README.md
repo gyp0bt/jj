@@ -86,6 +86,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-10 / status-055: cli/graph.pyからビジネスロジックを分離しservices/service/graph_command.pyに移動。GraphCommandServiceクラス新規作成。CLIアーキテクチャルール徹底。599テストパス、リグレッションなし。([status-055](docs/status/status-055.md))
 - 2026-02-10 / status-049: エクスポート機能強化（CSV単位系・カラム選択・キー順保持）、JSONプロパティ"."繋ぎ平坦化、JSONファイル名vocab置換（_区切り）、MeshInheritParser新規追加、ダッシュボード要件定義（post.py分析）。50テストパス、14テスト追加。([status-049](docs/status/status-049.md))
 - 2026-02-10 / status-048: vocab.yamlマージ修正、-id/-v vocab対応、Obsidian frontmatter修正、CSV UTF-8 BOM、JSON --flatten、info -active、parse --full/--lite。480テストパス、13テスト追加。([status-048](docs/status/status-048.md))
 - 2026-02-10 / status-047: 共通選択コマンド（-id 1..3範囲展開）、jj info拡張（-all/-prop/-type）、CSVエクスポート改善（プロパティ平坦化・-prop絞り込み）、VocabFinalizer一括置換（パーサー追加プロパティの翻訳漏れ解消）。テスト467件パス、20スキップ。([status-047](docs/status/status-047.md))
