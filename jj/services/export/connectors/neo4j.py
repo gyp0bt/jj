@@ -31,6 +31,7 @@ from shared.neo4j_schema import (
     get_neo4j_reltype,
 )
 from shared.config import Neo4jConfig
+from services.export import AbstractExporter
 
 
 def _sanitize_property_value(value: Any) -> Any:
@@ -387,3 +388,90 @@ class Neo4jConnector:
             "total_nodes": sum(node_counts.values()),
             "total_relations": sum(rel_counts.values()),
         }
+
+
+class Neo4jExporter(AbstractExporter):
+    """Neo4jデータベース直接エクスポーター（AbstractExporterサブクラス）
+
+    Neo4jConnectorをラップし、AbstractExporterレジストリに登録する。
+    """
+
+    format = "neo4j"
+    priority = 30
+
+    def export(self, graph: GraphModel, **kwargs: Any) -> dict[str, Any]:
+        """Neo4jエクスポート
+
+        kwargs:
+            project_root: Path - プロジェクトルート
+            clear_project: bool - 既存データを削除するか
+            neo4j_uri: str | None - Neo4j接続URI
+            neo4j_user: str | None - ユーザー名
+            neo4j_password: str | None - パスワード
+        """
+        project_root = kwargs.get("project_root")
+        clear_project = kwargs.get("clear_project", False)
+
+        neo4j_config = Neo4jConfig.from_jj_config(
+            Path(project_root) if project_root else Path.cwd()
+        )
+        # CLIオプションで上書き
+        if kwargs.get("neo4j_uri"):
+            neo4j_config.uri = kwargs["neo4j_uri"]
+        if kwargs.get("neo4j_user"):
+            neo4j_config.user = kwargs["neo4j_user"]
+        if kwargs.get("neo4j_password"):
+            neo4j_config.password = kwargs["neo4j_password"]
+
+        connector = Neo4jConnector(project_root=project_root, config=neo4j_config)
+        try:
+            stats = connector.export_graph(graph, clear_project=clear_project)
+            return {
+                "uri": neo4j_config.uri,
+                "stats": stats,
+                "node_count": stats["nodes_created"],
+                "relation_count": stats["relations_created"],
+                "clear_project": clear_project,
+                "direct": True,
+            }
+        finally:
+            connector.close()
+
+
+class CypherExporter(AbstractExporter):
+    """Cypherファイルエクスポーター（AbstractExporterサブクラス）
+
+    Neo4jConnector.export_cypher()をラップし、AbstractExporterレジストリに登録する。
+    """
+
+    format = "cypher"
+    priority = 31
+
+    def export(self, graph: GraphModel, **kwargs: Any) -> dict[str, Any]:
+        """Cypherエクスポート
+
+        kwargs:
+            project_root: Path - プロジェクトルート
+            clear_project: bool - 削除クエリを含めるか
+            output_file: str | None - 出力ファイルパス
+        """
+        project_root = kwargs.get("project_root")
+        clear_project = kwargs.get("clear_project", False)
+        output_file = kwargs.get("output_file")
+
+        connector = Neo4jConnector(project_root=project_root)
+        try:
+            output_path = connector.export_cypher(
+                graph,
+                output_path=output_file,
+                clear_project=clear_project,
+            )
+            return {
+                "output_path": output_path,
+                "node_count": len(graph.nodes),
+                "relation_count": len(graph.relations),
+                "clear_project": clear_project,
+                "direct": False,
+            }
+        finally:
+            connector.close()

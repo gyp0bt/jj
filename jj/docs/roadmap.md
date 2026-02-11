@@ -235,6 +235,9 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] Neo4jエクスポートは `export/connectors/neo4j.py` に配置済み
 - [x] CSV/JSONエクスポートを `export/connectors/csv_json.py` へ移動 (status-063)
 - [x] `AbstractExporter` 基底クラスの定義（`__init_subclass__`自動登録パターン） (status-063)
+- [x] ObsidianConnector / Neo4jConnector / DashboardJsonをAbstractExporterサブクラスに移行 (status-064)
+- [x] `jj export --target <format>` のAbstractExporterレジストリ経由での統一実行 (status-064)
+- [x] Obsidian Canvas 3層（go-material-elset）関係グラフ生成 (status-064)
 
 #### R5. lib層の整理 ✅ (status-043)
 

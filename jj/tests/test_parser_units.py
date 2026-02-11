@@ -2503,3 +2503,235 @@ class TestObsidianElsetCanvas:
         data = json.loads(canvas_path.read_text(encoding="utf-8"))
         assert len(data["nodes"]) == 1
         assert len(data["edges"]) == 0  # 材料がないのでエッジなし
+
+
+# =========================================================================
+# AbstractExporterレジストリ統合テスト
+# =========================================================================
+
+
+class TestExporterRegistry:
+    """全エクスポーターがレジストリに登録されていることを確認するテスト"""
+
+    def test_all_exporters_registered(self):
+        """全6形式のエクスポーターがレジストリに登録されていること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_registry
+
+        registry = get_exporter_registry()
+        formats = {cls.format for cls in registry}
+        assert "csv" in formats
+        assert "json" in formats
+        assert "obsidian" in formats
+        assert "neo4j" in formats
+        assert "cypher" in formats
+        assert "dashboard-json" in formats
+
+    def test_exporter_priority_order(self):
+        """エクスポーターがpriority順で取得できること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_registry
+
+        registry = get_exporter_registry()
+        sorted_exporters = sorted(registry, key=lambda cls: cls.priority)
+        priorities = [cls.priority for cls in sorted_exporters]
+        assert priorities == sorted(priorities)
+
+    def test_obsidian_exporter_via_registry(self, tmp_path: Path):
+        """ObsidianExporterがレジストリ経由で取得・実行できること"""
+        from jj_types import GraphModel
+
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("obsidian")
+        assert exporter_cls is not None
+        assert exporter_cls.format == "obsidian"
+        assert exporter_cls.priority == 20
+
+        # 実際にexport実行（空グラフ）
+        graph = GraphModel(nodes=[], relations=[])
+        exporter = exporter_cls()
+        result = exporter.export(graph, project_root=tmp_path)
+        assert "written_paths" in result
+        assert result["count"] == 0
+
+    def test_cypher_exporter_via_registry(self, tmp_path: Path):
+        """CypherExporterがレジストリ経由で取得・実行できること"""
+        from jj_types import GraphModel
+
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("cypher")
+        assert exporter_cls is not None
+        assert exporter_cls.format == "cypher"
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp", properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = exporter_cls()
+        result = exporter.export(graph, project_root=tmp_path)
+        assert result["output_path"].exists()
+        assert result["node_count"] == 1
+
+    def test_dashboard_json_exporter_via_registry(self, tmp_path: Path):
+        """DashboardJsonExporterがレジストリ経由で取得・実行できること"""
+        from jj_types import GraphModel
+
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("dashboard-json")
+        assert exporter_cls is not None
+        assert exporter_cls.format == "dashboard-json"
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp",
+                 properties={"index": "1", "version": "1"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = exporter_cls()
+        result = exporter.export(graph, project_root=tmp_path)
+        assert result["output_path"].exists()
+        assert result["node_count"] == 1
+
+    def test_export_by_format_method(self, tmp_path: Path):
+        """GraphCommandService.export_by_format()が動作すること"""
+        from jj_types import GraphModel
+        from services.service.graph_command import GraphCommandService
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp", properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        service = GraphCommandService(tmp_path)
+        result = service.export_by_format(graph, "csv")
+        assert result["count"] == 1
+        assert result["output_path"].exists()
+
+    def test_export_by_format_unknown_raises(self, tmp_path: Path):
+        """未知の形式でValueErrorが発生すること"""
+        from jj_types import GraphModel
+        from services.service.graph_command import GraphCommandService
+
+        graph = GraphModel(nodes=[], relations=[])
+        service = GraphCommandService(tmp_path)
+        try:
+            service.export_by_format(graph, "unknown_format_xyz")
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "未対応のエクスポート形式" in str(e)
+
+
+# =========================================================================
+# Obsidian Canvas 3層（Elset-材料-go）テスト
+# =========================================================================
+
+
+class TestObsidianElsetMaterialGoCanvas:
+    """Obsidian Canvasのelset-材料-go 3層マップ生成テスト"""
+
+    def test_three_layer_canvas_generated(self, tmp_path: Path):
+        """elset/material/goが揃っている場合に3層canvasが生成されること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="go_test_v1", format="inp",
+                 properties={"path": "go_test_v1.inp"}),
+            Node(id=2, type="abaqus_material", name="Steel", format="material",
+                 properties={}),
+            Node(id=3, type="abaqus_elset", name="ELSET_A", format="",
+                 properties={
+                     "material": "Steel",
+                     "element_count": 100,
+                     "source_file": "go_test_v1.inp",
+                 }),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_go_canvas(graph)
+
+        assert canvas_path is not None
+        assert canvas_path.exists()
+        assert "elset_material_go_map" in canvas_path.name
+
+        data = json.loads(canvas_path.read_text(encoding="utf-8"))
+        # 3ノード: go, material, elset
+        assert len(data["nodes"]) == 3
+
+        # エッジ: uses_material + defined_in = 2
+        edge_labels = {e["label"] for e in data["edges"]}
+        assert "uses_material" in edge_labels
+        assert "defined_in" in edge_labels
+        assert len(data["edges"]) == 2
+
+    def test_three_layer_canvas_no_go_nodes(self, tmp_path: Path):
+        """goノードがなくてもelset-materialのcanvasが生成されること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="abaqus_material", name="Steel", format="material",
+                 properties={}),
+            Node(id=2, type="abaqus_elset", name="ELSET_A", format="",
+                 properties={"material": "Steel", "element_count": 50}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_go_canvas(graph)
+
+        assert canvas_path is not None
+        data = json.loads(canvas_path.read_text(encoding="utf-8"))
+        # 2ノード: material + elset (goなし)
+        assert len(data["nodes"]) == 2
+        # 1エッジ: uses_material のみ (defined_inなし)
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["label"] == "uses_material"
+
+    def test_three_layer_canvas_unassigned_with_go(self, tmp_path: Path):
+        """材料未割り当てelsetでもsource_fileがあればgoへのエッジが生成されること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="go_test_v1", format="inp",
+                 properties={"path": "go_test_v1.inp"}),
+            Node(id=2, type="abaqus_elset", name="ELSET_A", format="",
+                 properties={
+                     "element_count": 50,
+                     "source_file": "go_test_v1.inp",
+                 }),  # 材料なし
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_go_canvas(graph)
+
+        assert canvas_path is not None
+        data = json.loads(canvas_path.read_text(encoding="utf-8"))
+        # 2ノード: go + elset
+        assert len(data["nodes"]) == 2
+        # 1エッジ: defined_in (材料エッジなし)
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["label"] == "defined_in"
+
+    def test_three_layer_canvas_not_generated_without_elsets(self, tmp_path: Path):
+        """elsetがない場合にcanvasが生成されないこと"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="test", format="inp", properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_go_canvas(graph)
+        assert canvas_path is None

@@ -39,6 +39,7 @@ import yaml
 
 from jj_types import GraphModel, Node, Relation
 from config import GraphConfig, ObsidianExportConfig
+from services.export import AbstractExporter
 
 
 @dataclass
@@ -827,6 +828,11 @@ class ObsidianConnector:
         if canvas_path:
             written.append(canvas_path)
 
+        # Elset-材料-go 3層関係 Obsidian Canvas を生成
+        canvas3_path = self._write_elset_material_go_canvas(graph)
+        if canvas3_path:
+            written.append(canvas3_path)
+
         return written
 
     def write_md_with_relations(
@@ -1182,6 +1188,172 @@ class ObsidianConnector:
         )
         return canvas_path
 
+    def _write_elset_material_go_canvas(
+        self,
+        graph: GraphModel,
+    ) -> Optional[Path]:
+        """Elset-材料-goの3層関係をObsidian Canvas形式で出力
+
+        3層構造:
+        - 上段: goノード（青系、ソースファイルとしてelsetの親）
+        - 中段: 材料ノード（緑系）
+        - 下段: Elsetノード（赤系、材料ごとにグループ化）
+
+        goノードとelsetの関係はsource_fileプロパティで紐付ける。
+
+        Args:
+            graph: グラフモデル
+
+        Returns:
+            書き込んだcanvasファイルのパス。elsetがない場合はNone。
+        """
+        import json as json_mod
+
+        elset_nodes = [n for n in graph.nodes if n.type == "abaqus_elset"]
+        material_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+
+        if not elset_nodes:
+            return None
+
+        # goノードの特定: elsetのsource_fileに対応するノードを収集
+        go_types = {"go", "Abaqusインプット"}
+        go_candidates = [n for n in graph.nodes if n.type in go_types]
+        # source_fileからgoノードへのマッピング
+        go_by_filename: dict[str, Node] = {}
+        for gn in go_candidates:
+            fname = f"{gn.name}.{gn.format}" if gn.format else gn.name
+            go_by_filename[fname] = gn
+            go_by_filename[gn.name] = gn
+
+        # elsetが参照するgoノードを収集（順序保持）
+        referenced_go: dict[str, Node] = {}
+        for en in elset_nodes:
+            sf = en.properties.get("source_file", "")
+            if sf and sf in go_by_filename:
+                referenced_go[sf] = go_by_filename[sf]
+
+        canvas_nodes: list[dict[str, Any]] = []
+        canvas_edges: list[dict[str, Any]] = []
+
+        # 上段: goノードの配置（Y=0）
+        go_positions: dict[str, str] = {}  # source_filename -> canvas_node_id
+        for i, (sf, go_node) in enumerate(referenced_go.items()):
+            node_id = f"go_{go_node.id}"
+            canvas_nodes.append({
+                "id": node_id,
+                "type": "file",
+                "file": str(self._get_canvas_md_path(go_node)),
+                "x": i * 300,
+                "y": 0,
+                "width": 250,
+                "height": 60,
+                "color": "5",  # 青系
+            })
+            go_positions[sf] = node_id
+            # name単体でもマッピング
+            go_positions[go_node.name] = node_id
+
+        # 中段: 材料ノードの配置（Y=150）
+        material_positions: dict[str, str] = {}  # material_name -> canvas_node_id
+        for i, mat_node in enumerate(material_nodes):
+            node_id = f"mat_{mat_node.id}"
+            canvas_nodes.append({
+                "id": node_id,
+                "type": "file",
+                "file": str(self._get_canvas_md_path(mat_node)),
+                "x": i * 300,
+                "y": 150,
+                "width": 250,
+                "height": 60,
+                "color": "4",  # 緑系
+            })
+            material_positions[mat_node.name] = node_id
+
+        # 下段: Elsetノードの配置（Y=350〜）
+        material_groups: dict[str, list[Node]] = {}
+        unassigned: list[Node] = []
+        for elset_node in elset_nodes:
+            mat = elset_node.properties.get("material", "")
+            if mat and mat in material_positions:
+                material_groups.setdefault(mat, []).append(elset_node)
+            else:
+                unassigned.append(elset_node)
+
+        col = 0
+        for mat_name, elsets in material_groups.items():
+            for j, elset_node in enumerate(elsets):
+                node_id = f"elset_{elset_node.id}"
+                canvas_nodes.append({
+                    "id": node_id,
+                    "type": "file",
+                    "file": str(self._get_canvas_md_path(elset_node)),
+                    "x": col * 300,
+                    "y": 350 + j * 80,
+                    "width": 250,
+                    "height": 60,
+                    "color": "1",  # 赤系
+                })
+                # エッジ: elset -> material
+                canvas_edges.append({
+                    "id": f"edge_{elset_node.id}_{mat_name}",
+                    "fromNode": node_id,
+                    "fromSide": "top",
+                    "toNode": material_positions[mat_name],
+                    "toSide": "bottom",
+                    "label": "uses_material",
+                })
+                # エッジ: elset -> go (source_file)
+                sf = elset_node.properties.get("source_file", "")
+                if sf and sf in go_positions:
+                    canvas_edges.append({
+                        "id": f"edge_go_{elset_node.id}_{sf}",
+                        "fromNode": node_id,
+                        "fromSide": "top",
+                        "toNode": go_positions[sf],
+                        "toSide": "bottom",
+                        "label": "defined_in",
+                    })
+            col += 1
+
+        # 未割り当てelset
+        for j, elset_node in enumerate(unassigned):
+            node_id = f"elset_{elset_node.id}"
+            canvas_nodes.append({
+                "id": node_id,
+                "type": "file",
+                "file": str(self._get_canvas_md_path(elset_node)),
+                "x": col * 300,
+                "y": 350 + j * 80,
+                "width": 250,
+                "height": 60,
+                "color": "6",  # 灰色系
+            })
+            # 未割り当てでもsource_fileがあればgoへのエッジ
+            sf = elset_node.properties.get("source_file", "")
+            if sf and sf in go_positions:
+                canvas_edges.append({
+                    "id": f"edge_go_{elset_node.id}_{sf}",
+                    "fromNode": node_id,
+                    "fromSide": "top",
+                    "toNode": go_positions[sf],
+                    "toSide": "bottom",
+                    "label": "defined_in",
+                })
+
+        canvas_data = {
+            "nodes": canvas_nodes,
+            "edges": canvas_edges,
+        }
+
+        canvas_dir = self.project_root / self.config.notes_dir
+        canvas_dir.mkdir(parents=True, exist_ok=True)
+        canvas_path = canvas_dir / "elset_material_go_map.canvas"
+        canvas_path.write_text(
+            json_mod.dumps(canvas_data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return canvas_path
+
     def _get_canvas_md_path(self, node: Node) -> Path:
         """Canvas用のmd相対パスを返す（project_rootからの相対）"""
         md_path = self.get_md_path(node)
@@ -1189,4 +1361,27 @@ class ObsidianConnector:
             return md_path.relative_to(self.project_root)
         except ValueError:
             return md_path
+
+
+class ObsidianExporter(AbstractExporter):
+    """Obsidian形式エクスポーター（AbstractExporterサブクラス）
+
+    ObsidianConnectorをラップし、AbstractExporterレジストリに登録する。
+    """
+
+    format = "obsidian"
+    priority = 20
+
+    def export(self, graph: GraphModel, **kwargs: Any) -> dict[str, Any]:
+        """Obsidianエクスポート
+
+        kwargs:
+            project_root: Path - プロジェクトルート
+            overwrite: bool - 既存ファイルを上書きするか
+        """
+        project_root = kwargs.get("project_root")
+        overwrite = kwargs.get("overwrite", False)
+        connector = ObsidianConnector(project_root=project_root)
+        written = connector.export_graph(graph, overwrite=overwrite)
+        return {"written_paths": written, "count": len(written)}
 
