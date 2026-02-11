@@ -89,9 +89,21 @@ class JsonPropertyParser(AbstractFileParser):
                 if not suffix:
                     continue
 
-                # JSONファイルを読み込み
+                # JSONファイルを読み込み（キャッシュ対応）
                 json_path = graph.project_root / json_node.properties.get("path", "")
-                json_data = self._read_json(json_path)
+                cache_key = f"json:{json_path}"
+                if not graph.is_file_modified(str(json_path)):
+                    cached_data = graph.get_cache(cache_key)
+                    if cached_data is not None:
+                        json_data = cached_data
+                    else:
+                        json_data = self._read_json(json_path)
+                        if json_data is not None:
+                            graph.set_cache(cache_key, json_data)
+                else:
+                    json_data = self._read_json(json_path)
+                    if json_data is not None:
+                        graph.set_cache(cache_key, json_data)
                 if json_data is None:
                     continue
 

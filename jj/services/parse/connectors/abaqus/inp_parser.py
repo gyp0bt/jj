@@ -415,11 +415,17 @@ class AbaqusElsetParser(AbstractFileParser):
 
             # mesh_elset_summaryを統合（go_*自身 + include先）
             merged_elset_summary: dict[str, int] = {}
+            # mesh_elset_qualityを統合（go_*自身 + include先）
+            merged_elset_quality: dict[str, dict[str, Any]] = {}
 
             elset_summary = node.properties.get("mesh_elset_summary", {})
             if isinstance(elset_summary, dict):
                 elset_names.update(elset_summary.keys())
                 merged_elset_summary.update(elset_summary)
+
+            elset_quality = node.properties.get("mesh_elset_quality", {})
+            if isinstance(elset_quality, dict):
+                merged_elset_quality.update(elset_quality)
 
             for child_id in includes_map.get(node.id, []):
                 child = graph.get_node_by_id(child_id)
@@ -431,6 +437,11 @@ class AbaqusElsetParser(AbstractFileParser):
                     for k, v in child_elsets.items():
                         if k not in merged_elset_summary:
                             merged_elset_summary[k] = v
+                child_elset_q = child.properties.get("mesh_elset_quality", {})
+                if isinstance(child_elset_q, dict):
+                    for k, v in child_elset_q.items():
+                        if k not in merged_elset_quality:
+                            merged_elset_quality[k] = v
 
             mat_elsets = node.properties.get("material_elsets", {})
             if isinstance(mat_elsets, dict):
@@ -462,6 +473,12 @@ class AbaqusElsetParser(AbstractFileParser):
                 # elset別element数
                 if elset_name in merged_elset_summary:
                     elset_props["element_count"] = merged_elset_summary[elset_name]
+
+                # elset別品質統計
+                if elset_name in merged_elset_quality:
+                    eq = merged_elset_quality[elset_name]
+                    if isinstance(eq, dict) and "quality" in eq:
+                        elset_props["quality"] = eq["quality"]
 
                 # 材料割り当て
                 assigned_material_name = elset_to_material.get(elset_name)

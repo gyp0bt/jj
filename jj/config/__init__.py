@@ -597,6 +597,7 @@ class GraphConfig:
     project_name: str
     export: ExportConfig
     directory_max_depth: Optional[int]  # None=無制限（最終階層まで）
+    include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
@@ -605,6 +606,10 @@ class GraphConfig:
             raw_depth = int(raw_depth)
             if raw_depth < 1:
                 raise ValueError("directory-max-depth must be >= 1")
+        raw_include_depth = data.get("include-search-depth", 5)
+        include_depth = int(raw_include_depth)
+        if include_depth < 0:
+            raise ValueError("include-search-depth must be >= 0")
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -617,6 +622,7 @@ class GraphConfig:
             project_name=data.get("project-name", ""),
             export=ExportConfig.from_dict(data.get("export", {})),
             directory_max_depth=raw_depth,
+            include_search_depth=include_depth,
         )
 
     @classmethod

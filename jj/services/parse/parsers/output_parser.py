@@ -130,14 +130,35 @@ class AssetRelationParser(AbstractFileParser):
 
 
 class IncludesRelationParser(AbstractFileParser):
-    """inpファイルの*includeディレクティブからincludes関係を構築"""
+    """inpファイルの*includeディレクティブからincludes関係を構築
+
+    ファイル未変更時はキャッシュからincludeパスリストを取得し、
+    ディスクI/Oをスキップする。
+    """
 
     priority = 40
 
-    def apply(self, graph: ProjectGraph) -> ProjectGraph:
+    @staticmethod
+    def _extract_includes(file_path: Path) -> list[str]:
+        """ファイルから*includeパスを抽出する"""
         include_pattern = re.compile(
             r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE
         )
+        includes: list[str] = []
+        try:
+            with file_path.open("r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("**"):
+                        continue
+                    match = include_pattern.match(line)
+                    if match:
+                        includes.append(match.group(1).strip())
+        except (OSError, IOError):
+            pass
+        return includes
+
+    def apply(self, graph: ProjectGraph) -> ProjectGraph:
         input_extensions = graph.config.file_relations.input_extensions
 
         for node in list(graph.nodes):
@@ -149,38 +170,40 @@ class IncludesRelationParser(AbstractFileParser):
             if not file_path.exists():
                 continue
 
-            try:
-                with file_path.open("r", encoding="utf-8", errors="ignore") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line or line.startswith("**"):
-                            continue
+            # キャッシュキー: ファイル未変更ならキャッシュからincludeパスを取得
+            cache_key = f"includes:{file_path}"
+            if not graph.is_file_modified(str(file_path)):
+                cached_includes = graph.get_cache(cache_key)
+                if cached_includes is not None:
+                    include_paths = cached_includes
+                else:
+                    include_paths = self._extract_includes(file_path)
+                    graph.set_cache(cache_key, include_paths)
+            else:
+                include_paths = self._extract_includes(file_path)
+                graph.set_cache(cache_key, include_paths)
 
-                        match = include_pattern.match(line)
-                        if match:
-                            include_path = match.group(1).strip()
-                            include_filename = Path(include_path).name
+            for include_path in include_paths:
+                include_filename = Path(include_path).name
 
-                            target_node = None
-                            for path, n in graph._node_by_path.items():
-                                if (
-                                    path.endswith(include_path)
-                                    or Path(path).name == include_filename
-                                ):
-                                    target_node = n
-                                    break
+                target_node = None
+                for path, n in graph._node_by_path.items():
+                    if (
+                        path.endswith(include_path)
+                        or Path(path).name == include_filename
+                    ):
+                        target_node = n
+                        break
 
-                            if target_node:
-                                graph.add_relation(
-                                    Relation(
-                                        id=graph.next_relation_id(),
-                                        label="includes",
-                                        node1_id=node.id,
-                                        node2_id=target_node.id,
-                                    )
-                                )
-            except (OSError, IOError):
-                continue
+                if target_node:
+                    graph.add_relation(
+                        Relation(
+                            id=graph.next_relation_id(),
+                            label="includes",
+                            node1_id=node.id,
+                            node2_id=target_node.id,
+                        )
+                    )
 
         return graph
 

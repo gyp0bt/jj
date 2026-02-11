@@ -1224,10 +1224,10 @@ class TestParserCache:
         call_count = 0
         original_read_inp = None
 
-        def counting_read_inp(path, verbose=True):
+        def counting_read_inp(path, verbose=True, include_max_depth=5):
             nonlocal call_count
             call_count += 1
-            return original_read_inp(path, verbose=verbose)
+            return original_read_inp(path, verbose=verbose, include_max_depth=include_max_depth)
 
         from services.parse.connectors import abaqus
         original_read_inp = abaqus.read_inp
@@ -1273,6 +1273,197 @@ class TestParserCache:
         cached_v2 = graph.get_cached_abq_data(str(tmp_path / "go_idx1_v2.inp"))
         assert cached_v1 is not None
         assert cached_v2 is not None
+
+
+class TestABQDataDiskCache:
+    """ABQData永続化キャッシュのテスト"""
+
+    def test_save_and_load_abq_cache(self, tmp_path: Path):
+        """ABQDataをディスクに保存し、再読み込みできる"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        fake_abq = {"nodes": {"1": "data"}, "elements": {}}
+        file_path = "/project/go_idx1_v1.inp"
+        mtime = 1234567890.0
+
+        storage.save_abq_data(tmp_path, file_path, fake_abq, mtime)
+
+        # 同じmtimeで再読み込み → ヒット
+        loaded = storage.load_abq_data(tmp_path, file_path, mtime)
+        assert loaded is not None
+        assert loaded == fake_abq
+
+    def test_load_abq_cache_mtime_mismatch(self, tmp_path: Path):
+        """mtime不一致時はNoneを返す"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        fake_abq = {"nodes": {}}
+        file_path = "/project/go_idx1_v1.inp"
+
+        storage.save_abq_data(tmp_path, file_path, fake_abq, mtime=1000.0)
+
+        # 異なるmtimeで読み込み → 不一致でNone
+        loaded = storage.load_abq_data(tmp_path, file_path, expected_mtime=2000.0)
+        assert loaded is None
+
+    def test_load_abq_cache_nonexistent(self, tmp_path: Path):
+        """キャッシュファイルが存在しない場合はNone"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        loaded = storage.load_abq_data(
+            tmp_path, "/nonexistent.inp", expected_mtime=1000.0
+        )
+        assert loaded is None
+
+    def test_clear_abq_cache(self, tmp_path: Path):
+        """ABQDataキャッシュの全削除"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        storage.save_abq_data(tmp_path, "/a.inp", {}, 1.0)
+        storage.save_abq_data(tmp_path, "/b.inp", {}, 2.0)
+
+        count = storage.clear_abq_cache(tmp_path)
+        assert count == 2
+
+        # 削除後は読み込めない
+        assert storage.load_abq_data(tmp_path, "/a.inp", 1.0) is None
+
+
+class TestIncludeSearchDepthConfig:
+    """include-search-depth設定のテスト"""
+
+    def test_default_include_search_depth(self):
+        """デフォルトではinclude_search_depth=5"""
+        config = GraphConfig.from_dict({"vocab": {}})
+        assert config.include_search_depth == 5
+
+    def test_custom_include_search_depth(self):
+        """config.yamlからinclude-search-depthを設定できる"""
+        config = GraphConfig.from_dict(
+            {"vocab": {}, "include-search-depth": 10}
+        )
+        assert config.include_search_depth == 10
+
+    def test_include_search_depth_zero(self):
+        """include-search-depth=0（探索しない）も有効"""
+        config = GraphConfig.from_dict(
+            {"vocab": {}, "include-search-depth": 0}
+        )
+        assert config.include_search_depth == 0
+
+    def test_include_search_depth_negative_raises(self):
+        """include-search-depth < 0はエラー"""
+        with pytest.raises(ValueError, match="include-search-depth"):
+            GraphConfig.from_dict(
+                {"vocab": {}, "include-search-depth": -1}
+            )
+
+
+class TestElsetQualityStats:
+    """Elsetごとの品質統計テスト"""
+
+    def test_elset_quality_property_on_elset_node(self, config: GraphConfig):
+        """mesh_elset_qualityからelsetノードにqualityが付与される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={
+                     "path": "go_idx1.inp", "index": "1",
+                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                     "mesh_elset_quality": {
+                         "BODY": {
+                             "element_count": 100,
+                             "quality": {
+                                 "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
+                             },
+                         },
+                         "SKIN": {
+                             "element_count": 50,
+                             "quality": {
+                                 "volume": {"min": 0.2, "max": 0.8, "mean": 0.4},
+                             },
+                         },
+                     },
+                 }),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
+        assert "quality" in elset_nodes["BODY"].properties
+        assert elset_nodes["BODY"].properties["quality"]["volume"]["mean"] == 0.5
+        assert "quality" in elset_nodes["SKIN"].properties
+        assert elset_nodes["SKIN"].properties["quality"]["volume"]["mean"] == 0.4
+
+    def test_elset_quality_from_include_child(self, config: GraphConfig):
+        """include先からもelset品質統計が統合される"""
+        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="mesh", name="mesh_t50", format="inp",
+                 properties={
+                     "path": "mesh_t50.inp",
+                     "mesh_elset_summary": {"PART_A": 200},
+                     "mesh_elset_quality": {
+                         "PART_A": {
+                             "element_count": 200,
+                             "quality": {
+                                 "aspect_ratio": {"min": 1.0, "max": 3.0, "mean": 1.5},
+                             },
+                         },
+                     },
+                 }),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = AbaqusElsetParser().apply(graph)
+
+        elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
+        assert "quality" in elset_nodes["PART_A"].properties
+        assert elset_nodes["PART_A"].properties["quality"]["aspect_ratio"]["mean"] == 1.5
+
+
+class TestIncludesParserCache:
+    """IncludesRelationParserのキャッシュ機能テスト"""
+
+    def test_includes_parser_caches_results(self, tmp_path: Path, config: GraphConfig):
+        """IncludesRelationParserがキャッシュにincludeパスを保存する"""
+        from services.parse.parsers.output_parser import IncludesRelationParser
+
+        content = (
+            "*INCLUDE, INPUT=mesh_t50.inp\n"
+            "*STEP, NAME=Step-1\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1.inp").write_text(content, encoding="utf-8")
+        (tmp_path / "mesh_t50.inp").write_text("*NODE\n1, 0, 0, 0\n", encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp",
+                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="mesh", name="mesh_t50", format="inp",
+                 properties={"path": "mesh_t50.inp"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = IncludesRelationParser().apply(graph)
+
+        includes = [r for r in result.relations if r.label == "includes"]
+        assert len(includes) >= 1
+
+        # キャッシュに保存されている
+        cache_key = f"includes:{tmp_path / 'go_idx1.inp'}"
+        cached = result.get_cache(cache_key)
+        assert cached is not None
+        assert "mesh_t50.inp" in cached
 
 
 # ====================================================================
@@ -1790,10 +1981,10 @@ class TestMeshParserCache:
         call_count = 0
         original_read_inp = None
 
-        def counting_read_inp(path, verbose=True):
+        def counting_read_inp(path, verbose=True, include_max_depth=5):
             nonlocal call_count
             call_count += 1
-            return original_read_inp(path, verbose=verbose)
+            return original_read_inp(path, verbose=verbose, include_max_depth=include_max_depth)
 
         from services.parse.connectors import abaqus
         original_read_inp = abaqus.read_inp
