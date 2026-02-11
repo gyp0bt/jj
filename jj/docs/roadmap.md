@@ -35,6 +35,9 @@ services/
 │       └── obsidian/       # Obsidianエクスポート、daily連携
 │           ├── __init__.py # ObsidianConnector, export_graph等
 │           └── daily.py    # DailyNote解析
+├── dashboard/              # ダッシュボード向けデータ供給
+│   ├── __init__.py         # DashboardDataProvider公開
+│   └── data_provider.py    # テーブル/カード/プロット/ステータスデータ生成
 ├── export/                 # グラフの外部出力（ローカル以外）
 │   └── connectors/
 │       └── neo4j.py        # Neo4jConnector
@@ -319,16 +322,18 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 
 ### 優先度: 高
 
-#### D1. データ供給基盤（DashboardDataProvider）
+#### D1. データ供給基盤（DashboardDataProvider） ✅ 完了
 
-- [ ] `DashboardDataProvider` クラスの実装
-  - [ ] `get_go_table()` → DataFrame変換（プロパティ展開済み）
-  - [ ] `get_node_card()` → 詳細辞書（関連ノード含む）
-  - [ ] `get_plot_data()` → 数値プロパティ抽出
-  - [ ] `get_property_keys()` → 利用可能キー一覧
-  - [ ] `get_status_summary()` → 実行ステータスサマリー
-- [ ] `jj export --target dashboard-json` の実装
-- [ ] テスト
+- [x] `DashboardDataProvider` クラスの実装
+  - [x] `get_go_table()` → テーブルデータ（プロパティ展開済み）
+  - [x] `get_node_card()` → 詳細辞書（関連ノード含む）
+  - [x] `get_plot_data()` → 数値プロパティ抽出
+  - [x] `get_property_keys()` → 利用可能キー一覧
+  - [x] `get_status_summary()` → 実行ステータスサマリー
+  - [x] `get_related_files()` → 関連ファイル一覧
+  - [x] `to_dashboard_json()` → dashboard-json形式エクスポート
+- [x] `jj export --target dashboard-json` の実装
+- [x] テスト（24件パス）
 
 #### D2. Streamlitダッシュボード
 
@@ -610,6 +615,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-059.md)
+- [最新ステータス](./status/status-060.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

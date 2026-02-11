@@ -1155,6 +1155,126 @@ class TestAbaqusDiffParser:
         assert "diff_from" not in v2_node.properties
 
 
+class TestParserCache:
+    """ProjectGraphのパーサーキャッシュ機能テスト"""
+
+    def test_cache_set_and_get(self, config: GraphConfig, tmp_path: Path):
+        """set_cache/get_cacheで値を保存・取得できる"""
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        assert graph.get_cache("key1") is None
+        graph.set_cache("key1", {"data": 42})
+        assert graph.get_cache("key1") == {"data": 42}
+
+    def test_abq_cache_set_and_get(self, config: GraphConfig, tmp_path: Path):
+        """set_cached_abq_data/get_cached_abq_dataでABQDataを保存・取得できる"""
+        graph = _make_graph([], config=config, project_root=tmp_path)
+        assert graph.get_cached_abq_data("/path/to/file.inp") is None
+        sentinel = object()
+        graph.set_cached_abq_data("/path/to/file.inp", sentinel)
+        assert graph.get_cached_abq_data("/path/to/file.inp") is sentinel
+
+    def test_diff_parser_uses_cache(self, tmp_path: Path, config: GraphConfig):
+        """AbaqusDiffParserがキャッシュを使い、同一ファイルの再パースを避ける"""
+        from unittest.mock import patch
+
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 2.0, 0.0, 0.0\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        content_v3 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 3.0, 0.0, 0.0\n"
+            "*STEP, NAME=Step-1\n"
+            "*STATIC\n"
+            "1., 1.\n"
+            "*END STEP\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
+        (tmp_path / "go_idx1_v3.inp").write_text(content_v3, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(id=3, type="go", name="go_idx1_v3", format="inp",
+                 properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+
+        # read_inp呼び出し回数を追跡
+        call_count = 0
+        original_read_inp = None
+
+        def counting_read_inp(path, verbose=True):
+            nonlocal call_count
+            call_count += 1
+            return original_read_inp(path, verbose=verbose)
+
+        from services.parse.connectors import abaqus
+        original_read_inp = abaqus.read_inp
+
+        with patch.object(abaqus, "read_inp", side_effect=counting_read_inp):
+            AbaqusDiffParser().apply(graph)
+
+        # v1, v2, v3の3ファイル。v2は(v1,v2)と(v2,v3)の両方で使われるが
+        # キャッシュにより3回のみ呼ばれる（キャッシュなしだと4回）
+        assert call_count == 3
+
+    def test_diff_parser_populates_cache(self, tmp_path: Path, config: GraphConfig):
+        """AbaqusDiffParser実行後にキャッシュが populated される"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        content_v1 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+        )
+        content_v2 = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
+        (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(id=2, type="go", name="go_idx1_v2", format="inp",
+                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+
+        # 実行前はキャッシュ空
+        assert graph.get_cached_abq_data(str(tmp_path / "go_idx1_v1.inp")) is None
+
+        AbaqusDiffParser().apply(graph)
+
+        # 実行後はキャッシュに入っている
+        cached_v1 = graph.get_cached_abq_data(str(tmp_path / "go_idx1_v1.inp"))
+        cached_v2 = graph.get_cached_abq_data(str(tmp_path / "go_idx1_v2.inp"))
+        assert cached_v1 is not None
+        assert cached_v2 is not None
+
+
 # ====================================================================
 # ヘルパー: GraphServiceの最小スタブ
 # ====================================================================

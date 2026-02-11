@@ -31,14 +31,23 @@ class AbaqusDiffParser(AbstractFileParser):
     priority = 90
     requires_full = True
 
+    @staticmethod
+    def _get_or_parse_inp(graph: ProjectGraph, file_path: str) -> object:
+        """read_inp()結果をキャッシュから取得、なければパースしてキャッシュに保存"""
+        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+
+        cached = graph.get_cached_abq_data(file_path)
+        if cached is not None:
+            return cached
+        abq = abq_read_inp(file_path, verbose=False)
+        graph.set_cached_abq_data(file_path, abq)
+        return abq
+
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus import (
             diff_abq_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,
-        )
-        from services.parse.connectors.abaqus import (
-            read_inp as abq_read_inp,
         )
 
         input_extensions = graph.config.file_relations.input_extensions
@@ -80,8 +89,8 @@ class AbaqusDiffParser(AbstractFileParser):
                     continue
 
                 try:
-                    prev_abq = abq_read_inp(str(prev_path), verbose=False)
-                    next_abq = abq_read_inp(str(next_path), verbose=False)
+                    prev_abq = self._get_or_parse_inp(graph, str(prev_path))
+                    next_abq = self._get_or_parse_inp(graph, str(next_path))
                     diffs = diff_abq_blocks(prev_abq, next_abq)
 
                     # 差分がなくてもdiffノードを作成する（差分なしの記録として）
