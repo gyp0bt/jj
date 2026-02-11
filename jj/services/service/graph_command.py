@@ -80,6 +80,16 @@ class ExportNeo4jResult:
 
 
 @dataclass
+class ExportDashboardJsonResult:
+    """dashboard-jsonエクスポートの結果"""
+
+    output_path: Path
+    node_count: int
+    relation_count: int
+    row_count: int
+
+
+@dataclass
 class InfoResult:
     """infoコマンドの結果"""
 
@@ -362,6 +372,60 @@ class GraphCommandService:
             output_path=output_path,
             count=count,
             target=target,
+        )
+
+    # =========
+    # export: dashboard-json
+    # =========
+
+    def export_dashboard_json(
+        self,
+        graph: GraphModel,
+        *,
+        output_file: str | None = None,
+        project_name: str | None = None,
+    ) -> ExportDashboardJsonResult:
+        """dashboard-jsonエクスポート
+
+        GraphModelからダッシュボード向けJSONデータを生成しファイルに出力する。
+
+        Args:
+            graph: エクスポート対象のグラフ
+            output_file: 出力ファイル名（未指定時は .jj/storage/dashboard.json）
+            project_name: プロジェクト名（メタデータ用）
+
+        Returns:
+            ExportDashboardJsonResult
+        """
+        import json
+
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        config = self._graph_service.config
+        provider = DashboardDataProvider(
+            graph,
+            vocab=config.vocab,
+            units=config.export.units,
+        )
+
+        name = project_name or self.project_root.name
+        data = provider.to_dashboard_json(project_name=name)
+
+        if output_file:
+            out_path = Path(output_file)
+        else:
+            storage_dir = self.project_root / ".jj" / "storage"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            out_path = storage_dir / "dashboard.json"
+
+        with out_path.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+
+        return ExportDashboardJsonResult(
+            output_path=out_path,
+            node_count=len(graph.nodes),
+            relation_count=len(graph.relations),
+            row_count=len(data["rows"]),
         )
 
     # =========

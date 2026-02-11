@@ -100,7 +100,7 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
     """exportコマンドの引数を追加"""
     parser.add_argument(
         "--target",
-        choices=["obsidian", "csv", "json", "neo4j", "cypher"],
+        choices=["obsidian", "csv", "json", "neo4j", "cypher", "dashboard-json"],
         default="obsidian",
         help="エクスポート先（デフォルト: obsidian）",
     )
@@ -670,6 +670,8 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
             return _print_export_neo4j(service, graph, args, direct=True)
         elif target == "cypher":
             return _print_export_neo4j(service, graph, args, direct=False)
+        elif target == "dashboard-json":
+            return _print_export_dashboard_json(service, graph, args)
         else:
             print(f"未対応のエクスポート先: {target}")
             return 1
@@ -779,6 +781,33 @@ def _print_export_neo4j(
         return 1
     except Exception as e:
         print(f"Neo4jエクスポートエラー: {e}", file=sys.stderr)
+        return 1
+
+
+def _print_export_dashboard_json(
+    service: GraphCommandService,
+    graph: "GraphModel",
+    args: argparse.Namespace,
+) -> int:
+    """dashboard-jsonエクスポートの出力整形"""
+    try:
+        result = service.export_dashboard_json(
+            graph,
+            output_file=getattr(args, "output", None),
+        )
+        try:
+            rel_path = result.output_path.relative_to(service.project_root)
+        except ValueError:
+            rel_path = result.output_path
+        print(f"dashboard-jsonエクスポート完了: {rel_path}")
+        print(
+            f"ノード: {result.node_count}件、"
+            f"リレーション: {result.relation_count}件、"
+            f"テーブル行: {result.row_count}件"
+        )
+        return 0
+    except Exception as e:
+        print(f"dashboard-jsonエクスポートエラー: {e}", file=sys.stderr)
         return 1
 
 

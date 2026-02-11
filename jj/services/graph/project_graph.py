@@ -67,6 +67,7 @@ class ProjectGraph:
     _relation_id_counter: int = field(default=0, repr=False)
     _node_by_path: dict[str, Node] = field(default_factory=dict, repr=False)
     _node_by_id: dict[int, Node] = field(default_factory=dict, repr=False)
+    _parser_cache: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         """既存ノードのインデックスを構築"""
@@ -184,6 +185,46 @@ class ProjectGraph:
             path = n.properties.get("path", "")
             if path:
                 self._node_by_path[path] = n
+
+    def get_cache(self, key: str) -> Any:
+        """パーサー間で共有するキャッシュから値を取得
+
+        Args:
+            key: キャッシュキー
+
+        Returns:
+            キャッシュされた値。存在しない場合はNone。
+        """
+        return self._parser_cache.get(key)
+
+    def set_cache(self, key: str, value: Any) -> None:
+        """パーサー間で共有するキャッシュに値を設定
+
+        Args:
+            key: キャッシュキー
+            value: キャッシュする値
+        """
+        self._parser_cache[key] = value
+
+    def get_cached_abq_data(self, file_path: str) -> Any:
+        """read_inp()結果のキャッシュを取得
+
+        Args:
+            file_path: .inpファイルのパス文字列
+
+        Returns:
+            キャッシュされたABQData。存在しない場合はNone。
+        """
+        return self._parser_cache.get(f"abq:{file_path}")
+
+    def set_cached_abq_data(self, file_path: str, abq_data: Any) -> None:
+        """read_inp()結果をキャッシュに保存
+
+        Args:
+            file_path: .inpファイルのパス文字列
+            abq_data: キャッシュするABQData
+        """
+        self._parser_cache[f"abq:{file_path}"] = abq_data
 
     def iterate_directories(self) -> Iterator[ProjectDirectory]:
         """ノードのパス情報からディレクトリツリーを構築してイテレート
