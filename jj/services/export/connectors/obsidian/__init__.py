@@ -726,11 +726,8 @@ class ObsidianConnector:
         parent_links = self._build_parent_links(version_groups)
 
         # ノードごとにmdファイルを書き出し（props/は上書き前提）
-        # メタノード（index_group, version_diff等）はmd出力対象外
-        _meta_types = {"index_group", "version_diff"}
+        # 全ノード（ファイル、ディレクトリ、非ファイルノード含む）を出力
         for node in graph.nodes:
-            if node.type in _meta_types:
-                continue
             node_relations = relations_by_node.get(node.id, [])
             # 親リンクをincludesに設定
             includes = None
@@ -812,11 +809,8 @@ class ObsidianConnector:
         # type でグループ化（同一タイプ）
         type_groups: dict[str, list[Node]] = defaultdict(list)
 
-        # メタノード（index_group, version_diff等）はbase生成対象外
-        _meta_types = {"index_group", "version_diff"}
+        # 全ノードをbase生成対象に含める
         for node in graph.nodes:
-            if node.type in _meta_types:
-                continue
             index = self._get_node_index(node)
             if index:
                 idx_groups[(node.type, index)].append(node)

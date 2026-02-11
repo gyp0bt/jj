@@ -385,6 +385,8 @@ class AbaqusElsetParser(AbstractFileParser):
     go_*.inpファイル（include先含む）で定義されているelset名を
     Node(type="abaqus_elset")として生成する。
     各elsetノードにはelement数と材料割り当て情報もproperty化する。
+    材料が割り当てられているelsetは、対応するabaqus_materialノードへの
+    uses_material relationを持つ。
     """
 
     priority = 98
@@ -394,6 +396,12 @@ class AbaqusElsetParser(AbstractFileParser):
         for rel in graph.relations:
             if rel.label == "includes":
                 includes_map[rel.node1_id].append(rel.node2_id)
+
+        # abaqus_materialノードを材料名(小文字)でインデックス化
+        mat_by_name: dict[str, Node] = {}
+        for n in graph.nodes:
+            if n.type == "abaqus_material":
+                mat_by_name[n.name.lower()] = n
 
         for node in list(graph.nodes):
             ext = f".{node.format}" if node.format else ""
@@ -456,8 +464,9 @@ class AbaqusElsetParser(AbstractFileParser):
                     elset_props["element_count"] = merged_elset_summary[elset_name]
 
                 # 材料割り当て
-                if elset_name in elset_to_material:
-                    elset_props["material"] = elset_to_material[elset_name]
+                assigned_material_name = elset_to_material.get(elset_name)
+                if assigned_material_name:
+                    elset_props["material"] = assigned_material_name
 
                 elset_node = Node(
                     id=graph.next_node_id(),
@@ -469,6 +478,7 @@ class AbaqusElsetParser(AbstractFileParser):
                 graph.add_node(elset_node)
                 go_elset_names.append(elset_name)
 
+                # has_elset: go_*.inp → elsetノード
                 graph.add_relation(
                     Relation(
                         id=graph.next_relation_id(),
@@ -477,6 +487,19 @@ class AbaqusElsetParser(AbstractFileParser):
                         node2_id=elset_node.id,
                     )
                 )
+
+                # uses_material: elsetノード → abaqus_materialノード
+                if assigned_material_name:
+                    mat_node = mat_by_name.get(assigned_material_name.lower())
+                    if mat_node:
+                        graph.add_relation(
+                            Relation(
+                                id=graph.next_relation_id(),
+                                label="uses_material",
+                                node1_id=elset_node.id,
+                                node2_id=mat_node.id,
+                            )
+                        )
 
             if go_elset_names:
                 node.properties["elsets"] = go_elset_names

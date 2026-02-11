@@ -23,6 +23,61 @@ PathList = Union[PathLike, List[PathLike]]
 # ==========================
 
 
+def _resolve_include_path(
+    include_name: str,
+    file_path: Path,
+    max_depth: int = 5,
+) -> Optional[Path]:
+    """*INCLUDEで参照されるファイルを探索する
+
+    探索順序:
+    1. ファイルを含むフォルダ (file_path.parent)
+    2. スクリプト実行フォルダ (cwd)
+    3. cwd配下をN階層まで再帰的に探索
+
+    Args:
+        include_name: include対象のファイル名/相対パス
+        file_path: includeディレクティブを含むファイルのパス
+        max_depth: 再帰探索の最大階層数
+
+    Returns:
+        解決されたファイルパス。見つからない場合はNone。
+    """
+    # 1. ファイルを含むフォルダから探索
+    candidate = (file_path.parent / include_name).resolve()
+    if candidate.exists():
+        return candidate
+
+    # 2. スクリプト実行フォルダ (cwd) から探索
+    cwd = Path.cwd()
+    candidate = (cwd / include_name).resolve()
+    if candidate.exists():
+        return candidate
+
+    # 3. cwd配下を再帰的にN階層まで探索
+    include_filename = Path(include_name).name
+    for depth_path in _walk_max_depth(cwd, max_depth):
+        candidate = depth_path / include_filename
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
+def _walk_max_depth(root: Path, max_depth: int) -> Generator[Path, None, None]:
+    """ディレクトリをmax_depth階層まで走査する"""
+    if max_depth < 0:
+        return
+    try:
+        yield root
+        if max_depth > 0:
+            for entry in sorted(root.iterdir()):
+                if entry.is_dir() and not entry.name.startswith("."):
+                    yield from _walk_max_depth(entry, max_depth - 1)
+    except PermissionError:
+        return
+
+
 def _normalize_paths(file_paths: PathList) -> List[Path]:
     """内部用: パス引数を List[Path] に正規化"""
     if isinstance(file_paths, (str, Path)):
@@ -58,8 +113,13 @@ def read_files_with_unknown_encoding(
     """未知のエンコーディングの複数ファイルを行単位で読み込む
 
     * chardetで先頭数KBから推定
-    * *INCLUDE を再帰的に辿る
+    * *INCLUDE を再帰的に辿る（複数階層探索対応）
     * メモリ効率を意識して逐次yield
+
+    include探索順序:
+    1. ファイルを含むフォルダ
+    2. スクリプト実行フォルダ (cwd)
+    3. cwd配下をN階層まで再帰的に探索
 
     Args:
         file_paths (PathList): ファイルパス or そのリスト
@@ -92,7 +152,15 @@ def read_files_with_unknown_encoding(
                             )
                             continue
                         include_name = m.group(1)
-                        include_path = (file_path.parent / include_name).resolve()
+                        include_path = _resolve_include_path(
+                            include_name, file_path
+                        )
+                        if include_path is None:
+                            print(
+                                f"Warning: *INCLUDE ファイルが見つかりません（スキップ）: "
+                                f"{include_name} (from {file_path})"
+                            )
+                            continue
                         if verbose:
                             print(f"Reading included file: {include_path}")
                         yield from read_files_with_unknown_encoding(
