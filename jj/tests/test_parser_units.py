@@ -2160,3 +2160,346 @@ class TestPymeshWithModules:
         stats_no_cache = extract_mesh_stats(inp_file, verbose=False)
         assert stats["node_count"] == stats_no_cache["node_count"]
         assert stats["element_count"] == stats_no_cache["element_count"]
+
+
+# =========================================================================
+# AbstractExporter 基底クラス テスト
+# =========================================================================
+
+
+class TestAbstractExporter:
+    """AbstractExporter基底クラスと自動登録のテスト"""
+
+    def test_exporter_registry_contains_csv_json(self):
+        """CSV/JSONエクスポーターがレジストリに登録されていること"""
+        from services.export import get_exporter_registry
+        from services.export.connectors.csv_json import CsvExporter, JsonExporter
+
+        registry = get_exporter_registry()
+        cls_names = [cls.__name__ for cls in registry]
+        assert "CsvExporter" in cls_names
+        assert "JsonExporter" in cls_names
+
+    def test_get_exporter_for_format_csv(self):
+        """format="csv"でCsvExporterが返ること"""
+        from services.export import get_exporter_for_format
+        from services.export.connectors.csv_json import CsvExporter
+
+        exporter_cls = get_exporter_for_format("csv")
+        assert exporter_cls is CsvExporter
+
+    def test_get_exporter_for_format_json(self):
+        """format="json"でJsonExporterが返ること"""
+        from services.export import get_exporter_for_format
+        from services.export.connectors.csv_json import JsonExporter
+
+        exporter_cls = get_exporter_for_format("json")
+        assert exporter_cls is JsonExporter
+
+    def test_get_exporter_for_format_unknown(self):
+        """未知のformatではNoneが返ること"""
+        from services.export import get_exporter_for_format
+
+        assert get_exporter_for_format("unknown_format_xyz") is None
+
+    def test_csv_exporter_export(self, tmp_path: Path):
+        """CsvExporterのexport()がCSVファイルを生成すること"""
+        from jj_types import GraphModel
+        from services.export.connectors.csv_json import CsvExporter
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp", properties={"index": "1"}),
+            Node(id=2, type="go", name="test2", format="inp", properties={"index": "2"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = CsvExporter()
+        result = exporter.export(graph, project_root=tmp_path)
+        assert result["count"] == 2
+        assert result["output_path"].exists()
+        content = result["output_path"].read_text(encoding="utf-8-sig")
+        assert "test1" in content
+        assert "test2" in content
+
+    def test_json_exporter_export(self, tmp_path: Path):
+        """JsonExporterのexport()がJSONファイルを生成すること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.csv_json import JsonExporter
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp", properties={"version": "1"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = JsonExporter()
+        result = exporter.export(graph, project_root=tmp_path)
+        assert result["count"] == 1
+        data = json.loads(result["output_path"].read_text(encoding="utf-8"))
+        assert len(data) == 1
+        assert data[0]["name"] == "test1"
+
+
+# =========================================================================
+# CSV/JSONエクスポーターのElset品質統計平坦化テスト
+# =========================================================================
+
+
+class TestElsetCsvExport:
+    """Elsetノードの品質統計がCSVエクスポートで平坦化されること"""
+
+    def test_elset_quality_flattened_in_csv(self, tmp_path: Path):
+        """quality辞書が"."区切りで平坦化されたカラムになること"""
+        from jj_types import GraphModel
+        from services.export.connectors.csv_json import CsvExporter
+
+        nodes = [
+            Node(
+                id=1, type="abaqus_elset", name="ELSET1", format="",
+                properties={
+                    "element_count": 100,
+                    "material": "Steel",
+                    "quality": {
+                        "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
+                        "aspect_ratio": {"min": 1.0, "max": 3.0, "mean": 1.5},
+                    },
+                },
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = CsvExporter()
+        result = exporter.export(graph, project_root=tmp_path)
+        content = result["output_path"].read_text(encoding="utf-8-sig")
+        # 平坦化されたキーがヘッダーに含まれること
+        assert "quality.volume.min" in content
+        assert "quality.volume.max" in content
+        assert "quality.aspect_ratio.mean" in content
+
+    def test_elset_type_filter_in_csv(self, tmp_path: Path):
+        """type_filter="abaqus_elset"でelsetノードのみエクスポートされること"""
+        from jj_types import GraphModel
+        from services.export.connectors.csv_json import CsvExporter
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp", properties={}),
+            Node(id=2, type="abaqus_elset", name="ELSET1", format="", properties={"element_count": 50}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = CsvExporter()
+        result = exporter.export(graph, project_root=tmp_path, type_filter="abaqus_elset")
+        assert result["count"] == 1
+        content = result["output_path"].read_text(encoding="utf-8-sig")
+        assert "ELSET1" in content
+        assert "test1" not in content
+
+
+# =========================================================================
+# ABQDataキャッシュ自動クリーンアップテスト
+# =========================================================================
+
+
+class TestABQCacheCleanup:
+    """ABQDataキャッシュの自動クリーンアップテスト"""
+
+    def test_cleanup_removes_old_cache(self, tmp_path: Path):
+        """max_age_daysを超えたキャッシュファイルが削除されること"""
+        import time
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        project_root = tmp_path
+        (project_root / ".jj" / "storage" / "abq_cache").mkdir(parents=True)
+        cache_dir = project_root / ".jj" / "storage" / "abq_cache"
+
+        # 古いキャッシュファイルを作成（mtimeを31日前に設定）
+        old_file = cache_dir / "old_cache.pickle"
+        old_file.write_bytes(b"old")
+        old_mtime = time.time() - (31 * 86400)
+        import os
+        os.utime(old_file, (old_mtime, old_mtime))
+
+        # 新しいキャッシュファイルを作成
+        new_file = cache_dir / "new_cache.pickle"
+        new_file.write_bytes(b"new")
+
+        deleted = storage.cleanup_abq_cache(project_root, max_age_days=30)
+        assert deleted == 1
+        assert not old_file.exists()
+        assert new_file.exists()
+
+    def test_cleanup_respects_max_count(self, tmp_path: Path):
+        """max_countを超えたキャッシュが古い順に削除されること"""
+        import time
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        project_root = tmp_path
+        cache_dir = project_root / ".jj" / "storage" / "abq_cache"
+        cache_dir.mkdir(parents=True)
+
+        # 5つのキャッシュファイルを作成（異なるmtimeで）
+        now = time.time()
+        for i in range(5):
+            f = cache_dir / f"cache_{i}.pickle"
+            f.write_bytes(f"data_{i}".encode())
+            import os
+            os.utime(f, (now - (5 - i) * 100, now - (5 - i) * 100))
+
+        # max_count=3に制限
+        deleted = storage.cleanup_abq_cache(project_root, max_age_days=365, max_count=3)
+        assert deleted == 2  # 古い2つが削除される
+        remaining = list(cache_dir.glob("*.pickle"))
+        assert len(remaining) == 3
+
+    def test_cleanup_empty_dir(self, tmp_path: Path):
+        """空のキャッシュディレクトリで0が返ること"""
+        from services.graph.storage import GraphStorage
+
+        storage = GraphStorage()
+        deleted = storage.cleanup_abq_cache(tmp_path, max_age_days=30)
+        assert deleted == 0
+
+    def test_cleanup_called_after_parse_and_save(self):
+        """parse_and_save後にcleanup_abq_cacheが呼ばれること"""
+        from unittest.mock import MagicMock, patch
+
+        from services.graph import GraphService
+
+        with patch.object(GraphService, "parse_project") as mock_parse:
+            with patch.object(GraphService, "save") as mock_save:
+                mock_graph = MagicMock()
+                mock_parse.return_value = mock_graph
+                mock_save.return_value = Path("/tmp/test.yaml")
+
+                service = GraphService(project_root=Path("/tmp/test_project"))
+                # cleanup_abq_cacheをモック
+                service.storage.cleanup_abq_cache = MagicMock(return_value=0)
+                service.parse_and_save()
+
+                service.storage.cleanup_abq_cache.assert_called_once()
+
+
+# =========================================================================
+# Obsidian Elset-材料 Dataviewクエリテスト
+# =========================================================================
+
+
+class TestObsidianElsetDataview:
+    """Obsidianエクスポートのelsetノード用Dataviewクエリのテスト"""
+
+    def test_elset_node_has_dataview_query(self):
+        """abaqus_elsetノードのmd出力にDataviewクエリが含まれること"""
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        node = Node(
+            id=1, type="abaqus_elset", name="ELSET_A", format="",
+            properties={
+                "element_count": 100,
+                "material": "Steel_S235",
+                "source_file": "go_test_v1.inp",
+            },
+        )
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+        assert "```dataview" in content
+        assert 'WHERE material = "Steel_S235"' in content
+        assert "TABLE material" in content
+
+    def test_material_node_has_elset_dataview(self):
+        """abaqus_materialノードのmd出力にelset用Dataviewクエリが含まれること"""
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        node = Node(
+            id=1, type="abaqus_material", name="Steel_S235", format="material",
+            properties={},
+        )
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+        assert "```dataview" in content
+        assert 'WHERE material = "Steel_S235"' in content
+        assert "使用Elset" in content
+
+    def test_go_node_with_elsets_has_dataview(self):
+        """elsets propertyを持つgoノードにDataviewクエリが含まれること"""
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        node = Node(
+            id=1, type="go", name="go_test_v1", format="inp",
+            properties={
+                "elsets": ["ELSET_A", "ELSET_B"],
+                "path": "go_test_v1.inp",
+            },
+        )
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+        assert "```dataview" in content
+        assert "所属Elset一覧" in content
+
+
+# =========================================================================
+# Obsidian Canvas 出力テスト
+# =========================================================================
+
+
+class TestObsidianElsetCanvas:
+    """Obsidian Canvasのelset-材料マップ生成テスト"""
+
+    def test_canvas_generated_with_elsets(self, tmp_path: Path):
+        """elsetノードが存在する場合にcanvasファイルが生成されること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
+            Node(id=2, type="abaqus_elset", name="ELSET_A", format="",
+                 properties={"material": "Steel", "element_count": 100}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_canvas(graph)
+
+        assert canvas_path is not None
+        assert canvas_path.exists()
+        assert canvas_path.suffix == ".canvas"
+
+        data = json.loads(canvas_path.read_text(encoding="utf-8"))
+        assert len(data["nodes"]) == 2
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["label"] == "uses_material"
+
+    def test_canvas_not_generated_without_elsets(self, tmp_path: Path):
+        """elsetノードがない場合にcanvasが生成されないこと"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="test", format="inp", properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_canvas(graph)
+        assert canvas_path is None
+
+    def test_canvas_unassigned_elsets(self, tmp_path: Path):
+        """材料が割り当てられていないelsetもcanvasに含まれること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="abaqus_elset", name="ELSET_A", format="",
+                 properties={"element_count": 50}),  # 材料なし
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        canvas_path = connector._write_elset_material_canvas(graph)
+
+        assert canvas_path is not None
+        data = json.loads(canvas_path.read_text(encoding="utf-8"))
+        assert len(data["nodes"]) == 1
+        assert len(data["edges"]) == 0  # 材料がないのでエッジなし

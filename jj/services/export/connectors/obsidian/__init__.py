@@ -644,6 +644,37 @@ class ObsidianConnector:
                             f"| {metric_vals.get('mean', '-')} |\n"
                         )
 
+            # Dataview クエリ: Elsetと材料の関係を表示
+            content += "\n### 関連材料（Dataview）\n\n"
+            content += "```dataview\n"
+            content += "TABLE material AS \"材料\", element_count AS \"要素数\"\n"
+            content += "FROM \"notes/props/abaqus_elset\"\n"
+            if material:
+                content += f"WHERE material = \"{material}\"\n"
+            content += "SORT element_count DESC\n"
+            content += "```\n"
+
+        # goノード: 所属elsetの一覧をDataviewで表示
+        if node.type in ("go", "Abaqusインプット") and props.get("elsets"):
+            content += "\n### 所属Elset一覧（Dataview）\n\n"
+            content += "```dataview\n"
+            content += "TABLE element_count AS \"要素数\", material AS \"材料\"\n"
+            content += "FROM \"notes/props/abaqus_elset\"\n"
+            node_name = f"{node.name}.{node.format}" if node.format else node.name
+            content += f"WHERE source_file = \"{node_name}\"\n"
+            content += "SORT file.name ASC\n"
+            content += "```\n"
+
+        # abaqus_materialノード: 使用しているelsetをDataviewで表示
+        if node.type == "abaqus_material":
+            content += "\n### 使用Elset（Dataview）\n\n"
+            content += "```dataview\n"
+            content += "TABLE element_count AS \"要素数\", source_file AS \"ソースファイル\"\n"
+            content += "FROM \"notes/props/abaqus_elset\"\n"
+            content += f"WHERE material = \"{node.name}\"\n"
+            content += "SORT file.name ASC\n"
+            content += "```\n"
+
         return content
 
     def _get_node_index(self, node: Node) -> str:
@@ -790,6 +821,11 @@ class ObsidianConnector:
         # .baseファイル（NodeGroup）を生成（bases/は上書き前提）
         base_paths = self._write_base_files(graph, overwrite=True)
         written.extend(base_paths)
+
+        # Elset-材料関係 Obsidian Canvas を生成
+        canvas_path = self._write_elset_material_canvas(graph)
+        if canvas_path:
+            written.append(canvas_path)
 
         return written
 
@@ -1039,4 +1075,118 @@ class ObsidianConnector:
 
         data = {"views": views}
         return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+
+    def _write_elset_material_canvas(
+        self,
+        graph: GraphModel,
+    ) -> Optional[Path]:
+        """Elset-材料の関係をObsidian Canvas形式で出力
+
+        Obsidian Canvasは.canvas拡張子のJSONファイルで、ノードとエッジを
+        視覚的に配置するビジュアルキャンバスを生成する。
+        Elsetノードと材料ノードの関係（uses_material）をグラフ化する。
+
+        Args:
+            graph: グラフモデル
+
+        Returns:
+            書き込んだcanvasファイルのパス。elsetがない場合はNone。
+        """
+        import json as json_mod
+
+        elset_nodes = [n for n in graph.nodes if n.type == "abaqus_elset"]
+        material_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+
+        if not elset_nodes:
+            return None
+
+        canvas_nodes: list[dict[str, Any]] = []
+        canvas_edges: list[dict[str, Any]] = []
+
+        # 材料ノードの配置（上段）
+        material_positions: dict[str, str] = {}  # material_name -> canvas_node_id
+        for i, mat_node in enumerate(material_nodes):
+            node_id = f"mat_{mat_node.id}"
+            canvas_nodes.append({
+                "id": node_id,
+                "type": "file",
+                "file": str(self._get_canvas_md_path(mat_node)),
+                "x": i * 300,
+                "y": 0,
+                "width": 250,
+                "height": 60,
+                "color": "4",  # 緑系
+            })
+            material_positions[mat_node.name] = node_id
+
+        # Elsetノードの配置（下段、材料ごとにグループ化）
+        material_groups: dict[str, list[Node]] = {}
+        unassigned: list[Node] = []
+        for elset_node in elset_nodes:
+            mat = elset_node.properties.get("material", "")
+            if mat and mat in material_positions:
+                material_groups.setdefault(mat, []).append(elset_node)
+            else:
+                unassigned.append(elset_node)
+
+        col = 0
+        for mat_name, elsets in material_groups.items():
+            for j, elset_node in enumerate(elsets):
+                node_id = f"elset_{elset_node.id}"
+                canvas_nodes.append({
+                    "id": node_id,
+                    "type": "file",
+                    "file": str(self._get_canvas_md_path(elset_node)),
+                    "x": col * 300,
+                    "y": 200 + j * 80,
+                    "width": 250,
+                    "height": 60,
+                    "color": "1",  # 赤系
+                })
+                # エッジ: elset -> material
+                canvas_edges.append({
+                    "id": f"edge_{elset_node.id}_{mat_name}",
+                    "fromNode": node_id,
+                    "fromSide": "top",
+                    "toNode": material_positions[mat_name],
+                    "toSide": "bottom",
+                    "label": "uses_material",
+                })
+            col += 1
+
+        # 未割り当てelset
+        for j, elset_node in enumerate(unassigned):
+            node_id = f"elset_{elset_node.id}"
+            canvas_nodes.append({
+                "id": node_id,
+                "type": "file",
+                "file": str(self._get_canvas_md_path(elset_node)),
+                "x": col * 300,
+                "y": 200 + j * 80,
+                "width": 250,
+                "height": 60,
+                "color": "6",  # 灰色系
+            })
+
+        canvas_data = {
+            "nodes": canvas_nodes,
+            "edges": canvas_edges,
+        }
+
+        canvas_dir = self.project_root / self.config.notes_dir
+        canvas_dir.mkdir(parents=True, exist_ok=True)
+        canvas_path = canvas_dir / "elset_material_map.canvas"
+        canvas_path.write_text(
+            json_mod.dumps(canvas_data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return canvas_path
+
+    def _get_canvas_md_path(self, node: Node) -> Path:
+        """Canvas用のmd相対パスを返す（project_rootからの相対）"""
+        md_path = self.get_md_path(node)
+        try:
+            return md_path.relative_to(self.project_root)
+        except ValueError:
+            return md_path
 

@@ -524,6 +524,17 @@ class GraphService:
         """
         graph = self.parse_project(extensions=extensions, exclude_dirs=exclude_dirs, full_mode=full_mode, debug=debug)
         path = self.save(graph, filename)
+
+        # ABQDataキャッシュの自動クリーンアップ（古いキャッシュの削除）
+        try:
+            self.storage.cleanup_abq_cache(
+                self.project_root,
+                max_age_days=self.config.cache_max_age_days,
+                max_count=self.config.cache_max_count,
+            )
+        except Exception:
+            pass  # クリーンアップ失敗はパース結果に影響しない
+
         return graph, path
 
     def get_nodes_by_type(self, graph: GraphModel, node_type: str) -> list[Node]:

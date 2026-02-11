@@ -229,12 +229,12 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] graph/__init__.py の`parse_project()`をProjectGraph+パイプライン委譲に変更
 - [x] 統合テスト29件パス（test_parser_pipeline.py）
 
-#### R4. export層の整理 ✅ (status-043)
+#### R4. export層の整理 ✅ (status-043, status-063)
 
 - [x] Obsidianエクスポートを `export/connectors/obsidian/` へ移動（後方互換re-export維持）
 - [x] Neo4jエクスポートは `export/connectors/neo4j.py` に配置済み
-- [ ] CSV/JSONエクスポートを `export/connectors/` へ移動（将来対応）
-- [ ] `Exporter` 基底クラスの定義（将来対応）
+- [x] CSV/JSONエクスポートを `export/connectors/csv_json.py` へ移動 (status-063)
+- [x] `AbstractExporter` 基底クラスの定義（`__init_subclass__`自動登録パターン） (status-063)
 
 #### R5. lib層の整理 ✅ (status-043)
 
@@ -312,6 +312,16 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
   - [x] IncludesRelationParser/JsonPropertyParser キャッシュ対応
 - [x] **Obsidian version_diff/elset可視化** (status-062)
   - [x] version_diff/abaqus_elsetノードに専用セクション追加
+- [x] **ABQDataキャッシュ自動クリーンアップ** (status-063)
+  - [x] cleanup_abq_cache()メソッド（max_age_days/max_count制御）
+  - [x] parse_and_save()後の自動呼び出し
+  - [x] config.yaml設定項目（cache-max-age-days、cache-max-count）
+- [x] **Elset品質統計のCSVエクスポート対応** (status-063)
+  - [x] flatten_propertiesによるquality辞書の自動平坦化
+  - [x] --type abaqus_elsetによるelsetノード単独CSVエクスポート
+- [x] **ObsidianでElset-材料関係グラフ（Dataview/Canvas対応）** (status-063)
+  - [x] abaqus_elset/abaqus_material/goノードにDataviewクエリ追加
+  - [x] Obsidian Canvas形式（.canvas）でelset-materialマップ自動生成
 - [ ] ODB連携（Abaqus 2024 Python 3.10対応）
 - [ ] index.csv/yamlとファイルの紐付け
 - [ ] dailyノートをブロックごとに切り出してNodeに逆輸入
@@ -632,6 +642,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-062.md)
+- [最新ステータス](./status/status-063.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
