@@ -1,12 +1,17 @@
 # =========================
 # CLI (docker寄り) + 旧CLI互換
 # main.py から委譲されるCLI本体
+#
+# CLI層の責務: argparse解析 + 出力整形のみ。
+# ビジネスロジックはservices/service/に集約する。
+# service以外から直接ロジックをインポートすること、
+# 中でロジックを実装することを禁止する。
+#
+# [READMEへ戻る](../../README.md)
 # =========================
 import argparse
 import sys
 from pathlib import Path
-
-from config import load_ssh_config
 
 from services.cli.graph import (
     add_graph_parser,
@@ -14,29 +19,52 @@ from services.cli.graph import (
     run_graph_command,
     run_top_level_graph_command,
 )
-from services.run import RunService
-from services.service.submit import SubmitService, WarningItem
+from services.service.run_command import RunCommandService
+from services.service.submit import JobListItem, SubmitService, WarningItem
 
 # =========
-# Config
+# 定数
 # =========
-ssh_config = load_ssh_config()
-ssh_config.require("linux_local_basedirpath")
-base_dirpath = ssh_config.linux_local_basedirpath
-if base_dirpath is None:
-    raise ValueError("LINUX_LOCAL_BASEDIRPATHを'.pyssh.yaml'で指定してください。")
-
-remote_abq_path = ssh_config.remote_abq_path
-if remote_abq_path is None:
-    raise ValueError("REMOTE_ABQ_PATHを'.pyssh.yaml'で指定してください。")
 TOOL_DIRPATH = Path(__file__).resolve().parents[2]
 
-# SubmitServiceインスタンス（CLI全体で共用）
-_submit_service = SubmitService(
-    base_dirpath=base_dirpath,
-    remote_abq_path=remote_abq_path,
-    tool_dirpath=TOOL_DIRPATH,
-)
+
+# =========
+# SubmitService 遅延初期化
+# =========
+_submit_service: SubmitService | None = None
+
+
+def _get_submit_service() -> SubmitService:
+    """SubmitServiceを遅延初期化して返す。
+
+    SSH設定ファイルの読み込みをモジュールインポート時ではなく、
+    submit系コマンドの実行時に遅延させる。
+    これにより、graph系コマンドやrunコマンドなどSSH不要なコマンドが
+    SSH設定未構成の環境でも実行可能になる。
+    FastAPI等の他エントリポイントからも独立してサービスを構成可能。
+    """
+    global _submit_service
+    if _submit_service is not None:
+        return _submit_service
+
+    from config import load_ssh_config
+
+    ssh_config = load_ssh_config()
+    ssh_config.require("linux_local_basedirpath")
+    base_dirpath = ssh_config.linux_local_basedirpath
+    if base_dirpath is None:
+        raise ValueError("LINUX_LOCAL_BASEDIRPATHを'.pyssh.yaml'で指定してください。")
+
+    remote_abq_path = ssh_config.remote_abq_path
+    if remote_abq_path is None:
+        raise ValueError("REMOTE_ABQ_PATHを'.pyssh.yaml'で指定してください。")
+
+    _submit_service = SubmitService(
+        base_dirpath=base_dirpath,
+        remote_abq_path=remote_abq_path,
+        tool_dirpath=TOOL_DIRPATH,
+    )
+    return _submit_service
 
 
 # =========
@@ -198,7 +226,8 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
 # ターゲット解決（SubmitServiceに委譲）
 # =========
 def resolve_targets(args: argparse.Namespace) -> list[str]:
-    return _submit_service.resolve_targets(
+    service = _get_submit_service()
+    return service.resolve_targets(
         inp_files=getattr(args, "inp_files", None),
         index=getattr(args, "index", None),
         inp_files_versions=getattr(args, "inp_files_versions", None),
@@ -220,34 +249,45 @@ def _print_warnings(warnings: list[WarningItem]) -> None:
 
 
 def run_list(targets: list[str]) -> int:
-    if targets:
+    """listコマンド: SubmitService.list_jobs()に委譲し、結果を出力する"""
+    service = _get_submit_service()
+    jobs = service.list_jobs(targets)
+
+    if jobs:
         print("Jobs that will be submitted")
-        for i in targets:
-            print(f"\t- {i}, {_submit_service.get_abq_job_name(i)}")
+        for item in jobs:
+            print(f"\t- {item.target}, {item.job_name}")
     else:
         print("NO jobs will be submitted")
     return 0
 
 
 def run_check_syntax(targets: list[str]) -> int:
-    exit_code, warnings = _submit_service.run_check_syntax(targets)
+    """check syntaxコマンド: SubmitServiceに委譲し、結果を出力する"""
+    service = _get_submit_service()
+    exit_code, warnings = service.run_check_syntax(targets)
     _print_warnings(warnings)
     return exit_code
 
 
 def run_files_get(targets: list[str], host_name: str) -> int:
-    exit_code, warnings = _submit_service.run_files_get(targets, host_name)
+    """files getコマンド: SubmitServiceに委譲し、結果を出力する"""
+    service = _get_submit_service()
+    exit_code, warnings = service.run_files_get(targets, host_name)
     _print_warnings(warnings)
     return exit_code
 
 
 def run_files_put(targets: list[str], host_name: str) -> int:
-    exit_code, warnings = _submit_service.run_files_put(targets, host_name)
+    """files putコマンド: SubmitServiceに委譲し、結果を出力する"""
+    service = _get_submit_service()
+    exit_code, warnings = service.run_files_put(targets, host_name)
     _print_warnings(warnings)
     return exit_code
 
 
 def run_files_move(targets: list[str]) -> int:
+    """files moveコマンド: SubmitServiceに委譲し、結果を出力する"""
     exit_code, warnings = SubmitService.run_files_move(targets)
     _print_warnings(warnings)
     return exit_code
@@ -255,6 +295,8 @@ def run_files_move(targets: list[str]) -> int:
 
 def run_submit(args: argparse.Namespace, targets: list[str]) -> int:
     """submitコマンド: SubmitServiceに委譲し、結果を出力する"""
+    service = _get_submit_service()
+
     # 投入前のジョブ情報を表示
     print()
     print("############################################")
@@ -267,7 +309,7 @@ def run_submit(args: argparse.Namespace, targets: list[str]) -> int:
     print("############################################")
     print()
 
-    exit_code, warnings = _submit_service.submit(
+    exit_code, warnings = service.submit(
         targets,
         use_gpu=args.use_gpu,
         no_background=args.no_background,
@@ -285,20 +327,17 @@ def run_submit(args: argparse.Namespace, targets: list[str]) -> int:
 
 
 def run_run(args: argparse.Namespace) -> int:
+    """runコマンド: RunCommandServiceに委譲し、結果を出力する"""
     command = list(getattr(args, "command", []) or [])
-    if command and command[0] == "--":
-        command = command[1:]
-    if not command:
-        print("実行コマンドを指定してください。")
-        return 1
-
     mode = getattr(args, "mode", "auto")
-    if mode == "auto":
-        mode = None
+    cwd = getattr(args, "cwd", ".")
 
-    cwd = Path(getattr(args, "cwd", ".")).resolve()
-    service = RunService()
-    result = service.execute(command=command, cwd=cwd, mode=mode)
+    service = RunCommandService()
+    try:
+        result = service.execute(command=command, cwd=cwd, mode=mode)
+    except ValueError as e:
+        print(str(e))
+        return 1
 
     if result.stdout:
         print(result.stdout, end="")
@@ -330,10 +369,21 @@ def run_run(args: argparse.Namespace) -> int:
 
 
 def dispatch(args: argparse.Namespace) -> int:
-    targets = resolve_targets(args)
-
     cmd = getattr(args, "cmd", "submit")
     subcmd = getattr(args, "subcmd", None)
+
+    # グラフ系コマンド（SSH設定不要）
+    if cmd == "graph":
+        return run_graph_command(args)
+    if cmd in ("init", "parse", "show", "export", "info", "diff", "credential"):
+        return run_top_level_graph_command(cmd, args)
+
+    # runコマンド（SSH設定不要）
+    if cmd == "run":
+        return run_run(args)
+
+    # submit系コマンド（SSH設定必要 — SubmitServiceを遅延初期化）
+    targets = resolve_targets(args)
 
     if cmd == "list":
         return run_list(targets)
@@ -349,16 +399,6 @@ def dispatch(args: argparse.Namespace) -> int:
 
     if cmd == "files" and subcmd == "move":
         return run_files_move(targets)
-
-    if cmd == "run":
-        return run_run(args)
-
-    if cmd == "graph":
-        return run_graph_command(args)
-
-    # トップレベルのグラフコマンド
-    if cmd in ("init", "parse", "show", "export", "info", "diff", "credential"):
-        return run_top_level_graph_command(cmd, args)
 
     # default: submit
     return run_submit(args, targets)

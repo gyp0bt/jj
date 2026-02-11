@@ -10,5 +10,6 @@ from __future__ import annotations
 from services.service.submit import SubmitService
 from services.service.info import InfoService
 from services.service.graph_command import GraphCommandService
+from services.service.run_command import RunCommandService
 
-__all__ = ["SubmitService", "InfoService", "GraphCommandService"]
+__all__ = ["SubmitService", "InfoService", "GraphCommandService", "RunCommandService"]
