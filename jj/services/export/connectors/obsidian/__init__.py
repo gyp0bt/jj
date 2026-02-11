@@ -271,6 +271,10 @@ class ObsidianConnector:
                 obsidian_prefix=obs_config.prefix,
             )
 
+    def _is_obsidian_origin(self, node: Node) -> bool:
+        """ノードがObsidian由来（daily_note等）かどうかを判定"""
+        return node.type == "daily_note"
+
     def get_md_path(self, node: Node) -> Path:
         """ノードからObsidian mdファイルパスを生成
 
@@ -282,7 +286,7 @@ class ObsidianConnector:
 
         Note:
             - ディレクトリ名にはO-プレフィックスは付かない
-            - ファイル名にはO-プレフィックスが付く
+            - ファイル名にはO-プレフィックスが付く（daily_note由来ノードを除く）
         """
         notes_dir = self.project_root / self.config.notes_dir
         file_type = node.type
@@ -291,12 +295,34 @@ class ObsidianConnector:
         # ディレクトリ名はO-なし
         dir_name = get_directory_for_type(file_type)
 
-        # ファイル名はO-付き
+        # ファイル名はO-付き（Obsidian由来ノードはO-なし）
         real_filename = f"{node.name}.{format_ext}" if format_ext else node.name
-        obsidian_filename = to_obsidian_filename(real_filename, self.config.obsidian_prefix)
+        if self._is_obsidian_origin(node):
+            obsidian_filename = f"{real_filename}.md" if not real_filename.endswith(".md") else real_filename
+        else:
+            obsidian_filename = to_obsidian_filename(real_filename, self.config.obsidian_prefix)
 
         # すべてのタイプで notes/props/{type}/ 配下に配置
         return notes_dir / dir_name / obsidian_filename
+
+    @staticmethod
+    def _flatten_properties(props: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+        """辞書プロパティを"."区切りで平坦化する
+
+        ネストされた辞書は再帰的に展開される。
+        例: {"mesh_quality": {"aspect_ratio": {"min": 0.5, "max": 1.0}}}
+        → {"mesh_quality.aspect_ratio.min": 0.5, "mesh_quality.aspect_ratio.max": 1.0}
+
+        リストは展開せずそのまま保持する。
+        """
+        result: dict[str, Any] = {}
+        for key, value in props.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            if isinstance(value, dict):
+                result.update(ObsidianConnector._flatten_properties(value, prefix=full_key))
+            else:
+                result[full_key] = value
+        return result
 
     def node_to_frontmatter(self, node: Node, includes: list[str] | None = None) -> dict[str, Any]:
         """ノードからfrontmatterを生成
@@ -316,8 +342,11 @@ class ObsidianConnector:
 
             index/idx/番号 や version/ver/バージョン が混在する場合、
             vocabで変換したキー名を正として統一し、変換前のキーは破棄する。
+
+            ネストされた辞書は"."区切りで平坦化される（CSV exportと同様）。
         """
-        props = dict(node.properties)
+        # ネストされた辞書を平坦化してからコピー
+        props = self._flatten_properties(dict(node.properties))
         vocab = self.graph_config.vocab
 
         # vocab変換後のキー名を正とする
@@ -647,15 +676,12 @@ class ObsidianConnector:
             latest = sorted_nodes[-1]
             parent_links[latest.id] = base_path
 
-            # 最新以外は次のNodeへのリンク
+            # 最新以外は次のNodeへのリンク（実ファイル名で保持、node_to_frontmatterでO-変換）
             for i in range(len(sorted_nodes) - 1):
                 current = sorted_nodes[i]
                 next_node = sorted_nodes[i + 1]
                 next_filename = f"{next_node.name}.{next_node.format}"
-                next_obsidian = to_obsidian_filename(next_filename, self.config.obsidian_prefix)
-                # .md拡張子を除いてリンク名にする
-                link_name = next_obsidian[:-3] if next_obsidian.endswith(".md") else next_obsidian
-                parent_links[current.id] = link_name
+                parent_links[current.id] = next_filename
 
         return parent_links
 
@@ -688,7 +714,11 @@ class ObsidianConnector:
             target_node = node_by_id.get(rel.node2_id)
             if target_node:
                 target_filename = f"{target_node.name}.{target_node.format}"
-                target_md = to_obsidian_filename(target_filename, self.config.obsidian_prefix)
+                if self._is_obsidian_origin(target_node):
+                    # Obsidian由来ノードはO-プレフィックスなし
+                    target_md = f"{target_filename}.md" if not target_filename.endswith(".md") else target_filename
+                else:
+                    target_md = to_obsidian_filename(target_filename, self.config.obsidian_prefix)
                 relations_by_node[rel.node1_id].append((rel.label, target_md))
 
         # バージョングループ構築と親リンク決定
@@ -696,7 +726,11 @@ class ObsidianConnector:
         parent_links = self._build_parent_links(version_groups)
 
         # ノードごとにmdファイルを書き出し（props/は上書き前提）
+        # メタノード（index_group, version_diff等）はmd出力対象外
+        _meta_types = {"index_group", "version_diff"}
         for node in graph.nodes:
+            if node.type in _meta_types:
+                continue
             node_relations = relations_by_node.get(node.id, [])
             # 親リンクをincludesに設定
             includes = None
@@ -778,7 +812,11 @@ class ObsidianConnector:
         # type でグループ化（同一タイプ）
         type_groups: dict[str, list[Node]] = defaultdict(list)
 
+        # メタノード（index_group, version_diff等）はbase生成対象外
+        _meta_types = {"index_group", "version_diff"}
         for node in graph.nodes:
+            if node.type in _meta_types:
+                continue
             index = self._get_node_index(node)
             if index:
                 idx_groups[(node.type, index)].append(node)

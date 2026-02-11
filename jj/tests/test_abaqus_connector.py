@@ -1117,15 +1117,16 @@ class TestReadInpRealLargeMesh:
 class TestReadInpRealErrorCases:
     """test_asset1の実データで発生するパーサーエラーのテスト
 
-    想定外の発見:
-    - material.inp が test_asset1 に存在しない
-    - *FRICTION が *SURFACE INTERACTION 下に出現するとcurrent material不在エラー
+    material.inp追加後:
+    - go_idx1.v3.inpはmaterial.inpを正常に読み込める
+    - *FRICTION が *SURFACE INTERACTION 下に出現するケースはstep_stress_v1.inpで残る
     """
 
-    def test_go_inp_fails_without_material_inp(self):
-        """go_idx1.v3.inp: material.inp 欠如で *FRICTION 解析がエラー"""
-        with pytest.raises(RuntimeError, match="current material"):
-            read_inp(ASSET_DIR / "go_idx1.v3.inp", verbose=False)
+    def test_go_inp_reads_with_material_inp(self):
+        """go_idx1.v3.inp: material.inp存在下で正常に読み込める"""
+        abq = read_inp(ASSET_DIR / "go_idx1.v3.inp", verbose=False)
+        assert abq is not None
+        assert len(abq.materials) >= 1
 
     def test_step_stress_friction_error(self):
         """step_stress_v1.inp: *FRICTION が *SURFACE INTERACTION 下にあるため
@@ -1133,11 +1134,11 @@ class TestReadInpRealErrorCases:
         with pytest.raises(RuntimeError, match="current material"):
             read_inp(ASSET_DIR / "step_stress_v1.inp", verbose=False)
 
-    def test_material_inp_not_found_warning(self, capsys):
-        """material.inp が存在しない場合、Warningを出して続行を試みる"""
-        # read_inp はWarningを出すが*FRICTIONで最終的にエラーになる
-        with pytest.raises(RuntimeError):
-            read_inp(ASSET_DIR / "go_idx1.v3.inp", verbose=False)
+    def test_material_inp_parsed_correctly(self):
+        """material.inpが正常にパースされ材料が取得できる"""
+        abq = read_inp(ASSET_DIR / "material.inp", verbose=False)
+        assert abq is not None
+        assert len(abq.materials) >= 1
 
 
 class TestDiffRealData:
