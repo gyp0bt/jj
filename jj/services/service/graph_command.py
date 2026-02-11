@@ -275,6 +275,39 @@ class GraphCommandService:
     # export: obsidian
     # =========
 
+    def export_by_format(
+        self,
+        graph: GraphModel,
+        target: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """AbstractExporterレジストリ経由でエクスポート
+
+        全エクスポート形式を統一的に呼び出す。
+        レジストリに登録されていない形式の場合はValueErrorを送出する。
+
+        Args:
+            graph: エクスポート対象のグラフ
+            target: エクスポート形式（"csv", "json", "obsidian", "neo4j", "cypher", "dashboard-json"）
+            **kwargs: エクスポーター固有のオプション
+
+        Returns:
+            エクスポーター固有の結果辞書
+        """
+        # コネクタモジュールをインポートしてレジストリ登録を確実にする
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format(target)
+        if exporter_cls is None:
+            raise ValueError(f"未対応のエクスポート形式: {target}")
+
+        # project_rootをデフォルトで注入
+        kwargs.setdefault("project_root", self.project_root)
+
+        exporter = exporter_cls()
+        return exporter.export(graph, **kwargs)
+
     def export_obsidian(
         self,
         graph: GraphModel,
@@ -289,11 +322,11 @@ class GraphCommandService:
         Returns:
             ExportObsidianResult
         """
-        from services.export.connectors.obsidian import ObsidianConnector
-
-        connector = ObsidianConnector(project_root=self.project_root)
-        written = connector.export_graph(graph, overwrite=overwrite)
-        return ExportObsidianResult(written_paths=written)
+        result = self.export_by_format(
+            graph, "obsidian",
+            overwrite=overwrite,
+        )
+        return ExportObsidianResult(written_paths=result["written_paths"])
 
     # =========
     # export: csv/json
@@ -397,35 +430,20 @@ class GraphCommandService:
         Returns:
             ExportDashboardJsonResult
         """
-        import json
-
-        from services.dashboard.data_provider import DashboardDataProvider
-
         config = self._graph_service.config
-        provider = DashboardDataProvider(
-            graph,
+        result = self.export_by_format(
+            graph, "dashboard-json",
+            output_file=output_file,
+            project_name=project_name,
             vocab=config.vocab,
             units=config.export.units,
         )
 
-        name = project_name or self.project_root.name
-        data = provider.to_dashboard_json(project_name=name)
-
-        if output_file:
-            out_path = Path(output_file)
-        else:
-            storage_dir = self.project_root / ".jj" / "storage"
-            storage_dir.mkdir(parents=True, exist_ok=True)
-            out_path = storage_dir / "dashboard.json"
-
-        with out_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-
         return ExportDashboardJsonResult(
-            output_path=out_path,
-            node_count=len(graph.nodes),
-            relation_count=len(graph.relations),
-            row_count=len(data["rows"]),
+            output_path=result["output_path"],
+            node_count=result["node_count"],
+            relation_count=result["relation_count"],
+            row_count=result["row_count"],
         )
 
     # =========
@@ -457,49 +475,43 @@ class GraphCommandService:
         Returns:
             ExportNeo4jResult
         """
-        from services.connectors.neo4j import Neo4jConnector
-        from shared.config import Neo4jConfig
-
-        # Neo4j接続設定の構築
-        neo4j_config = Neo4jConfig.from_jj_config(self.project_root)
-        # CLIオプションで上書き
+        target = "neo4j" if direct else "cypher"
+        kwargs: dict[str, Any] = {
+            "clear_project": clear_project,
+        }
         if neo4j_uri:
-            neo4j_config.uri = neo4j_uri
+            kwargs["neo4j_uri"] = neo4j_uri
         if neo4j_user:
-            neo4j_config.user = neo4j_user
+            kwargs["neo4j_user"] = neo4j_user
         if neo4j_password:
-            neo4j_config.password = neo4j_password
+            kwargs["neo4j_password"] = neo4j_password
+        if output_file:
+            kwargs["output_file"] = output_file
 
-        connector = Neo4jConnector(project_root=self.project_root, config=neo4j_config)
-        try:
-            if direct:
-                stats = connector.export_graph(graph, clear_project=clear_project)
-                return ExportNeo4jResult(
-                    uri=neo4j_config.uri,
-                    stats=stats,
-                    output_path=None,
-                    node_count=stats["nodes_created"],
-                    relation_count=stats["relations_created"],
-                    clear_project=clear_project,
-                    direct=True,
-                )
-            else:
-                output_path = connector.export_cypher(
-                    graph,
-                    output_path=output_file,
-                    clear_project=clear_project,
-                )
-                return ExportNeo4jResult(
-                    uri=neo4j_config.uri,
-                    stats=None,
-                    output_path=output_path,
-                    node_count=len(graph.nodes),
-                    relation_count=len(graph.relations),
-                    clear_project=clear_project,
-                    direct=False,
-                )
-        finally:
-            connector.close()
+        result = self.export_by_format(graph, target, **kwargs)
+
+        if direct:
+            from shared.config import Neo4jConfig
+            neo4j_config = Neo4jConfig.from_jj_config(self.project_root)
+            return ExportNeo4jResult(
+                uri=result.get("uri", neo4j_config.uri),
+                stats=result.get("stats"),
+                output_path=None,
+                node_count=result.get("node_count", 0),
+                relation_count=result.get("relation_count", 0),
+                clear_project=clear_project,
+                direct=True,
+            )
+        else:
+            return ExportNeo4jResult(
+                uri="",
+                stats=None,
+                output_path=result.get("output_path"),
+                node_count=result.get("node_count", 0),
+                relation_count=result.get("relation_count", 0),
+                clear_project=clear_project,
+                direct=False,
+            )
 
     # =========
     # info
