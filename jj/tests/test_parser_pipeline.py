@@ -249,9 +249,13 @@ class TestPipelineIntegration:
         labels = Counter(r.label for r in graph.relations)
         assert labels.get("next_version", 0) >= 1
 
-    def test_has_same_index_group_relations(self, graph: GraphModel):
+    def test_has_belongs_to_relations(self, graph: GraphModel):
+        """index_groupノードへのbelongs_to関係が存在する"""
         labels = Counter(r.label for r in graph.relations)
-        assert labels.get("same_index_group", 0) >= 1
+        assert labels.get("belongs_to", 0) >= 1
+        # index_groupノードが存在する
+        group_nodes = [n for n in graph.nodes if n.type == "index_group"]
+        assert len(group_nodes) >= 1
 
     def test_has_contains_relations(self, graph: GraphModel):
         labels = Counter(r.label for r in graph.relations)
@@ -468,8 +472,8 @@ class TestIncludesRelationPipeline:
         assert "mesh_shape1_t95.v8" in target_names
         assert "step_stress_v1" in target_names
 
-    def test_missing_material_inp_not_in_includes(self, graph: GraphModel):
-        """material.inpは不在のため、includes先に含まれない"""
+    def test_material_inp_in_includes(self, graph: GraphModel):
+        """material.inpが存在するため、includes先に含まれる"""
         all_includes_targets = set()
         for r in graph.relations:
             if r.label == "includes":
@@ -478,9 +482,9 @@ class TestIncludesRelationPipeline:
                 )
                 if target:
                     all_includes_targets.add(target.name)
-        assert all(
-            "material" not in name for name in all_includes_targets
-        ), "material.inpは不在なのにincludes先に含まれている"
+        assert any(
+            "material" in name for name in all_includes_targets
+        ), "material.inpが存在するのにincludes先に含まれていない"
 
 
 class TestDerivedFromRelationPipeline:

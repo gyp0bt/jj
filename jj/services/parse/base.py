@@ -391,12 +391,13 @@ def clear_parser_registry() -> None:
     _parser_registry.clear()
 
 
-def parse(graph: ProjectGraph, *, full_mode: bool = False) -> ProjectGraph:
+def parse(graph: ProjectGraph, *, full_mode: bool = False, debug: bool = False) -> ProjectGraph:
     """全登録パーサーをpriority順に適用する
 
     Args:
         graph: 処理対象のProjectGraph
         full_mode: Trueの場合、requires_full=Trueのパーサーも実行する
+        debug: デバッグモード（True: パーサーエラーをraise）
 
     Returns:
         全パーサー適用後のProjectGraph
@@ -412,7 +413,16 @@ def parse(graph: ProjectGraph, *, full_mode: bool = False) -> ProjectGraph:
             continue
 
         start_time = time.monotonic()
-        graph = parser_cls().apply(graph)
+        try:
+            graph = parser_cls().apply(graph)
+        except Exception as e:
+            if debug:
+                raise
+            print(
+                f"警告: {parser_cls.__name__} でエラーが発生しました: {e}",
+                file=sys.stderr,
+            )
+            continue
         elapsed = time.monotonic() - start_time
 
         # --fullでない場合、1ファイルあたり1秒超のパーサーは警告

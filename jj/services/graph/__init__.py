@@ -412,6 +412,7 @@ class GraphService:
         extensions: Iterable[str] | None = None,
         exclude_dirs: Iterable[str] | None = None,
         full_mode: bool = False,
+        debug: bool = False,
     ) -> GraphModel:
         """プロジェクトをパースしてGraphModelを生成
 
@@ -423,6 +424,7 @@ class GraphService:
             extensions: 対象拡張子（Noneの場合はDEFAULT_EXTENSIONS + config file-relationsを使用）
             exclude_dirs: 除外ディレクトリ
             full_mode: Trueの場合、requires_full=Trueのパーサーも実行する
+            debug: デバッグモード（True: パーサーエラーをraise）
 
         Returns:
             生成されたGraphModel
@@ -455,7 +457,7 @@ class GraphService:
         )
 
         # 全登録パーサーをpriority順に適用
-        project_graph = run_parser_pipeline(project_graph, full_mode=full_mode)
+        project_graph = run_parser_pipeline(project_graph, full_mode=full_mode, debug=debug)
 
         # IDカウンタを同期
         self._node_id_counter = project_graph._node_id_counter
@@ -477,13 +479,14 @@ class GraphService:
         exclude_dirs: Iterable[str] | None = None,
         filename: Optional[str] = None,
         full_mode: bool = False,
+        debug: bool = False,
     ) -> tuple[GraphModel, Path]:
         """プロジェクトをパースして保存
 
         Returns:
             (生成されたGraphModel, 保存先パス)
         """
-        graph = self.parse_project(extensions=extensions, exclude_dirs=exclude_dirs, full_mode=full_mode)
+        graph = self.parse_project(extensions=extensions, exclude_dirs=exclude_dirs, full_mode=full_mode, debug=debug)
         path = self.save(graph, filename)
         return graph, path
 

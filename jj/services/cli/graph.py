@@ -65,6 +65,13 @@ def _add_parse_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="ディレクトリ階層の最大深さ（デフォルト: 無制限＝最終階層まで）",
     )
+    parser.add_argument(
+        "-debug",
+        "--debug",
+        action="store_true",
+        default=False,
+        help="デバッグモード: パーサーでエラーが発生した場合に例外をraiseする",
+    )
 
 
 def _add_show_args(parser: argparse.ArgumentParser) -> None:
@@ -549,6 +556,7 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
     fmt = getattr(args, "format", "yaml")
     full_mode = getattr(args, "full", False)
     max_depth = getattr(args, "max_depth", None)
+    debug = getattr(args, "debug", False)
 
     mode_label = "full" if full_mode else "lite"
     print(f"プロジェクトをスキャン中 ({mode_label}): {project_root}")
@@ -559,6 +567,7 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
             format=fmt,
             full_mode=full_mode,
             max_depth=max_depth,
+            debug=debug,
         )
 
         print(f"\n=== スキャン完了 ===")

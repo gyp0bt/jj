@@ -1,6 +1,7 @@
 """Abaqusバージョン差分パーサー
 
-前バージョンとのキーワードブロック差分をpropertyに追加する。
+前バージョンとのキーワードブロック差分をdiffノードとして生成する。
+diff情報はノードとして作成し、新旧ノードへのrelationを持つ。
 
 [READMEへ戻る](../../../../../README.md)
 """
@@ -10,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from jj_types import Node
+from jj_types import Node, Relation
 from services.parse.base import AbstractFileParser
 
 if TYPE_CHECKING:
@@ -18,10 +19,13 @@ if TYPE_CHECKING:
 
 
 class AbaqusDiffParser(AbstractFileParser):
-    """前バージョンとのキーワードブロック差分をpropertyに追加
+    """前バージョンとの差分をdiffノードとして生成
 
     同一type+indexのinpファイルをバージョン順に並べ、
     隣接するバージョン間でAbaqusキーワードブロックの差分を計算する。
+    差分が存在する場合、diffノードを作成し:
+    - diff_from relation: diffノード → 旧ノード
+    - diff_to relation: diffノード → 新ノード
     """
 
     priority = 90
@@ -80,15 +84,57 @@ class AbaqusDiffParser(AbstractFileParser):
                     next_abq = abq_read_inp(str(next_path), verbose=False)
                     diffs = diff_abq_blocks(prev_abq, next_abq)
 
-                    if diffs:
-                        prev_file = prev_node.properties.get("path", prev_node.name)
-                        next_node.properties["diff_from"] = prev_file
-                        next_node.properties["diff_summary"] = (
-                            format_diff_summary_table(diffs)
+                    # 差分がなくてもdiffノードを作成する（差分なしの記録として）
+                    prev_file = prev_node.properties.get("path", prev_node.name)
+                    next_file = next_node.properties.get("path", next_node.name)
+
+                    diff_node_name = f"diff_{prev_node.name}_vs_{next_node.name}"
+                    has_diffs = bool(diffs)
+
+                    diff_props: dict = {
+                        "diff_from": prev_file,
+                        "diff_to": next_file,
+                        "has_diffs": has_diffs,
+                        "source_type": _node_type,
+                        "source_index": _index,
+                    }
+
+                    if has_diffs:
+                        diff_props["diff_summary"] = format_diff_summary_table(diffs)
+                        diff_props["diff_details"] = format_diff_blocks_markdown(diffs)
+                    else:
+                        diff_props["diff_summary"] = "差分なし"
+                        diff_props["diff_details"] = "差分なし"
+
+                    diff_node = Node(
+                        id=graph.next_node_id(),
+                        type="version_diff",
+                        name=diff_node_name,
+                        format="diff",
+                        properties=diff_props,
+                    )
+                    graph.add_node(diff_node)
+
+                    # diff_from relation: diffノード → 旧ノード
+                    graph.add_relation(
+                        Relation(
+                            id=graph.next_relation_id(),
+                            label="diff_from",
+                            node1_id=diff_node.id,
+                            node2_id=prev_node.id,
                         )
-                        next_node.properties["diff_details"] = (
-                            format_diff_blocks_markdown(diffs)
+                    )
+
+                    # diff_to relation: diffノード → 新ノード
+                    graph.add_relation(
+                        Relation(
+                            id=graph.next_relation_id(),
+                            label="diff_to",
+                            node1_id=diff_node.id,
+                            node2_id=next_node.id,
                         )
+                    )
+
                 except Exception:
                     continue
 

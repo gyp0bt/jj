@@ -1,7 +1,7 @@
 """バージョン関係パーサー
 
 同一type+indexのノードをグループ化し、version順にnext_version関係と
-same_index_group関係を構築する。
+index_groupノードを構築する。
 
 [READMEへ戻る](../../../../README.md)
 """
@@ -19,11 +19,11 @@ if TYPE_CHECKING:
 
 
 class VersionRelationParser(AbstractFileParser):
-    """サブバージョン関係とグループ関係を構築するパーサー
+    """サブバージョン関係とグループノードを構築するパーサー
 
     同一type/indexのノードをグループ化し:
     - version順にnext_version関係を作成
-    - 同一グループ内のsame_index_group関係を作成
+    - index_groupノードを作成し、グループメンバーへのbelongs_to関係を作成
     """
 
     priority = 20
@@ -37,7 +37,7 @@ class VersionRelationParser(AbstractFileParser):
             if index:
                 groups[(node_type, index)].append(node)
 
-        for (_node_type, _index), group_nodes in groups.items():
+        for (node_type, index), group_nodes in groups.items():
             if len(group_nodes) < 2:
                 continue
 
@@ -65,15 +65,29 @@ class VersionRelationParser(AbstractFileParser):
                     )
                 )
 
-            # グループ関係を作成
-            representative = sorted_nodes[0]
-            for member in sorted_nodes[1:]:
+            # index_groupノードを作成
+            group_node_name = f"{node_type}_idx{index}"
+            group_node = Node(
+                id=graph.next_node_id(),
+                type="index_group",
+                name=group_node_name,
+                format="group",
+                properties={
+                    "source_type": node_type,
+                    "source_index": index,
+                    "member_count": len(sorted_nodes),
+                },
+            )
+            graph.add_node(group_node)
+
+            # グループメンバーへのbelongs_to関係を作成
+            for member in sorted_nodes:
                 graph.add_relation(
                     Relation(
                         id=graph.next_relation_id(),
-                        label="same_index_group",
-                        node1_id=representative.id,
-                        node2_id=member.id,
+                        label="belongs_to",
+                        node1_id=member.id,
+                        node2_id=group_node.id,
                     )
                 )
 

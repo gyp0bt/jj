@@ -163,6 +163,7 @@ class GraphCommandService:
         format: str = "yaml",
         full_mode: bool = False,
         max_depth: int | None = None,
+        debug: bool = False,
     ) -> ParseResult:
         """プロジェクトをパースしてサマリーを返却
 
@@ -171,6 +172,7 @@ class GraphCommandService:
             format: 出力フォーマット（yaml/json）
             full_mode: 全パーサー実行（True）/軽量モード（False）
             max_depth: ディレクトリ階層の最大深さ
+            debug: デバッグモード（True: パーサーエラーをraise）
 
         Returns:
             ParseResult
@@ -186,7 +188,7 @@ class GraphCommandService:
             output_file = f"graph.{format}"
 
         graph, save_path = self._graph_service.parse_and_save(
-            filename=output_file, full_mode=full_mode
+            filename=output_file, full_mode=full_mode, debug=debug
         )
         summary = self._graph_service.summary(graph)
 

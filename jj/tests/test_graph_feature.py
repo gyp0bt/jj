@@ -2548,7 +2548,7 @@ class TestVersionDiff:
     """バージョン差分テスト"""
 
     def test_diff_between_versions(self, tmp_path):
-        """隣接バージョン間の差分がpropertyに追加される"""
+        """隣接バージョン間でdiffノードが作成され、relation経由で参照できる"""
         # v1: STATIC procedure
         v1_content = "*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
         (tmp_path / "go_idx1_v1.inp").write_text(v1_content)
@@ -2559,19 +2559,23 @@ class TestVersionDiff:
 
         config = GraphConfig.from_dict({"vocab": {}})
         svc = GraphService(project_root=tmp_path, config=config)
-        graph = svc.parse_project()
+        graph = svc.parse_project(full_mode=True)  # diffパーサーはrequires_full=True
 
-        # v2ノードにdiff情報が付与される
-        v2_node = next(
-            (n for n in graph.nodes if n.name == "go_idx1_v2" and n.format == "inp"),
-            None,
-        )
-        assert v2_node is not None
-        assert "diff_from" in v2_node.properties
-        assert "diff_summary" in v2_node.properties
+        # version_diffノードが作成される
+        diff_nodes = [n for n in graph.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) >= 1
+        diff_node = diff_nodes[0]
+        assert "diff_from" in diff_node.properties
+        assert "diff_summary" in diff_node.properties
+
+        # diff_from/diff_to relationが存在する
+        diff_from_rels = [r for r in graph.relations if r.label == "diff_from"]
+        diff_to_rels = [r for r in graph.relations if r.label == "diff_to"]
+        assert len(diff_from_rels) >= 1
+        assert len(diff_to_rels) >= 1
 
     def test_no_diff_for_single_version(self, tmp_path):
-        """単一バージョンの場合は差分が付与されない"""
+        """単一バージョンの場合はdiffノードが作成されない"""
         v1_content = "*STEP\n*STATIC\n1., 1.\n*END STEP\n"
         (tmp_path / "go_idx1.inp").write_text(v1_content)
 
@@ -2579,15 +2583,11 @@ class TestVersionDiff:
         svc = GraphService(project_root=tmp_path, config=config)
         graph = svc.parse_project()
 
-        node = next(
-            (n for n in graph.nodes if n.name == "go_idx1" and n.format == "inp"),
-            None,
-        )
-        assert node is not None
-        assert "diff_from" not in node.properties
+        diff_nodes = [n for n in graph.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 0
 
     def test_diff_summary_not_empty(self, tmp_path):
-        """変更がある場合のdiff_summaryは「差分なし」ではない"""
+        """変更がある場合のdiffノードのdiff_summaryは「差分なし」ではない"""
         v1_content = "*STEP\n*STATIC\n1., 1.\n*BOUNDARY\nFIX, 1, 3\n*END STEP\n"
         (tmp_path / "go_idx1_v1.inp").write_text(v1_content)
 
@@ -2598,13 +2598,10 @@ class TestVersionDiff:
         svc = GraphService(project_root=tmp_path, config=config)
         graph = svc.parse_project()
 
-        v2_node = next(
-            (n for n in graph.nodes if n.name == "go_idx1_v2" and n.format == "inp"),
-            None,
-        )
-        assert v2_node is not None
-        if "diff_summary" in v2_node.properties:
-            assert v2_node.properties["diff_summary"] != "差分なし"
+        diff_nodes = [n for n in graph.nodes if n.type == "version_diff"]
+        for diff_node in diff_nodes:
+            if diff_node.properties.get("has_diffs"):
+                assert diff_node.properties["diff_summary"] != "差分なし"
 
 
 class TestObsidianWarningDisplay:

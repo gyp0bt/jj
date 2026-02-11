@@ -12,7 +12,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 ## コマンド構成
 - グラフ管理（トップレベル）
   - `jj init`: 設定ファイルを初期化（`--overwrite`で上書き）
-  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存（`--full`で重い解析も含む）
+  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存（`--full`で重い解析も含む、`-debug`でエラー時例外raise）
   - `jj show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj export --target obsidian`: Obsidian向けにエクスポート
   - `jj export --parse`: parseしてからexport

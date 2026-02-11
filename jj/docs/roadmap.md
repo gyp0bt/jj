@@ -141,7 +141,7 @@ class ProjectGraph:
 
 ### Abaqusグラフ機能（Phase 2大部分完了）
 
-- [x] 同一ファイルタイプの関連付け（has_output, same_index_group）
+- [x] 同一ファイルタイプの関連付け（has_output, index_groupノード化/belongs_to relation）
 - [x] フォルダベースの関連付け（contains）
 - [x] material.inpの高度な解析（abaqus_material Node化）
 - [x] 解析結果ファイルの解析（analysis_status）
@@ -210,7 +210,7 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 
 現在1ファイルに集中していたparse/enrich/connect ロジックを、16個のAbstractFileParserサブクラスとして分散完了。
 
-- [x] **バージョン関係パーサー**: next_version/same_index_group → parse/parsers/version_parser.py (priority=20)
+- [x] **バージョン関係パーサー**: next_version/belongs_to(index_groupノード) → parse/parsers/version_parser.py (priority=20)
 - [x] **出力ファイル関係パーサー**: result_of/derived_from/has_output/includes → parse/parsers/output_parser.py (priority=30-40)
 - [x] **フォルダ関係パーサー**: contains → parse/parsers/directory_parser.py (priority=50)
 - [x] **Abaqus INP解析パーサー**: material.inp解析 → parse/connectors/abaqus/inp_parser.py (priority=60,85,98)
@@ -279,11 +279,11 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
   - [x] 材料定義を個々のelsetに紐づけてproperty化（material_elsetsから逆引き）
   - [x] **テスト**: 7件追加（elset生成、element_count、材料割り当て、include先、relation、elsetsプロパティ）
   - [ ] volumeなどのelement_qualityを個々のelsetごとに評価しproperty化（pymesh依存、将来対応）
-- [x] **隣接バージョンdiff差分のプロパティ付加** (status-052追加, status-053テスト追加)
-  - [x] versionが複数あるgoのプロパティにdiff（diff_from, diff_summary, diff_details）が付加されていることのテスト追加
+- [x] **隣接バージョンdiffのノード化** (status-052追加, status-053テスト追加, status-056ノード化)
+  - [x] version_diffノードとしてdiff情報を保存（diff_from/diff_to relation経由で新旧ノード参照）
   - [x] node/nsetブロック: 接点数を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
   - [x] element/elsetブロック: 要素数・要素品質を差分評価対象にする（diff_abq_blocksで実装済み、テスト追加）
-  - [x] **テスト**: 5件追加（diff付与、node_count変更、element_count変更、nset/elset変更、同一内容no-diff）
+  - [x] **テスト**: 5件更新（diffノード作成、node_count変更、element_count変更、nset/elset変更、同一内容no-diff）
 - [ ] **パーサーキャッシュの実装（DRY）** (status-053追加)
   - [ ] 個々のパーサーがincludeロジックで何度も同じファイルを読む可能性があるため、parseのキャッシュを持っておく
   - [ ] read_inp()結果のキャッシュ: ABQDataをファイルパスで管理
@@ -607,6 +607,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-053.md)
+- [最新ステータス](./status/status-056.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

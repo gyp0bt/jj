@@ -84,7 +84,8 @@ class TestVersionRelationParser:
         assert next_ver[0].node1_id == 1
         assert next_ver[0].node2_id == 2
 
-    def test_creates_same_index_group(self, config: GraphConfig):
+    def test_creates_index_group_node(self, config: GraphConfig):
+        """index_groupノードが作成され、belongs_to関係でメンバーにリンクされる"""
         from services.parse.parsers.version_parser import VersionRelationParser
 
         nodes = [
@@ -98,10 +99,17 @@ class TestVersionRelationParser:
         graph = _make_graph(nodes, config=config)
         result = VersionRelationParser().apply(graph)
 
-        groups = [r for r in result.relations if r.label == "same_index_group"]
-        assert len(groups) == 2
-        # representative(v1) → v2, v1 → v3
-        assert all(r.node1_id == 1 for r in groups)
+        # index_groupノードが作成される
+        group_nodes = [n for n in result.nodes if n.type == "index_group"]
+        assert len(group_nodes) == 1
+        group_node = group_nodes[0]
+        assert group_node.name == "go_idx1"
+        assert group_node.properties["member_count"] == 3
+
+        # belongs_to関係が全メンバーに作成される
+        belongs_to = [r for r in result.relations if r.label == "belongs_to"]
+        assert len(belongs_to) == 3
+        assert all(r.node2_id == group_node.id for r in belongs_to)
 
     def test_no_relation_for_single_node(self, config: GraphConfig):
         from services.parse.parsers.version_parser import VersionRelationParser
@@ -939,8 +947,8 @@ class TestAbaqusElsetParser:
 class TestAbaqusDiffParser:
     """AbaqusDiffParser の単体テスト"""
 
-    def test_diff_properties_added_for_version_pair(self, tmp_path: Path, config: GraphConfig):
-        """隣接バージョン間でdiff_from, diff_summary, diff_detailsが付与される"""
+    def test_diff_node_created_for_version_pair(self, tmp_path: Path, config: GraphConfig):
+        """隣接バージョン間でdiffノードが作成され、diff_from/diff_to relationが作られる"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
         content_v1 = (
@@ -979,14 +987,27 @@ class TestAbaqusDiffParser:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
 
-        v2_node = result.get_node_by_id(2)
-        assert "diff_from" in v2_node.properties
-        assert v2_node.properties["diff_from"] == "go_idx1_v1.inp"
-        assert "diff_summary" in v2_node.properties
-        assert "diff_details" in v2_node.properties
+        # diffノードが作成される
+        diff_nodes = [n for n in result.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 1
+        diff_node = diff_nodes[0]
+        assert diff_node.properties["diff_from"] == "go_idx1_v1.inp"
+        assert diff_node.properties["diff_to"] == "go_idx1_v2.inp"
+        assert "diff_summary" in diff_node.properties
+        assert "diff_details" in diff_node.properties
+
+        # diff_from/diff_to relationが作成される
+        diff_from_rels = [r for r in result.relations if r.label == "diff_from"]
+        diff_to_rels = [r for r in result.relations if r.label == "diff_to"]
+        assert len(diff_from_rels) == 1
+        assert len(diff_to_rels) == 1
+        assert diff_from_rels[0].node1_id == diff_node.id
+        assert diff_from_rels[0].node2_id == 1  # v1
+        assert diff_to_rels[0].node1_id == diff_node.id
+        assert diff_to_rels[0].node2_id == 2  # v2
 
     def test_diff_contains_node_count_change(self, tmp_path: Path, config: GraphConfig):
-        """diff_summaryにノード数変更が反映される"""
+        """diffノードのdiff_detailsにノード数変更が反映される"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
         content_v1 = (
@@ -1012,13 +1033,15 @@ class TestAbaqusDiffParser:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
 
-        v2_node = result.get_node_by_id(2)
+        diff_nodes = [n for n in result.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 1
+        diff_node = diff_nodes[0]
         # diff_detailsにnode_countの差分が含まれる
-        assert "diff_details" in v2_node.properties
-        assert "node_count" in v2_node.properties["diff_details"]
+        assert "diff_details" in diff_node.properties
+        assert "node_count" in diff_node.properties["diff_details"]
 
     def test_diff_contains_element_count_change(self, tmp_path: Path, config: GraphConfig):
-        """diff_summaryに要素数変更が反映される"""
+        """diffノードのdiff_detailsに要素数変更が反映される"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
         content_v1 = (
@@ -1053,12 +1076,14 @@ class TestAbaqusDiffParser:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
 
-        v2_node = result.get_node_by_id(2)
-        assert "diff_details" in v2_node.properties
-        assert "element_count" in v2_node.properties["diff_details"]
+        diff_nodes = [n for n in result.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 1
+        diff_node = diff_nodes[0]
+        assert "diff_details" in diff_node.properties
+        assert "element_count" in diff_node.properties["diff_details"]
 
     def test_diff_contains_nset_elset_changes(self, tmp_path: Path, config: GraphConfig):
-        """diff_detailsにnset/elsetの変更が含まれる"""
+        """diffノードのdiff_detailsにnset/elsetの変更が含まれる"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
         content_v1 = (
@@ -1093,10 +1118,12 @@ class TestAbaqusDiffParser:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
 
-        v2_node = result.get_node_by_id(2)
-        assert "diff_details" in v2_node.properties
+        diff_nodes = [n for n in result.nodes if n.type == "version_diff"]
+        assert len(diff_nodes) == 1
+        diff_node = diff_nodes[0]
+        assert "diff_details" in diff_node.properties
         # NSETのFIXが変更（id_count 1→2）
-        details = v2_node.properties["diff_details"]
+        details = diff_node.properties["diff_details"]
         assert "nsets" in details.lower() or "elsets" in details.lower()
 
     def test_no_diff_for_identical_versions(self, tmp_path: Path, config: GraphConfig):
@@ -1231,14 +1258,16 @@ class TestVersionRelationParserRealData:
         assert next_node.properties.get("version") == "3"
         assert next_node.type == "go"
 
-    def test_same_index_group_count(self, real_graph: ProjectGraph):
-        """same_index_group が複数生成される"""
+    def test_index_group_nodes_created(self, real_graph: ProjectGraph):
+        """index_groupノードが複数生成される"""
         from services.parse.parsers.version_parser import VersionRelationParser
 
         result = VersionRelationParser().apply(real_graph)
 
-        groups = [r for r in result.relations if r.label == "same_index_group"]
-        assert len(groups) >= 2  # idx2, idx3 等のグループ
+        group_nodes = [n for n in result.nodes if n.type == "index_group"]
+        assert len(group_nodes) >= 2  # idx0, idx1 等のグループ
+        belongs_to = [r for r in result.relations if r.label == "belongs_to"]
+        assert len(belongs_to) >= 4  # 各グループに2つ以上のメンバー
 
 
 # ====================================================================
@@ -1322,12 +1351,12 @@ class TestIncludesRelationParserRealData:
     """test_asset1の実データを使ったIncludesRelationParserテスト"""
 
     def test_total_includes_count(self, real_graph: ProjectGraph):
-        """8件の includes リレーションが生成される"""
+        """14件の includes リレーションが生成される（material.inp追加後）"""
         from services.parse.parsers.output_parser import IncludesRelationParser
 
         result = IncludesRelationParser().apply(real_graph)
         includes = [r for r in result.relations if r.label == "includes"]
-        assert len(includes) == 8
+        assert len(includes) == 14
 
     def test_go_idx1_includes_mesh_and_step(self, real_graph: ProjectGraph):
         """go_idx1.v3 → mesh_shape1_t95.v8 + step_stress_v1"""
@@ -1351,8 +1380,8 @@ class TestIncludesRelationParserRealData:
         assert "mesh_shape1_t95.v8" in target_names
         assert "step_stress_v1" in target_names
 
-    def test_go_idx0_includes_mesh_only(self, real_graph: ProjectGraph):
-        """go_idx0.v29 → mesh_shape1_t95.v7（material.inpは不在）"""
+    def test_go_idx0_includes_mesh_and_material(self, real_graph: ProjectGraph):
+        """go_idx0.v29 → mesh_shape1_t95.v7 + material（material.inp追加後）"""
         from services.parse.parsers.output_parser import IncludesRelationParser
 
         result = IncludesRelationParser().apply(real_graph)
@@ -1371,11 +1400,11 @@ class TestIncludesRelationParserRealData:
             target = result.get_node_by_id(r.node2_id)
             target_names.add(target.name)
         assert "mesh_shape1_t95.v7" in target_names
-        # material.inp は不在なのでincludesに含まれない
-        assert all("material" not in name for name in target_names)
+        # material.inpが存在するのでincludesに含まれる
+        assert any("material" in name for name in target_names)
 
     def test_old_go_includes_cross_directory(self, real_graph: ProjectGraph):
-        """old/go_idx2.v2 → mesh_shape1_t95.v7（ディレクトリ跨ぎのinclude検出）"""
+        """old/go_idx2.v2 → mesh_shape1_t95.v7 + material（ディレクトリ跨ぎのinclude検出）"""
         from services.parse.parsers.output_parser import IncludesRelationParser
 
         result = IncludesRelationParser().apply(real_graph)
@@ -1391,8 +1420,11 @@ class TestIncludesRelationParserRealData:
             if r.label == "includes" and r.node1_id == go.id
         ]
         assert len(includes) >= 1
-        target = result.get_node_by_id(includes[0].node2_id)
-        assert "mesh_shape1_t95" in target.name
+        target_names = set()
+        for r in includes:
+            target = result.get_node_by_id(r.node2_id)
+            target_names.add(target.name)
+        assert any("mesh_shape1_t95" in name for name in target_names)
 
 
 # ====================================================================
