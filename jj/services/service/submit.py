@@ -24,6 +24,14 @@ class WarningItem:
     message: str
 
 
+@dataclass
+class JobListItem:
+    """ジョブ一覧の1行分のデータ"""
+
+    target: str
+    job_name: str
+
+
 class SubmitService:
     """ジョブ投入およびターゲット解決のビジネスロジック
 
@@ -199,6 +207,20 @@ class SubmitService:
             idx, version = get_index_and_version(inp_filepath)
             job_name = job_name + "_" + idx + "." + version
         return job_name
+
+    def list_jobs(self, targets: list[str]) -> list[JobListItem]:
+        """ターゲットファイルのジョブ名一覧を返す
+
+        Args:
+            targets: ターゲットファイルリスト
+
+        Returns:
+            ジョブ一覧（ターゲット名とジョブ名のペア）
+        """
+        return [
+            JobListItem(target=t, job_name=self.get_abq_job_name(t))
+            for t in targets
+        ]
 
     # =========
     # JCFファイル生成

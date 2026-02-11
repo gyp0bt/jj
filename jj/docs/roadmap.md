@@ -263,7 +263,7 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] 全中間ディレクトリNode化、directory-max-depthオプション (status-051)
 - [x] JsonPropertyParser: go_*.inpへのJSON key-value割り当て (status-044)
 - [x] ProjectGraph.iterate_directories()のnon_file_nodes反映 (status-044)
-- [ ] services/cliのロジックをservices/serviceに切り出す
+- [x] services/cliのロジックをservices/serviceに切り出す (status-057)
 - [ ] ファイルグループ機能の実装（AbstractFileParserサブクラスとして）
 - [ ] 旧形式（`.v1`）の完全対応
 - [ ] バイナリファイルの判定と対応方針の明確化
@@ -607,6 +607,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-056.md)
+- [最新ステータス](./status/status-057.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
