@@ -547,9 +547,10 @@ class MaterialPropertyReadComponent(ReadComponent):
 
 
 # 動的クラス生成（ReadSpecificHeat, ReadDensity, ...）
-for k in ["SpecificHeat", "Density", "DamageInitiation", "DamageEvolution", "Creep"]:
-    type(
-        f"Read{k}",
+# globals() に登録しないと pickle が attribute lookup に失敗する
+for _k in ["SpecificHeat", "Density", "DamageInitiation", "DamageEvolution", "Creep"]:
+    globals()[f"Read{_k}"] = type(
+        f"Read{_k}",
         (MaterialPropertyReadComponent,),
         {},
     )
