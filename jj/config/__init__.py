@@ -641,7 +641,7 @@ class SavedViewConfig:
 
 @dataclass(frozen=True)
 class DashboardConfig:
-    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー"""
+    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・物性カーブ列名"""
     table_columns: list[str] | None  # テーブルビュー表示カラム（globパターン対応、優先順位順）
     default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
     plot_x: str | None  # プロットデフォルトX軸
@@ -649,6 +649,7 @@ class DashboardConfig:
     gallery_columns: int  # ギャラリーグリッド列数
     gallery_rows: int  # ギャラリーグリッド行数
     saved_views: list[SavedViewConfig]  # 保存済みビュー（表示順）
+    material_curve_columns: dict[str, dict[str, Any]]  # 物性カーブ列名設定
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DashboardConfig":
@@ -661,6 +662,7 @@ class DashboardConfig:
                 gallery_columns=5,
                 gallery_rows=4,
                 saved_views=[],
+                material_curve_columns={},
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -685,6 +687,29 @@ class DashboardConfig:
         for v in raw_views:
             if isinstance(v, dict):
                 saved_views.append(SavedViewConfig.from_dict(v))
+        # 物性カーブ列名設定の読み込み
+        raw_mcc = data.get("material-curve-columns", {})
+        if not isinstance(raw_mcc, dict):
+            raise ValueError("dashboard.material-curve-columns must be dict")
+        material_curve_columns: dict[str, dict[str, Any]] = {}
+        for key, val in raw_mcc.items():
+            if isinstance(val, dict):
+                entry: dict[str, Any] = {}
+                cols = val.get("columns", [])
+                if isinstance(cols, list):
+                    entry["columns"] = [str(c) for c in cols]
+                else:
+                    entry["columns"] = []
+                if "x" in val:
+                    entry["x"] = int(val["x"])
+                if "y" in val:
+                    entry["y"] = int(val["y"])
+                material_curve_columns[str(key)] = entry
+            elif isinstance(val, list):
+                # 簡略形式: property_key: [col1, col2]
+                material_curve_columns[str(key)] = {
+                    "columns": [str(c) for c in val],
+                }
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             default_filters=default_filters,
@@ -693,6 +718,7 @@ class DashboardConfig:
             gallery_columns=gallery_columns,
             gallery_rows=gallery_rows,
             saved_views=saved_views,
+            material_curve_columns=material_curve_columns,
         )
 
 

@@ -98,6 +98,11 @@ def _compute_extra_token(inp_name: str, csv_name: str) -> str:
     ちょうど1つ多い場合、その余剰トークンを返す。
     プロパティ値（数値部分）は除外してキー部分のみ比較する。
 
+    Note:
+        本プロジェクトのファイル命名規約により、同一トークンがファイル名中に
+        2回出現することはない。そのため list.remove() による先頭一致の削除で
+        正しく動作する。
+
     Args:
         inp_name: 入力ノード名（例: "go_idx1_w5_t20"）
         csv_name: CSVノード名（例: "go_idx1_w5_t20_RF" or "go_idx1_w5_t20"）
