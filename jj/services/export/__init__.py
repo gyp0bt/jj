@@ -80,6 +80,31 @@ class AbstractExporter(ABC):
         """
         ...
 
+    def format_cli_result(
+        self, result: dict[str, Any], project_root: Path
+    ) -> str:
+        """エクスポート結果をCLI出力用文字列にフォーマット
+
+        デフォルト実装は汎用的なサマリーを返す。
+        サブクラスでオーバーライドして形式固有の出力を生成できる。
+
+        Args:
+            result: export()の戻り値
+            project_root: プロジェクトルートパス
+
+        Returns:
+            CLI出力用の文字列
+        """
+        output_path = result.get("output_path")
+        count = result.get("count", 0)
+        if output_path:
+            try:
+                rel = Path(output_path).relative_to(project_root)
+            except ValueError:
+                rel = output_path
+            return f"{self.format}エクスポート完了: {rel} ({count}件)"
+        return f"{self.format}エクスポート完了 ({count}件)"
+
 
 def get_exporter_registry() -> list[type[AbstractExporter]]:
     """登録済みエクスポーターの一覧を返す（テスト・デバッグ用）"""

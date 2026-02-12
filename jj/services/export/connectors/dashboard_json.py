@@ -67,3 +67,20 @@ class DashboardJsonExporter(AbstractExporter):
             "relation_count": len(graph.relations),
             "row_count": len(data["rows"]),
         }
+
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
+        output_path = result.get("output_path")
+        node_count = result.get("node_count", 0)
+        relation_count = result.get("relation_count", 0)
+        row_count = result.get("row_count", 0)
+        rel = output_path
+        if output_path:
+            try:
+                rel = Path(output_path).relative_to(project_root)
+            except ValueError:
+                pass
+        lines = [
+            f"dashboard-jsonエクスポート完了: {rel}",
+            f"ノード: {node_count}件、リレーション: {relation_count}件、テーブル行: {row_count}件",
+        ]
+        return "\n".join(lines)

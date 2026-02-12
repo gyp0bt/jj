@@ -4,354 +4,308 @@
 
 ## 1. 概要
 
-本ドメインは、jj内部のグラフデータを外部ツール向けの形式に変換・出力する機能を提供します。Obsidian、Neo4j、カスタムJSON等、多様な出力形式をサポートします。
+本ドメインは、jj内部のグラフデータを外部ツール向けの形式に変換・出力する機能を提供します。Obsidian、Neo4j、CSV/JSON、ダッシュボード向けJSON等、多様な出力形式をサポートします。
 
 ### 目的
 
 - グラフデータを外部ツール向けに変換
 - 多様な出力形式への対応
-- 出力フォーマットのプラグイン化
+- `__init_subclass__`自動登録によるプラグインアーキテクチャ
 
 ### 責務範囲
 
-- `services/export/` : 出力形式の変換とエクスポート機能
+- `services/export/` : AbstractExporter基底クラスとレジストリ
+- `services/export/connectors/` : 各形式のエクスポーター実装
 
 ---
 
-## 2. 対応出力形式
+## 2. AbstractExporterアーキテクチャ
 
-### 2.1 Obsidian（Markdown）
-
-#### 概要
-
-- Obsidian Vaultに配置可能なMarkdownノートを生成
-- `[[wikilink]]` 形式でノード間をリンク
-- Frontmatterにメタ情報を埋め込み
-
-#### 出力例
-
-詳細は [noteコマンド層仕様書](./05-note-command.md) を参照。
-
-### 2.2 Neo4j（Cypher）
-
-#### 概要
-
-- Neo4jにインポート可能なCypherクエリを生成
-- ノードとリレーションを効率的に作成
-- プロパティの型を適切に変換
-
-#### 出力例
-
-```cypher
-// Nodes
-CREATE (n1:File {id: 1, name: "go_sample_v1_idx1.inp", format: "inp", idx: "1", ver: "1"})
-CREATE (n2:Run {id: 1001, name: "run-2026-02-04-120000", duration: 125.3, user: "username"})
-
-// Relations
-CREATE (n2)-[:GENERATED]->(n1)
-```
-
-#### 出力コマンド（将来）
-
-```bash
-jj export neo4j --output graph.cypher
-```
-
-### 2.3 JSON
-
-#### 概要
-
-- 標準的なJSON形式でグラフを出力
-- カスタムツールでの読込に適する
-- `GraphModel` の直列化
-
-#### 出力例
-
-```json
-{
-  "nodes": [
-    {
-      "id": 1,
-      "type": "file",
-      "name": "go_sample_v1_idx1.inp",
-      "format": "inp",
-      "properties": {
-        "idx": "1",
-        "ver": "1"
-      }
-    },
-    {
-      "id": 1001,
-      "type": "run",
-      "name": "run-2026-02-04-120000",
-      "format": null,
-      "properties": {
-        "duration": 125.3,
-        "user": "username"
-      }
-    }
-  ],
-  "relations": [
-    {
-      "id": 1,
-      "label": "generated",
-      "node1_id": 1001,
-      "node2_id": 1
-    }
-  ]
-}
-```
-
-#### 出力コマンド（将来）
-
-```bash
-jj export json --output graph.json
-```
-
-### 2.4 GraphML
-
-#### 概要
-
-- 標準的なグラフ交換形式
-- Gephi、Cytoscape等での可視化に適する
-
-#### 出力例
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
-  <graph id="G" edgedefault="directed">
-    <node id="1">
-      <data key="type">file</data>
-      <data key="name">go_sample_v1_idx1.inp</data>
-    </node>
-    <node id="1001">
-      <data key="type">run</data>
-      <data key="name">run-2026-02-04-120000</data>
-    </node>
-    <edge source="1001" target="1">
-      <data key="label">generated</data>
-    </edge>
-  </graph>
-</graphml>
-```
-
-#### 出力コマンド（将来）
-
-```bash
-jj export graphml --output graph.graphml
-```
-
----
-
-## 3. Exporterインターフェース
-
-### 3.1 基底クラス
+### 2.1 基底クラス
 
 ```python
-from abc import ABC, abstractmethod
-from pathlib import Path
-from types import GraphModel
+class AbstractExporter(ABC):
+    format: str = "unknown"     # エクスポート形式識別子
+    priority: int = 100         # 実行順序（小さいほど先）
 
-class Exporter(ABC):
-    """グラフデータのエクスポーター基底クラス"""
+    def __init_subclass__(cls, **kwargs):
+        # 抽象メソッドが残っていないサブクラスを自動登録
 
     @abstractmethod
-    def get_name(self) -> str:
-        """エクスポーター名を返す"""
-        pass
+    def export(self, graph: GraphModel, **kwargs) -> dict[str, Any]:
+        """グラフをエクスポートし、結果メタデータを返す"""
 
-    @abstractmethod
-    def export(self, graph: GraphModel, output_path: Path) -> None:
-        """グラフを指定形式でエクスポート"""
-        pass
-
-    @abstractmethod
-    def get_extension(self) -> str:
-        """出力ファイルの拡張子を返す"""
-        pass
+    def format_cli_result(self, result: dict, project_root: Path) -> str:
+        """CLI出力用文字列をフォーマット（オーバーライド可能）"""
 ```
 
-### 3.2 実装例: Neo4jExporter
+### 2.2 レジストリ
 
 ```python
-from pathlib import Path
-from types import GraphModel
+get_exporter_for_format(fmt: str) -> type[AbstractExporter] | None
+get_exporter_registry() -> list[type[AbstractExporter]]
+clear_exporter_registry()  # テスト用
+```
 
-class Neo4jExporter(Exporter):
+### 2.3 登録済みエクスポーター
 
-    def get_name(self) -> str:
-        return "neo4j"
+| priority | クラス | format | 場所 |
+|----------|--------|--------|------|
+| 10 | CsvExporter | csv | connectors/csv_json.py |
+| 11 | JsonExporter | json | connectors/csv_json.py |
+| 20 | ObsidianExporter | obsidian | connectors/obsidian/ |
+| 30 | Neo4jExporter | neo4j | connectors/neo4j.py |
+| 31 | CypherExporter | cypher | connectors/neo4j.py |
+| 40 | DashboardJsonExporter | dashboard-json | connectors/dashboard_json.py |
 
-    def export(self, graph: GraphModel, output_path: Path) -> None:
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("// Nodes\n")
-            for node in graph.nodes:
-                props = ", ".join([f"{k}: {self._format_value(v)}" for k, v in node.properties.items()])
-                f.write(f"CREATE (n{node.id}:{node.type.capitalize()} {{id: {node.id}, name: \"{node.name}\", {props}}})\n")
+---
 
-            f.write("\n// Relations\n")
-            for rel in graph.relations:
-                f.write(f"CREATE (n{rel.node1_id})-[:{rel.label.upper()}]->(n{rel.node2_id})\n")
+## 3. 統一エクスポートパイプライン
 
-    def get_extension(self) -> str:
-        return ".cypher"
+### 3.1 CLI層
 
-    def _format_value(self, value):
-        if isinstance(value, str):
-            return f"\"{value}\""
-        return value
+```
+_run_export()
+  ↓ target文字列取得
+  ↓ _build_export_kwargs(target, args) → kwargs構築
+  ↓ service.export_unified(graph, target, **kwargs) → (result, exporter)
+  ↓ exporter.format_cli_result(result, project_root) → CLI出力
+```
+
+### 3.2 Service層
+
+```
+GraphCommandService.export_unified(graph, target, **kwargs)
+  ↓ get_exporter_for_format(target) → exporter_cls
+  ↓ CSV/JSON: _prepare_data_export_kwargs() でノード事前選択
+  ↓ dashboard-json: config設定自動注入
+  ↓ exporter.export(graph, **kwargs) → result
+  → (result, exporter)
+```
+
+### 3.3 後方互換
+
+既存の個別メソッド（`export_obsidian()`, `export_data()`, `export_neo4j()` 等）は
+内部的に `export_by_format()` を呼び出しており、引き続き使用可能。
+
+---
+
+## 4. 対応出力形式
+
+### 4.1 CSV
+
+- UTF-8 BOM付きCSVファイル
+- プロパティ平坦化（"."区切り）
+- 単位表示形式: header（`key[unit]`）またはrow（別行）
+- カラム選択（globパターン対応）
+
+### 4.2 JSON
+
+- インデント付きJSON
+- ensure_ascii=Falseで日本語対応
+- プロパティ平坦化オプション
+
+### 4.3 Obsidian
+
+→ **[5. Obsidianエクスポート詳細](#5-obsidianエクスポート詳細)** を参照
+
+### 4.4 Neo4j
+
+- Neo4jデータベースへの直接upsert
+- UNWIND+MERGEによるバッチ処理
+- プロジェクト単位でのデータ管理
+
+### 4.5 Cypher
+
+- Neo4j不要のCypherクエリファイル出力
+- Neo4j BrowserまたはCypher-shellで実行可能
+
+### 4.6 dashboard-json
+
+- DashboardDataProvider経由のJSON出力
+- Streamlit/Webダッシュボード向け
+
+---
+
+## 5. Obsidianエクスポート詳細
+
+### 5.1 出力構造
+
+```
+notes/
+├── props/                       # ノードのマークダウンファイル
+│   ├── go/                      # タイプ別ディレクトリ
+│   │   ├── O-go_test_v1.inp.md  # 個別ノードファイル
+│   │   └── O-go_test_v2.inp.md
+│   ├── abaqus_elset/
+│   ├── abaqus_material/
+│   └── ...
+├── bases/                       # .base フィルター条件ファイル
+│   ├── go/
+│   │   ├── go_idx1.base         # 同一index .base
+│   │   └── go.base              # 同一type .base
+│   └── ...
+├── jj-summary.md               # プロジェクトサマリーノート
+├── elset_material_map.canvas    # Elset-材料 Canvas
+└── elset_material_go_map.canvas # Elset-材料-go 3層 Canvas
+```
+
+### 5.2 命名規則
+
+- 実ファイル: プレフィックスなし（例: `go_test_v1.inp`）
+- Obsidianファイル: `O-`プレフィックス付き（例: `O-go_test_v1.inp.md`）
+- ディレクトリ: プレフィックスなし（例: `notes/props/go/`）
+- daily_note由来ノードは`O-`プレフィックスなし
+
+### 5.3 プラグイン前提の機能
+
+以下の機能はObsidianプラグインが前提:
+
+| 機能 | 必要プラグイン | 説明 |
+|------|--------------|------|
+| テーブルクエリ | Dataview | `notes/props/`内のノードを動的テーブル表示 |
+| .baseファイル | DB Folder | YAML形式フィルター条件でテーブル表示 |
+| Canvas | Obsidian Canvas (コア) | Elset-材料関係の視覚化 |
+| サマリーノート | Dataview | `jj-summary.md`のプロジェクト概要 |
+
+---
+
+## 6. Obsidian推奨プラグイン構成
+
+### 6.1 必須プラグイン
+
+#### Dataview
+
+jjが出力するマークダウンはDataviewクエリを多用しています。
+
+- **用途**: サマリーノート、ノード間関係のテーブル表示、Elset/材料の一覧
+- **インストール**: Obsidian設定 → コミュニティプラグイン → "Dataview"を検索
+- **設定**: デフォルト設定で動作。`Enable JavaScript Queries`は不要。
+
+#### DB Folder（またはMetadata Menu）
+
+`.base`ファイル（YAMLフィルター条件）を使ったテーブル表示に必要です。
+
+- **用途**: `notes/bases/`配下の`.base`ファイルでフィルター付きテーブル表示
+- **インストール**: Obsidian設定 → コミュニティプラグイン → "DB Folder"を検索
+- **設定**: デフォルト設定で動作
+
+### 6.2 推奨プラグイン
+
+#### Templater
+
+ノートテンプレートを活用してカスタムノートを追加する場合に便利です。
+
+- **用途**: 日報ノートのテンプレート化、カスタムノートの定型作成
+- **設定**: Template folder → `templates/`に設定
+
+#### Tag Wrangler
+
+jjが出力する多数のタグ（`#go`, `#material/Steel`等）の管理に有用です。
+
+- **用途**: タグの一括リネーム、階層タグの管理
+
+#### Graph Analysis
+
+Obsidianのグラフビューを拡張し、jjのノード間関係を視覚的に探索できます。
+
+### 6.3 Vault初期セットアップ手順
+
+1. Obsidianで新規Vaultを作成（プロジェクトルートをVaultフォルダに指定）
+2. コミュニティプラグインを有効化（設定 → コミュニティプラグイン → 「制限モードをオフ」）
+3. **Dataview**をインストール・有効化
+4. **DB Folder**をインストール・有効化
+5. `jj export --target obsidian` を実行
+6. Obsidianで `notes/props/jj-summary.md` を開いてプロジェクト概要を確認
+
+### 6.4 Dataviewクエリ例
+
+jjが生成するマークダウン内に埋め込まれるクエリの例:
+
+```dataview
+TABLE node_type AS "タイプ", node_format AS "フォーマット", tags AS "タグ"
+FROM "notes/props"
+WHERE node_type != null
+SORT node_type ASC, file.name ASC
+```
+
+```dataview
+TABLE material AS "材料", element_count AS "要素数"
+FROM "notes/props/abaqus_elset"
+SORT element_count DESC
 ```
 
 ---
 
-## 4. ExporterRegistry
+## 7. 出力コマンド
 
-### 4.1 概要
-
-エクスポーターを一元管理し、動的に選択可能にします。
-
-### 4.2 実装
-
-```python
-class ExporterRegistry:
-    """エクスポーターの管理"""
-
-    def __init__(self):
-        self._exporters: dict[str, Exporter] = {}
-
-    def register(self, exporter: Exporter):
-        """エクスポーターを登録"""
-        self._exporters[exporter.get_name()] = exporter
-
-    def get_exporter(self, name: str) -> Exporter | None:
-        """名前でエクスポーターを取得"""
-        return self._exporters.get(name)
-
-    def list_exporters(self) -> list[str]:
-        """登録済みエクスポーターのリストを返す"""
-        return list(self._exporters.keys())
-```
-
-### 4.3 自動登録
-
-```python
-# services/export/__init__.py
-from .registry import ExporterRegistry
-from .neo4j import Neo4jExporter
-from .json import JsonExporter
-from .graphml import GraphMLExporter
-
-registry = ExporterRegistry()
-registry.register(Neo4jExporter())
-registry.register(JsonExporter())
-registry.register(GraphMLExporter())
-```
-
----
-
-## 5. 出力コマンド
-
-### 5.1 基本形式（将来実装）
+### 7.1 基本形式
 
 ```bash
-jj export <format> [options]
+jj export --target <format> [options]
 ```
 
-### 5.2 例
+### 7.2 対応形式と例
 
 ```bash
-jj export neo4j --output graph.cypher
-jj export json --output graph.json
-jj export graphml --output graph.graphml
-jj export obsidian --output ./vault/
+# Obsidian（デフォルト）
+jj export --target obsidian
+jj export --target obsidian --parse  # parse後にexport
+
+# CSV/JSON
+jj export --target csv --flatten
+jj export --target json -type go -id 1..3
+
+# Neo4j
+jj export --target neo4j --clear
+
+# Cypher（Neo4j不要）
+jj export --target cypher --output graph.cypher
+
+# ダッシュボード
+jj export --target dashboard-json
 ```
 
-### 5.3 オプション
+### 7.3 共通オプション
 
 | オプション | 説明 |
 |-----------|------|
-| `--output` | 出力先パス |
-| `--filter` | ノードタイプでフィルタ（例: `--filter file,run`） |
-| `--since` | 指定日時以降のノードのみ出力 |
+| `--target` | エクスポート形式（obsidian/csv/json/neo4j/cypher/dashboard-json） |
+| `--parse` | エクスポート前にparseを実行 |
+| `--full` | fullモードでparse |
+| `--output` | 出力先ファイルパス |
 
----
+### 7.4 CSV/JSON固有オプション
 
-## 6. 実装計画
-
-### Phase 1: 基盤整備（中期）
-
-- [ ] `Exporter` 基底クラスの定義
-- [ ] `ExporterRegistry` の実装
-- [ ] エクスポーター自動登録機構
-
-### Phase 2: 基本エクスポーター実装（中期）
-
-- [ ] Neo4jExporter の実装
-- [ ] JsonExporter の実装
-- [ ] GraphMLExporter の実装
-
-### Phase 3: コマンド実装（中期）
-
-- [ ] `jj export` コマンドの実装
-- [ ] フィルタリング機能
-- [ ] 出力オプションの拡張
-
-### Phase 4: 高度な機能（長期）
-
-- [ ] カスタムテンプレートサポート
-- [ ] インクリメンタルエクスポート
-- [ ] エクスポートプリセット機能
-
----
-
-## 7. 設計上の注意事項
-
-### 7.1 パフォーマンス
-
-- 大規模グラフ（10,000ノード以上）でも高速に出力
-- ストリーミング出力でメモリ使用量を抑制
-
-### 7.2 型変換
-
-- プロパティの型を出力形式に適切に変換
-- 例: Neo4jでは数値は引用符なし、文字列は引用符あり
-
-### 7.3 エスケープ処理
-
-- 特殊文字のエスケープを適切に行う
-- 例: Cypher内の `"` や `\`
+| オプション | 説明 |
+|-----------|------|
+| `-type` | ノードタイプフィルタ |
+| `-id` | インデックスフィルタ（範囲展開対応） |
+| `-v` | バージョンフィルタ |
+| `-all` | 全ノード |
+| `-active` | activeのみ |
+| `-prop` | プロパティフィルタ |
+| `--flatten` | プロパティ平坦化 |
+| `--unit-format` | 単位表示形式（header/row） |
+| `--columns` | カラム選択 |
 
 ---
 
 ## 8. テスト方針
 
-### 単体テスト（pytest）
+### テストケース
 
-- `tests/services/test_export.py` : 各エクスポーターのテスト
-- `tests/services/test_registry.py` : ExporterRegistryのテスト
-
-### テストケース例
-
-- 各形式への正確な変換
-- 大規模グラフの出力
-- 特殊文字のエスケープ
-- エクスポーター選択の正確性
+- AbstractExporter自動登録テスト
+- 各エクスポーターのレジストリ経由実行
+- format_cli_result()の出力フォーマット
+- export_unified()の統一パイプライン
+- Obsidianサマリーノート生成
 
 ---
 
-## 9. 他ドメインとの関係
-
-| ドメイン | 依存関係 | 説明 |
-|---------|---------|------|
-| コアデータモデル層 | → 出力層 | GraphModelを受け取って変換 |
-| noteコマンド層 | ← 出力層 | Obsidian出力を委譲 |
-
----
-
-## 10. 参考資料
+## 9. 参考資料
 
 - [実装詳細](../detail.md)
 - [ロードマップ](../roadmap.md)
 - [コアデータモデル仕様書](./01-core-data-model.md)
-- [noteコマンド層仕様書](./05-note-command.md)
+- [DB統合設計書](./10-db-integration.md)

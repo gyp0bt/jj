@@ -833,6 +833,11 @@ class ObsidianConnector:
         if canvas3_path:
             written.append(canvas3_path)
 
+        # サマリーノート（Dataviewクエリによるプロジェクト概要）を生成
+        summary_path = self._write_summary_note(graph)
+        if summary_path:
+            written.append(summary_path)
+
         return written
 
     def write_md_with_relations(
@@ -1362,6 +1367,82 @@ class ObsidianConnector:
         except ValueError:
             return md_path
 
+    def _write_summary_note(self, graph: GraphModel) -> Optional[Path]:
+        """プロジェクトサマリーノートを生成（Dataview/プラグイン前提）
+
+        Obsidianプラグイン（Dataview, DB Folder等）がインストールされている前提で、
+        プロジェクト全体の概要をDataviewクエリで動的に表示するサマリーノートを生成する。
+
+        Args:
+            graph: グラフモデル
+
+        Returns:
+            書き込んだファイルのパス。ノードがない場合はNone。
+        """
+        if not graph.nodes:
+            return None
+
+        # タイプ別ノード数を集計
+        type_counts: dict[str, int] = defaultdict(int)
+        for node in graph.nodes:
+            type_counts[node.type] += 1
+
+        notes_dir = self.project_root / self.config.notes_dir
+        notes_dir.mkdir(parents=True, exist_ok=True)
+        summary_path = notes_dir / "jj-summary.md"
+
+        notes_dir_str = str(self.config.notes_dir).replace("\\", "/")
+
+        content = """---
+tags:
+  - jj
+  - summary
+---
+
+## プロジェクト概要
+
+"""
+        content += "| タイプ | 件数 |\n"
+        content += "|--------|------|\n"
+        for node_type, count in sorted(type_counts.items(), key=lambda x: -x[1]):
+            content += f"| {node_type} | {count} |\n"
+
+        content += f"""
+総ノード数: {len(graph.nodes)}
+総リレーション数: {len(graph.relations)}
+
+## 全ファイル一覧（Dataview）
+
+```dataview
+TABLE node_type AS "タイプ", node_format AS "フォーマット", tags AS "タグ"
+FROM "{notes_dir_str}"
+WHERE node_type != null
+SORT node_type ASC, file.name ASC
+```
+
+"""
+        # タイプ別セクション
+        for node_type in sorted(type_counts.keys()):
+            dir_name = get_directory_for_type(node_type)
+            folder = f"{notes_dir_str}/{dir_name}"
+            content += f"""### {node_type} ({type_counts[node_type]}件)
+
+```dataview
+TABLE WITHOUT ID file.link AS "ファイル", 番号 AS "番号", バージョン AS "ver"
+FROM "{folder}"
+SORT file.name ASC
+```
+
+"""
+
+        # Canvas リンク
+        content += "## Canvas\n\n"
+        content += f"- [[elset_material_map.canvas|Elset-材料マップ]]\n"
+        content += f"- [[elset_material_go_map.canvas|Elset-材料-go 3層マップ]]\n"
+
+        summary_path.write_text(content, encoding="utf-8")
+        return summary_path
+
 
 class ObsidianExporter(AbstractExporter):
     """Obsidian形式エクスポーター（AbstractExporterサブクラス）
@@ -1384,4 +1465,22 @@ class ObsidianExporter(AbstractExporter):
         connector = ObsidianConnector(project_root=project_root)
         written = connector.export_graph(graph, overwrite=overwrite)
         return {"written_paths": written, "count": len(written)}
+
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
+        written_paths = result.get("written_paths", [])
+        lines = [
+            "\n=== エクスポート完了 ===",
+            f"書き込みファイル数: {len(written_paths)}",
+        ]
+        if written_paths:
+            lines.append("\n書き込んだファイル:")
+            for path in written_paths[:10]:
+                try:
+                    rel_path = Path(path).relative_to(project_root)
+                except ValueError:
+                    rel_path = path
+                lines.append(f"  {rel_path}")
+            if len(written_paths) > 10:
+                lines.append(f"  ... 他 {len(written_paths) - 10} 件")
+        return "\n".join(lines)
 

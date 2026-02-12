@@ -632,7 +632,7 @@ def _run_show(project_root: Path, args: argparse.Namespace) -> int:
 
 
 def _run_export(project_root: Path, args: argparse.Namespace) -> int:
-    """exportサブコマンドを実行"""
+    """exportサブコマンドを実行（レジストリ経由統一ディスパッチ）"""
     service = GraphCommandService(project_root)
 
     try:
@@ -662,153 +662,88 @@ def _run_export(project_root: Path, args: argparse.Namespace) -> int:
 
         target = getattr(args, "target", "obsidian")
 
-        if target == "obsidian":
-            return _print_export_obsidian(service, graph, project_root, args)
-        elif target in ("csv", "json"):
-            return _print_export_data(service, graph, target, args)
-        elif target == "neo4j":
-            return _print_export_neo4j(service, graph, args, direct=True)
-        elif target == "cypher":
-            return _print_export_neo4j(service, graph, args, direct=False)
-        elif target == "dashboard-json":
-            return _print_export_dashboard_json(service, graph, args)
-        else:
-            print(f"未対応のエクスポート先: {target}")
-            return 1
+        # CLIオプションからエクスポーター用kwargsを構築
+        kwargs = _build_export_kwargs(target, args)
 
-    except Exception as e:
-        print(f"エラー: {e}", file=sys.stderr)
-        return 1
+        # 統一パイプラインでエクスポート実行
+        result, exporter = service.export_unified(graph, target, **kwargs)
 
-
-def _print_export_obsidian(
-    service: GraphCommandService,
-    graph: "GraphModel",
-    project_root: Path,
-    args: argparse.Namespace,
-) -> int:
-    """Obsidianエクスポートの出力整形"""
-    print(f"Obsidianにエクスポート中...")
-    result = service.export_obsidian(
-        graph, overwrite=getattr(args, "overwrite", False)
-    )
-
-    print(f"\n=== エクスポート完了 ===")
-    print(f"書き込みファイル数: {len(result.written_paths)}")
-    if result.written_paths:
-        print("\n書き込んだファイル:")
-        for path in result.written_paths[:10]:
-            rel_path = path.relative_to(project_root)
-            print(f"  {rel_path}")
-        if len(result.written_paths) > 10:
-            print(f"  ... 他 {len(result.written_paths) - 10} 件")
-    return 0
-
-
-def _print_export_data(
-    service: GraphCommandService,
-    graph: "GraphModel",
-    target: str,
-    args: argparse.Namespace,
-) -> int:
-    """CSV/JSONエクスポートの出力整形"""
-    try:
-        result = service.export_data(
-            graph,
-            target,
-            type_filter=getattr(args, "type", None),
-            select_filter=getattr(args, "select", None),
-            output_file=getattr(args, "output", None),
-            index_filters=expand_ranges(getattr(args, "index", None)),
-            version_filters=expand_ranges(getattr(args, "version", None)),
-            all_nodes=getattr(args, "all_nodes", False),
-            prop_filters=getattr(args, "prop", None),
-            flatten=getattr(args, "flatten", False),
-            active_only=getattr(args, "active", False),
-            unit_format=getattr(args, "unit_format", None),
-            columns=getattr(args, "columns", None),
-        )
-        label = "CSV" if target == "csv" else "JSON"
-        print(f"{label}エクスポート完了: {result.output_path} ({result.count}件)")
-        return 0
-    except ValueError as e:
-        print(str(e))
-        return 1
-
-
-def _print_export_neo4j(
-    service: GraphCommandService,
-    graph: "GraphModel",
-    args: argparse.Namespace,
-    direct: bool = True,
-) -> int:
-    """Neo4j/Cypherエクスポートの出力整形"""
-    try:
-        result = service.export_neo4j(
-            graph,
-            direct=direct,
-            clear_project=getattr(args, "clear", False),
-            neo4j_uri=getattr(args, "neo4j_uri", None),
-            neo4j_user=getattr(args, "neo4j_user", None),
-            neo4j_password=getattr(args, "neo4j_password", None),
-            output_file=getattr(args, "output", None),
-        )
-
-        if result.direct:
-            print(f"Neo4jにエクスポート中... ({result.uri})")
-            print(f"\n=== Neo4jエクスポート完了 ===")
-            print(f"ノード: {result.node_count}件")
-            print(f"リレーション: {result.relation_count}件")
-            if result.clear_project:
-                print("（既存プロジェクトデータを削除後に投入）")
-        else:
-            if result.output_path:
-                try:
-                    rel_path = result.output_path.relative_to(service.project_root)
-                except ValueError:
-                    rel_path = result.output_path
-                print(f"Cypherエクスポート完了: {rel_path}")
-            print(
-                f"ノード: {result.node_count}件、"
-                f"リレーション: {result.relation_count}件"
-            )
-
+        # エクスポーターのformat_cli_result()でCLI出力を生成
+        output = exporter.format_cli_result(result, project_root)
+        print(output)
         return 0
 
     except ImportError as e:
         print(f"エラー: {e}", file=sys.stderr)
-        print("Neo4jへの直接接続が不要な場合は --target cypher を使用してください。")
+        if "neo4j" in str(e).lower():
+            print("Neo4jへの直接接続が不要な場合は --target cypher を使用してください。")
+        return 1
+    except ValueError as e:
+        print(str(e))
         return 1
     except Exception as e:
-        print(f"Neo4jエクスポートエラー: {e}", file=sys.stderr)
+        print(f"エクスポートエラー: {e}", file=sys.stderr)
         return 1
 
 
-def _print_export_dashboard_json(
-    service: GraphCommandService,
-    graph: "GraphModel",
-    args: argparse.Namespace,
-) -> int:
-    """dashboard-jsonエクスポートの出力整形"""
-    try:
-        result = service.export_dashboard_json(
-            graph,
-            output_file=getattr(args, "output", None),
-        )
-        try:
-            rel_path = result.output_path.relative_to(service.project_root)
-        except ValueError:
-            rel_path = result.output_path
-        print(f"dashboard-jsonエクスポート完了: {rel_path}")
-        print(
-            f"ノード: {result.node_count}件、"
-            f"リレーション: {result.relation_count}件、"
-            f"テーブル行: {result.row_count}件"
-        )
-        return 0
-    except Exception as e:
-        print(f"dashboard-jsonエクスポートエラー: {e}", file=sys.stderr)
-        return 1
+def _build_export_kwargs(target: str, args: argparse.Namespace) -> dict[str, Any]:
+    """CLIオプションからエクスポーター用kwargsを構築
+
+    形式ごとに必要なオプションを抽出してdict化する。
+    エクスポーター内部で不要なキーは**_extraで無視される。
+
+    Args:
+        target: エクスポート形式
+        args: argparse.Namespace
+
+    Returns:
+        エクスポーター用kwargs辞書
+    """
+    kwargs: dict[str, Any] = {}
+
+    # Obsidian固有
+    if target == "obsidian":
+        kwargs["overwrite"] = getattr(args, "overwrite", False)
+
+    # CSV/JSON固有
+    elif target in ("csv", "json"):
+        kwargs["type_filter"] = getattr(args, "type", None)
+        kwargs["select_filter"] = getattr(args, "select", None)
+        kwargs["output_file"] = getattr(args, "output", None)
+        kwargs["index_filters"] = expand_ranges(getattr(args, "index", None))
+        kwargs["version_filters"] = expand_ranges(getattr(args, "version", None))
+        kwargs["all_nodes"] = getattr(args, "all_nodes", False)
+        kwargs["prop_filters"] = getattr(args, "prop", None)
+        kwargs["flatten"] = getattr(args, "flatten", False)
+        kwargs["active_only"] = getattr(args, "active", False)
+        kwargs["unit_format"] = getattr(args, "unit_format", None)
+        kwargs["columns"] = getattr(args, "columns", None)
+
+    # Neo4j固有
+    elif target == "neo4j":
+        kwargs["clear_project"] = getattr(args, "clear", False)
+        neo4j_uri = getattr(args, "neo4j_uri", None)
+        neo4j_user = getattr(args, "neo4j_user", None)
+        neo4j_password = getattr(args, "neo4j_password", None)
+        if neo4j_uri:
+            kwargs["neo4j_uri"] = neo4j_uri
+        if neo4j_user:
+            kwargs["neo4j_user"] = neo4j_user
+        if neo4j_password:
+            kwargs["neo4j_password"] = neo4j_password
+
+    # Cypher固有
+    elif target == "cypher":
+        kwargs["clear_project"] = getattr(args, "clear", False)
+        output_file = getattr(args, "output", None)
+        if output_file:
+            kwargs["output_file"] = output_file
+
+    # dashboard-json固有
+    elif target == "dashboard-json":
+        kwargs["output_file"] = getattr(args, "output", None)
+
+    return kwargs
 
 
 def _run_info(project_root: Path, args: argparse.Namespace) -> int:

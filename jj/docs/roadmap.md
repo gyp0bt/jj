@@ -229,7 +229,7 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] graph/__init__.py の`parse_project()`をProjectGraph+パイプライン委譲に変更
 - [x] 統合テスト29件パス（test_parser_pipeline.py）
 
-#### R4. export層の整理 ✅ (status-043, status-063)
+#### R4. export層の整理 ✅ (status-043, status-063, status-064, status-065)
 
 - [x] Obsidianエクスポートを `export/connectors/obsidian/` へ移動（後方互換re-export維持）
 - [x] Neo4jエクスポートは `export/connectors/neo4j.py` に配置済み
@@ -238,6 +238,11 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] ObsidianConnector / Neo4jConnector / DashboardJsonをAbstractExporterサブクラスに移行 (status-064)
 - [x] `jj export --target <format>` のAbstractExporterレジストリ経由での統一実行 (status-064)
 - [x] Obsidian Canvas 3層（go-material-elset）関係グラフ生成 (status-064)
+- [x] CLI `_run_export()` レジストリ経由統一ディスパッチ（旧if/elifチェーン廃止） (status-065)
+- [x] AbstractExporter.format_cli_result() メソッド（CLI出力整形の委譲） (status-065)
+- [x] GraphCommandService.export_unified() 統一パイプライン (status-065)
+- [x] Obsidianサマリーノート（jj-summary.md）自動生成 (status-065)
+- [x] Obsidian推奨プラグイン構成ドキュメント (status-065)
 
 #### R5. lib層の整理 ✅ (status-043)
 
@@ -503,13 +508,13 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 
 #### 4-2. export層の拡張
 
-- [ ] `ExporterRegistry` の実装
+- [x] `AbstractExporter`レジストリの実装（`__init_subclass__`自動登録） (status-063)
+- [x] `jj export` コマンドのレジストリ経由統一ディスパッチ (status-065)
 - [ ] GraphMLExporter の実装
-- [ ] `jj export` コマンドの統合
 - [ ] カスタムテンプレートサポート
 - [ ] インクリメンタルエクスポート
 
-**参照**: [08-export.md](./specs/08-export.md#6-実装計画)
+**参照**: [08-export.md](./specs/08-export.md)
 
 #### 4-3. fileコマンド層の高度な機能
 
@@ -645,6 +650,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-063.md)
+- [最新ステータス](./status/status-065.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
