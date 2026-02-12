@@ -437,6 +437,21 @@ class Neo4jExporter(AbstractExporter):
         finally:
             connector.close()
 
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
+        uri = result.get("uri", "")
+        node_count = result.get("node_count", 0)
+        relation_count = result.get("relation_count", 0)
+        clear_project = result.get("clear_project", False)
+        lines = [
+            f"Neo4jにエクスポート中... ({uri})",
+            "\n=== Neo4jエクスポート完了 ===",
+            f"ノード: {node_count}件",
+            f"リレーション: {relation_count}件",
+        ]
+        if clear_project:
+            lines.append("（既存プロジェクトデータを削除後に投入）")
+        return "\n".join(lines)
+
 
 class CypherExporter(AbstractExporter):
     """Cypherファイルエクスポーター（AbstractExporterサブクラス）
@@ -475,3 +490,17 @@ class CypherExporter(AbstractExporter):
             }
         finally:
             connector.close()
+
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
+        output_path = result.get("output_path")
+        node_count = result.get("node_count", 0)
+        relation_count = result.get("relation_count", 0)
+        lines = []
+        if output_path:
+            try:
+                rel = Path(output_path).relative_to(project_root)
+            except ValueError:
+                rel = output_path
+            lines.append(f"Cypherエクスポート完了: {rel}")
+        lines.append(f"ノード: {node_count}件、リレーション: {relation_count}件")
+        return "\n".join(lines)

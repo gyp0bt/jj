@@ -2735,3 +2735,235 @@ class TestObsidianElsetMaterialGoCanvas:
         connector = ObsidianConnector(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
         assert canvas_path is None
+
+
+# =========================================================================
+# format_cli_result テスト
+# =========================================================================
+
+
+class TestFormatCliResult:
+    """各エクスポーターのformat_cli_result()メソッドのテスト"""
+
+    def test_csv_exporter_cli_result(self, tmp_path: Path):
+        """CsvExporterのCLI出力が正しくフォーマットされること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("csv")
+        exporter = exporter_cls()
+        result = {
+            "output_path": tmp_path / "export.csv",
+            "count": 42,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "CSV" in output
+        assert "42" in output
+        assert "export.csv" in output
+
+    def test_json_exporter_cli_result(self, tmp_path: Path):
+        """JsonExporterのCLI出力が正しくフォーマットされること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("json")
+        exporter = exporter_cls()
+        result = {
+            "output_path": tmp_path / "export.json",
+            "count": 10,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "JSON" in output
+        assert "10" in output
+
+    def test_obsidian_exporter_cli_result(self, tmp_path: Path):
+        """ObsidianExporterのCLI出力にファイル数が含まれること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("obsidian")
+        exporter = exporter_cls()
+        result = {
+            "written_paths": [tmp_path / "a.md", tmp_path / "b.md"],
+            "count": 2,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "2" in output
+        assert "エクスポート完了" in output
+
+    def test_cypher_exporter_cli_result(self, tmp_path: Path):
+        """CypherExporterのCLI出力にノード/リレーション数が含まれること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("cypher")
+        exporter = exporter_cls()
+        result = {
+            "output_path": tmp_path / "export.cypher",
+            "node_count": 5,
+            "relation_count": 3,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "Cypher" in output
+        assert "5" in output
+        assert "3" in output
+
+    def test_dashboard_json_cli_result(self, tmp_path: Path):
+        """DashboardJsonExporterのCLI出力にテーブル行数が含まれること"""
+        import services.export.connectors  # noqa: F401
+        from services.export import get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format("dashboard-json")
+        exporter = exporter_cls()
+        result = {
+            "output_path": tmp_path / "dashboard.json",
+            "node_count": 10,
+            "relation_count": 5,
+            "row_count": 8,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "dashboard-json" in output
+        assert "8" in output
+
+
+# =========================================================================
+# export_unified テスト
+# =========================================================================
+
+
+class TestExportUnified:
+    """GraphCommandService.export_unified()のテスト"""
+
+    def test_export_unified_csv(self, tmp_path: Path):
+        """CSVエクスポートがexport_unified経由で実行できること"""
+        from jj_types import GraphModel
+        from services.service.graph_command import GraphCommandService
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp",
+                 properties={"index": "1", "version": "1"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        service = GraphCommandService(tmp_path)
+        result, exporter = service.export_unified(graph, "csv")
+        assert result["count"] == 1
+        assert result["output_path"].exists()
+        assert exporter.format == "csv"
+
+    def test_export_unified_obsidian(self, tmp_path: Path):
+        """Obsidianエクスポートがexport_unified経由で実行できること"""
+        from jj_types import GraphModel
+        from services.service.graph_command import GraphCommandService
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp",
+                 properties={"path": "test1.inp"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        service = GraphCommandService(tmp_path)
+        result, exporter = service.export_unified(graph, "obsidian")
+        assert result["count"] > 0
+        assert exporter.format == "obsidian"
+
+    def test_export_unified_unknown_raises(self, tmp_path: Path):
+        """未知の形式でValueErrorが発生すること"""
+        from jj_types import GraphModel
+        from services.service.graph_command import GraphCommandService
+
+        graph = GraphModel(nodes=[], relations=[])
+        service = GraphCommandService(tmp_path)
+        try:
+            service.export_unified(graph, "unknown_format")
+            assert False, "Should have raised ValueError"
+        except ValueError as e:
+            assert "未対応のエクスポート形式" in str(e)
+
+    def test_export_unified_returns_exporter_instance(self, tmp_path: Path):
+        """export_unifiedがエクスポーターインスタンスを返すこと"""
+        from jj_types import GraphModel
+        from services.export import AbstractExporter
+        from services.service.graph_command import GraphCommandService
+
+        nodes = [
+            Node(id=1, type="go", name="test1", format="inp", properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        service = GraphCommandService(tmp_path)
+        result, exporter = service.export_unified(graph, "cypher")
+        assert isinstance(exporter, AbstractExporter)
+        # format_cli_resultが呼べること
+        output = exporter.format_cli_result(result, tmp_path)
+        assert isinstance(output, str)
+        assert len(output) > 0
+
+
+# =========================================================================
+# Obsidianサマリーノート テスト
+# =========================================================================
+
+
+class TestObsidianSummaryNote:
+    """Obsidianサマリーノート（jj-summary.md）生成テスト"""
+
+    def test_summary_note_generated(self, tmp_path: Path):
+        """ノードがある場合にサマリーノートが生成されること"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="go_test_v1", format="inp",
+                 properties={"path": "go_test_v1.inp"}),
+            Node(id=2, type="abaqus_material", name="Steel", format="material",
+                 properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[
+            Relation(id=1, label="uses_material", node1_id=1, node2_id=2),
+        ])
+        connector = ObsidianConnector(project_root=tmp_path)
+        summary_path = connector._write_summary_note(graph)
+
+        assert summary_path is not None
+        assert summary_path.exists()
+        assert summary_path.name == "jj-summary.md"
+
+        content = summary_path.read_text(encoding="utf-8")
+        # frontmatter
+        assert "tags:" in content
+        # 概要テーブル
+        assert "go" in content
+        assert "abaqus_material" in content
+        # 統計情報
+        assert "2" in content  # 総ノード数
+        assert "1" in content  # 総リレーション数
+        # Dataviewクエリ
+        assert "dataview" in content
+
+    def test_summary_note_not_generated_for_empty_graph(self, tmp_path: Path):
+        """空のグラフではサマリーノートが生成されないこと"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        graph = GraphModel(nodes=[], relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        summary_path = connector._write_summary_note(graph)
+        assert summary_path is None
+
+    def test_summary_note_type_sections(self, tmp_path: Path):
+        """各タイプごとにDataviewセクションが生成されること"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="go1", format="inp", properties={}),
+            Node(id=2, type="go", name="go2", format="inp", properties={}),
+            Node(id=3, type="mesh", name="mesh1", format="cdb", properties={}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        summary_path = connector._write_summary_note(graph)
+
+        content = summary_path.read_text(encoding="utf-8")
+        # タイプ別セクション
+        assert "### go" in content
+        assert "### mesh" in content
+        assert "2件" in content  # go: 2件

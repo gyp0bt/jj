@@ -48,6 +48,17 @@ class CsvExporter(AbstractExporter):
         """
         return _export_data(graph, "csv", **kwargs)
 
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
+        output_path = result.get("output_path")
+        count = result.get("count", 0)
+        if output_path:
+            try:
+                rel = Path(output_path).relative_to(project_root)
+            except ValueError:
+                rel = output_path
+            return f"CSVエクスポート完了: {rel} ({count}件)"
+        return f"CSVエクスポート完了 ({count}件)"
+
 
 class JsonExporter(AbstractExporter):
     """JSON形式エクスポーター
@@ -61,6 +72,17 @@ class JsonExporter(AbstractExporter):
     def export(self, graph: GraphModel, **kwargs: Any) -> dict[str, Any]:
         """JSONエクスポート（kwargsはCsvExporterと同一）"""
         return _export_data(graph, "json", **kwargs)
+
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
+        output_path = result.get("output_path")
+        count = result.get("count", 0)
+        if output_path:
+            try:
+                rel = Path(output_path).relative_to(project_root)
+            except ValueError:
+                rel = output_path
+            return f"JSONエクスポート完了: {rel} ({count}件)"
+        return f"JSONエクスポート完了 ({count}件)"
 
 
 def _export_data(

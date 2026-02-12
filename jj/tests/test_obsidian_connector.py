@@ -172,11 +172,16 @@ class TestObsidianConnector:
 
         written = connector.export_graph(graph)
 
-        assert len(written) == 2
+        # 2ノード + 1サマリーノート = 3ファイル
+        assert len(written) == 3
 
-        # 全ファイルがO-プレフィックス付き
-        for path in written:
-            assert path.name.startswith("O-")
+        # ノードファイルはO-プレフィックス付き
+        node_files = [p for p in written if p.name.startswith("O-")]
+        assert len(node_files) == 2
+
+        # サマリーノートが含まれる
+        summary_files = [p for p in written if p.name == "jj-summary.md"]
+        assert len(summary_files) == 1
 
 
 class TestObsidianBaseAndGroupFiles:
@@ -770,9 +775,10 @@ class TestOverwriteBehavior:
         graph2 = GraphModel(nodes=[node2], relations=[])
         written = connector.export_graph(graph2, overwrite=False)
 
-        md_files = [p for p in written if p.name.endswith(".md")]
-        assert len(md_files) == 1
-        content = md_files[0].read_text(encoding="utf-8")
+        # ノードファイル（O-プレフィックス付き.md）のみ対象
+        node_md_files = [p for p in written if p.name.startswith("O-") and p.name.endswith(".md")]
+        assert len(node_md_files) == 1
+        content = node_md_files[0].read_text(encoding="utf-8")
         assert "w: 10" in content
 
 

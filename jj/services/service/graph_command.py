@@ -272,8 +272,89 @@ class GraphCommandService:
             return graph, None
 
     # =========
-    # export: obsidian
+    # export: 統一エクスポート
     # =========
+
+    def export_unified(
+        self,
+        graph: GraphModel,
+        target: str,
+        **cli_kwargs: Any,
+    ) -> tuple[dict[str, Any], "AbstractExporter"]:
+        """統一エクスポートパイプライン
+
+        全エクスポート形式をレジストリ経由で統一的に呼び出す。
+        CLI引数から構築されたkwargsをエクスポーターに渡し、
+        結果とエクスポーターインスタンスを返す。
+
+        CSV/JSONの共通選択オプション（-id, -v, -type, -all等）は
+        事前にノード絞り込みを行い、pre_selectedとして注入する。
+
+        dashboard-jsonではconfig設定（vocab, units）を自動注入する。
+
+        Args:
+            graph: エクスポート対象のグラフ
+            target: エクスポート形式
+            **cli_kwargs: CLIから構築されたkwargsデータ
+
+        Returns:
+            (エクスポート結果辞書, エクスポーターインスタンス)
+        """
+        import services.export.connectors  # noqa: F401
+        from services.export import AbstractExporter, get_exporter_for_format
+
+        exporter_cls = get_exporter_for_format(target)
+        if exporter_cls is None:
+            raise ValueError(f"未対応のエクスポート形式: {target}")
+
+        # project_rootをデフォルト注入
+        cli_kwargs.setdefault("project_root", self.project_root)
+
+        # CSV/JSON: 共通選択オプションによる事前ノード絞り込み
+        if target in ("csv", "json"):
+            cli_kwargs = self._prepare_data_export_kwargs(graph, cli_kwargs)
+
+        # dashboard-json: config設定を自動注入
+        if target == "dashboard-json":
+            config = self._graph_service.config
+            cli_kwargs.setdefault("vocab", config.vocab)
+            cli_kwargs.setdefault("units", config.export.units)
+
+        exporter = exporter_cls()
+        result = exporter.export(graph, **cli_kwargs)
+        return result, exporter
+
+    def _prepare_data_export_kwargs(
+        self,
+        graph: GraphModel,
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """CSV/JSONエクスポート用のkwargsを準備（ノード事前選択を含む）"""
+        index_filters = kwargs.pop("index_filters", None)
+        version_filters = kwargs.pop("version_filters", None)
+        all_nodes = kwargs.pop("all_nodes", False)
+        active_only = kwargs.pop("active_only", False)
+        type_filter = kwargs.get("type_filter")
+        flatten = kwargs.pop("flatten", False)
+
+        # 共通選択オプションが指定されている場合は事前にノード絞り込み
+        if index_filters is not None or version_filters is not None or all_nodes or active_only:
+            pre_selected = self._info_service.search_nodes(
+                graph,
+                index_filters=index_filters,
+                version_filters=version_filters,
+                type_filter=type_filter,
+                all_nodes=all_nodes,
+                active_only=active_only,
+            )
+            kwargs["nodes"] = pre_selected
+            # search_nodesでtype_filterを適用済みなのでexport_dataには渡さない
+            kwargs.pop("type_filter", None)
+
+        # flattenフラグ: --flatten指定時はTrue、未指定はNone
+        kwargs["flatten"] = True if flatten else None
+
+        return kwargs
 
     def export_by_format(
         self,

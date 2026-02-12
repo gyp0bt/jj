@@ -86,6 +86,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-11 / status-065: エクスポートロジック統一・CLIレジストリディスパッチ・Obsidianプラグイン構成。CLI `_run_export()`を if/elif チェーンからレジストリ経由統一ディスパッチに変更。AbstractExporter.format_cli_result()メソッド追加（全6エクスポーターにオーバーライド実装）。GraphCommandService.export_unified()統一パイプライン追加。Obsidianサマリーノート（jj-summary.md）自動生成。Obsidian推奨プラグイン構成ドキュメント（Dataview/DB Folder/Templater等）。693テストパス（+12件追加）。([status-065](docs/status/status-065.md))
 - 2026-02-11 / status-064: エクスポートロジック統一・AbstractExporter全形式対応・3層Canvas。ObsidianExporter/Neo4jExporter/CypherExporter/DashboardJsonExporterをAbstractExporterサブクラスとして実装。全6形式がレジストリに登録され`get_exporter_for_format()`で統一取得可能。GraphCommandService.export_by_format()で統一呼び出し。Obsidian Canvas 3層（go-material-elset）関係グラフ生成。graph_command.pyの壊れたNeo4jインポートパス修正。117テストパス（+11件追加）。([status-064](docs/status/status-064.md))
 - 2026-02-11 / status-063: Export基盤整備・キャッシュクリーンアップ・Obsidian Elset-材料可視化。AbstractExporter基底クラス定義（__init_subclass__自動登録）、CSV/JSONエクスポートをexport/connectors/に移動、Elset品質統計CSVエクスポート対応、ABQDataキャッシュ自動クリーンアップ（max_age_days/max_count）、Obsidian Dataviewクエリ（elset/material/goノード）、Obsidian Canvas elset-materialマップ生成。670テストパス、21スキップ。([status-063](docs/status/status-063.md))
 - 2026-02-11 / status-062: Elset品質統計・ABQDataキャッシュ永続化・設定駆動include探索。Elsetごとの品質統計（extract_elset_quality_stats）、config-driven include search depth（include-search-depth設定）、ABQData永続化キャッシュ（pickle/.jj/storage/abq_cache/）、軽量パーサーキャッシュ展開（IncludesRelationParser/JsonPropertyParser）、Obsidian version_diff/elset可視化改善。649テストパス、21スキップ。([status-062](docs/status/status-062.md))
@@ -129,6 +130,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 
 ## 仕様リンク
 - [機能ドメイン別仕様書](docs/specs/README.md)
+- [出力層仕様書（Obsidianプラグイン構成含む）](docs/specs/08-export.md)
 - [ダッシュボード仕様書](docs/specs/09-dashboard.md)
 - [ダッシュボード要件定義](docs/specs/11-dashboard-requirements.md)
 - [DB統合設計書](docs/specs/10-db-integration.md)
