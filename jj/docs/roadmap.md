@@ -243,6 +243,7 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] GraphCommandService.export_unified() 統一パイプライン (status-065)
 - [x] Obsidianサマリーノート（jj-summary.md）自動生成 (status-065)
 - [x] Obsidian推奨プラグイン構成ドキュメント (status-065)
+- [x] Obsidian Vault設定自動生成（.obsidian/初回セットアップ） (status-066)
 
 #### R5. lib層の整理 ✅ (status-043)
 
@@ -510,7 +511,7 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 
 - [x] `AbstractExporter`レジストリの実装（`__init_subclass__`自動登録） (status-063)
 - [x] `jj export` コマンドのレジストリ経由統一ディスパッチ (status-065)
-- [ ] GraphMLExporter の実装
+- [ ] ~~GraphMLExporter の実装~~ → **凍結**（GraphMLを使用していないため）
 - [ ] カスタムテンプレートサポート
 - [ ] インクリメンタルエクスポート
 
@@ -650,6 +651,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-065.md)
+- [最新ステータス](./status/status-066.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

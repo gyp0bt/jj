@@ -132,6 +132,10 @@ GraphCommandService.export_unified(graph, target, **kwargs)
 ### 5.1 出力構造
 
 ```
+.obsidian/                           # Vault設定（初回のみ自動生成）
+│   ├── app.json                     # アプリ設定
+│   ├── community-plugins.json       # 推奨プラグインID一覧
+│   └── core-plugins-migration.json  # コアプラグイン設定
 notes/
 ├── props/                       # ノードのマークダウンファイル
 │   ├── go/                      # タイプ別ディレクトリ
@@ -209,14 +213,29 @@ jjが出力する多数のタグ（`#go`, `#material/Steel`等）の管理に有
 
 Obsidianのグラフビューを拡張し、jjのノード間関係を視覚的に探索できます。
 
-### 6.3 Vault初期セットアップ手順
+### 6.3 Vault自動セットアップ
 
-1. Obsidianで新規Vaultを作成（プロジェクトルートをVaultフォルダに指定）
-2. コミュニティプラグインを有効化（設定 → コミュニティプラグイン → 「制限モードをオフ」）
-3. **Dataview**をインストール・有効化
-4. **DB Folder**をインストール・有効化
-5. `jj export --target obsidian` を実行
-6. Obsidianで `notes/props/jj-summary.md` を開いてプロジェクト概要を確認
+`jj export --target obsidian` を実行すると、`.obsidian/` ディレクトリが存在しない場合に
+Vault設定を自動生成します（初回のみ）。
+
+#### 自動生成されるファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `.obsidian/app.json` | WikiLinks有効化、frontmatter表示等 |
+| `.obsidian/community-plugins.json` | 推奨プラグインID一覧（dataview, dbfolder） |
+| `.obsidian/core-plugins-migration.json` | Canvas等のコアプラグイン有効化 |
+
+#### セットアップ手順
+
+1. `jj export --target obsidian` を実行（Vault設定自動生成）
+2. Obsidianでプロジェクトルートをフォルダとして開く
+3. コミュニティプラグインを有効化（設定 → コミュニティプラグイン → 「制限モードをオフ」）
+4. **Dataview**をインストール・有効化
+5. **DB Folder**をインストール・有効化
+6. `notes/props/jj-summary.md` を開いてプロジェクト概要を確認
+
+> **注意**: `.obsidian/` が既に存在する場合（既存Vault）は設定を変更しません。
 
 ### 6.4 Dataviewクエリ例
 

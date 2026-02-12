@@ -172,8 +172,8 @@ class TestObsidianConnector:
 
         written = connector.export_graph(graph)
 
-        # 2ノード + 1サマリーノート = 3ファイル
-        assert len(written) == 3
+        # 3 Vault設定 + 2ノード + 1サマリーノート = 6ファイル
+        assert len(written) == 6
 
         # ノードファイルはO-プレフィックス付き
         node_files = [p for p in written if p.name.startswith("O-")]
@@ -182,6 +182,10 @@ class TestObsidianConnector:
         # サマリーノートが含まれる
         summary_files = [p for p in written if p.name == "jj-summary.md"]
         assert len(summary_files) == 1
+
+        # Vault設定ファイルが含まれる
+        vault_files = [p for p in written if ".obsidian" in str(p)]
+        assert len(vault_files) == 3
 
 
 class TestObsidianBaseAndGroupFiles:

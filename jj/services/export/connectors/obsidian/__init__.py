@@ -784,6 +784,10 @@ class ObsidianConnector:
         """
         written: list[Path] = []
 
+        # Vault設定ファイルを初回のみ自動生成（.obsidian/が存在しない場合）
+        vault_paths = self._write_vault_config()
+        written.extend(vault_paths)
+
         # ノードIDからノードへのマッピングを作成
         node_by_id: dict[int, Node] = {node.id: node for node in graph.nodes}
 
@@ -1367,6 +1371,83 @@ class ObsidianConnector:
         except ValueError:
             return md_path
 
+    def _write_vault_config(self) -> list[Path]:
+        """Obsidian Vault設定ファイルを生成（初回のみ）
+
+        .obsidian/ ディレクトリが存在しない場合に、推奨プラグイン構成の
+        Vault設定を自動生成する。既存のVault設定がある場合は一切変更しない。
+
+        生成されるファイル:
+        - .obsidian/app.json: アプリ設定（WikiLinks有効化等）
+        - .obsidian/community-plugins.json: 推奨コミュニティプラグイン一覧
+        - .obsidian/core-plugins-migration.json: コアプラグイン設定（Canvas有効化）
+
+        Returns:
+            書き込んだファイルパスのリスト。既存Vaultの場合は空リスト。
+        """
+        import json as json_mod
+
+        obsidian_dir = self.project_root / ".obsidian"
+        if obsidian_dir.exists():
+            return []
+
+        written: list[Path] = []
+        obsidian_dir.mkdir(parents=True, exist_ok=True)
+
+        # app.json: jj出力向け推奨設定
+        app_config = {
+            "useMarkdownLinks": False,
+            "showFrontmatter": True,
+            "strictLineBreaks": False,
+            "readableLineLength": True,
+        }
+        app_path = obsidian_dir / "app.json"
+        app_path.write_text(
+            json_mod.dumps(app_config, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        written.append(app_path)
+
+        # community-plugins.json: 推奨プラグインID一覧
+        # ユーザーがObsidianコミュニティプラグインストアからインストールする前提
+        community_plugins = ["dataview", "dbfolder"]
+        cp_path = obsidian_dir / "community-plugins.json"
+        cp_path.write_text(
+            json_mod.dumps(community_plugins, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        written.append(cp_path)
+
+        # core-plugins-migration.json: Canvas等のコアプラグインを有効化
+        core_plugins = {
+            "canvas": True,
+            "graph": True,
+            "outgoing-link": True,
+            "tag-pane": True,
+            "backlink": True,
+            "page-preview": True,
+            "file-explorer": True,
+            "global-search": True,
+            "switcher": True,
+            "markdown-importer": False,
+            "note-composer": True,
+            "command-palette": True,
+            "editor-status": True,
+            "bookmarks": True,
+            "outline": True,
+            "word-count": True,
+            "file-recovery": True,
+            "properties": True,
+        }
+        core_path = obsidian_dir / "core-plugins-migration.json"
+        core_path.write_text(
+            json_mod.dumps(core_plugins, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        written.append(core_path)
+
+        return written
+
     def _write_summary_note(self, graph: GraphModel) -> Optional[Path]:
         """プロジェクトサマリーノートを生成（Dataview/プラグイン前提）
 
@@ -1464,14 +1545,28 @@ class ObsidianExporter(AbstractExporter):
         overwrite = kwargs.get("overwrite", False)
         connector = ObsidianConnector(project_root=project_root)
         written = connector.export_graph(graph, overwrite=overwrite)
-        return {"written_paths": written, "count": len(written)}
+        # Vault初期化されたかどうかを判定
+        vault_initialized = any(
+            ".obsidian" in str(p) for p in written
+        )
+        return {
+            "written_paths": written,
+            "count": len(written),
+            "vault_initialized": vault_initialized,
+        }
 
     def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
         written_paths = result.get("written_paths", [])
+        vault_initialized = result.get("vault_initialized", False)
         lines = [
             "\n=== エクスポート完了 ===",
             f"書き込みファイル数: {len(written_paths)}",
         ]
+        if vault_initialized:
+            lines.append("\n[Vault初期化] .obsidian/ ディレクトリを生成しました")
+            lines.append("  推奨プラグイン: Dataview, DB Folder")
+            lines.append("  Obsidianでこのフォルダを開き、コミュニティプラグインから")
+            lines.append("  上記プラグインをインストールしてください")
         if written_paths:
             lines.append("\n書き込んだファイル:")
             for path in written_paths[:10]:

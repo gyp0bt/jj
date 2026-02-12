@@ -2554,7 +2554,9 @@ class TestExporterRegistry:
         exporter = exporter_cls()
         result = exporter.export(graph, project_root=tmp_path)
         assert "written_paths" in result
-        assert result["count"] == 0
+        # 空グラフでもVault設定（3ファイル）が初回生成される
+        assert result["count"] == 3
+        assert result["vault_initialized"] is True
 
     def test_cypher_exporter_via_registry(self, tmp_path: Path):
         """CypherExporterがレジストリ経由で取得・実行できること"""
@@ -2967,3 +2969,142 @@ class TestObsidianSummaryNote:
         assert "### go" in content
         assert "### mesh" in content
         assert "2件" in content  # go: 2件
+
+
+# =========================================================================
+# Obsidian Vault設定自動生成 テスト
+# =========================================================================
+
+
+class TestObsidianVaultConfig:
+    """Obsidian Vault設定ファイル（.obsidian/）自動生成テスト"""
+
+    def test_vault_config_created_on_first_export(self, tmp_path: Path):
+        """初回エクスポート時に.obsidian/ディレクトリが生成されること"""
+        import json
+
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        nodes = [
+            Node(id=1, type="go", name="go_test_v1", format="inp",
+                 properties={"path": "go_test_v1.inp"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        written = connector.export_graph(graph)
+
+        obsidian_dir = tmp_path / ".obsidian"
+        assert obsidian_dir.exists()
+
+        # app.json が生成される
+        app_path = obsidian_dir / "app.json"
+        assert app_path.exists()
+        app_config = json.loads(app_path.read_text(encoding="utf-8"))
+        assert app_config["useMarkdownLinks"] is False
+        assert app_config["showFrontmatter"] is True
+
+        # community-plugins.json が生成される
+        cp_path = obsidian_dir / "community-plugins.json"
+        assert cp_path.exists()
+        plugins = json.loads(cp_path.read_text(encoding="utf-8"))
+        assert "dataview" in plugins
+        assert "dbfolder" in plugins
+
+        # core-plugins-migration.json が生成される
+        core_path = obsidian_dir / "core-plugins-migration.json"
+        assert core_path.exists()
+        core_config = json.loads(core_path.read_text(encoding="utf-8"))
+        assert core_config["canvas"] is True
+
+        # written リストに .obsidian/ 配下のファイルが含まれる
+        obsidian_paths = [p for p in written if ".obsidian" in str(p)]
+        assert len(obsidian_paths) == 3
+
+    def test_vault_config_not_overwritten(self, tmp_path: Path):
+        """既存の.obsidian/ディレクトリがある場合は変更しないこと"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        # 事前に.obsidian/を作成（ユーザーの既存Vault）
+        obsidian_dir = tmp_path / ".obsidian"
+        obsidian_dir.mkdir()
+        (obsidian_dir / "app.json").write_text('{"custom": true}', encoding="utf-8")
+
+        nodes = [
+            Node(id=1, type="go", name="go_test_v1", format="inp",
+                 properties={"path": "go_test_v1.inp"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        connector = ObsidianConnector(project_root=tmp_path)
+        written = connector.export_graph(graph)
+
+        # 既存のapp.jsonは変更されない
+        app_content = (obsidian_dir / "app.json").read_text(encoding="utf-8")
+        assert '"custom": true' in app_content
+
+        # .obsidian/配下のファイルはwrittenに含まれない
+        obsidian_paths = [p for p in written if ".obsidian" in str(p)]
+        assert len(obsidian_paths) == 0
+
+    def test_vault_config_standalone(self, tmp_path: Path):
+        """_write_vault_config()を単独で呼んだ場合のテスト"""
+        import json
+
+        from services.export.connectors.obsidian import ObsidianConnector
+
+        connector = ObsidianConnector(project_root=tmp_path)
+        written = connector._write_vault_config()
+        assert len(written) == 3
+
+        # 2回目は空リスト（既にディレクトリが存在するため）
+        written2 = connector._write_vault_config()
+        assert len(written2) == 0
+
+    def test_exporter_vault_initialized_flag(self, tmp_path: Path):
+        """ObsidianExporterのexport結果にvault_initializedフラグが含まれること"""
+        from jj_types import GraphModel
+        from services.export.connectors.obsidian import ObsidianExporter
+
+        nodes = [
+            Node(id=1, type="go", name="go_test_v1", format="inp",
+                 properties={"path": "go_test_v1.inp"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        exporter = ObsidianExporter()
+        result = exporter.export(graph, project_root=tmp_path)
+
+        assert result["vault_initialized"] is True
+        assert result["count"] > 0
+
+        # 2回目はvault_initialized=False
+        result2 = exporter.export(graph, project_root=tmp_path, overwrite=True)
+        assert result2["vault_initialized"] is False
+
+    def test_format_cli_result_with_vault_init(self, tmp_path: Path):
+        """Vault初期化時のCLI出力に案内が含まれること"""
+        from services.export.connectors.obsidian import ObsidianExporter
+
+        exporter = ObsidianExporter()
+        result = {
+            "written_paths": [tmp_path / ".obsidian" / "app.json"],
+            "count": 1,
+            "vault_initialized": True,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "Vault初期化" in output
+        assert "Dataview" in output
+        assert "DB Folder" in output
+
+    def test_format_cli_result_without_vault_init(self, tmp_path: Path):
+        """Vault初期化なしの場合は案内が表示されないこと"""
+        from services.export.connectors.obsidian import ObsidianExporter
+
+        exporter = ObsidianExporter()
+        result = {
+            "written_paths": [],
+            "count": 0,
+            "vault_initialized": False,
+        }
+        output = exporter.format_cli_result(result, tmp_path)
+        assert "Vault初期化" not in output
