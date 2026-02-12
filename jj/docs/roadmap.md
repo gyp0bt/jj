@@ -244,6 +244,10 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] Obsidianサマリーノート（jj-summary.md）自動生成 (status-065)
 - [x] Obsidian推奨プラグイン構成ドキュメント (status-065)
 - [x] Obsidian Vault設定自動生成（.obsidian/初回セットアップ） (status-066)
+- [x] Obsidian Vault設定のconfig.yaml駆動化（ObsidianVaultConfig） (status-067)
+- [x] 旧メソッド完全削除（export_obsidian/export_data/export_neo4j/export_dashboard_json） (status-067)
+- [x] graph/__init__.py後方互換re-export削除（parse_sta_file等） (status-067)
+- [x] CLI凍結マーク（submit/files/旧フラグ → Phase 3まで凍結） (status-067)
 
 #### R5. lib層の整理 ✅ (status-043)
 
@@ -651,6 +655,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-066.md)
+- [最新ステータス](./status/status-067.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

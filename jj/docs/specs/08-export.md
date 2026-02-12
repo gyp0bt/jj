@@ -83,10 +83,10 @@ GraphCommandService.export_unified(graph, target, **kwargs)
   → (result, exporter)
 ```
 
-### 3.3 後方互換
+### 3.3 API
 
-既存の個別メソッド（`export_obsidian()`, `export_data()`, `export_neo4j()` 等）は
-内部的に `export_by_format()` を呼び出しており、引き続き使用可能。
+旧来の個別メソッド（`export_obsidian()`, `export_data()`, `export_neo4j()` 等）は
+status-067で完全削除済み。すべて `export_unified()` 経由で統一的に呼び出す。
 
 ---
 
@@ -213,18 +213,35 @@ jjが出力する多数のタグ（`#go`, `#material/Steel`等）の管理に有
 
 Obsidianのグラフビューを拡張し、jjのノード間関係を視覚的に探索できます。
 
-### 6.3 Vault自動セットアップ
+### 6.3 Vault自動セットアップ（config.yaml駆動）
 
 `jj export --target obsidian` を実行すると、`.obsidian/` ディレクトリが存在しない場合に
-Vault設定を自動生成します（初回のみ）。
+config.yamlの`obsidian.vault`設定を反映してVault設定を自動生成します（初回のみ）。
+
+設定はconfig.yamlでカスタマイズ可能:
+
+```yaml
+obsidian:
+  vault:
+    app:
+      useMarkdownLinks: false
+      showFrontmatter: true
+    community-plugins:
+      - dataview
+      - dbfolder
+    core-plugins:
+      canvas: true
+      graph: true
+      # ...
+```
 
 #### 自動生成されるファイル
 
-| ファイル | 内容 |
-|---------|------|
-| `.obsidian/app.json` | WikiLinks有効化、frontmatter表示等 |
-| `.obsidian/community-plugins.json` | 推奨プラグインID一覧（dataview, dbfolder） |
-| `.obsidian/core-plugins-migration.json` | Canvas等のコアプラグイン有効化 |
+| ファイル | 設定ソース |
+|---------|----------|
+| `.obsidian/app.json` | `obsidian.vault.app` |
+| `.obsidian/community-plugins.json` | `obsidian.vault.community-plugins` |
+| `.obsidian/core-plugins-migration.json` | `obsidian.vault.core-plugins` |
 
 #### セットアップ手順
 

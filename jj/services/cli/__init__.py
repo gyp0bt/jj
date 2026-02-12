@@ -7,6 +7,12 @@
 # service以外から直接ロジックをインポートすること、
 # 中でロジックを実装することを禁止する。
 #
+# === 凍結ステータス ===
+# submit/list/check/files(f)/旧互換フラグ: 凍結
+#   - これらはPhase 3(runコマンド層リモート統合・fileコマンド層)着手まで凍結
+#   - graphコマンド系（jj init/parse/show/export/info/diff/credential）が現在のアクティブCLI
+#   - runコマンド（jj r）はアクティブ（RunCommandService経由）
+#
 # [READMEへ戻る](../../README.md)
 # =========================
 import argparse
@@ -99,7 +105,7 @@ def _add_host_args(p: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="job")
 
-    # 旧CLI互換フラグ（入口として保持）
+    # 旧CLI互換フラグ（凍結: Phase 3着手まで変更禁止）
     p.add_argument("--use-gpu", "-g", action="store_true", help="GPUを使用")
     p.add_argument(
         "--no-background", "-nbg", action="store_true", help="wblockを有効化"
@@ -123,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = p.add_subparsers(dest="cmd")
 
-    # submit
+    # submit（凍結: Phase 3着手まで変更禁止）
     ps = sub.add_parser("submit", help="投入")
     _add_target_args(ps)
     _add_host_args(ps)
@@ -137,17 +143,17 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("--job-name", "-n", type=str)
     ps.add_argument("--separate", "-sep", action="store_true")
 
-    # list
+    # list（凍結: Phase 3着手まで変更禁止）
     pl = sub.add_parser("list", help="予定一覧（dry-run）")
     _add_target_args(pl)
 
-    # check syntax
+    # check syntax（凍結: Phase 3着手まで変更禁止）
     pc = sub.add_parser("check", help="検査")
     pcsub = pc.add_subparsers(dest="subcmd")
     pcs = pcsub.add_parser("syntax", help="Abaqus inp syntax check")
     _add_target_args(pcs)
 
-    # files
+    # files（凍結: Phase 3着手まで変更禁止）
     pf = sub.add_parser("f", help="ファイル操作")
     pfsub = pf.add_subparsers(dest="subcmd")
     pfg = pfsub.add_parser("get", help="get")

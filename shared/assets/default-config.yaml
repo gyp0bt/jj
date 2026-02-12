@@ -179,3 +179,38 @@ obsidian:
           direction: ASC
         - property: ver
           direction: ASC
+  # Vault設定（.obsidian/ディレクトリの自動生成内容）
+  # jj export --target obsidian 初回実行時に反映される
+  # 既存のVault（.obsidian/が存在する場合）には一切変更を加えない
+  vault:
+    # app.json: Obsidianアプリ設定
+    app:
+      useMarkdownLinks: false
+      showFrontmatter: true
+      strictLineBreaks: false
+      readableLineLength: true
+    # community-plugins.json: 推奨コミュニティプラグインID一覧
+    # ObsidianのコミュニティプラグインストアからインストールするID
+    community-plugins:
+      - dataview
+      - dbfolder
+    # core-plugins-migration.json: コアプラグインの有効/無効設定
+    core-plugins:
+      canvas: true
+      graph: true
+      outgoing-link: true
+      tag-pane: true
+      backlink: true
+      page-preview: true
+      file-explorer: true
+      global-search: true
+      switcher: true
+      markdown-importer: false
+      note-composer: true
+      command-palette: true
+      editor-status: true
+      bookmarks: true
+      outline: true
+      word-count: true
+      file-recovery: true
+      properties: true

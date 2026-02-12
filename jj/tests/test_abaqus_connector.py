@@ -9,7 +9,8 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from services.graph import parse_material_blocks, parse_sta_file
+from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
 from services.parse.connectors.abaqus import (
     ABQData,
@@ -603,7 +604,7 @@ class TestParseMsgFile:
 
     def test_parse_msg_with_errors_and_warnings(self, msg_file):
         """エラーと警告を含む.msgファイルの解析"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(msg_file)
 
@@ -619,7 +620,7 @@ class TestParseMsgFile:
 
     def test_parse_msg_success(self, msg_success_file):
         """エラーなしの.msgファイルの解析"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(msg_success_file)
 
@@ -628,7 +629,7 @@ class TestParseMsgFile:
 
     def test_parse_msg_nonexistent(self, tmp_path):
         """存在しない.msgファイルの解析"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(tmp_path / "nonexistent.msg")
 
@@ -1194,7 +1195,7 @@ class TestMsgRealData:
 
     def test_go_idx1_v3_msg_warnings_and_errors(self):
         """go_idx1.v3.msg: 8 warnings, 2 errors"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(ASSET_DIR / "go_idx1.v3.msg")
         assert len(result["warnings"]) == 8
@@ -1202,14 +1203,14 @@ class TestMsgRealData:
 
     def test_go_idx1_v3_msg_error_content(self):
         """go_idx1.v3.msg: TIME INCREMENT エラーを含む"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(ASSET_DIR / "go_idx1.v3.msg")
         assert any("TIME INCREMENT" in e for e in result["errors"])
 
     def test_go_idx0_v29_msg_warnings_only(self):
         """go_idx0.v29.msg: 6 warnings, 0 errors（正常終了）"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(ASSET_DIR / "go_idx0.v29.msg")
         assert len(result["warnings"]) == 6
@@ -1217,7 +1218,7 @@ class TestMsgRealData:
 
     def test_go_idx2_v3_msg_warnings_only(self):
         """go_idx2.v3.msg: 8 warnings, 0 errors"""
-        from services.graph import parse_msg_file
+        from services.parse.connectors.abaqus.result_parser import parse_msg_file
 
         result = parse_msg_file(ASSET_DIR / "go_idx2.v3.msg")
         assert len(result["warnings"]) == 8
@@ -1229,7 +1230,7 @@ class TestDatRealData:
 
     def test_go_idx1_v3_dat_has_timing(self):
         """go_idx1.v3.dat: cpu_time, wallclock_time を含む"""
-        from services.graph import parse_dat_file
+        from services.parse.connectors.abaqus.result_parser import parse_dat_file
 
         result = parse_dat_file(ASSET_DIR / "go_idx1.v3.dat")
         assert "cpu_time" in result
@@ -1237,7 +1238,7 @@ class TestDatRealData:
 
     def test_go_idx1_v3_dat_has_warnings(self):
         """go_idx1.v3.dat: warnings キーを含む"""
-        from services.graph import parse_dat_file
+        from services.parse.connectors.abaqus.result_parser import parse_dat_file
 
         result = parse_dat_file(ASSET_DIR / "go_idx1.v3.dat")
         assert "warnings" in result

@@ -40,17 +40,6 @@ import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
 import services.parse.connectors.abaqus.diff_parser  # noqa: F401
 import services.parse.connectors.obsidian.daily_parser  # noqa: F401
 
-# 後方互換: モジュールレベルのパース関数は新パーサーファイルに移動済み
-# 既存のテストコード等からのimportを維持するためre-export
-from services.parse.connectors.abaqus.result_parser import (  # noqa: F401
-    parse_sta_file,
-    parse_msg_file,
-    parse_dat_file,
-)
-from services.parse.connectors.abaqus.inp_parser import (  # noqa: F401
-    parse_material_blocks,
-)
-
 
 class GraphService:
     """プロジェクトのグラフデータを管理するサービス

@@ -539,12 +539,53 @@ class FileRelationsConfig:
 
 
 @dataclass(frozen=True)
+class ObsidianVaultConfig:
+    """Obsidian Vault設定（.obsidian/ディレクトリの自動生成内容）"""
+    app: dict[str, Any]
+    community_plugins: list[str]
+    core_plugins: dict[str, bool]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ObsidianVaultConfig":
+        return cls(
+            app=data.get("app", {
+                "useMarkdownLinks": False,
+                "showFrontmatter": True,
+                "strictLineBreaks": False,
+                "readableLineLength": True,
+            }),
+            community_plugins=data.get("community-plugins", ["dataview", "dbfolder"]),
+            core_plugins=data.get("core-plugins", {
+                "canvas": True,
+                "graph": True,
+                "outgoing-link": True,
+                "tag-pane": True,
+                "backlink": True,
+                "page-preview": True,
+                "file-explorer": True,
+                "global-search": True,
+                "switcher": True,
+                "markdown-importer": False,
+                "note-composer": True,
+                "command-palette": True,
+                "editor-status": True,
+                "bookmarks": True,
+                "outline": True,
+                "word-count": True,
+                "file-recovery": True,
+                "properties": True,
+            }),
+        )
+
+
+@dataclass(frozen=True)
 class ObsidianExportConfig:
     """Obsidianエクスポート設定"""
     notes_dir: str
     bases_dir: str
     prefix: str
     default_views: list[dict[str, Any]]
+    vault: ObsidianVaultConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ObsidianExportConfig":
@@ -553,6 +594,7 @@ class ObsidianExportConfig:
             bases_dir=data.get("bases-dir", "notes/bases"),
             prefix=data.get("prefix", "O-"),
             default_views=data.get("default-views", []),
+            vault=ObsidianVaultConfig.from_dict(data.get("vault", {})),
         )
 
 
