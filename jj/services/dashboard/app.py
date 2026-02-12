@@ -1,13 +1,15 @@
 """Streamlitダッシュボードアプリ本体
 
 jj dashboardコマンドから起動されるStreamlitアプリ。
-GraphModelを読み込み、テーブル/カード/プロット/ステータスの4ビューを提供する。
+GraphModelを読み込み、テーブル/カード/プロット/ステータス/ギャラリーの
+5ビューを提供する。AgGridテーブル、画像ギャラリー、graph.yaml変更検知に対応。
 
 [READMEへ戻る](../../../README.md)
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +25,57 @@ from services.dashboard.data_provider import DashboardDataProvider
 from services.graph import GraphService
 
 
+# ====================================================================
+# graph.yaml変更検知
+# ====================================================================
+
+_GRAPH_EXTENSIONS = ("yaml", "yml", "json")
+
+
+def _find_graph_path(project_root: Path) -> Path | None:
+    """graph.yamlの実パスを検出"""
+    storage_dir = project_root / ".jj" / "storage"
+    for ext in _GRAPH_EXTENSIONS:
+        p = storage_dir / f"graph.{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def _get_graph_mtime(project_root: Path) -> float:
+    """graph.yamlの更新時刻を取得"""
+    graph_path = _find_graph_path(project_root)
+    if graph_path is not None:
+        return graph_path.stat().st_mtime
+    return 0.0
+
+
+def _check_graph_changed(project_root: Path) -> bool:
+    """graph.yamlが前回読み込み時から変更されたか判定
+
+    Returns:
+        True: 変更あり（リロード必要）
+    """
+    current_mtime = _get_graph_mtime(project_root)
+    prev_mtime = st.session_state.get("_graph_mtime", 0.0)
+
+    if prev_mtime == 0.0:
+        # 初回読み込み
+        st.session_state["_graph_mtime"] = current_mtime
+        return False
+
+    if current_mtime != prev_mtime:
+        st.session_state["_graph_mtime"] = current_mtime
+        return True
+
+    return False
+
+
+# ====================================================================
+# データ読み込み
+# ====================================================================
+
+
 def _load_graph(project_root: Path) -> GraphModel:
     """GraphModelをロード（キャッシュ対応）"""
     svc = GraphService(project_root=project_root)
@@ -31,13 +84,54 @@ def _load_graph(project_root: Path) -> GraphModel:
 
 def _get_project_root() -> Path:
     """プロジェクトルートをセッションまたは環境から取得"""
-    # Streamlit起動時の引数から取得
     if "project_root" not in st.session_state:
-        import os
-
         root = os.environ.get("JJ_PROJECT_ROOT", str(Path.cwd()))
         st.session_state["project_root"] = root
     return Path(st.session_state["project_root"])
+
+
+# ====================================================================
+# AgGrid ヘルパー
+# ====================================================================
+
+
+def _try_render_aggrid(df: "pd.DataFrame") -> bool:
+    """AgGridでDataFrameを表示。失敗時はFalseを返す。
+
+    Returns:
+        True: AgGridで描画成功、False: インポート不可
+    """
+    try:
+        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+    except ImportError:
+        return False
+
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_default_column(
+        filterable=True,
+        sortable=True,
+        resizable=True,
+    )
+    gb.configure_selection(
+        selection_mode="multiple",
+        use_checkbox=True,
+    )
+    gb.configure_pagination(paginationAutoPageSize=True)
+    grid_options = gb.build()
+
+    AgGrid(
+        df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        fit_columns_on_grid_load=True,
+        theme="streamlit",
+    )
+    return True
+
+
+# ====================================================================
+# メインエントリポイント
+# ====================================================================
 
 
 def main() -> None:
@@ -54,6 +148,38 @@ def main() -> None:
     # サイドバー: プロジェクト情報
     st.sidebar.title("jj Dashboard")
     st.sidebar.caption(f"Project: {project_root.name}")
+
+    # graph.yaml変更検知
+    graph_changed = _check_graph_changed(project_root)
+    if graph_changed:
+        st.sidebar.success("graph.yaml が更新されました。データを再読み込みしました。")
+
+    # 手動再読み込みボタン
+    if st.sidebar.button("再読み込み"):
+        st.session_state["_graph_mtime"] = _get_graph_mtime(project_root)
+        st.rerun()
+
+    # 自動リフレッシュ設定
+    auto_refresh = st.sidebar.checkbox("自動リフレッシュ", value=False)
+    if auto_refresh:
+        refresh_sec = st.sidebar.slider(
+            "リフレッシュ間隔（秒）", min_value=3, max_value=60, value=10
+        )
+        # JavaScriptによる自動リフレッシュ
+        st.components.v1.html(
+            f"""<script>
+            setTimeout(function(){{
+                window.parent.document.querySelectorAll(
+                    'button[kind="secondary"]'
+                ).forEach(function(btn){{
+                    if(btn.innerText === '再読み込み') btn.click();
+                }});
+            }}, {refresh_sec * 1000});
+            </script>""",
+            height=0,
+        )
+
+    st.sidebar.markdown("---")
 
     # グラフデータ読み込み
     try:
@@ -83,7 +209,7 @@ def main() -> None:
     # ページ選択
     page = st.sidebar.radio(
         "ページ",
-        ["テーブル", "カード", "プロット", "ステータス"],
+        ["テーブル", "カード", "プロット", "ステータス", "ギャラリー"],
         index=0,
     )
 
@@ -102,10 +228,17 @@ def main() -> None:
         _render_plot_page(provider)
     elif page == "ステータス":
         _render_status_page(provider)
+    elif page == "ギャラリー":
+        _render_gallery_page(provider, project_root)
+
+
+# ====================================================================
+# テーブルビュー（AgGrid対応）
+# ====================================================================
 
 
 def _render_table_page(provider: DashboardDataProvider) -> None:
-    """テーブルビュー: go_ファイルをテーブル表示"""
+    """テーブルビュー: go_ファイルをテーブル表示（AgGrid優先）"""
     st.header("テーブルビュー")
 
     # フィルタ
@@ -146,7 +279,6 @@ def _render_table_page(provider: DashboardDataProvider) -> None:
         st.info("条件に一致するデータがありません。")
         return
 
-    # DataFrameとして表示
     import pandas as pd
 
     # related_filesはネストしているので除外
@@ -160,7 +292,15 @@ def _render_table_page(provider: DashboardDataProvider) -> None:
         display_rows.append(row)
 
     df = pd.DataFrame(display_rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # AgGridを試行、失敗時はst.dataframeにフォールバック
+    if not _try_render_aggrid(df):
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# ====================================================================
+# カードビュー
+# ====================================================================
 
 
 def _render_card_page(provider: DashboardDataProvider) -> None:
@@ -242,6 +382,11 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
         st.info("リレーションがありません。")
 
 
+# ====================================================================
+# プロットビュー
+# ====================================================================
+
+
 def _render_plot_page(provider: DashboardDataProvider) -> None:
     """プロットビュー: プロパティの散布図/棒グラフ"""
     st.header("プロットビュー")
@@ -317,6 +462,11 @@ def _render_plot_page(provider: DashboardDataProvider) -> None:
     st.caption(f"データ点数: {len(data)}")
 
 
+# ====================================================================
+# ステータスモニター
+# ====================================================================
+
+
 def _render_status_page(provider: DashboardDataProvider) -> None:
     """ステータスモニター: 実行ステータス一覧"""
     st.header("ステータスモニター")
@@ -364,6 +514,80 @@ def _render_status_page(provider: DashboardDataProvider) -> None:
 
         df = pd.DataFrame(completed_items)
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# ====================================================================
+# 画像ギャラリー
+# ====================================================================
+
+
+def _render_gallery_page(
+    provider: DashboardDataProvider, project_root: Path
+) -> None:
+    """画像ギャラリー: has_output関係の画像を表示"""
+    st.header("画像ギャラリー")
+
+    images = provider.get_output_images()
+
+    if not images:
+        st.info(
+            "画像出力が見つかりません。has_output関係で画像ファイル"
+            "（PNG/GIF/JPG等）が紐付いているgo_ノードがありません。"
+        )
+        return
+
+    # フィルタ: フォーマット
+    formats = sorted({img["image_format"] for img in images})
+    selected_format = st.sidebar.selectbox(
+        "画像フォーマット", ["すべて"] + formats
+    )
+    if selected_format != "すべて":
+        images = [img for img in images if img["image_format"] == selected_format]
+
+    # 最大表示数
+    max_display = st.sidebar.number_input(
+        "最大表示数", min_value=1, max_value=200, value=50
+    )
+    images = images[:max_display]
+
+    st.caption(f"{len(images)} 件の画像")
+
+    if not images:
+        st.info("条件に一致する画像がありません。")
+        return
+
+    # 5列グリッドで表示
+    cols_per_row = 5
+    for row_start in range(0, len(images), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for col_idx, img_info in enumerate(
+            images[row_start : row_start + cols_per_row]
+        ):
+            with cols[col_idx]:
+                # パラメータ情報
+                st.markdown(f"**{img_info['go_node_name']}**")
+
+                # 主要プロパティをコンパクト表示
+                props = img_info["go_properties"]
+                prop_lines = []
+                for key in ("index", "version", "type", "analysis_status"):
+                    if key in props:
+                        prop_lines.append(f"{key}: {props[key]}")
+                if prop_lines:
+                    st.caption(" | ".join(prop_lines))
+
+                # 画像表示
+                image_path = project_root / img_info["image_path"]
+                if image_path.exists():
+                    st.image(
+                        str(image_path),
+                        caption=img_info["image_name"],
+                        use_container_width=True,
+                    )
+                else:
+                    st.warning(
+                        f"画像が見つかりません: {img_info['image_path']}"
+                    )
 
 
 if __name__ == "__main__":

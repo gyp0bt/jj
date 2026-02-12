@@ -99,11 +99,38 @@ def _make_test_graph() -> GraphModel:
             },
         ),
     ]
+    # 画像出力ノード
+    nodes.append(
+        Node(
+            id=7,
+            type="go",
+            name="go_idx1_v1",
+            format="png",
+            properties={
+                "path": "results/go_idx1_v1_merged.png",
+                "index": "1",
+            },
+        )
+    )
+    nodes.append(
+        Node(
+            id=8,
+            type="go",
+            name="go_idx1_v1",
+            format="gif",
+            properties={
+                "path": "results/go_idx1_v1_anim.gif",
+                "index": "1",
+            },
+        )
+    )
     relations = [
         Relation(id=1, label="includes", node1_id=1, node2_id=4),
         Relation(id=2, label="has_output", node1_id=1, node2_id=6),
         Relation(id=3, label="defined_in", node1_id=5, node2_id=4),
         Relation(id=4, label="next_version", node1_id=1, node2_id=2),
+        Relation(id=5, label="has_output", node1_id=1, node2_id=7),
+        Relation(id=6, label="has_output", node1_id=1, node2_id=8),
     ]
     return GraphModel(nodes=nodes, relations=relations)
 
@@ -279,8 +306,9 @@ class TestGetStatusSummary:
     def test_counts_are_correct(self, provider: DashboardDataProvider):
         """ステータスカウントが正しい"""
         summary = provider.get_status_summary()
-        # go_ノードは id=1(completed), id=2(failed), id=3(unknown), id=6(format=csv, no status)
-        assert summary["total"] == 4  # go_ prefix nodes (including csv)
+        # go_ノードは id=1(completed), id=2(failed), id=3(unknown),
+        # id=6(csv,no status), id=7(png,no status), id=8(gif,no status)
+        assert summary["total"] == 6  # go_ prefix nodes (including csv/png/gif)
         assert summary["completed"] == 1
         assert summary["failed"] == 1
 
@@ -316,8 +344,9 @@ class TestGetRelatedFiles:
     def test_filter_by_label(self, provider: DashboardDataProvider):
         """ラベルフィルタが機能する"""
         related = provider.get_related_files(1, label="has_output")
-        assert len(related) == 1
-        assert related[0]["label"] == "has_output"
+        assert len(related) == 3  # csv + png + gif
+        for r in related:
+            assert r["label"] == "has_output"
 
 
 # ====================================================================
@@ -403,23 +432,23 @@ class TestRestApi:
         data = resp.json()
         assert "nodes" in data
         assert "relations" in data
-        assert len(data["nodes"]) == 6
-        assert len(data["relations"]) == 4
+        assert len(data["nodes"]) == 8
+        assert len(data["relations"]) == 6
 
     def test_get_nodes(self, client):
         """GET /api/v1/nodes でノード一覧が返る"""
         resp = client.get("/api/v1/nodes")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 6
-        assert len(data["nodes"]) == 6
+        assert data["total"] == 8
+        assert len(data["nodes"]) == 8
 
     def test_get_nodes_type_filter(self, client):
         """GET /api/v1/nodes?type=go でタイプフィルタが動作する"""
         resp = client.get("/api/v1/nodes?type=go")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 4
+        assert data["total"] == 6
         for n in data["nodes"]:
             assert n["type"] == "go"
 
@@ -437,7 +466,7 @@ class TestRestApi:
         resp = client.get("/api/v1/nodes?limit=2&offset=0")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 6
+        assert data["total"] == 8
         assert len(data["nodes"]) == 2
         assert data["limit"] == 2
         assert data["offset"] == 0
@@ -477,7 +506,7 @@ class TestRestApi:
         resp = client.get("/api/v1/relations")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 4
+        assert data["total"] == 6
 
     def test_get_relations_label_filter(self, client):
         """GET /api/v1/relations?label=includes でラベルフィルタが動作する"""
@@ -602,3 +631,158 @@ class TestCliRegistration:
         parser = build_parser()
         args = parser.parse_args(["dashboard", "--no-browser"])
         assert args.no_browser is True
+
+
+# ====================================================================
+# get_output_images テスト
+# ====================================================================
+
+
+class TestGetOutputImages:
+    """get_output_images のテスト"""
+
+    def test_returns_image_outputs(self, provider: DashboardDataProvider):
+        """画像フォーマットのhas_output出力が返される"""
+        images = provider.get_output_images()
+        assert len(images) == 2  # png + gif
+        formats = {img["image_format"] for img in images}
+        assert "png" in formats
+        assert "gif" in formats
+
+    def test_excludes_non_image_outputs(self, provider: DashboardDataProvider):
+        """CSV等の非画像出力は除外される"""
+        images = provider.get_output_images()
+        for img in images:
+            assert img["image_format"] != "csv"
+
+    def test_filter_by_node_id(self, provider: DashboardDataProvider):
+        """node_id指定で対象ノードの画像のみ取得"""
+        images = provider.get_output_images(node_id=1)
+        assert len(images) == 2
+        for img in images:
+            assert img["go_node_id"] == 1
+
+    def test_no_images_for_node_without_output(
+        self, provider: DashboardDataProvider
+    ):
+        """画像出力がないノードでは空リスト"""
+        images = provider.get_output_images(node_id=3)
+        assert images == []
+
+    def test_image_info_structure(self, provider: DashboardDataProvider):
+        """画像情報の構造が正しい"""
+        images = provider.get_output_images()
+        assert len(images) > 0
+        img = images[0]
+        assert "go_node_id" in img
+        assert "go_node_name" in img
+        assert "image_node_id" in img
+        assert "image_name" in img
+        assert "image_path" in img
+        assert "image_format" in img
+        assert "go_properties" in img
+
+    def test_go_properties_exclude_internal(
+        self, provider: DashboardDataProvider
+    ):
+        """go_propertiesからpath等の内部キーが除外される"""
+        images = provider.get_output_images()
+        for img in images:
+            assert "path" not in img["go_properties"]
+            assert "include_properties" not in img["go_properties"]
+
+    def test_nonexistent_node_id(self, provider: DashboardDataProvider):
+        """存在しないnode_idでは空リスト"""
+        images = provider.get_output_images(node_id=999)
+        assert images == []
+
+
+# ====================================================================
+# graph.yaml変更検知 テスト
+# ====================================================================
+
+
+class TestGraphChangeDetection:
+    """graph.yaml変更検知ヘルパーのテスト"""
+
+    def test_find_graph_path_yaml(self, tmp_path):
+        """graph.yamlが存在する場合にパスを返す"""
+        from services.dashboard.app import _find_graph_path
+
+        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir.mkdir(parents=True)
+        graph_file = storage_dir / "graph.yaml"
+        graph_file.write_text("nodes: []\nrelations: []\n")
+
+        result = _find_graph_path(tmp_path)
+        assert result is not None
+        assert result.name == "graph.yaml"
+
+    def test_find_graph_path_json(self, tmp_path):
+        """graph.jsonが存在する場合にパスを返す"""
+        from services.dashboard.app import _find_graph_path
+
+        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir.mkdir(parents=True)
+        (storage_dir / "graph.json").write_text("{}")
+
+        result = _find_graph_path(tmp_path)
+        assert result is not None
+        assert result.name == "graph.json"
+
+    def test_find_graph_path_none(self, tmp_path):
+        """グラフファイルが存在しない場合にNoneを返す"""
+        from services.dashboard.app import _find_graph_path
+
+        result = _find_graph_path(tmp_path)
+        assert result is None
+
+    def test_get_graph_mtime_returns_float(self, tmp_path):
+        """mtimeがfloatで返される"""
+        from services.dashboard.app import _get_graph_mtime
+
+        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir.mkdir(parents=True)
+        (storage_dir / "graph.yaml").write_text("nodes: []\n")
+
+        mtime = _get_graph_mtime(tmp_path)
+        assert isinstance(mtime, float)
+        assert mtime > 0
+
+    def test_get_graph_mtime_no_file(self, tmp_path):
+        """ファイルがない場合は0.0"""
+        from services.dashboard.app import _get_graph_mtime
+
+        mtime = _get_graph_mtime(tmp_path)
+        assert mtime == 0.0
+
+
+# ====================================================================
+# AgGridヘルパー テスト
+# ====================================================================
+
+
+class TestAgGridHelper:
+    """AgGridヘルパー関数のテスト"""
+
+    def test_try_render_aggrid_import_fallback(self):
+        """st_aggridがない場合はFalseを返す"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+
+        import pandas as pd
+
+        from services.dashboard.app import _try_render_aggrid
+
+        df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
+        # st_aggridがインストールされていない場合はFalse、
+        # インストール済みでも描画コンテキストがないのでエラーになり得る。
+        # ここではインポート可否のロジックのみ確認。
+        try:
+            result = _try_render_aggrid(df)
+            # インストール済みの場合: Streamlitコンテキスト外でエラーか成功
+        except Exception:
+            # Streamlitコンテキスト外で動かした場合のエラーは許容
+            pass

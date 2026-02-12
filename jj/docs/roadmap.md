@@ -375,16 +375,16 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] `jj export --target dashboard-json` の実装
 - [x] テスト（24件パス）
 
-#### D2. Streamlitダッシュボード ✅ (status-068)
+#### D2. Streamlitダッシュボード ✅ (status-068, status-069)
 
 - [x] `jj dashboard` CLIコマンド追加
 - [x] テーブルビュー（DataFrameテーブル + サイドバーフィルター）
 - [x] カードビュー（ノード詳細 + プロパティ/リレーション表示）
 - [x] プロットビュー（plotly散布図/棒グラフ/線図、X/Y軸・色分け選択）
 - [x] ステータスモニター（完了/失敗/不明の集計・詳細一覧）
-- [ ] AgGridテーブル表示（streamlit-aggrid導入）
-- [ ] 画像ギャラリー（has_output関係のPNG/GIF表示）
-- [ ] graph.yaml変更検知による自動リフレッシュ
+- [x] AgGridテーブル表示（streamlit-aggrid導入、フォールバック付き） (status-069)
+- [x] 画像ギャラリー（has_output関係のPNG/GIF表示、5列グリッド） (status-069)
+- [x] graph.yaml変更検知による自動リフレッシュ（mtime監視、手動/自動切替） (status-069)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -667,6 +667,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-068.md)
+- [最新ステータス](./status/status-069.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
