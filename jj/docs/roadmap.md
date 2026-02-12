@@ -398,6 +398,9 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] テーブル列・プロット軸・プロパティキーのvocab定義順ソート (status-073)
 - [x] AgGrid列幅の列名文字幅自動設定 (status-073)
 - [x] default-config.yamlの全設定コメント・使用例付き拡充、init時コメント保持コピー (status-073)
+- [x] CsvArrayParser: has_output CSVのトークン差分検出→配列プロパティ(RF.time等)自動格納 (status-074)
+- [x] 配列プロットページ: グリッド比較（indexソート）・個別ノード重ね書き (status-074)
+- [x] 物性一覧ページ: abaqus_materialテーブル表示 + plastic/elastic等のラインプロット (status-074)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
