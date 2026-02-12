@@ -1374,13 +1374,13 @@ class ObsidianConnector:
     def _write_vault_config(self) -> list[Path]:
         """Obsidian Vault設定ファイルを生成（初回のみ）
 
-        .obsidian/ ディレクトリが存在しない場合に、推奨プラグイン構成の
-        Vault設定を自動生成する。既存のVault設定がある場合は一切変更しない。
+        .obsidian/ ディレクトリが存在しない場合に、config.yamlのvault設定を
+        反映してVault設定を自動生成する。既存のVault設定がある場合は一切変更しない。
 
-        生成されるファイル:
-        - .obsidian/app.json: アプリ設定（WikiLinks有効化等）
-        - .obsidian/community-plugins.json: 推奨コミュニティプラグイン一覧
-        - .obsidian/core-plugins-migration.json: コアプラグイン設定（Canvas有効化）
+        設定はconfig.yamlのobsidian.vaultセクションから読み込む:
+        - vault.app → .obsidian/app.json
+        - vault.community-plugins → .obsidian/community-plugins.json
+        - vault.core-plugins → .obsidian/core-plugins-migration.json
 
         Returns:
             書き込んだファイルパスのリスト。既存Vaultの場合は空リスト。
@@ -1394,54 +1394,29 @@ class ObsidianConnector:
         written: list[Path] = []
         obsidian_dir.mkdir(parents=True, exist_ok=True)
 
-        # app.json: jj出力向け推奨設定
-        app_config = {
-            "useMarkdownLinks": False,
-            "showFrontmatter": True,
-            "strictLineBreaks": False,
-            "readableLineLength": True,
-        }
+        # config.yamlのvault設定を取得
+        vault_config = self.graph_config.obsidian.vault
+
+        # app.json: config.yamlのvault.appから生成
         app_path = obsidian_dir / "app.json"
         app_path.write_text(
-            json_mod.dumps(app_config, ensure_ascii=False, indent=2),
+            json_mod.dumps(vault_config.app, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         written.append(app_path)
 
-        # community-plugins.json: 推奨プラグインID一覧
-        # ユーザーがObsidianコミュニティプラグインストアからインストールする前提
-        community_plugins = ["dataview", "dbfolder"]
+        # community-plugins.json: config.yamlのvault.community-pluginsから生成
         cp_path = obsidian_dir / "community-plugins.json"
         cp_path.write_text(
-            json_mod.dumps(community_plugins, ensure_ascii=False, indent=2),
+            json_mod.dumps(vault_config.community_plugins, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         written.append(cp_path)
 
-        # core-plugins-migration.json: Canvas等のコアプラグインを有効化
-        core_plugins = {
-            "canvas": True,
-            "graph": True,
-            "outgoing-link": True,
-            "tag-pane": True,
-            "backlink": True,
-            "page-preview": True,
-            "file-explorer": True,
-            "global-search": True,
-            "switcher": True,
-            "markdown-importer": False,
-            "note-composer": True,
-            "command-palette": True,
-            "editor-status": True,
-            "bookmarks": True,
-            "outline": True,
-            "word-count": True,
-            "file-recovery": True,
-            "properties": True,
-        }
+        # core-plugins-migration.json: config.yamlのvault.core-pluginsから生成
         core_path = obsidian_dir / "core-plugins-migration.json"
         core_path.write_text(
-            json_mod.dumps(core_plugins, ensure_ascii=False, indent=2),
+            json_mod.dumps(vault_config.core_plugins, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         written.append(core_path)

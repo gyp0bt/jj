@@ -1118,7 +1118,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_material_from_file(self):
         """material.inpファイルのパース"""
-        from services.graph import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
 
         inp_path = FIXTURE_DIR / "material.inp"
         if not inp_path.exists():
@@ -1141,7 +1141,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_empty_file(self, tmp_path):
         """空ファイルのパース"""
-        from services.graph import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
 
         empty_file = tmp_path / "empty.inp"
         empty_file.write_text("")
@@ -1150,7 +1150,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_file_without_material(self, tmp_path):
         """*MATERIALブロックがないファイル"""
-        from services.graph import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
 
         inp_file = tmp_path / "no_material.inp"
         inp_file.write_text("*STEP\n*STATIC\n1., 1.\n*END STEP\n")
@@ -1163,7 +1163,7 @@ class TestParseStaFile:
 
     def test_parse_completed_sta(self):
         """成功したstaファイル"""
-        from services.graph import parse_sta_file
+        from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
         sta_path = FIXTURE_DIR / "go_idx1_w5_t20.sta"
         if not sta_path.exists():
@@ -1175,7 +1175,7 @@ class TestParseStaFile:
 
     def test_parse_failed_sta(self):
         """失敗したstaファイル"""
-        from services.graph import parse_sta_file
+        from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
         sta_path = FIXTURE_DIR / "go_idx2.sta"
         if not sta_path.exists():
@@ -1188,7 +1188,7 @@ class TestParseStaFile:
 
     def test_parse_nonexistent_sta(self, tmp_path):
         """存在しないファイル"""
-        from services.graph import parse_sta_file
+        from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
         result = parse_sta_file(tmp_path / "nonexistent.sta")
         assert result["analysis_status"] == "unknown"
@@ -3694,7 +3694,7 @@ class TestDatEnrichment:
 
     def test_parse_dat_file_extracts_time(self, tmp_path):
         """parse_dat_fileがCPU時間とウォールクロック時間を抽出"""
-        from services.graph import parse_dat_file
+        from services.parse.connectors.abaqus.result_parser import parse_dat_file
 
         dat_content = (
             "SOME OUTPUT DATA\n"
@@ -3709,7 +3709,7 @@ class TestDatEnrichment:
 
     def test_parse_dat_file_empty(self, tmp_path):
         """空datファイルは空辞書"""
-        from services.graph import parse_dat_file
+        from services.parse.connectors.abaqus.result_parser import parse_dat_file
 
         dat_file = tmp_path / "empty.dat"
         dat_file.write_text("")
@@ -3760,7 +3760,7 @@ class TestMaterialNameCasePreservation:
 
     def test_parse_material_blocks_preserves_case(self, tmp_path):
         """parse_material_blocksが元の大文字小文字を保持する"""
-        from services.graph import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
 
         inp_file = tmp_path / "material.inp"
         inp_file.write_text(

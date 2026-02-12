@@ -25,13 +25,14 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj credential show`: 保存済み認証情報を表示（マスキング付き）
   - `jj credential delete`: 保存済み認証情報を削除
   - `jj g ...`: 旧コマンド（互換性維持）
-- `jj f` (file)
-  - ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信などを担当します。
 - `jj r` (run)
   - CAEソフトでの計算実行やプリ/ポスト処理の実行履歴、指定オプションのログ取得を担います。
   - `jj r -- <command>` でコマンドを実行し、`.jj/storage/run` に実行ログを保存します。
   - 実行ログには所要時間/実行ユーザー/ホスト情報を含めます。
-  - 既存のsubmit機能（Abaqusのサーバー投入）を`run`機能としてリファクタリングする方針です。
+- 凍結中（Phase 3まで）
+  - `jj f` (file): ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信
+  - submit/list/check: ジョブ投入・構文チェック（SubmitService経由）
+  - 旧互換フラグ: --use-gpu, --no-background, --jcf, --abq-version等
 
 ## データモデル
 - **Node**: `id: int`, `type: str`, `name: str`, `format: str`, `properties: dict[str, Any]`
@@ -86,6 +87,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-067: レガシーコード削除・Vault設定config.yaml駆動化・CLI凍結整理。旧メソッド(export_obsidian/export_data/export_neo4j/export_dashboard_json)と対応データクラス4件を完全削除。graph/__init__.pyの後方互換re-export(parse_sta_file等)を削除しテストを正規パスに修正。Obsidian Vault設定をconfig.yaml駆動化(ObsidianVaultConfigデータクラス追加)。submit/files/旧互換フラグをPhase 3まで凍結マーク。699テストパス、リグレッションなし。([status-067](docs/status/status-067.md))
 - 2026-02-12 / status-066: Obsidian Vault自動セットアップ・GraphMLエクスポーター凍結。`jj export --target obsidian`実行時に`.obsidian/`ディレクトリを自動生成（初回のみ、既存Vaultは変更しない）。app.json/community-plugins.json/core-plugins-migration.jsonの推奨構成を自動セットアップ。CLI出力にVault初期化案内追加。GraphMLエクスポーターは使用していないため凍結。699テストパス（+6件追加）。([status-066](docs/status/status-066.md))
 - 2026-02-11 / status-065: エクスポートロジック統一・CLIレジストリディスパッチ・Obsidianプラグイン構成。CLI `_run_export()`を if/elif チェーンからレジストリ経由統一ディスパッチに変更。AbstractExporter.format_cli_result()メソッド追加（全6エクスポーターにオーバーライド実装）。GraphCommandService.export_unified()統一パイプライン追加。Obsidianサマリーノート（jj-summary.md）自動生成。Obsidian推奨プラグイン構成ドキュメント（Dataview/DB Folder/Templater等）。693テストパス（+12件追加）。([status-065](docs/status/status-065.md))
 - 2026-02-11 / status-064: エクスポートロジック統一・AbstractExporter全形式対応・3層Canvas。ObsidianExporter/Neo4jExporter/CypherExporter/DashboardJsonExporterをAbstractExporterサブクラスとして実装。全6形式がレジストリに登録され`get_exporter_for_format()`で統一取得可能。GraphCommandService.export_by_format()で統一呼び出し。Obsidian Canvas 3層（go-material-elset）関係グラフ生成。graph_command.pyの壊れたNeo4jインポートパス修正。117テストパス（+11件追加）。([status-064](docs/status/status-064.md))
