@@ -1,7 +1,9 @@
-"""ダッシュボード向けデータ供給クラス
+"""ダッシュボード向けデータ供給クラス（汎用）
 
 GraphModelを受け取り、テーブル/カード/プロット/ステータスの
 各ビュー向けデータ構造に変換する。
+ソフトウェア固有のデータ供給（例: Abaqus物性テーブル）は
+services/dashboard/connectors/ のコネクターに移動済み。
 float値は桁数が大きい場合に指数表示（小数2桁）でフォーマットする。
 
 [READMEへ戻る](../../../README.md)
@@ -691,102 +693,6 @@ class DashboardDataProvider:
             })
 
         return results
-
-    def get_material_table(self) -> list[dict[str, Any]]:
-        """abaqus_materialノードの物性テーブルデータ
-
-        全abaqus_materialノードの非テーブル型プロパティを
-        フラットなテーブル行として返す。テーブル型データ（list[list]）は
-        列名だけを表示用に含める。
-
-        Returns:
-            行データのリスト
-        """
-        rows: list[dict[str, Any]] = []
-
-        for node in self.graph.nodes:
-            if node.type != "abaqus_material":
-                continue
-
-            row: dict[str, Any] = {
-                "id": node.id,
-                "name": node.name,
-            }
-
-            for key, value in node.properties.items():
-                if key in ("path", "include_properties", "source_file"):
-                    continue
-                # テーブル型データ（list[list]）はサマリのみ
-                if isinstance(value, list) and value and isinstance(value[0], list):
-                    row[key] = f"[{len(value)}行]"
-                elif isinstance(value, (dict, list)):
-                    row[key] = str(value)
-                else:
-                    row[key] = value
-
-            rows.append(row)
-
-        return rows
-
-    def get_material_table_data(
-        self,
-        node_id: int,
-        property_key: str,
-    ) -> dict[str, Any] | None:
-        """materialノードのテーブル型プロパティデータを取得
-
-        plastic, elastic等のテーブル型データ（list[list[float]]）を返す。
-
-        Args:
-            node_id: materialノードID
-            property_key: プロパティキー（例: "plastic", "elastic"）
-
-        Returns:
-            {
-                "name": str,
-                "property_key": str,
-                "data": list[list[float]],
-                "keywords": list[str],
-            }
-            見つからない場合はNone
-        """
-        node = self._node_by_id.get(node_id)
-        if node is None or node.type != "abaqus_material":
-            return None
-
-        value = node.properties.get(property_key)
-        if not isinstance(value, list) or not value:
-            return None
-
-        # テーブル型（list[list]）かチェック
-        if not isinstance(value[0], list):
-            return None
-
-        return {
-            "name": node.name,
-            "property_key": property_key,
-            "data": value,
-            "keywords": node.properties.get("keywords", []),
-        }
-
-    def get_material_table_keys(self, node_id: int) -> list[str]:
-        """materialノードのテーブル型プロパティキーを返す
-
-        Args:
-            node_id: materialノードID
-
-        Returns:
-            テーブル型プロパティキーのソート済みリスト
-        """
-        node = self._node_by_id.get(node_id)
-        if node is None or node.type != "abaqus_material":
-            return []
-
-        keys: list[str] = []
-        for key, value in node.properties.items():
-            if isinstance(value, list) and value and isinstance(value[0], list):
-                keys.append(key)
-        return sorted(keys)
 
     # ---- private ----
 
