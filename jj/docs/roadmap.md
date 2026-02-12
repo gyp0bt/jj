@@ -385,6 +385,11 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] AgGridテーブル表示（streamlit-aggrid導入、フォールバック付き） (status-069)
 - [x] 画像ギャラリー（has_output関係のPNG/GIF表示、5列グリッド） (status-069)
 - [x] graph.yaml変更検知による自動リフレッシュ（mtime監視、手動/自動切替） (status-069)
+- [x] config駆動テーブルカラム選択（table-columns、globパターン対応） (status-071)
+- [x] デフォルトフィルタ（default-filters）と共有フィルタのsession_state永続化 (status-071)
+- [x] ギャラリー: プロパティ画像パス対応（Obsidian daily由来、キー別一覧） (status-071)
+- [x] ギャラリー・プロット: NxMグリッドレイアウト（スクリーンショット向け） (status-071)
+- [x] プロットビュー: config駆動デフォルトX/Y軸設定 (status-071)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -667,6 +672,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-069.md)
+- [最新ステータス](./status/status-071.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

@@ -3,15 +3,18 @@
 jj dashboardコマンドから起動されるStreamlitアプリ。
 GraphModelを読み込み、テーブル/カード/プロット/ステータス/ギャラリーの
 5ビューを提供する。AgGridテーブル、画像ギャラリー、graph.yaml変更検知に対応。
+config.yaml駆動のカラム選択・フィルタ・プロット軸・ギャラリーグリッド設定対応。
 
 [READMEへ戻る](../../../README.md)
 """
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -130,6 +133,136 @@ def _try_render_aggrid(df: "pd.DataFrame") -> bool:
 
 
 # ====================================================================
+# カラムフィルタリング（config.yamlのtable-columns対応）
+# ====================================================================
+
+
+def _select_table_columns(
+    all_columns: list[str], table_columns: list[str] | None
+) -> list[str]:
+    """config指定に基づいてテーブルカラムをフィルタ・並べ替え
+
+    Args:
+        all_columns: DataFrameの全カラム名
+        table_columns: config.dashboard.table-columns（globパターン対応）
+
+    Returns:
+        表示するカラムのリスト（順序付き）
+    """
+    if table_columns is None:
+        return all_columns
+
+    # 固定カラム（常に先頭に表示）
+    fixed = ["name", "type", "format"]
+    ordered: list[str] = []
+    seen: set[str] = set(fixed)
+
+    for pattern in table_columns:
+        for col in all_columns:
+            if col in seen:
+                continue
+            if fnmatch.fnmatch(col, pattern) or col == pattern:
+                ordered.append(col)
+                seen.add(col)
+
+    # 固定カラム（存在するもののみ） + 指定カラム
+    result = [c for c in fixed if c in all_columns] + ordered
+    return result
+
+
+# ====================================================================
+# 共有フィルタ（session_stateで永続化・ビュー間共有）
+# ====================================================================
+
+
+def _init_shared_filters(default_filters: dict[str, Any]) -> None:
+    """共有フィルタの初期化（初回のみ）
+
+    Args:
+        default_filters: config.dashboard.default-filters
+    """
+    if "_filters_initialized" not in st.session_state:
+        st.session_state["_filters_initialized"] = True
+        st.session_state.setdefault(
+            "_filter_active", default_filters.get("active", False)
+        )
+        st.session_state.setdefault("_filter_type", "すべて")
+        st.session_state.setdefault("_filter_status", "すべて")
+
+
+def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
+    """共有フィルタのサイドバーUI描画
+
+    Args:
+        rows: フィルタ対象の全行データ
+    """
+    st.sidebar.markdown("### フィルタ")
+
+    # タイプフィルタ
+    types = sorted({r.get("type", "") for r in rows if r.get("type")})
+    type_options = ["すべて"] + types
+    current_type = st.session_state.get("_filter_type", "すべて")
+    type_idx = type_options.index(current_type) if current_type in type_options else 0
+    selected_type = st.sidebar.selectbox(
+        "タイプフィルタ", type_options, index=type_idx, key="_sb_filter_type"
+    )
+    st.session_state["_filter_type"] = selected_type
+
+    # ステータスフィルタ
+    statuses = sorted({
+        r.get("analysis_status", "unknown")
+        for r in rows
+        if r.get("analysis_status")
+    })
+    status_options = ["すべて"] + statuses
+    current_status = st.session_state.get("_filter_status", "すべて")
+    status_idx = (
+        status_options.index(current_status) if current_status in status_options else 0
+    )
+    selected_status = st.sidebar.selectbox(
+        "ステータスフィルタ",
+        status_options,
+        index=status_idx,
+        key="_sb_filter_status",
+    )
+    st.session_state["_filter_status"] = selected_status
+
+    # activeフィルタ
+    active_only = st.sidebar.checkbox(
+        "activeのみ",
+        value=st.session_state.get("_filter_active", False),
+        key="_sb_filter_active",
+    )
+    st.session_state["_filter_active"] = active_only
+
+
+def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """共有フィルタを適用
+
+    Args:
+        rows: フィルタ対象の全行データ
+
+    Returns:
+        フィルタ適用後の行データ
+    """
+    filtered = rows
+    selected_type = st.session_state.get("_filter_type", "すべて")
+    selected_status = st.session_state.get("_filter_status", "すべて")
+    active_only = st.session_state.get("_filter_active", False)
+
+    if selected_type != "すべて":
+        filtered = [r for r in filtered if r.get("type") == selected_type]
+    if selected_status != "すべて":
+        filtered = [
+            r for r in filtered if r.get("analysis_status") == selected_status
+        ]
+    if active_only:
+        filtered = [r for r in filtered if r.get("active") is True]
+
+    return filtered
+
+
+# ====================================================================
 # メインエントリポイント
 # ====================================================================
 
@@ -194,17 +327,27 @@ def main() -> None:
         return
 
     # config読み込み
+    dashboard_config = None
     try:
-        from config import GraphConfig
+        from config import DashboardConfig, GraphConfig
 
         config = GraphConfig.load(base_dir=project_root)
         vocab = config.vocab
         units = config.export.units
+        dashboard_config = config.dashboard
     except Exception:
         vocab = {}
         units = {}
 
+    if dashboard_config is None:
+        from config import DashboardConfig
+
+        dashboard_config = DashboardConfig.from_dict({})
+
     provider = DashboardDataProvider(graph, vocab=vocab, units=units)
+
+    # 共有フィルタ初期化
+    _init_shared_filters(dashboard_config.default_filters)
 
     # ページ選択
     page = st.sidebar.radio(
@@ -221,57 +364,36 @@ def main() -> None:
     st.sidebar.metric("go_ ファイル数", status["total"])
 
     if page == "テーブル":
-        _render_table_page(provider)
+        _render_table_page(provider, dashboard_config)
     elif page == "カード":
         _render_card_page(provider)
     elif page == "プロット":
-        _render_plot_page(provider)
+        _render_plot_page(provider, dashboard_config)
     elif page == "ステータス":
         _render_status_page(provider)
     elif page == "ギャラリー":
-        _render_gallery_page(provider, project_root)
+        _render_gallery_page(provider, project_root, dashboard_config)
 
 
 # ====================================================================
-# テーブルビュー（AgGrid対応）
+# テーブルビュー（AgGrid対応・config駆動カラム選択）
 # ====================================================================
 
 
-def _render_table_page(provider: DashboardDataProvider) -> None:
+def _render_table_page(
+    provider: DashboardDataProvider, dashboard_config: Any
+) -> None:
     """テーブルビュー: go_ファイルをテーブル表示（AgGrid優先）"""
     st.header("テーブルビュー")
 
-    # フィルタ
     rows = provider.get_go_table()
     if not rows:
         st.info("go_ ファイルが見つかりません。")
         return
 
-    # サイドバーフィルタ
-    types = sorted({r.get("type", "") for r in rows if r.get("type")})
-    selected_type = st.sidebar.selectbox("タイプフィルタ", ["すべて"] + types)
-
-    statuses = sorted({
-        r.get("analysis_status", "unknown")
-        for r in rows
-        if r.get("analysis_status")
-    })
-    selected_status = st.sidebar.selectbox(
-        "ステータスフィルタ", ["すべて"] + statuses
-    )
-
-    active_only = st.sidebar.checkbox("activeのみ", value=False)
-
-    # フィルタ適用
-    filtered = rows
-    if selected_type != "すべて":
-        filtered = [r for r in filtered if r.get("type") == selected_type]
-    if selected_status != "すべて":
-        filtered = [
-            r for r in filtered if r.get("analysis_status") == selected_status
-        ]
-    if active_only:
-        filtered = [r for r in filtered if r.get("active") is True]
+    # 共有フィルタ（サイドバー描画 + 適用）
+    _render_shared_filters(rows)
+    filtered = _apply_shared_filters(rows)
 
     st.caption(f"{len(filtered)} / {len(rows)} 件")
 
@@ -293,13 +415,20 @@ def _render_table_page(provider: DashboardDataProvider) -> None:
 
     df = pd.DataFrame(display_rows)
 
+    # config駆動カラム選択
+    table_columns = getattr(dashboard_config, "table_columns", None)
+    if table_columns:
+        selected_cols = _select_table_columns(list(df.columns), table_columns)
+        if selected_cols:
+            df = df[[c for c in selected_cols if c in df.columns]]
+
     # AgGridを試行、失敗時はst.dataframeにフォールバック
     if not _try_render_aggrid(df):
         st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 # ====================================================================
-# カードビュー
+# カードビュー（全プロパティ表示）
 # ====================================================================
 
 
@@ -383,11 +512,13 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
 
 
 # ====================================================================
-# プロットビュー
+# プロットビュー（config駆動デフォルト軸・NxMグリッド対応）
 # ====================================================================
 
 
-def _render_plot_page(provider: DashboardDataProvider) -> None:
+def _render_plot_page(
+    provider: DashboardDataProvider, dashboard_config: Any
+) -> None:
     """プロットビュー: プロパティの散布図/棒グラフ"""
     st.header("プロットビュー")
 
@@ -396,12 +527,23 @@ def _render_plot_page(provider: DashboardDataProvider) -> None:
         st.info("プロット可能なプロパティがありません。")
         return
 
+    # config駆動デフォルト軸
+    plot_x = getattr(dashboard_config, "plot_x", None)
+    plot_y = getattr(dashboard_config, "plot_y", None)
+
+    x_default_idx = 0
+    if plot_x and plot_x in keys:
+        x_default_idx = keys.index(plot_x)
+
+    y_default_idx = min(1, len(keys) - 1)
+    if plot_y and plot_y in keys:
+        y_default_idx = keys.index(plot_y)
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        x_key = st.selectbox("X軸", keys, index=0)
+        x_key = st.selectbox("X軸", keys, index=x_default_idx)
     with col2:
-        y_idx = min(1, len(keys) - 1)
-        y_key = st.selectbox("Y軸", keys, index=y_idx)
+        y_key = st.selectbox("Y軸", keys, index=y_default_idx)
     with col3:
         color_options = ["なし"] + keys
         color_key = st.selectbox("色分け", color_options, index=0)
@@ -424,42 +566,132 @@ def _render_plot_page(provider: DashboardDataProvider) -> None:
 
     df = pd.DataFrame(data)
 
+    # NxMグリッド表示オプション
+    gallery_cols = getattr(dashboard_config, "gallery_columns", 5)
+    gallery_rows = getattr(dashboard_config, "gallery_rows", 4)
+    grid_mode = st.checkbox("グリッドモード（スクリーンショット用）", value=False)
+
     try:
         import plotly.express as px
 
-        if chart_type == "散布図":
-            fig = px.scatter(
-                df,
-                x=x_key,
-                y=y_key,
-                color=color,
-                hover_name="name",
-                title=f"{y_key} vs {x_key}",
-            )
-        elif chart_type == "棒グラフ":
-            fig = px.bar(
-                df,
-                x="name",
-                y=y_key,
-                color=color,
-                title=f"{y_key} by name",
+        if grid_mode:
+            # グリッドモード: 各データ点ごとに個別プロットをNxMグリッド配置
+            _render_plot_grid(
+                df, x_key, y_key, color, chart_type, gallery_cols, gallery_rows
             )
         else:
-            fig = px.line(
-                df,
-                x=x_key,
-                y=y_key,
-                color=color,
-                hover_name="name",
-                title=f"{y_key} vs {x_key}",
-                markers=True,
+            # 通常モード: 1つのプロット
+            fig = _create_plot_figure(
+                px, df, x_key, y_key, color, chart_type
             )
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         # plotlyがない場合はStreamlit組み込みチャートを使用
         st.scatter_chart(df, x=x_key, y=y_key)
 
     st.caption(f"データ点数: {len(data)}")
+
+
+def _create_plot_figure(
+    px: Any,
+    df: "pd.DataFrame",
+    x_key: str,
+    y_key: str,
+    color: str | None,
+    chart_type: str,
+) -> Any:
+    """plotlyのFigureオブジェクトを作成"""
+    if chart_type == "散布図":
+        return px.scatter(
+            df,
+            x=x_key,
+            y=y_key,
+            color=color,
+            hover_name="name",
+            title=f"{y_key} vs {x_key}",
+        )
+    elif chart_type == "棒グラフ":
+        return px.bar(
+            df,
+            x="name",
+            y=y_key,
+            color=color,
+            title=f"{y_key} by name",
+        )
+    else:
+        return px.line(
+            df,
+            x=x_key,
+            y=y_key,
+            color=color,
+            hover_name="name",
+            title=f"{y_key} vs {x_key}",
+            markers=True,
+        )
+
+
+def _render_plot_grid(
+    df: "pd.DataFrame",
+    x_key: str,
+    y_key: str,
+    color: str | None,
+    chart_type: str,
+    cols_per_row: int,
+    max_rows: int,
+) -> None:
+    """プロットをNxMグリッドで表示（スクリーンショット向け）
+
+    色分けキーまたはnameごとに個別プロットを生成しグリッド配置する。
+    """
+    try:
+        import plotly.express as px
+    except ImportError:
+        st.warning("plotlyが必要です。")
+        return
+
+    # 色分けキーでグループ化、なければnameごと
+    group_key = color if color else "name"
+    if group_key not in df.columns:
+        st.plotly_chart(
+            _create_plot_figure(px, df, x_key, y_key, color, chart_type),
+            use_container_width=True,
+        )
+        return
+
+    groups = list(df.groupby(group_key))
+    max_plots = cols_per_row * max_rows
+    groups = groups[:max_plots]
+
+    for row_start in range(0, len(groups), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for col_idx, (group_name, group_df) in enumerate(
+            groups[row_start: row_start + cols_per_row]
+        ):
+            with cols[col_idx]:
+                if chart_type == "散布図":
+                    fig = px.scatter(
+                        group_df, x=x_key, y=y_key,
+                        title=str(group_name),
+                        hover_name="name" if "name" in group_df.columns else None,
+                    )
+                elif chart_type == "棒グラフ":
+                    fig = px.bar(
+                        group_df, x="name", y=y_key,
+                        title=str(group_name),
+                    )
+                else:
+                    fig = px.line(
+                        group_df, x=x_key, y=y_key,
+                        title=str(group_name),
+                        hover_name="name" if "name" in group_df.columns else None,
+                        markers=True,
+                    )
+                fig.update_layout(
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    height=300,
+                    showlegend=False,
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
 
 # ====================================================================
@@ -517,16 +749,36 @@ def _render_status_page(provider: DashboardDataProvider) -> None:
 
 
 # ====================================================================
-# 画像ギャラリー
+# 画像ギャラリー（NxMグリッド・プロパティ画像パス対応・キー別一覧）
 # ====================================================================
 
 
 def _render_gallery_page(
-    provider: DashboardDataProvider, project_root: Path
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
 ) -> None:
-    """画像ギャラリー: has_output関係の画像を表示"""
+    """画像ギャラリー: has_output関係 + プロパティ画像パスを表示"""
     st.header("画像ギャラリー")
 
+    # 画像ソース選択
+    source_options = ["has_output関係", "プロパティ画像パス"]
+    image_source = st.radio(
+        "画像ソース", source_options, horizontal=True
+    )
+
+    if image_source == "has_output関係":
+        _render_gallery_output_images(provider, project_root, dashboard_config)
+    else:
+        _render_gallery_property_images(provider, project_root, dashboard_config)
+
+
+def _render_gallery_output_images(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+) -> None:
+    """has_output関係の画像ギャラリー（NxMグリッド）"""
     images = provider.get_output_images()
 
     if not images:
@@ -544,50 +796,139 @@ def _render_gallery_page(
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
-    # 最大表示数
-    max_display = st.sidebar.number_input(
-        "最大表示数", min_value=1, max_value=200, value=50
+    # NxMグリッド設定
+    cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
+    rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+    max_display = cols_per_row * rows_per_page
+
+    # ページネーション
+    total_images = len(images)
+    total_pages = max(1, (total_images + max_display - 1) // max_display)
+    page_num = st.sidebar.number_input(
+        "ページ", min_value=1, max_value=total_pages, value=1
     )
-    images = images[:max_display]
+    start_idx = (page_num - 1) * max_display
+    page_images = images[start_idx: start_idx + max_display]
 
-    st.caption(f"{len(images)} 件の画像")
+    st.caption(
+        f"{len(page_images)} / {total_images} 件 "
+        f"（{cols_per_row}列 x {rows_per_page}行、ページ {page_num}/{total_pages}）"
+    )
 
-    if not images:
+    if not page_images:
         st.info("条件に一致する画像がありません。")
         return
 
-    # 5列グリッドで表示
-    cols_per_row = 5
+    # NxMグリッドで表示
+    _render_image_grid(page_images, cols_per_row, project_root, source="output")
+
+
+def _render_gallery_property_images(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+) -> None:
+    """プロパティ画像パスのギャラリー（キー別一覧・NxMグリッド）"""
+    images = provider.get_property_images()
+
+    if not images:
+        st.info(
+            "プロパティに画像ファイルパスが見つかりません。"
+            "Obsidianのdaily noteからプロパティに画像パスを割り当てたノードがありません。"
+        )
+        return
+
+    # キー別フィルタ
+    all_keys = sorted({img["property_key"] for img in images})
+    selected_key = st.sidebar.selectbox(
+        "プロパティキー", ["すべて"] + all_keys
+    )
+    if selected_key != "すべて":
+        images = [img for img in images if img["property_key"] == selected_key]
+
+    # フォーマットフィルタ
+    formats = sorted({img["image_format"] for img in images})
+    selected_format = st.sidebar.selectbox(
+        "画像フォーマット（プロパティ）", ["すべて"] + formats
+    )
+    if selected_format != "すべて":
+        images = [img for img in images if img["image_format"] == selected_format]
+
+    # NxMグリッド設定
+    cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
+    rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+    max_display = cols_per_row * rows_per_page
+
+    # ページネーション
+    total_images = len(images)
+    total_pages = max(1, (total_images + max_display - 1) // max_display)
+    page_num = st.sidebar.number_input(
+        "ページ（プロパティ画像）", min_value=1, max_value=total_pages, value=1
+    )
+    start_idx = (page_num - 1) * max_display
+    page_images = images[start_idx: start_idx + max_display]
+
+    st.caption(
+        f"{len(page_images)} / {total_images} 件 "
+        f"（{cols_per_row}列 x {rows_per_page}行、ページ {page_num}/{total_pages}）"
+    )
+
+    if not page_images:
+        st.info("条件に一致する画像がありません。")
+        return
+
+    # NxMグリッドで表示
+    _render_image_grid(page_images, cols_per_row, project_root, source="property")
+
+
+def _render_image_grid(
+    images: list[dict[str, Any]],
+    cols_per_row: int,
+    project_root: Path,
+    source: str,
+) -> None:
+    """画像をNxMグリッドで描画
+
+    Args:
+        images: 画像情報のリスト
+        cols_per_row: 1行あたりの列数
+        project_root: プロジェクトルート
+        source: "output"（has_output）または "property"（プロパティ画像パス）
+    """
     for row_start in range(0, len(images), cols_per_row):
         cols = st.columns(cols_per_row)
         for col_idx, img_info in enumerate(
-            images[row_start : row_start + cols_per_row]
+            images[row_start: row_start + cols_per_row]
         ):
             with cols[col_idx]:
-                # パラメータ情報
-                st.markdown(f"**{img_info['go_node_name']}**")
-
-                # 主要プロパティをコンパクト表示
-                props = img_info["go_properties"]
-                prop_lines = []
-                for key in ("index", "version", "type", "analysis_status"):
-                    if key in props:
-                        prop_lines.append(f"{key}: {props[key]}")
-                if prop_lines:
-                    st.caption(" | ".join(prop_lines))
+                # ヘッダー情報
+                if source == "output":
+                    st.markdown(f"**{img_info['go_node_name']}**")
+                    props = img_info["go_properties"]
+                    prop_lines = []
+                    for key in ("index", "version", "type", "analysis_status"):
+                        if key in props:
+                            prop_lines.append(f"{key}: {props[key]}")
+                    if prop_lines:
+                        st.caption(" | ".join(prop_lines))
+                    image_path_str = img_info["image_path"]
+                    caption = img_info["image_name"]
+                else:
+                    st.markdown(f"**{img_info['go_node_name']}**")
+                    st.caption(f"key: {img_info['property_key']}")
+                    image_path_str = img_info["image_path"]
+                    caption = f"{img_info['property_key']}: {Path(image_path_str).name}"
 
                 # 画像表示
-                image_path = project_root / img_info["image_path"]
+                image_path = project_root / image_path_str
                 if image_path.exists():
                     st.image(
                         str(image_path),
-                        caption=img_info["image_name"],
+                        caption=caption,
                         use_container_width=True,
                     )
                 else:
-                    st.warning(
-                        f"画像が見つかりません: {img_info['image_path']}"
-                    )
+                    st.warning(f"画像が見つかりません: {image_path_str}")
 
 
 if __name__ == "__main__":

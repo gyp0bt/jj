@@ -152,6 +152,35 @@ export:
   # "row": 1行目カラム名、2行目単位行
   csv-unit-format: header
 
+# ダッシュボード設定
+dashboard:
+  # テーブルビューで表示するカラム（指定時はこれらのカラムのみ、優先順位順に表示）
+  # 未指定の場合は全カラムを表示。name/type/formatは常に先頭に含まれます。
+  # globパターン対応（例: "stress*" で stress.center, stress.edge 等にマッチ）
+  # table-columns:
+  #   - 条件
+  #   - バージョン
+  #   - analysis_status
+  #   - active
+  #   - stress*
+
+  # デフォルトフィルタ（ダッシュボード起動時に適用）
+  # ビュー間で共有され、session中保持されます
+  default-filters:
+    active: true
+
+  # プロットビューのデフォルト軸設定
+  # 未指定の場合はプロパティキーリストの先頭から自動選択
+  # plot:
+  #   x: 条件
+  #   y: RF3
+
+  # ギャラリーのグリッド列数（デフォルト: 5）
+  # gallery-columns: 5
+
+  # ギャラリーのグリッド行数（1ページあたりの行数、デフォルト: 4）
+  # gallery-rows: 4
+
 # Obsidian エクスポート設定
 obsidian:
   # ノート出力先ディレクトリ

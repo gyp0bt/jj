@@ -90,6 +90,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-071: ダッシュボード機能拡張（config駆動カラム・フィルタ永続化・ギャラリーNxM・プロット軸設定）。テーブルビューにconfig.yaml駆動のカラム選択と優先順位指定（globパターン対応）。デフォルトフィルタ（active=true）と共有フィルタのsession_state永続化（ビュー間共有）。ギャラリーにプロパティ画像パス対応（Obsidian daily由来、キー別一覧）とNxMグリッドレイアウト。プロットビューにconfig駆動デフォルトX/Y軸とグリッドモード（スクリーンショット用）。DashboardConfigデータクラス追加。18テスト追加。([status-071](docs/status/status-071.md))
 - 2026-02-12 / status-069: ダッシュボード機能拡張（AgGrid・画像ギャラリー・自動リフレッシュ）。テーブルビューをAgGrid対応（チェックボックス選択・フィルタ・ソート・ページネーション、フォールバック付き）。ギャラリーページ追加（has_output関係の画像を5列グリッド表示、フォーマットフィルタ・最大表示数制御）。graph.yaml変更検知・自動リフレッシュ（mtime監視、手動/自動リフレッシュ、3-60秒間隔設定）。streamlit-aggrid依存追加。734テストパス（+13件追加）、リグレッションなし。([status-069](docs/status/status-069.md))
 - 2026-02-12 / status-068: Streamlitダッシュボード・REST API実装（Phase 2.5 D2/D3）。`jj dashboard`でStreamlitアプリ起動（テーブル/カード/プロット/ステータスの4ビュー）。`jj serve`でFastAPI REST APIサーバー起動（9エンドポイント、OpenAPIドキュメント自動生成）。CLIにdashboard/serveコマンド追加。streamlit/plotly/fastapi/uvicorn依存追加。721テストパス（+22件追加）、リグレッションなし。([status-068](docs/status/status-068.md))
 - 2026-02-12 / status-067: レガシーコード削除・Vault設定config.yaml駆動化・CLI凍結整理。旧メソッド(export_obsidian/export_data/export_neo4j/export_dashboard_json)と対応データクラス4件を完全削除。graph/__init__.pyの後方互換re-export(parse_sta_file等)を削除しテストを正規パスに修正。Obsidian Vault設定をconfig.yaml駆動化(ObsidianVaultConfigデータクラス追加)。submit/files/旧互換フラグをPhase 3まで凍結マーク。699テストパス、リグレッションなし。([status-067](docs/status/status-067.md))
