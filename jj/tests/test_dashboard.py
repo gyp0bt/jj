@@ -2089,37 +2089,227 @@ class TestGetMaterialTableKeys:
 
 
 class TestGuessTableColumnNames:
-    """_guess_table_column_names のテスト"""
+    """_guess_table_column_names のテスト（config駆動）"""
 
-    def test_plastic_columns(self):
-        """plasticの列名推定"""
+    def test_plastic_columns_from_config(self):
+        """configからplasticの列名を取得"""
         try:
             import streamlit  # noqa: F401
         except ImportError:
             pytest.skip("streamlit not installed")
         from services.dashboard.app import _guess_table_column_names
 
-        names = _guess_table_column_names("plastic", 2)
+        mcc = {
+            "plastic": {"columns": ["stress", "strain"]},
+        }
+        names = _guess_table_column_names("plastic", 2, mcc)
         assert names == ["stress", "strain"]
 
-    def test_elastic_columns(self):
-        """elasticの列名推定"""
+    def test_elastic_columns_from_config(self):
+        """configからelasticの列名を取得"""
         try:
             import streamlit  # noqa: F401
         except ImportError:
             pytest.skip("streamlit not installed")
         from services.dashboard.app import _guess_table_column_names
 
-        names = _guess_table_column_names("elastic", 2)
+        mcc = {
+            "elastic": {"columns": ["E", "nu"]},
+        }
+        names = _guess_table_column_names("elastic", 2, mcc)
         assert names == ["E", "nu"]
 
-    def test_unknown_columns(self):
-        """不明なキーの列名は汎用名"""
+    def test_unknown_columns_no_config(self):
+        """configにマッチしないキーはcol_Nで補完"""
         try:
             import streamlit  # noqa: F401
         except ImportError:
             pytest.skip("streamlit not installed")
         from services.dashboard.app import _guess_table_column_names
 
-        names = _guess_table_column_names("unknown_prop", 3)
+        names = _guess_table_column_names("unknown_prop", 3, {})
         assert names == ["col_0", "col_1", "col_2"]
+
+    def test_none_config_fallback(self):
+        """config=Noneの場合もcol_Nで補完"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _guess_table_column_names
+
+        names = _guess_table_column_names("plastic", 2, None)
+        assert names == ["col_0", "col_1"]
+
+    def test_config_columns_fewer_than_num_cols(self):
+        """configの列数がnum_colsより少ない場合はcol_Nで補完"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _guess_table_column_names
+
+        mcc = {
+            "plastic": {"columns": ["stress"]},
+        }
+        names = _guess_table_column_names("plastic", 3, mcc)
+        assert names == ["stress", "col_1", "col_2"]
+
+    def test_config_columns_more_than_num_cols(self):
+        """configの列数がnum_colsより多い場合は切り詰め"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _guess_table_column_names
+
+        mcc = {
+            "creep": {"columns": ["A", "n", "m"]},
+        }
+        names = _guess_table_column_names("creep", 2, mcc)
+        assert names == ["A", "n"]
+
+
+# ====================================================================
+# _get_curve_plot_axes テスト
+# ====================================================================
+
+
+class TestGetCurvePlotAxes:
+    """_get_curve_plot_axes のテスト"""
+
+    def test_default_axes(self):
+        """configなしの場合はx=0, y=1"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _get_curve_plot_axes
+
+        x, y = _get_curve_plot_axes("elastic", 2, None)
+        assert x == 0
+        assert y == 1
+
+    def test_config_axes(self):
+        """configでx/yインデックスを指定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _get_curve_plot_axes
+
+        mcc = {
+            "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+        }
+        x, y = _get_curve_plot_axes("plastic", 2, mcc)
+        assert x == 1
+        assert y == 0
+
+    def test_config_no_axes(self):
+        """configにcolumnsはあるがx/y未指定の場合はデフォルト"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _get_curve_plot_axes
+
+        mcc = {
+            "elastic": {"columns": ["E", "nu"]},
+        }
+        x, y = _get_curve_plot_axes("elastic", 2, mcc)
+        assert x == 0
+        assert y == 1
+
+    def test_config_axes_clamped(self):
+        """x/yインデックスがnum_colsを超えた場合はクランプ"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _get_curve_plot_axes
+
+        mcc = {
+            "test": {"columns": ["a"], "x": 5, "y": 10},
+        }
+        x, y = _get_curve_plot_axes("test", 1, mcc)
+        assert x == 0
+        assert y == 0
+
+    def test_unknown_key_default(self):
+        """configにないキーはデフォルト"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _get_curve_plot_axes
+
+        mcc = {"plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0}}
+        x, y = _get_curve_plot_axes("unknown", 3, mcc)
+        assert x == 0
+        assert y == 1
+
+
+# ====================================================================
+# DashboardConfig material-curve-columns テスト
+# ====================================================================
+
+
+class TestDashboardConfigMaterialCurveColumns:
+    """DashboardConfig material-curve-columns のテスト"""
+
+    def test_default_empty(self):
+        """デフォルトで空dict"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.material_curve_columns == {}
+
+    def test_dict_format(self):
+        """辞書形式でcolumnsとx/yを指定"""
+        from config import DashboardConfig
+
+        data = {
+            "material-curve-columns": {
+                "plastic": {
+                    "columns": ["stress", "strain"],
+                    "x": 1,
+                    "y": 0,
+                },
+                "elastic": {
+                    "columns": ["E", "nu"],
+                },
+            }
+        }
+        cfg = DashboardConfig.from_dict(data)
+        assert "plastic" in cfg.material_curve_columns
+        assert cfg.material_curve_columns["plastic"]["columns"] == ["stress", "strain"]
+        assert cfg.material_curve_columns["plastic"]["x"] == 1
+        assert cfg.material_curve_columns["plastic"]["y"] == 0
+        assert "elastic" in cfg.material_curve_columns
+        assert cfg.material_curve_columns["elastic"]["columns"] == ["E", "nu"]
+        assert "x" not in cfg.material_curve_columns["elastic"]
+
+    def test_list_shorthand(self):
+        """簡略形式（リスト）でcolumnsのみ指定"""
+        from config import DashboardConfig
+
+        data = {
+            "material-curve-columns": {
+                "density": ["density"],
+            }
+        }
+        cfg = DashboardConfig.from_dict(data)
+        assert cfg.material_curve_columns["density"]["columns"] == ["density"]
+
+    def test_graph_config_includes_mcc(self):
+        """GraphConfigからmaterial_curve_columnsが読み込まれる"""
+        from config import GraphConfig
+
+        cfg = GraphConfig.from_dict({
+            "dashboard": {
+                "material-curve-columns": {
+                    "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+                }
+            }
+        })
+        assert "plastic" in cfg.dashboard.material_curve_columns

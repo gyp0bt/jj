@@ -279,6 +279,43 @@ dashboard:
   #   gallery-rows: 6
   # gallery-rows: 4
 
+  # 物性カーブ列名設定（material-curve-columns）
+  # 物性一覧ページの列名推定に使用します。
+  # 各プロパティキーに対して columns（列名リスト）と、
+  # オプションで x/y（プロットのX軸/Y軸に使う列のインデックス）を指定します。
+  # configにマッチしないプロパティは col_0, col_1, ... で補完されます。
+  # 使用例:
+  #   material-curve-columns:
+  #     plastic:
+  #       columns: [stress, strain]
+  #       x: 1
+  #       y: 0
+  #     elastic:
+  #       columns: [E, nu]
+  material-curve-columns:
+    plastic:
+      columns: [stress, strain]
+      x: 1
+      y: 0
+    elastic:
+      columns: [E, nu]
+    density:
+      columns: [density]
+    specific-heat:
+      columns: [specific_heat]
+    conductivity:
+      columns: [conductivity]
+    expansion:
+      columns: [alpha]
+    damage-initiation:
+      columns: [value, strain]
+      x: 1
+      y: 0
+    damage-evolution:
+      columns: [displacement]
+    creep:
+      columns: [A, n, m]
+
   # 保存済みビュー（ダッシュボードの「保存済みビュー」ページに表示順で表示）
   # 各ビューにはフィルタ条件、プロット条件、ギャラリー条件を指定できます。
   # ビュータイプ: table / plot / gallery / card / status
