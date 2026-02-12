@@ -357,3 +357,248 @@ class TestToDashboardJson:
         assert "graph" in result
         assert len(result["graph"]["nodes"]) > 0
         assert len(result["graph"]["relations"]) > 0
+
+
+# ====================================================================
+# REST API (FastAPI) テスト
+# ====================================================================
+
+
+class TestRestApi:
+    """FastAPI REST APIのテスト"""
+
+    @pytest.fixture
+    def client(self, tmp_path, graph):
+        """テスト用FastAPIクライアント"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            pytest.skip("fastapi not installed")
+
+        # テスト用にgraph.yamlを書き出す
+        import yaml
+
+        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir.mkdir(parents=True)
+        graph_file = storage_dir / "graph.yaml"
+
+        graph_data = {
+            "nodes": [n.model_dump() for n in graph.nodes],
+            "relations": [r.model_dump() for r in graph.relations],
+        }
+        graph_file.write_text(
+            yaml.safe_dump(graph_data, allow_unicode=True),
+            encoding="utf-8",
+        )
+
+        from services.api.routes import create_app
+
+        app = create_app(tmp_path)
+        return TestClient(app)
+
+    def test_get_graph(self, client):
+        """GET /api/v1/graph でグラフ全体が返る"""
+        resp = client.get("/api/v1/graph")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "nodes" in data
+        assert "relations" in data
+        assert len(data["nodes"]) == 6
+        assert len(data["relations"]) == 4
+
+    def test_get_nodes(self, client):
+        """GET /api/v1/nodes でノード一覧が返る"""
+        resp = client.get("/api/v1/nodes")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 6
+        assert len(data["nodes"]) == 6
+
+    def test_get_nodes_type_filter(self, client):
+        """GET /api/v1/nodes?type=go でタイプフィルタが動作する"""
+        resp = client.get("/api/v1/nodes?type=go")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 4
+        for n in data["nodes"]:
+            assert n["type"] == "go"
+
+    def test_get_nodes_name_filter(self, client):
+        """GET /api/v1/nodes?name=steel で名前フィルタが動作する"""
+        resp = client.get("/api/v1/nodes?name=steel")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] >= 1
+        for n in data["nodes"]:
+            assert "steel" in n["name"].lower()
+
+    def test_get_nodes_pagination(self, client):
+        """GET /api/v1/nodes でページネーションが動作する"""
+        resp = client.get("/api/v1/nodes?limit=2&offset=0")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 6
+        assert len(data["nodes"]) == 2
+        assert data["limit"] == 2
+        assert data["offset"] == 0
+
+    def test_get_node_detail(self, client):
+        """GET /api/v1/nodes/{id} でノード詳細が返る"""
+        resp = client.get("/api/v1/nodes/1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "go_idx1_v1"
+        assert "properties" in data
+        assert "relations" in data
+
+    def test_get_node_not_found(self, client):
+        """GET /api/v1/nodes/{id} で存在しないIDは404"""
+        resp = client.get("/api/v1/nodes/999")
+        assert resp.status_code == 404
+
+    def test_get_related_nodes(self, client):
+        """GET /api/v1/nodes/{id}/related で関連ノードが返る"""
+        resp = client.get("/api/v1/nodes/1/related")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["node_id"] == 1
+        assert len(data["related"]) >= 2
+
+    def test_get_related_nodes_label_filter(self, client):
+        """GET /api/v1/nodes/{id}/related?label=has_output でラベルフィルタが動作する"""
+        resp = client.get("/api/v1/nodes/1/related?label=has_output")
+        assert resp.status_code == 200
+        data = resp.json()
+        for r in data["related"]:
+            assert r["label"] == "has_output"
+
+    def test_get_relations(self, client):
+        """GET /api/v1/relations でリレーション一覧が返る"""
+        resp = client.get("/api/v1/relations")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total"] == 4
+
+    def test_get_relations_label_filter(self, client):
+        """GET /api/v1/relations?label=includes でラベルフィルタが動作する"""
+        resp = client.get("/api/v1/relations?label=includes")
+        assert resp.status_code == 200
+        data = resp.json()
+        for r in data["relations"]:
+            assert r["label"] == "includes"
+
+    def test_get_property_keys(self, client):
+        """GET /api/v1/properties/keys でプロパティキーが返る"""
+        resp = client.get("/api/v1/properties/keys")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "keys" in data
+        assert "RF3" in data["keys"]
+        assert "temperature" in data["keys"]
+
+    def test_get_summary(self, client):
+        """GET /api/v1/summary でサマリーが返る"""
+        resp = client.get("/api/v1/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total_nodes" in data
+        assert "total_relations" in data
+        assert "go_file_count" in data
+
+    def test_get_status(self, client):
+        """GET /api/v1/status でステータスが返る"""
+        resp = client.get("/api/v1/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total" in data
+        assert "completed" in data
+        assert "failed" in data
+        assert "items" in data
+
+    def test_reload(self, client):
+        """POST /api/v1/reload でグラフ再読み込みが成功する"""
+        resp = client.post("/api/v1/reload")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "reloaded"
+
+
+# ====================================================================
+# Streamlitアプリ ユニットテスト（関数レベル）
+# ====================================================================
+
+
+class TestStreamlitAppHelpers:
+    """Streamlitアプリのヘルパー関数テスト"""
+
+    def test_app_module_importable(self):
+        """dashboard.app モジュールがインポートできる"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard import app
+
+        assert hasattr(app, "main")
+        assert callable(app.main)
+
+    def test_api_module_importable(self):
+        """api モジュールがインポートできる"""
+        try:
+            import fastapi  # noqa: F401
+        except ImportError:
+            pytest.skip("fastapi not installed")
+        from services.api import create_app
+
+        assert callable(create_app)
+
+
+# ====================================================================
+# CLI コマンド登録テスト
+# ====================================================================
+
+
+class TestCliRegistration:
+    """CLIにdashboard/serveコマンドが登録されていることを確認"""
+
+    def test_dashboard_command_registered(self):
+        """jj dashboardコマンドがパーサーに登録されている"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        # dashboardが受け入れられることをテスト
+        args = parser.parse_args(["dashboard"])
+        assert args.cmd == "dashboard"
+
+    def test_serve_command_registered(self):
+        """jj serveコマンドがパーサーに登録されている"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["serve"])
+        assert args.cmd == "serve"
+
+    def test_dashboard_port_option(self):
+        """jj dashboard --port でポート指定ができる"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["dashboard", "--port", "9000"])
+        assert args.port == 9000
+
+    def test_serve_port_and_host(self):
+        """jj serve --port --host でポートとホスト指定ができる"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["serve", "--port", "9090", "--host", "0.0.0.0"])
+        assert args.port == 9090
+        assert args.host == "0.0.0.0"
+
+    def test_dashboard_no_browser(self):
+        """jj dashboard --no-browser が受け入れられる"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["dashboard", "--no-browser"])
+        assert args.no_browser is True

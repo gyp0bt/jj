@@ -23,8 +23,13 @@ paramiko>=3.0.0
 # Neo4jコネクター用
 neo4j>=5.0.0
 
-# 可視化（オプション）
-# plotly>=5.0.0
+# ダッシュボード（jj dashboard）
+streamlit>=1.30.0
+plotly>=5.0.0
+
+# REST API（jj serve）
+fastapi>=0.100.0
+uvicorn>=0.25.0
 
 # テスト
 pytest>=7.0.0

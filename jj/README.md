@@ -24,6 +24,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj credential set`: Neo4j等の認証情報を暗号化して保存
   - `jj credential show`: 保存済み認証情報を表示（マスキング付き）
   - `jj credential delete`: 保存済み認証情報を削除
+  - `jj dashboard`: Streamlitダッシュボードを起動（`--port`でポート指定、`--no-browser`でブラウザ非起動）
+  - `jj serve`: REST APIサーバーを起動（FastAPI + uvicorn、`--port`/`--host`でバインド設定）
   - `jj g ...`: 旧コマンド（互換性維持）
 - `jj r` (run)
   - CAEソフトでの計算実行やプリ/ポスト処理の実行履歴、指定オプションのログ取得を担います。
@@ -72,6 +74,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
     - `services/parse/connectors/abaqus/` : Abaqus INP読み込み、メッシュ統計、差分比較
     - `services/parse/connectors/obsidian/` : Obsidianエクスポート、daily連携
   - `services/export/connectors/` : 外部ツールへのエクスポート（Neo4jConnector等）
+  - `services/api/` : REST APIサーバー（FastAPI、jj serve）
   - `services/run/` : スクリプトラッパー（jj r）
   - `services/service/` : サービス横断オーケストレーション
   - `services/lib/` : 薄いユーティリティ（credentials, file等）
@@ -87,6 +90,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-068: Streamlitダッシュボード・REST API実装（Phase 2.5 D2/D3）。`jj dashboard`でStreamlitアプリ起動（テーブル/カード/プロット/ステータスの4ビュー）。`jj serve`でFastAPI REST APIサーバー起動（9エンドポイント、OpenAPIドキュメント自動生成）。CLIにdashboard/serveコマンド追加。streamlit/plotly/fastapi/uvicorn依存追加。721テストパス（+22件追加）、リグレッションなし。([status-068](docs/status/status-068.md))
 - 2026-02-12 / status-067: レガシーコード削除・Vault設定config.yaml駆動化・CLI凍結整理。旧メソッド(export_obsidian/export_data/export_neo4j/export_dashboard_json)と対応データクラス4件を完全削除。graph/__init__.pyの後方互換re-export(parse_sta_file等)を削除しテストを正規パスに修正。Obsidian Vault設定をconfig.yaml駆動化(ObsidianVaultConfigデータクラス追加)。submit/files/旧互換フラグをPhase 3まで凍結マーク。699テストパス、リグレッションなし。([status-067](docs/status/status-067.md))
 - 2026-02-12 / status-066: Obsidian Vault自動セットアップ・GraphMLエクスポーター凍結。`jj export --target obsidian`実行時に`.obsidian/`ディレクトリを自動生成（初回のみ、既存Vaultは変更しない）。app.json/community-plugins.json/core-plugins-migration.jsonの推奨構成を自動セットアップ。CLI出力にVault初期化案内追加。GraphMLエクスポーターは使用していないため凍結。699テストパス（+6件追加）。([status-066](docs/status/status-066.md))
 - 2026-02-11 / status-065: エクスポートロジック統一・CLIレジストリディスパッチ・Obsidianプラグイン構成。CLI `_run_export()`を if/elif チェーンからレジストリ経由統一ディスパッチに変更。AbstractExporter.format_cli_result()メソッド追加（全6エクスポーターにオーバーライド実装）。GraphCommandService.export_unified()統一パイプライン追加。Obsidianサマリーノート（jj-summary.md）自動生成。Obsidian推奨プラグイン構成ドキュメント（Dataview/DB Folder/Templater等）。693テストパス（+12件追加）。([status-065](docs/status/status-065.md))

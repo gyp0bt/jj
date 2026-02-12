@@ -314,6 +314,42 @@ def _add_diff_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_dashboard_args(parser: argparse.ArgumentParser) -> None:
+    """dashboardコマンドの引数を追加"""
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8501,
+        help="Streamlitサーバーのポート番号（デフォルト: 8501）",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="ブラウザを自動で開かない",
+    )
+
+
+def _add_serve_args(parser: argparse.ArgumentParser) -> None:
+    """serveコマンドの引数を追加"""
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="APIサーバーのポート番号（デフォルト: 8080）",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="バインドするホスト（デフォルト: 127.0.0.1）",
+    )
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="ファイル変更時に自動リロード（開発用）",
+    )
+
+
 def _add_credential_args(parser: argparse.ArgumentParser) -> None:
     """credentialコマンドの引数を追加"""
     cred_sub = parser.add_subparsers(
@@ -416,6 +452,20 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
         help="クレデンシャル（認証情報）の管理",
     )
     _add_credential_args(cred_parser)
+
+    # jj dashboard
+    dashboard_parser = subparsers.add_parser(
+        "dashboard",
+        help="Streamlitダッシュボードを起動",
+    )
+    _add_dashboard_args(dashboard_parser)
+
+    # jj serve
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="REST APIサーバーを起動（FastAPI）",
+    )
+    _add_serve_args(serve_parser)
 
 
 def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -522,6 +572,10 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return _run_diff(project_root, args)
     elif cmd == "credential":
         return _run_credential(project_root, args)
+    elif cmd == "dashboard":
+        return _run_dashboard(project_root, args)
+    elif cmd == "serve":
+        return _run_serve(project_root, args)
     else:
         print(f"不明なコマンド: {cmd}")
         return 1
@@ -985,3 +1039,101 @@ def _run_diff(project_root: Path, args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)
         return 1
+
+
+def _run_dashboard(project_root: Path, args: argparse.Namespace) -> int:
+    """dashboardサブコマンドを実行 - Streamlitダッシュボードを起動"""
+    port = getattr(args, "port", 8501)
+    no_browser = getattr(args, "no_browser", False)
+
+    try:
+        import streamlit
+    except ImportError:
+        print(
+            "エラー: streamlitがインストールされていません。",
+            file=sys.stderr,
+        )
+        print("  pip install streamlit plotly", file=sys.stderr)
+        return 1
+
+    import os
+    import subprocess
+
+    # Streamlitアプリのパスを取得
+    app_path = Path(__file__).parent.parent / "dashboard" / "app.py"
+    if not app_path.exists():
+        print(f"エラー: ダッシュボードアプリが見つかりません: {app_path}", file=sys.stderr)
+        return 1
+
+    env = os.environ.copy()
+    env["JJ_PROJECT_ROOT"] = str(project_root)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.port",
+        str(port),
+    ]
+
+    if no_browser:
+        cmd.extend(["--server.headless", "true"])
+
+    print(f"ダッシュボードを起動します: http://localhost:{port}")
+    print("終了するには Ctrl+C を押してください。")
+
+    try:
+        result = subprocess.run(cmd, env=env)
+        return result.returncode
+    except KeyboardInterrupt:
+        print("\nダッシュボードを終了しました。")
+        return 0
+
+
+def _run_serve(project_root: Path, args: argparse.Namespace) -> int:
+    """serveサブコマンドを実行 - FastAPI REST APIサーバーを起動"""
+    port = getattr(args, "port", 8080)
+    host = getattr(args, "host", "127.0.0.1")
+    reload_flag = getattr(args, "reload", False)
+
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "エラー: uvicornがインストールされていません。",
+            file=sys.stderr,
+        )
+        print("  pip install fastapi uvicorn", file=sys.stderr)
+        return 1
+
+    try:
+        import fastapi  # noqa: F401
+    except ImportError:
+        print(
+            "エラー: fastapiがインストールされていません。",
+            file=sys.stderr,
+        )
+        print("  pip install fastapi uvicorn", file=sys.stderr)
+        return 1
+
+    import os
+
+    os.environ["JJ_PROJECT_ROOT"] = str(project_root)
+
+    print(f"APIサーバーを起動します: http://{host}:{port}")
+    print(f"APIドキュメント: http://{host}:{port}/docs")
+    print("終了するには Ctrl+C を押してください。")
+
+    try:
+        # create_app()はファクトリパターンなので、uvicornには文字列パスではなく
+        # 直接アプリインスタンスを渡す
+        from services.api.routes import create_app
+
+        app = create_app(project_root)
+        uvicorn.run(app, host=host, port=port)
+        return 0
+    except KeyboardInterrupt:
+        print("\nAPIサーバーを終了しました。")
+        return 0

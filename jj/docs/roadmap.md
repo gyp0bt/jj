@@ -375,20 +375,28 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] `jj export --target dashboard-json` の実装
 - [x] テスト（24件パス）
 
-#### D2. Streamlitダッシュボード
+#### D2. Streamlitダッシュボード ✅ (status-068)
 
-- [ ] `jj dashboard` CLIコマンド追加
-- [ ] テーブルビュー（ag-grid + フィルター）
-- [ ] カードビュー（ノード詳細 + 関連画像表示）
-- [ ] プロットビュー（plotly散布図/線図、X/Y軸選択）
-- [ ] ステータスモニター（実行中/完了/失敗の一覧）
+- [x] `jj dashboard` CLIコマンド追加
+- [x] テーブルビュー（DataFrameテーブル + サイドバーフィルター）
+- [x] カードビュー（ノード詳細 + プロパティ/リレーション表示）
+- [x] プロットビュー（plotly散布図/棒グラフ/線図、X/Y軸・色分け選択）
+- [x] ステータスモニター（完了/失敗/不明の集計・詳細一覧）
+- [ ] AgGridテーブル表示（streamlit-aggrid導入）
+- [ ] 画像ギャラリー（has_output関係のPNG/GIF表示）
+- [ ] graph.yaml変更検知による自動リフレッシュ
 
-#### D3. REST API（jj serve）
+#### D3. REST API（jj serve） ✅ (status-068)
 
-- [ ] `jj serve` CLIコマンド追加（FastAPI + uvicorn）
-- [ ] `/api/v1/nodes`, `/api/v1/relations` エンドポイント
-- [ ] `/api/v1/summary`, `/api/v1/status` エンドポイント
-- [ ] クエリフィルター（type, index, status, props条件）
+- [x] `jj serve` CLIコマンド追加（FastAPI + uvicorn）
+- [x] `/api/v1/nodes`, `/api/v1/relations` エンドポイント
+- [x] `/api/v1/summary`, `/api/v1/status` エンドポイント
+- [x] クエリフィルター（type, name, active, label, limit/offset）
+- [x] `/api/v1/graph`, `/api/v1/nodes/{id}`, `/api/v1/nodes/{id}/related`
+- [x] `/api/v1/properties/keys`
+- [x] `POST /api/v1/reload`（グラフ再読み込み）
+- [ ] `POST /api/v1/parse`（再パース実行）
+- [ ] クエリフィルター拡張（props.RF3.gt=5等の条件式）
 
 #### D4. jj-db統合
 
@@ -618,13 +626,17 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - Abaqusコネクターの追加機能完了
 - コアデータモデル層の拡張完了
 
-### M2.5: ダッシュボード基盤完成（Phase 2.5 D1-D2完了）
+### M2.5: ダッシュボード基盤完成（Phase 2.5 D1-D3完了） ✅
+
+**達成日**: 2026-02-12
 
 **達成条件**:
-- DashboardDataProviderが完全動作
-- `jj dashboard` でStreamlitアプリが起動
-- テーブル/カード/プロット/ステータスの4ビューが利用可能
-- dashboard-jsonエクスポートが動作
+- ✅ DashboardDataProviderが完全動作
+- ✅ `jj dashboard` でStreamlitアプリが起動
+- ✅ テーブル/カード/プロット/ステータスの4ビューが利用可能
+- ✅ dashboard-jsonエクスポートが動作
+- ✅ `jj serve` でREST APIサーバーが起動
+- ✅ 全9エンドポイントが動作（フィルタ/ページネーション対応）
 
 ### M3: コマンド機能完成（Phase 3完了）
 
@@ -655,6 +667,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-067.md)
+- [最新ステータス](./status/status-068.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
