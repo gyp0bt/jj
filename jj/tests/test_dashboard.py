@@ -1394,3 +1394,310 @@ class TestGetPropertyImagesDailyNotes:
         images = provider.get_property_images(daily_notes_dir="custom/notes")
         assert len(images) == 1
         assert images[0]["image_path"] == "custom/notes/img.png"
+
+
+# ====================================================================
+# format_float_value テスト
+# ====================================================================
+
+
+class TestFormatFloatValue:
+    """format_float_value のテスト"""
+
+    def test_large_float_scientific(self):
+        """1e4以上のfloatは指数表示"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(12345.678)
+        assert result == "1.23e+04"
+
+    def test_small_float_scientific(self):
+        """1e-2未満のfloatは指数表示"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(0.001234)
+        assert result == "1.23e-03"
+
+    def test_normal_float_unchanged(self):
+        """通常範囲のfloatはそのまま"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(3.14)
+        assert result == 3.14
+
+    def test_zero_unchanged(self):
+        """0はそのまま"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(0.0)
+        assert result == 0.0
+
+    def test_negative_large(self):
+        """負の大きな値も指数表示"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(-50000.0)
+        assert result == "-5.00e+04"
+
+    def test_int_unchanged(self):
+        """intはそのまま"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(100)
+        assert result == 100
+
+    def test_bool_unchanged(self):
+        """boolはそのまま"""
+        from services.dashboard.data_provider import format_float_value
+
+        assert format_float_value(True) is True
+        assert format_float_value(False) is False
+
+    def test_boundary_9999(self):
+        """9999はそのまま（1e4未満）"""
+        from services.dashboard.data_provider import format_float_value
+
+        assert format_float_value(9999.0) == 9999.0
+
+    def test_boundary_10000(self):
+        """10000は指数表示（1e4以上）"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(10000.0)
+        assert result == "1.00e+04"
+
+    def test_boundary_0_01(self):
+        """0.01はそのまま（1e-2以上）"""
+        from services.dashboard.data_provider import format_float_value
+
+        assert format_float_value(0.01) == 0.01
+
+    def test_boundary_0_009(self):
+        """0.009は指数表示（1e-2未満）"""
+        from services.dashboard.data_provider import format_float_value
+
+        result = format_float_value(0.009)
+        assert result == "9.00e-03"
+
+
+# ====================================================================
+# _normalize_group_key テスト
+# ====================================================================
+
+
+class TestNormalizeGroupKey:
+    """_normalize_group_key のテスト"""
+
+    def test_daily_key_normalized(self):
+        """daily:日付:キー → キーに正規化"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _normalize_group_key
+
+        assert _normalize_group_key("daily:2026-01-15:screenshot") == "screenshot"
+
+    def test_non_daily_key_unchanged(self):
+        """dailyでないキーはそのまま"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _normalize_group_key
+
+        assert _normalize_group_key("screenshot") == "screenshot"
+
+    def test_daily_two_parts(self):
+        """daily:xxのみ（2パート）はそのまま"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _normalize_group_key
+
+        assert _normalize_group_key("daily:only") == "daily:only"
+
+
+# ====================================================================
+# _estimate_column_width テスト
+# ====================================================================
+
+
+class TestEstimateColumnWidth:
+    """_estimate_column_width のテスト"""
+
+    def test_ascii_columns(self):
+        """英数字のみの列名"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _estimate_column_width
+
+        width = _estimate_column_width("RF3")
+        assert width == max(80, 3 * 10 + 30)
+
+    def test_japanese_columns(self):
+        """日本語列名は2文字分"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _estimate_column_width
+
+        width = _estimate_column_width("条件")
+        # 2文字 x 2(全角) = 4文字分、4*10+30 = 70 → min 80
+        assert width == 80
+
+    def test_minimum_width(self):
+        """最小幅は80px"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _estimate_column_width
+
+        width = _estimate_column_width("a")
+        assert width == 80
+
+    def test_long_name(self):
+        """長い名前は適切に計算"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _estimate_column_width
+
+        width = _estimate_column_width("analysis_status")
+        # 15文字 x 1 = 15文字分、15*10+30 = 180
+        assert width == 180
+
+
+# ====================================================================
+# _sort_columns_by_vocab テスト
+# ====================================================================
+
+
+class TestSortColumnsByVocab:
+    """_sort_columns_by_vocab のテスト"""
+
+    def test_vocab_order_first(self):
+        """vocab定義順が優先される"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _sort_columns_by_vocab
+
+        vocab = {"idx": "条件", "ver": "バージョン"}
+        cols = ["RF3", "バージョン", "条件", "temperature"]
+        result = _sort_columns_by_vocab(cols, vocab)
+        # vocab順: 条件(idx=0位), バージョン(ver=1位) → 残り: RF3, temperature
+        assert result == ["条件", "バージョン", "RF3", "temperature"]
+
+    def test_no_vocab_alphabetical(self):
+        """vocabが空の場合は文字列昇順"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _sort_columns_by_vocab
+
+        cols = ["RF3", "temperature", "active"]
+        result = _sort_columns_by_vocab(cols, {})
+        assert result == ["RF3", "active", "temperature"]
+
+    def test_mixed_vocab_non_vocab(self):
+        """vocabに含まれるものと含まれないものの混合"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _sort_columns_by_vocab
+
+        vocab = {"idx": "条件"}
+        cols = ["RF3", "条件", "active"]
+        result = _sort_columns_by_vocab(cols, vocab)
+        assert result == ["条件", "RF3", "active"]
+
+
+# ====================================================================
+# get_property_keys vocab順 テスト
+# ====================================================================
+
+
+class TestGetPropertyKeysVocabOrder:
+    """get_property_keys のvocab順テスト"""
+
+    def test_vocab_order_applied(self):
+        """vocabで定義されたキーが先に来る"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "RF3": 5.0,
+                        "条件": "1",
+                        "バージョン": "1",
+                        "temperature": 300,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        vocab = {"idx": "条件", "ver": "バージョン"}
+        provider = DashboardDataProvider(graph, vocab=vocab)
+        keys = provider.get_property_keys()
+        # 条件、バージョンが先、それ以外は文字列昇順
+        assert keys.index("条件") < keys.index("RF3")
+        assert keys.index("バージョン") < keys.index("RF3")
+        assert keys.index("条件") < keys.index("バージョン")
+
+
+# ====================================================================
+# init_graph_config コメント保持テスト
+# ====================================================================
+
+
+class TestInitGraphConfigWithComments:
+    """init_graph_config がコメント付きで config.yaml を生成するテスト"""
+
+    def test_comments_preserved(self, tmp_path):
+        """生成されたconfig.yamlにコメントが含まれる"""
+        from config import init_graph_config
+
+        config_path = init_graph_config(base_dir=tmp_path)
+        content = config_path.read_text(encoding="utf-8")
+        # コメント行が含まれていること
+        assert "# jj デフォルト設定ファイル" in content
+        assert "# 使用例:" in content
+        assert "# ========" in content
+
+    def test_sections_present(self, tmp_path):
+        """主要セクションが含まれる"""
+        from config import init_graph_config
+
+        config_path = init_graph_config(base_dir=tmp_path)
+        content = config_path.read_text(encoding="utf-8")
+        assert "vocab:" in content
+        assert "path-type-map:" in content
+        assert "path-property-map:" in content
+        assert "ignore:" in content
+        assert "file-relations:" in content
+        assert "export:" in content
+        assert "dashboard:" in content
+        assert "obsidian:" in content
+
+    def test_cache_settings_documented(self, tmp_path):
+        """キャッシュ設定がドキュメント化されている"""
+        from config import init_graph_config
+
+        config_path = init_graph_config(base_dir=tmp_path)
+        content = config_path.read_text(encoding="utf-8")
+        assert "cache-max-age-days" in content
+        assert "cache-max-count" in content

@@ -7,6 +7,10 @@ config.yaml駆動のカラム選択・フィルタ・プロット軸・ギャラ
 保存済みビュー機能でフィルタ・プロット条件を保存し、config順に一括表示。
 activeフィルタはbool/文字列両方に対応（_is_truthy）。
 画像パスはプロジェクトルート基準とnotes/daily基準のフォールバック解決に対応。
+ギャラリーはgo_propertiesのキーやproperty_keyでグループ表示可能（daily:日付:キー→キー正規化）。
+テーブル列・プロット軸・プロパティキー一覧はvocab順（vocab定義順→未定義は文字列昇順）。
+float値は桁数が大きい場合に指数表示（小数2桁）。
+AgGridは列名文字幅に基づく初期列幅設定。
 
 [READMEへ戻る](../../../README.md)
 """
@@ -104,6 +108,10 @@ def _get_project_root() -> Path:
 def _try_render_aggrid(df: "pd.DataFrame") -> bool:
     """AgGridでDataFrameを表示。失敗時はFalseを返す。
 
+    列幅は列名の文字数に基づいて初期設定する。
+    日本語は2文字分、英数字は1文字分として計算し、
+    最低限列名が見える幅を確保する。
+
     Returns:
         True: AgGridで描画成功、False: インポート不可
     """
@@ -118,6 +126,10 @@ def _try_render_aggrid(df: "pd.DataFrame") -> bool:
         sortable=True,
         resizable=True,
     )
+    # 各列の幅を列名の文字幅に基づいて設定
+    for col_name in df.columns:
+        width = _estimate_column_width(col_name)
+        gb.configure_column(col_name, minWidth=width, initialWidth=width)
     gb.configure_selection(
         selection_mode="multiple",
         use_checkbox=True,
@@ -129,10 +141,32 @@ def _try_render_aggrid(df: "pd.DataFrame") -> bool:
         df,
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=True,
+        fit_columns_on_grid_load=False,
         theme="streamlit",
     )
     return True
+
+
+def _estimate_column_width(col_name: str) -> int:
+    """列名の文字幅からAgGrid列幅（px）を推定
+
+    日本語（全角）文字は2文字分、英数字は1文字分として計算。
+    1文字あたり約10pxとし、パディング30pxを加算。
+    最小幅は80px。
+
+    Args:
+        col_name: 列名
+
+    Returns:
+        推定列幅（ピクセル）
+    """
+    char_width = 0
+    for ch in col_name:
+        if ord(ch) > 0x7F:
+            char_width += 2
+        else:
+            char_width += 1
+    return max(80, char_width * 10 + 30)
 
 
 # ====================================================================
@@ -140,23 +174,64 @@ def _try_render_aggrid(df: "pd.DataFrame") -> bool:
 # ====================================================================
 
 
+def _sort_columns_by_vocab(
+    columns: list[str], vocab: dict[str, str]
+) -> list[str]:
+    """vocab順でカラムをソート
+
+    vocab辞書の値（日本語表記）の出現順を優先し、
+    vocabに含まれないカラムは文字列昇順で後に配置する。
+
+    Args:
+        columns: ソート対象のカラムリスト
+        vocab: vocabマッピング
+
+    Returns:
+        vocab順→文字列昇順のリスト
+    """
+    vocab_order: dict[str, int] = {}
+    for idx, v in enumerate(vocab.values()):
+        if v not in vocab_order:
+            vocab_order[v] = idx
+    for idx, k in enumerate(vocab.keys()):
+        if k not in vocab_order:
+            vocab_order[k] = len(vocab) + idx
+
+    in_vocab = [c for c in columns if c in vocab_order]
+    not_in_vocab = [c for c in columns if c not in vocab_order]
+    in_vocab.sort(key=lambda c: vocab_order[c])
+    not_in_vocab.sort()
+    return in_vocab + not_in_vocab
+
+
 def _select_table_columns(
-    all_columns: list[str], table_columns: list[str] | None
+    all_columns: list[str],
+    table_columns: list[str] | None,
+    vocab: dict[str, str] | None = None,
 ) -> list[str]:
     """config指定に基づいてテーブルカラムをフィルタ・並べ替え
+
+    table_columnsが指定されていない場合はvocab順でソートして返す。
 
     Args:
         all_columns: DataFrameの全カラム名
         table_columns: config.dashboard.table-columns（globパターン対応）
+        vocab: vocabマッピング（vocab順ソート用）
 
     Returns:
         表示するカラムのリスト（順序付き）
     """
-    if table_columns is None:
-        return all_columns
-
     # 固定カラム（常に先頭に表示）
     fixed = ["name", "type", "format"]
+
+    if table_columns is None:
+        # table-columns未指定の場合: 固定カラム + vocab順でソート
+        remaining = [c for c in all_columns if c not in fixed]
+        if vocab:
+            remaining = _sort_columns_by_vocab(remaining, vocab)
+        result = [c for c in fixed if c in all_columns] + remaining
+        return result
+
     ordered: list[str] = []
     seen: set[str] = set(fixed)
 
@@ -392,7 +467,7 @@ def main() -> None:
     st.sidebar.metric("go_ ファイル数", status["total"])
 
     if page == "テーブル":
-        _render_table_page(provider, dashboard_config)
+        _render_table_page(provider, dashboard_config, vocab)
     elif page == "カード":
         _render_card_page(provider)
     elif page == "プロット":
@@ -402,7 +477,7 @@ def main() -> None:
     elif page == "ギャラリー":
         _render_gallery_page(provider, project_root, dashboard_config)
     elif page == "保存済みビュー":
-        _render_saved_views_page(provider, project_root, dashboard_config)
+        _render_saved_views_page(provider, project_root, dashboard_config, vocab)
 
 
 # ====================================================================
@@ -411,9 +486,11 @@ def main() -> None:
 
 
 def _render_table_page(
-    provider: DashboardDataProvider, dashboard_config: Any
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    vocab: dict[str, str] | None = None,
 ) -> None:
-    """テーブルビュー: go_ファイルをテーブル表示（AgGrid優先）"""
+    """テーブルビュー: go_ファイルをテーブル表示（AgGrid優先・vocab順カラム）"""
     st.header("テーブルビュー")
 
     rows = provider.get_go_table()
@@ -445,12 +522,13 @@ def _render_table_page(
 
     df = pd.DataFrame(display_rows)
 
-    # config駆動カラム選択
+    # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)
-    if table_columns:
-        selected_cols = _select_table_columns(list(df.columns), table_columns)
-        if selected_cols:
-            df = df[[c for c in selected_cols if c in df.columns]]
+    selected_cols = _select_table_columns(
+        list(df.columns), table_columns, vocab=vocab or {}
+    )
+    if selected_cols:
+        df = df[[c for c in selected_cols if c in df.columns]]
 
     # AgGridを試行、失敗時はst.dataframeにフォールバック
     if not _try_render_aggrid(df):
@@ -803,12 +881,60 @@ def _render_gallery_page(
         _render_gallery_property_images(provider, project_root, dashboard_config)
 
 
+def _normalize_group_key(key: str) -> str:
+    """グループキーを正規化（daily:日付:キー → キー部分のみ）
+
+    property_keyが "daily:2026-01-15:screenshot" の場合、
+    グルーピング用に "screenshot" に正規化する。
+    """
+    if key.startswith("daily:"):
+        parts = key.split(":", 2)
+        if len(parts) >= 3:
+            return parts[2]
+    return key
+
+
+def _render_gallery_grouped(
+    images: list[dict[str, Any]],
+    cols_per_row: int,
+    project_root: Path,
+    source: str,
+    group_key: str,
+) -> None:
+    """画像をグループ別に表示
+
+    Args:
+        images: 画像情報のリスト
+        cols_per_row: 1行あたりの列数
+        project_root: プロジェクトルート
+        source: "output" or "property"
+        group_key: グループ化に使用するキー（go_propertiesのキー名 or "property_key"）
+    """
+    from collections import OrderedDict
+
+    groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    for img in images:
+        if group_key == "property_key":
+            # property_keyでグルーピング（daily:日付:キー → キー部分のみ）
+            raw_key = img.get("property_key", "")
+            gk = _normalize_group_key(raw_key)
+        else:
+            # go_propertiesのキーでグルーピング
+            gk = str(img.get("go_properties", {}).get(group_key, "（未設定）"))
+        groups.setdefault(gk, []).append(img)
+
+    for group_name, group_images in groups.items():
+        st.subheader(f"{group_key}: {group_name}")
+        st.caption(f"{len(group_images)} 件")
+        _render_image_grid(group_images, cols_per_row, project_root, source=source)
+
+
 def _render_gallery_output_images(
     provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
 ) -> None:
-    """has_output関係の画像ギャラリー（NxMグリッド）"""
+    """has_output関係の画像ギャラリー（NxMグリッド・グループ表示対応）"""
     images = provider.get_output_images()
 
     if not images:
@@ -826,9 +952,23 @@ def _render_gallery_output_images(
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
+    # グループ表示オプション
+    group_keys = _collect_group_keys(images, source="output")
+    group_by = st.sidebar.selectbox(
+        "グループ表示", ["なし"] + group_keys, key="_gallery_output_group"
+    )
+
     # NxMグリッド設定
     cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
     rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+
+    if group_by != "なし":
+        st.caption(f"{len(images)} 件（グループ: {group_by}）")
+        _render_gallery_grouped(
+            images, cols_per_row, project_root, source="output", group_key=group_by
+        )
+        return
+
     max_display = cols_per_row * rows_per_page
 
     # ページネーション
@@ -858,7 +998,7 @@ def _render_gallery_property_images(
     project_root: Path,
     dashboard_config: Any,
 ) -> None:
-    """プロパティ画像パスのギャラリー（キー別一覧・NxMグリッド）"""
+    """プロパティ画像パスのギャラリー（キー別一覧・NxMグリッド・グループ表示対応）"""
     images = provider.get_property_images()
 
     if not images:
@@ -884,9 +1024,24 @@ def _render_gallery_property_images(
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
+    # グループ表示オプション
+    group_keys = _collect_group_keys(images, source="property")
+    group_by = st.sidebar.selectbox(
+        "グループ表示（プロパティ）", ["なし"] + group_keys,
+        key="_gallery_property_group",
+    )
+
     # NxMグリッド設定
     cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
     rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+
+    if group_by != "なし":
+        st.caption(f"{len(images)} 件（グループ: {group_by}）")
+        _render_gallery_grouped(
+            images, cols_per_row, project_root, source="property", group_key=group_by
+        )
+        return
+
     max_display = cols_per_row * rows_per_page
 
     # ページネーション
@@ -909,6 +1064,31 @@ def _render_gallery_property_images(
 
     # NxMグリッドで表示
     _render_image_grid(page_images, cols_per_row, project_root, source="property")
+
+
+def _collect_group_keys(
+    images: list[dict[str, Any]], source: str
+) -> list[str]:
+    """画像リストからグループ化に利用できるキーを収集
+
+    Args:
+        images: 画像情報のリスト
+        source: "output" or "property"
+
+    Returns:
+        グループ化に利用可能なキーのリスト
+    """
+    keys: set[str] = set()
+    for img in images:
+        props = img.get("go_properties", {})
+        for k in props:
+            if k not in ("path", "include_properties"):
+                keys.add(k)
+    result = sorted(keys)
+    # propertyソースの場合はproperty_keyでのグルーピングも追加
+    if source == "property":
+        result = ["property_key"] + result
+    return result
 
 
 def _render_image_grid(
@@ -975,6 +1155,7 @@ def _render_saved_views_page(
     provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
+    vocab: dict[str, str] | None = None,
 ) -> None:
     """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示"""
     st.header("保存済みビュー")
@@ -993,7 +1174,7 @@ def _render_saved_views_page(
         st.caption(f"タイプ: {view.view_type}")
 
         if view.view_type == "table":
-            _render_saved_table(provider, dashboard_config, view)
+            _render_saved_table(provider, dashboard_config, view, vocab)
         elif view.view_type == "plot":
             _render_saved_plot(provider, view)
         elif view.view_type == "gallery":
@@ -1008,6 +1189,7 @@ def _render_saved_table(
     provider: DashboardDataProvider,
     dashboard_config: Any,
     view: Any,
+    vocab: dict[str, str] | None = None,
 ) -> None:
     """保存済みテーブルビューを描画"""
     rows = provider.get_go_table()
@@ -1035,12 +1217,13 @@ def _render_saved_table(
 
     df = pd.DataFrame(display_rows)
 
-    # config駆動カラム選択
+    # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)
-    if table_columns:
-        selected_cols = _select_table_columns(list(df.columns), table_columns)
-        if selected_cols:
-            df = df[[c for c in selected_cols if c in df.columns]]
+    selected_cols = _select_table_columns(
+        list(df.columns), table_columns, vocab=vocab or {}
+    )
+    if selected_cols:
+        df = df[[c for c in selected_cols if c in df.columns]]
 
     st.dataframe(df, use_container_width=True, hide_index=True)
 

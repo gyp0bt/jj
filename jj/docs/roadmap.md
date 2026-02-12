@@ -393,6 +393,11 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] activeフィルタ: bool/文字列混在バグ修正（_is_truthy） (status-072)
 - [x] ギャラリー: daily note画像パスのプロジェクトルート基準解決 (status-072)
 - [x] 保存済みビュー: SavedViewConfigとconfig駆動ビュー一括表示 (status-072)
+- [x] ギャラリー: 条件/キーによるグループ表示（daily:日付:キー→キー正規化対応） (status-073)
+- [x] float値の指数表示（|x|>=1e4 or |x|<1e-2 → 小数2桁指数表示） (status-073)
+- [x] テーブル列・プロット軸・プロパティキーのvocab定義順ソート (status-073)
+- [x] AgGrid列幅の列名文字幅自動設定 (status-073)
+- [x] default-config.yamlの全設定コメント・使用例付き拡充、init時コメント保持コピー (status-073)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -675,6 +680,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-072.md)
+- [最新ステータス](./status/status-073.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
