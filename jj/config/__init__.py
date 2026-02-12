@@ -599,14 +599,56 @@ class ObsidianExportConfig:
 
 
 @dataclass(frozen=True)
+class SavedViewConfig:
+    """保存済みビュー設定
+
+    dashboard.saved-viewsの各エントリに対応。
+    フィルタ・プロット条件を保存し、ダッシュボードで順番に表示する。
+    """
+    name: str  # ビュー名
+    view_type: str  # "table" | "plot" | "gallery" | "card" | "status"
+    filters: dict[str, Any]  # フィルタ条件
+    plot: dict[str, str | None]  # プロット条件 {"x": ..., "y": ..., "color": ..., "chart_type": ...}
+    gallery: dict[str, Any]  # ギャラリー条件 {"source": ..., "property_key": ..., "format": ...}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SavedViewConfig":
+        name = data.get("name", "")
+        if not name:
+            raise ValueError("saved-views[].name is required")
+        view_type = data.get("type", "table")
+        if view_type not in ("table", "plot", "gallery", "card", "status"):
+            raise ValueError(
+                f"saved-views[].type must be one of: table, plot, gallery, card, status (got '{view_type}')"
+            )
+        filters = data.get("filters", {})
+        if not isinstance(filters, dict):
+            filters = {}
+        plot = data.get("plot", {})
+        if not isinstance(plot, dict):
+            plot = {}
+        gallery = data.get("gallery", {})
+        if not isinstance(gallery, dict):
+            gallery = {}
+        return cls(
+            name=name,
+            view_type=view_type,
+            filters=filters,
+            plot=plot,
+            gallery=gallery,
+        )
+
+
+@dataclass(frozen=True)
 class DashboardConfig:
-    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー"""
+    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー"""
     table_columns: list[str] | None  # テーブルビュー表示カラム（globパターン対応、優先順位順）
     default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
     plot_x: str | None  # プロットデフォルトX軸
     plot_y: str | None  # プロットデフォルトY軸
     gallery_columns: int  # ギャラリーグリッド列数
     gallery_rows: int  # ギャラリーグリッド行数
+    saved_views: list[SavedViewConfig]  # 保存済みビュー（表示順）
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DashboardConfig":
@@ -618,6 +660,7 @@ class DashboardConfig:
                 plot_y=None,
                 gallery_columns=5,
                 gallery_rows=4,
+                saved_views=[],
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -634,6 +677,14 @@ class DashboardConfig:
         gallery_rows = int(data.get("gallery-rows", 4))
         if gallery_rows < 1:
             raise ValueError("dashboard.gallery-rows must be >= 1")
+        # 保存済みビューの読み込み
+        raw_views = data.get("saved-views", [])
+        if not isinstance(raw_views, list):
+            raise ValueError("dashboard.saved-views must be list")
+        saved_views: list[SavedViewConfig] = []
+        for v in raw_views:
+            if isinstance(v, dict):
+                saved_views.append(SavedViewConfig.from_dict(v))
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             default_filters=default_filters,
@@ -641,6 +692,7 @@ class DashboardConfig:
             plot_y=str(plot["y"]) if plot.get("y") is not None else None,
             gallery_columns=gallery_columns,
             gallery_rows=gallery_rows,
+            saved_views=saved_views,
         )
 
 

@@ -181,6 +181,28 @@ dashboard:
   # ギャラリーのグリッド行数（1ページあたりの行数、デフォルト: 4）
   # gallery-rows: 4
 
+  # 保存済みビュー（ダッシュボードの「保存済みビュー」ページに表示順で表示）
+  # 各ビューにはフィルタ条件、プロット条件、ギャラリー条件を指定できます
+  # saved-views:
+  #   - name: アクティブ解析一覧
+  #     type: table
+  #     filters:
+  #       active: true
+  #   - name: RF3 vs 条件
+  #     type: plot
+  #     filters:
+  #       active: true
+  #     plot:
+  #       x: 条件
+  #       y: RF3
+  #       color: バージョン
+  #       chart_type: 散布図
+  #   - name: スクリーンショット
+  #     type: gallery
+  #     gallery:
+  #       source: property
+  #       property_key: screenshot
+
 # Obsidian エクスポート設定
 obsidian:
   # ノート出力先ディレクトリ

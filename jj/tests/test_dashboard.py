@@ -190,6 +190,27 @@ class TestGetGoTable:
         assert "go_idx1_v2" in names
         assert "go_idx2_v1" not in names
 
+    def test_filter_by_active_string(self):
+        """activeフィルタが文字列'true'でも機能する"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_a", format="inp",
+                     properties={"path": "a.inp", "active": "true"}),
+                Node(id=2, type="go", name="go_b", format="inp",
+                     properties={"path": "b.inp", "active": "false"}),
+                Node(id=3, type="go", name="go_c", format="inp",
+                     properties={"path": "c.inp", "active": True}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        # bool Trueでフィルタ → 文字列"true"もマッチ
+        rows = provider.get_go_table(filters={"active": True})
+        names = {r["name"] for r in rows}
+        assert "go_a" in names
+        assert "go_c" in names
+        assert "go_b" not in names
+
     def test_filter_by_analysis_status(self, provider: DashboardDataProvider):
         """analysis_statusフィルタが機能する"""
         rows = provider.get_go_table(filters={"analysis_status": "completed"})
@@ -1080,3 +1101,296 @@ class TestSelectTableColumns:
         table_columns = ["nonexistent"]
         result = _select_table_columns(all_cols, table_columns)
         assert result == ["name", "type", "format"]
+
+
+# ====================================================================
+# _is_truthy テスト
+# ====================================================================
+
+
+class TestIsTruthy:
+    """_is_truthy のテスト"""
+
+    def test_bool_true(self):
+        """Python bool Trueを正しく判定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _is_truthy
+
+        assert _is_truthy(True) is True
+
+    def test_bool_false(self):
+        """Python bool Falseを正しく判定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _is_truthy
+
+        assert _is_truthy(False) is False
+
+    def test_string_true(self):
+        """文字列 'true' を正しく判定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _is_truthy
+
+        assert _is_truthy("true") is True
+        assert _is_truthy("True") is True
+        assert _is_truthy("TRUE") is True
+
+    def test_string_false(self):
+        """文字列 'false' を正しく判定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _is_truthy
+
+        assert _is_truthy("false") is False
+        assert _is_truthy("False") is False
+
+    def test_none(self):
+        """Noneはfalse"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _is_truthy
+
+        assert _is_truthy(None) is False
+
+
+# ====================================================================
+# SavedViewConfig テスト
+# ====================================================================
+
+
+class TestSavedViewConfig:
+    """SavedViewConfig のテスト"""
+
+    def test_basic_table_view(self):
+        """基本テーブルビュー設定"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({
+            "name": "テスト一覧",
+            "type": "table",
+            "filters": {"active": True},
+        })
+        assert view.name == "テスト一覧"
+        assert view.view_type == "table"
+        assert view.filters == {"active": True}
+        assert view.plot == {}
+        assert view.gallery == {}
+
+    def test_plot_view(self):
+        """プロットビュー設定"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({
+            "name": "RF3 vs 条件",
+            "type": "plot",
+            "plot": {"x": "条件", "y": "RF3", "color": "バージョン"},
+        })
+        assert view.view_type == "plot"
+        assert view.plot["x"] == "条件"
+        assert view.plot["y"] == "RF3"
+
+    def test_gallery_view(self):
+        """ギャラリービュー設定"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({
+            "name": "スクショ",
+            "type": "gallery",
+            "gallery": {"source": "property", "property_key": "screenshot"},
+        })
+        assert view.view_type == "gallery"
+        assert view.gallery["source"] == "property"
+
+    def test_missing_name_raises(self):
+        """name未指定でエラー"""
+        from config import SavedViewConfig
+
+        with pytest.raises(ValueError, match="name"):
+            SavedViewConfig.from_dict({"type": "table"})
+
+    def test_invalid_type_raises(self):
+        """不正なtypeでエラー"""
+        from config import SavedViewConfig
+
+        with pytest.raises(ValueError, match="type"):
+            SavedViewConfig.from_dict({"name": "test", "type": "invalid"})
+
+    def test_dashboard_config_with_saved_views(self):
+        """DashboardConfigにsaved_viewsが含まれる"""
+        from config import DashboardConfig
+
+        data = {
+            "saved-views": [
+                {"name": "一覧", "type": "table"},
+                {"name": "プロット", "type": "plot", "plot": {"x": "RF3", "y": "temp"}},
+            ]
+        }
+        cfg = DashboardConfig.from_dict(data)
+        assert len(cfg.saved_views) == 2
+        assert cfg.saved_views[0].name == "一覧"
+        assert cfg.saved_views[1].view_type == "plot"
+
+    def test_dashboard_config_empty_saved_views(self):
+        """saved-views未指定で空リスト"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.saved_views == []
+
+
+# ====================================================================
+# get_property_images daily_notes テスト
+# ====================================================================
+
+
+class TestGetPropertyImagesDailyNotes:
+    """get_property_images daily_notes dict内の画像パス検出テスト"""
+
+    def test_detects_image_in_daily_notes(self):
+        """daily_notes dict内の画像パスを検出する"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "daily_notes": {
+                            "2026-01-15": {
+                                "screenshot": "attachments/capture.png",
+                            }
+                        },
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 1
+        assert images[0]["image_format"] == "png"
+        # notes/daily/ が付加される
+        assert images[0]["image_path"] == "notes/daily/attachments/capture.png"
+        assert images[0]["property_key"] == "daily:2026-01-15:screenshot"
+
+    def test_daily_notes_relative_path_resolved(self):
+        """daily_notes内の相対パスがプロジェクトルート基準に変換される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "daily_notes": {
+                            "2026-02-10": {
+                                "image": "../assets/fig.jpg",
+                            }
+                        },
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 1
+        # notes/daily/../assets/fig.jpg → notes/assets/fig.jpg (正規化)
+        assert images[0]["image_path"] == "notes/assets/fig.jpg"
+
+    def test_daily_notes_list_values(self):
+        """daily_notes内のリスト型値から画像検出"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "daily_notes": {
+                            "2026-01-20": {
+                                "figures": ["fig1.png", "fig2.svg", "data.csv"],
+                            }
+                        },
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        # png + svg の2件。csvは画像でないので除外。
+        assert len(images) == 2
+        formats = {img["image_format"] for img in images}
+        assert "png" in formats
+        assert "svg" in formats
+
+    def test_daily_notes_non_image_excluded(self):
+        """daily_notes内の非画像プロパティは除外"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "daily_notes": {
+                            "2026-01-15": {
+                                "status": "completed",
+                                "notes": "テスト完了",
+                            }
+                        },
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 0
+
+    def test_custom_daily_notes_dir(self):
+        """daily_notes_dirカスタム指定"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "daily_notes": {
+                            "2026-01-15": {
+                                "photo": "img.png",
+                            }
+                        },
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images(daily_notes_dir="custom/notes")
+        assert len(images) == 1
+        assert images[0]["image_path"] == "custom/notes/img.png"

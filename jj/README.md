@@ -90,6 +90,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-072: activeフィルタバグ修正・画像パス解決・保存済みビュー。activeフィルタのbool/文字列混在バグを修正（`_is_truthy`追加）。Obsidian daily note由来の画像パスをプロジェクトルート基準に変換（`daily_notes`ネストdict探索、`posixpath.normpath`正規化）。保存済みビュー機能追加（`SavedViewConfig`データクラス、config.yaml `saved-views`でフィルタ・プロット・ギャラリー条件を定義し表示順に一括表示）。`_matches_filters`のbool正規化。13テスト追加。([status-072](docs/status/status-072.md))
 - 2026-02-12 / status-071: ダッシュボード機能拡張（config駆動カラム・フィルタ永続化・ギャラリーNxM・プロット軸設定）。テーブルビューにconfig.yaml駆動のカラム選択と優先順位指定（globパターン対応）。デフォルトフィルタ（active=true）と共有フィルタのsession_state永続化（ビュー間共有）。ギャラリーにプロパティ画像パス対応（Obsidian daily由来、キー別一覧）とNxMグリッドレイアウト。プロットビューにconfig駆動デフォルトX/Y軸とグリッドモード（スクリーンショット用）。DashboardConfigデータクラス追加。18テスト追加。([status-071](docs/status/status-071.md))
 - 2026-02-12 / status-069: ダッシュボード機能拡張（AgGrid・画像ギャラリー・自動リフレッシュ）。テーブルビューをAgGrid対応（チェックボックス選択・フィルタ・ソート・ページネーション、フォールバック付き）。ギャラリーページ追加（has_output関係の画像を5列グリッド表示、フォーマットフィルタ・最大表示数制御）。graph.yaml変更検知・自動リフレッシュ（mtime監視、手動/自動リフレッシュ、3-60秒間隔設定）。streamlit-aggrid依存追加。734テストパス（+13件追加）、リグレッションなし。([status-069](docs/status/status-069.md))
 - 2026-02-12 / status-068: Streamlitダッシュボード・REST API実装（Phase 2.5 D2/D3）。`jj dashboard`でStreamlitアプリ起動（テーブル/カード/プロット/ステータスの4ビュー）。`jj serve`でFastAPI REST APIサーバー起動（9エンドポイント、OpenAPIドキュメント自動生成）。CLIにdashboard/serveコマンド追加。streamlit/plotly/fastapi/uvicorn依存追加。721テストパス（+22件追加）、リグレッションなし。([status-068](docs/status/status-068.md))
