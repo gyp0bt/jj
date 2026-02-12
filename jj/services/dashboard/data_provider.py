@@ -367,6 +367,76 @@ class DashboardDataProvider:
 
         return results
 
+    def get_property_images(self) -> list[dict[str, Any]]:
+        """プロパティに画像ファイルパスを持つノードの画像情報を取得
+
+        Obsidianのdaily note経由でプロパティに画像ファイルパスが
+        割り当てられたノードを検出し、画像情報を返す。
+
+        Returns:
+            画像情報のリスト。各要素:
+            {
+                "go_node_id": int,
+                "go_node_name": str,
+                "property_key": str,
+                "image_path": str,
+                "image_format": str,
+                "go_properties": dict,
+            }
+        """
+        image_extensions = {"png", "gif", "jpg", "jpeg", "bmp", "svg", "tiff"}
+        results: list[dict[str, Any]] = []
+
+        for node in self.graph.nodes:
+            name_lower = node.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+
+            go_props = {
+                k: v
+                for k, v in node.properties.items()
+                if k not in ("path", "include_properties")
+            }
+
+            for key, value in node.properties.items():
+                if key in ("path", "include_properties"):
+                    continue
+                self._extract_image_paths(
+                    results, node, key, value, go_props, image_extensions
+                )
+
+        return results
+
+    @staticmethod
+    def _extract_image_paths(
+        results: list[dict[str, Any]],
+        node: Node,
+        key: str,
+        value: Any,
+        go_props: dict[str, Any],
+        image_extensions: set[str],
+    ) -> None:
+        """値から画像パスを抽出してresultsに追加"""
+        candidates: list[str] = []
+        if isinstance(value, str):
+            candidates = [value]
+        elif isinstance(value, list):
+            candidates = [v for v in value if isinstance(v, str)]
+
+        for candidate in candidates:
+            if "." not in candidate:
+                continue
+            ext = candidate.rsplit(".", 1)[-1].lower()
+            if ext in image_extensions:
+                results.append({
+                    "go_node_id": node.id,
+                    "go_node_name": node.name,
+                    "property_key": key,
+                    "image_path": candidate,
+                    "image_format": ext,
+                    "go_properties": go_props,
+                })
+
     # ---- private ----
 
     def _node_to_row(self, node: Node) -> dict[str, Any]:

@@ -786,3 +786,297 @@ class TestAgGridHelper:
         except Exception:
             # Streamlitコンテキスト外で動かした場合のエラーは許容
             pass
+
+
+# ====================================================================
+# DashboardConfig テスト
+# ====================================================================
+
+
+class TestDashboardConfig:
+    """DashboardConfig のテスト"""
+
+    def test_default_config(self):
+        """空dictからのデフォルト設定"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.table_columns is None
+        assert cfg.default_filters == {}
+        assert cfg.plot_x is None
+        assert cfg.plot_y is None
+        assert cfg.gallery_columns == 5
+        assert cfg.gallery_rows == 4
+
+    def test_none_data(self):
+        """Noneからのデフォルト設定"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict(None)
+        assert cfg.table_columns is None
+        assert cfg.default_filters == {}
+
+    def test_full_config(self):
+        """全設定項目を指定"""
+        from config import DashboardConfig
+
+        data = {
+            "table-columns": ["条件", "バージョン", "stress*"],
+            "default-filters": {"active": True},
+            "plot": {"x": "条件", "y": "RF3"},
+            "gallery-columns": 3,
+            "gallery-rows": 6,
+        }
+        cfg = DashboardConfig.from_dict(data)
+        assert cfg.table_columns == ["条件", "バージョン", "stress*"]
+        assert cfg.default_filters == {"active": True}
+        assert cfg.plot_x == "条件"
+        assert cfg.plot_y == "RF3"
+        assert cfg.gallery_columns == 3
+        assert cfg.gallery_rows == 6
+
+    def test_invalid_table_columns(self):
+        """table-columnsが不正な場合"""
+        from config import DashboardConfig
+
+        with pytest.raises(ValueError, match="table-columns"):
+            DashboardConfig.from_dict({"table-columns": "invalid"})
+
+    def test_invalid_gallery_columns(self):
+        """gallery-columnsが0以下の場合"""
+        from config import DashboardConfig
+
+        with pytest.raises(ValueError, match="gallery-columns"):
+            DashboardConfig.from_dict({"gallery-columns": 0})
+
+    def test_graph_config_includes_dashboard(self):
+        """GraphConfigにdashboardフィールドが含まれる"""
+        from config import GraphConfig
+
+        # from_dictでdashboardセクションが処理される
+        cfg = GraphConfig.from_dict({"dashboard": {"gallery-columns": 3}})
+        assert cfg.dashboard.gallery_columns == 3
+
+    def test_graph_config_default_dashboard(self):
+        """dashboardセクションなしの場合デフォルト設定"""
+        from config import GraphConfig
+
+        cfg = GraphConfig.from_dict({})
+        assert cfg.dashboard.table_columns is None
+        assert cfg.dashboard.gallery_columns == 5
+
+
+# ====================================================================
+# get_property_images テスト
+# ====================================================================
+
+
+class TestGetPropertyImages:
+    """get_property_images のテスト"""
+
+    def test_detects_image_path_in_property(self):
+        """プロパティの画像パスを検出する"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "screenshot": "results/capture.png",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 1
+        assert images[0]["property_key"] == "screenshot"
+        assert images[0]["image_path"] == "results/capture.png"
+        assert images[0]["image_format"] == "png"
+        assert images[0]["go_node_name"] == "go_idx1_v1"
+
+    def test_detects_image_in_list_property(self):
+        """リスト型プロパティ内の画像パスを検出する"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "images": ["fig1.png", "fig2.jpg", "data.csv"],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        # png + jpg の2件。csvは画像でないので除外。
+        assert len(images) == 2
+        formats = {img["image_format"] for img in images}
+        assert "png" in formats
+        assert "jpg" in formats
+
+    def test_ignores_non_image_properties(self):
+        """非画像プロパティは無視する"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "index": "1",
+                        "RF3": 5.0,
+                        "data_file": "results/data.csv",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 0
+
+    def test_excludes_non_go_nodes(self):
+        """go_ノード以外は対象外"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="material",
+                    name="material_steel",
+                    format="inp",
+                    properties={
+                        "path": "material_steel.inp",
+                        "screenshot": "mat.png",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 0
+
+    def test_excludes_path_property(self):
+        """pathプロパティ自体は画像検出対象外"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "results/go_idx1_v1.png",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 0
+
+    def test_go_properties_in_result(self):
+        """結果にgo_propertiesが含まれpathが除外される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "index": "1",
+                        "screenshot": "fig.png",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 1
+        assert "path" not in images[0]["go_properties"]
+        assert images[0]["go_properties"]["index"] == "1"
+
+    def test_empty_graph(self):
+        """空グラフで空リスト"""
+        provider = DashboardDataProvider(GraphModel(nodes=[], relations=[]))
+        assert provider.get_property_images() == []
+
+
+# ====================================================================
+# _select_table_columns テスト
+# ====================================================================
+
+
+class TestSelectTableColumns:
+    """_select_table_columns のテスト"""
+
+    def test_none_returns_all(self):
+        """table_columnsがNoneの場合は全カラム返却"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _select_table_columns
+
+        cols = ["name", "type", "format", "index", "RF3"]
+        assert _select_table_columns(cols, None) == cols
+
+    def test_filters_and_orders(self):
+        """指定パターンに基づくフィルタと順序付け"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _select_table_columns
+
+        all_cols = ["name", "type", "format", "index", "RF3", "temperature", "active"]
+        table_columns = ["RF3", "index"]
+        result = _select_table_columns(all_cols, table_columns)
+        # 固定カラム(name, type, format) + 指定カラム(RF3, index)
+        assert result == ["name", "type", "format", "RF3", "index"]
+
+    def test_glob_pattern(self):
+        """globパターンによるカラムマッチ"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _select_table_columns
+
+        all_cols = [
+            "name", "type", "format", "stress_center", "stress_edge", "RF3"
+        ]
+        table_columns = ["stress*", "RF3"]
+        result = _select_table_columns(all_cols, table_columns)
+        assert result == [
+            "name", "type", "format", "stress_center", "stress_edge", "RF3"
+        ]
+
+    def test_no_match(self):
+        """マッチしないパターンの場合は固定カラムのみ"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _select_table_columns
+
+        all_cols = ["name", "type", "format", "index"]
+        table_columns = ["nonexistent"]
+        result = _select_table_columns(all_cols, table_columns)
+        assert result == ["name", "type", "format"]

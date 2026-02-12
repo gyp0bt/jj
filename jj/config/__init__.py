@@ -599,6 +599,52 @@ class ObsidianExportConfig:
 
 
 @dataclass(frozen=True)
+class DashboardConfig:
+    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー"""
+    table_columns: list[str] | None  # テーブルビュー表示カラム（globパターン対応、優先順位順）
+    default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
+    plot_x: str | None  # プロットデフォルトX軸
+    plot_y: str | None  # プロットデフォルトY軸
+    gallery_columns: int  # ギャラリーグリッド列数
+    gallery_rows: int  # ギャラリーグリッド行数
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DashboardConfig":
+        if not data:
+            return cls(
+                table_columns=None,
+                default_filters={},
+                plot_x=None,
+                plot_y=None,
+                gallery_columns=5,
+                gallery_rows=4,
+            )
+        table_columns = data.get("table-columns")
+        if table_columns is not None and not isinstance(table_columns, list):
+            raise ValueError("dashboard.table-columns must be list[str]")
+        default_filters = data.get("default-filters", {})
+        if not isinstance(default_filters, dict):
+            raise ValueError("dashboard.default-filters must be dict")
+        plot = data.get("plot", {})
+        if not isinstance(plot, dict):
+            plot = {}
+        gallery_columns = int(data.get("gallery-columns", 5))
+        if gallery_columns < 1:
+            raise ValueError("dashboard.gallery-columns must be >= 1")
+        gallery_rows = int(data.get("gallery-rows", 4))
+        if gallery_rows < 1:
+            raise ValueError("dashboard.gallery-rows must be >= 1")
+        return cls(
+            table_columns=[str(c) for c in table_columns] if table_columns else None,
+            default_filters=default_filters,
+            plot_x=str(plot["x"]) if plot.get("x") is not None else None,
+            plot_y=str(plot["y"]) if plot.get("y") is not None else None,
+            gallery_columns=gallery_columns,
+            gallery_rows=gallery_rows,
+        )
+
+
+@dataclass(frozen=True)
 class ExportConfig:
     """エクスポート設定: CSVカラム選択・単位マッピング"""
     csv_columns: list[str] | None
@@ -638,6 +684,7 @@ class GraphConfig:
     token_key_map: TokenKeyMapConfig
     project_name: str
     export: ExportConfig
+    dashboard: DashboardConfig
     directory_max_depth: Optional[int]  # None=無制限（最終階層まで）
     include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
     cache_max_age_days: int  # ABQDataキャッシュ保持期間（日数、デフォルト30）
@@ -667,6 +714,7 @@ class GraphConfig:
             token_key_map=TokenKeyMapConfig.from_dict(data.get("token-key-map", {})),
             project_name=data.get("project-name", ""),
             export=ExportConfig.from_dict(data.get("export", {})),
+            dashboard=DashboardConfig.from_dict(data.get("dashboard", {})),
             directory_max_depth=raw_depth,
             include_search_depth=include_depth,
             cache_max_age_days=cache_max_age,
