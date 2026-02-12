@@ -90,6 +90,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-076: ダッシュボードAbaqus依存コネクター分離。物性一覧ページとデータプロバイダーメソッド3つをservices/dashboard/connectors/abaqus.pyに分離。DashboardPageConnector基底クラス（__init_subclass__自動登録）で動的ページ追加を実現。汎用ページ（テーブル/カード/プロット等）はapp.py/data_provider.pyに保持。27テスト全パス。([status-076](docs/status/status-076.md))
 - 2026-02-12 / status-074: CSVパース配列取り込み・ダッシュボード配列プロット・物性一覧。CsvArrayParser追加（has_output関係CSVのトークン差分でプレフィックス決定、配列データをRF.time/RF.RF3形式でGOノードに格納）。配列プロットページ（グリッド比較+個別ノード重ね書き）。物性一覧ページ（abaqus_materialテーブル+plastic/elastic等のラインプロット）。22テスト追加。([status-074](docs/status/status-074.md))
 - 2026-02-12 / status-073: ギャラリーgroupby・float指数表示・vocab順カラム・default-config拡充。ギャラリーに条件/キーによるグループ表示機能追加（`daily:日付:キー`→キー正規化対応）。float値の指数表示（|x|>=1e4 or |x|<1e-2で小数2桁指数表示）をダッシュボード・CLIに適用。テーブル列・プロット軸・プロパティキーをvocab定義順でソート。AgGrid列幅を列名文字幅から自動設定。default-config.yamlを全設定のコメント・使用例付きに拡充、init時にコメント保持コピー。25テスト追加。([status-073](docs/status/status-073.md))
 - 2026-02-12 / status-072: activeフィルタバグ修正・画像パス解決・保存済みビュー。activeフィルタのbool/文字列混在バグを修正（`_is_truthy`追加）。Obsidian daily note由来の画像パスをプロジェクトルート基準に変換（`daily_notes`ネストdict探索、`posixpath.normpath`正規化）。保存済みビュー機能追加（`SavedViewConfig`データクラス、config.yaml `saved-views`でフィルタ・プロット・ギャラリー条件を定義し表示順に一括表示）。`_matches_filters`のbool正規化。13テスト追加。([status-072](docs/status/status-072.md))

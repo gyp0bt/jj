@@ -1915,7 +1915,7 @@ class TestGetArrayGridData:
 
 
 class TestGetMaterialTable:
-    """get_material_table のテスト"""
+    """get_material_table のテスト（コネクター版）"""
 
     def _make_material_graph(self):
         return GraphModel(
@@ -1957,8 +1957,10 @@ class TestGetMaterialTable:
 
     def test_returns_material_rows(self):
         """abaqus_materialノードのテーブル行を返す"""
+        from services.dashboard.connectors.abaqus import get_material_table
+
         provider = DashboardDataProvider(self._make_material_graph())
-        rows = provider.get_material_table()
+        rows = get_material_table(provider)
         assert len(rows) == 2
         names = {r["name"] for r in rows}
         assert "Steel_S235" in names
@@ -1966,16 +1968,20 @@ class TestGetMaterialTable:
 
     def test_table_data_summarized(self):
         """テーブル型データはサマリ表示"""
+        from services.dashboard.connectors.abaqus import get_material_table
+
         provider = DashboardDataProvider(self._make_material_graph())
-        rows = provider.get_material_table()
+        rows = get_material_table(provider)
         steel = next(r for r in rows if r["name"] == "Steel_S235")
         assert steel["plastic"] == "[2行]"
         assert steel["elastic"] == "[1行]"
 
     def test_excludes_go_nodes(self):
         """go_ノードは含まれない"""
+        from services.dashboard.connectors.abaqus import get_material_table
+
         provider = DashboardDataProvider(self._make_material_graph())
-        rows = provider.get_material_table()
+        rows = get_material_table(provider)
         names = {r["name"] for r in rows}
         assert "go_idx1_v1" not in names
 
@@ -1986,10 +1992,12 @@ class TestGetMaterialTable:
 
 
 class TestGetMaterialTableData:
-    """get_material_table_data のテスト"""
+    """get_material_table_data のテスト（コネクター版）"""
 
     def test_returns_table_data(self):
         """テーブル型プロパティデータを返す"""
+        from services.dashboard.connectors.abaqus import get_material_table_data
+
         graph = GraphModel(
             nodes=[
                 Node(
@@ -2006,7 +2014,7 @@ class TestGetMaterialTableData:
             relations=[],
         )
         provider = DashboardDataProvider(graph)
-        result = provider.get_material_table_data(1, "plastic")
+        result = get_material_table_data(provider, 1, "plastic")
         assert result is not None
         assert result["name"] == "Steel"
         assert result["property_key"] == "plastic"
@@ -2015,11 +2023,15 @@ class TestGetMaterialTableData:
 
     def test_returns_none_for_nonexistent(self):
         """存在しないノードIDはNone"""
+        from services.dashboard.connectors.abaqus import get_material_table_data
+
         provider = DashboardDataProvider(GraphModel(nodes=[], relations=[]))
-        assert provider.get_material_table_data(999, "plastic") is None
+        assert get_material_table_data(provider, 999, "plastic") is None
 
     def test_returns_none_for_non_table(self):
         """テーブル型でないプロパティはNone"""
+        from services.dashboard.connectors.abaqus import get_material_table_data
+
         graph = GraphModel(
             nodes=[
                 Node(
@@ -2033,7 +2045,7 @@ class TestGetMaterialTableData:
             relations=[],
         )
         provider = DashboardDataProvider(graph)
-        assert provider.get_material_table_data(1, "keywords") is None
+        assert get_material_table_data(provider, 1, "keywords") is None
 
 
 # ====================================================================
@@ -2042,10 +2054,12 @@ class TestGetMaterialTableData:
 
 
 class TestGetMaterialTableKeys:
-    """get_material_table_keys のテスト"""
+    """get_material_table_keys のテスト（コネクター版）"""
 
     def test_returns_table_keys(self):
         """テーブル型キーのみ返す"""
+        from services.dashboard.connectors.abaqus import get_material_table_keys
+
         graph = GraphModel(
             nodes=[
                 Node(
@@ -2064,7 +2078,7 @@ class TestGetMaterialTableKeys:
             relations=[],
         )
         provider = DashboardDataProvider(graph)
-        keys = provider.get_material_table_keys(1)
+        keys = get_material_table_keys(provider, 1)
         assert "elastic" in keys
         assert "plastic" in keys
         assert "keywords" not in keys  # list[str]はテーブル型でない
@@ -2072,6 +2086,8 @@ class TestGetMaterialTableKeys:
 
     def test_empty_for_go_node(self):
         """go_ノードは空リスト"""
+        from services.dashboard.connectors.abaqus import get_material_table_keys
+
         graph = GraphModel(
             nodes=[
                 Node(id=1, type="go", name="go_idx1", format="inp",
@@ -2080,7 +2096,7 @@ class TestGetMaterialTableKeys:
             relations=[],
         )
         provider = DashboardDataProvider(graph)
-        assert provider.get_material_table_keys(1) == []
+        assert get_material_table_keys(provider, 1) == []
 
 
 # ====================================================================
@@ -2089,84 +2105,60 @@ class TestGetMaterialTableKeys:
 
 
 class TestGuessTableColumnNames:
-    """_guess_table_column_names のテスト（config駆動）"""
+    """guess_table_column_names のテスト（config駆動、コネクター版）"""
 
     def test_plastic_columns_from_config(self):
         """configからplasticの列名を取得"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _guess_table_column_names
+        from services.dashboard.connectors.abaqus import guess_table_column_names
 
         mcc = {
             "plastic": {"columns": ["stress", "strain"]},
         }
-        names = _guess_table_column_names("plastic", 2, mcc)
+        names = guess_table_column_names("plastic", 2, mcc)
         assert names == ["stress", "strain"]
 
     def test_elastic_columns_from_config(self):
         """configからelasticの列名を取得"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _guess_table_column_names
+        from services.dashboard.connectors.abaqus import guess_table_column_names
 
         mcc = {
             "elastic": {"columns": ["E", "nu"]},
         }
-        names = _guess_table_column_names("elastic", 2, mcc)
+        names = guess_table_column_names("elastic", 2, mcc)
         assert names == ["E", "nu"]
 
     def test_unknown_columns_no_config(self):
         """configにマッチしないキーはcol_Nで補完"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _guess_table_column_names
+        from services.dashboard.connectors.abaqus import guess_table_column_names
 
-        names = _guess_table_column_names("unknown_prop", 3, {})
+        names = guess_table_column_names("unknown_prop", 3, {})
         assert names == ["col_0", "col_1", "col_2"]
 
     def test_none_config_fallback(self):
         """config=Noneの場合もcol_Nで補完"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _guess_table_column_names
+        from services.dashboard.connectors.abaqus import guess_table_column_names
 
-        names = _guess_table_column_names("plastic", 2, None)
+        names = guess_table_column_names("plastic", 2, None)
         assert names == ["col_0", "col_1"]
 
     def test_config_columns_fewer_than_num_cols(self):
         """configの列数がnum_colsより少ない場合はcol_Nで補完"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _guess_table_column_names
+        from services.dashboard.connectors.abaqus import guess_table_column_names
 
         mcc = {
             "plastic": {"columns": ["stress"]},
         }
-        names = _guess_table_column_names("plastic", 3, mcc)
+        names = guess_table_column_names("plastic", 3, mcc)
         assert names == ["stress", "col_1", "col_2"]
 
     def test_config_columns_more_than_num_cols(self):
         """configの列数がnum_colsより多い場合は切り詰め"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _guess_table_column_names
+        from services.dashboard.connectors.abaqus import guess_table_column_names
 
         mcc = {
             "creep": {"columns": ["A", "n", "m"]},
         }
-        names = _guess_table_column_names("creep", 2, mcc)
+        names = guess_table_column_names("creep", 2, mcc)
         assert names == ["A", "n"]
 
 
@@ -2176,75 +2168,55 @@ class TestGuessTableColumnNames:
 
 
 class TestGetCurvePlotAxes:
-    """_get_curve_plot_axes のテスト"""
+    """get_curve_plot_axes のテスト（コネクター版）"""
 
     def test_default_axes(self):
         """configなしの場合はx=0, y=1"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _get_curve_plot_axes
+        from services.dashboard.connectors.abaqus import get_curve_plot_axes
 
-        x, y = _get_curve_plot_axes("elastic", 2, None)
+        x, y = get_curve_plot_axes("elastic", 2, None)
         assert x == 0
         assert y == 1
 
     def test_config_axes(self):
         """configでx/yインデックスを指定"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _get_curve_plot_axes
+        from services.dashboard.connectors.abaqus import get_curve_plot_axes
 
         mcc = {
             "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
         }
-        x, y = _get_curve_plot_axes("plastic", 2, mcc)
+        x, y = get_curve_plot_axes("plastic", 2, mcc)
         assert x == 1
         assert y == 0
 
     def test_config_no_axes(self):
         """configにcolumnsはあるがx/y未指定の場合はデフォルト"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _get_curve_plot_axes
+        from services.dashboard.connectors.abaqus import get_curve_plot_axes
 
         mcc = {
             "elastic": {"columns": ["E", "nu"]},
         }
-        x, y = _get_curve_plot_axes("elastic", 2, mcc)
+        x, y = get_curve_plot_axes("elastic", 2, mcc)
         assert x == 0
         assert y == 1
 
     def test_config_axes_clamped(self):
         """x/yインデックスがnum_colsを超えた場合はクランプ"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _get_curve_plot_axes
+        from services.dashboard.connectors.abaqus import get_curve_plot_axes
 
         mcc = {
             "test": {"columns": ["a"], "x": 5, "y": 10},
         }
-        x, y = _get_curve_plot_axes("test", 1, mcc)
+        x, y = get_curve_plot_axes("test", 1, mcc)
         assert x == 0
         assert y == 0
 
     def test_unknown_key_default(self):
         """configにないキーはデフォルト"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _get_curve_plot_axes
+        from services.dashboard.connectors.abaqus import get_curve_plot_axes
 
         mcc = {"plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0}}
-        x, y = _get_curve_plot_axes("unknown", 3, mcc)
+        x, y = get_curve_plot_axes("unknown", 3, mcc)
         assert x == 0
         assert y == 1
 
@@ -2313,3 +2285,60 @@ class TestDashboardConfigMaterialCurveColumns:
             }
         })
         assert "plastic" in cfg.dashboard.material_curve_columns
+
+
+# ====================================================================
+# DashboardPageConnector 基盤テスト
+# ====================================================================
+
+
+class TestDashboardPageConnector:
+    """DashboardPageConnector 基盤のテスト"""
+
+    def test_abaqus_connector_registered(self):
+        """AbaqusMaterialPageConnectorがレジストリに登録されている"""
+        from services.dashboard.connectors import DashboardPageConnector
+        import services.dashboard.connectors.abaqus  # noqa: F401
+
+        assert "物性一覧" in DashboardPageConnector._registry
+
+    def test_get_connector_pages_with_material(self):
+        """abaqus_materialノードがある場合にコネクターページが返される"""
+        from services.dashboard.connectors import get_connector_pages
+        import services.dashboard.connectors.abaqus  # noqa: F401
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="abaqus_material", name="Steel",
+                     format="material", properties={}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        pages = get_connector_pages(provider)
+        assert "物性一覧" in pages
+
+    def test_get_connector_pages_without_material(self):
+        """abaqus_materialノードがない場合はコネクターページが返されない"""
+        from services.dashboard.connectors import get_connector_pages
+        import services.dashboard.connectors.abaqus  # noqa: F401
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1",
+                     format="inp", properties={"path": "a.inp"}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        pages = get_connector_pages(provider)
+        assert "物性一覧" not in pages
+
+    def test_render_connector_page_unregistered(self):
+        """未登録のページラベルではFalseを返す"""
+        from services.dashboard.connectors import render_connector_page
+
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        result = render_connector_page("存在しないページ", provider, None)
+        assert result is False

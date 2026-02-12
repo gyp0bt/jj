@@ -37,7 +37,10 @@ services/
 │           └── daily.py    # DailyNote解析
 ├── dashboard/              # ダッシュボード向けデータ供給
 │   ├── __init__.py         # DashboardDataProvider公開
-│   └── data_provider.py    # テーブル/カード/プロット/ステータスデータ生成
+│   ├── app.py              # Streamlitアプリ本体（汎用ページ）
+│   ├── data_provider.py    # テーブル/カード/プロット/ステータスデータ生成（汎用）
+│   └── connectors/         # ソフト固有のダッシュボードページ
+│       └── abaqus.py       # Abaqus物性一覧ページ（__init_subclass__自動登録）
 ├── export/                 # グラフの外部出力（ローカル以外）
 │   └── connectors/
 │       └── neo4j.py        # Neo4jConnector
@@ -401,6 +404,8 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] CsvArrayParser: has_output CSVのトークン差分検出→配列プロパティ(RF.time等)自動格納 (status-074)
 - [x] 配列プロットページ: グリッド比較（indexソート）・個別ノード重ね書き (status-074)
 - [x] 物性一覧ページ: abaqus_materialテーブル表示 + plastic/elastic等のラインプロット (status-074)
+- [x] ダッシュボードコネクター基盤: DashboardPageConnector(__init_subclass__自動登録) (status-076)
+- [x] Abaqus物性一覧ページをコネクターに分離: services/dashboard/connectors/abaqus.py (status-076)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -683,6 +688,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-075.md)
+- [最新ステータス](./status/status-076.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
