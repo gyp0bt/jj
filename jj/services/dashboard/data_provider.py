@@ -367,11 +367,19 @@ class DashboardDataProvider:
 
         return results
 
-    def get_property_images(self) -> list[dict[str, Any]]:
+    def get_property_images(
+        self,
+        daily_notes_dir: str = "notes/daily",
+    ) -> list[dict[str, Any]]:
         """プロパティに画像ファイルパスを持つノードの画像情報を取得
 
         Obsidianのdaily note経由でプロパティに画像ファイルパスが
         割り当てられたノードを検出し、画像情報を返す。
+        daily_notes dict内の画像パスはdaily_notes_dir基準の相対パスとして
+        解釈し、プロジェクトルート基準のパスに変換して返す。
+
+        Args:
+            daily_notes_dir: daily noteディレクトリ（プロジェクトルート基準）
 
         Returns:
             画像情報のリスト。各要素:
@@ -401,11 +409,63 @@ class DashboardDataProvider:
             for key, value in node.properties.items():
                 if key in ("path", "include_properties"):
                     continue
+                # daily_notes dict内の画像パスを探索
+                if key == "daily_notes" and isinstance(value, dict):
+                    self._extract_daily_note_images(
+                        results, node, value, go_props,
+                        image_extensions, daily_notes_dir,
+                    )
+                    continue
                 self._extract_image_paths(
                     results, node, key, value, go_props, image_extensions
                 )
 
         return results
+
+    @staticmethod
+    def _extract_daily_note_images(
+        results: list[dict[str, Any]],
+        node: Node,
+        daily_notes: dict[str, Any],
+        go_props: dict[str, Any],
+        image_extensions: set[str],
+        daily_notes_dir: str,
+    ) -> None:
+        """daily_notes dict内から画像パスを抽出
+
+        daily_notes構造: {date: {key: value, ...}, ...}
+        画像パスはdaily note基準の相対パスとして扱い、
+        daily_notes_dirを付加してプロジェクトルート基準に変換する。
+        """
+        import posixpath
+
+        for date_key, props in daily_notes.items():
+            if not isinstance(props, dict):
+                continue
+            for key, value in props.items():
+                candidates: list[str] = []
+                if isinstance(value, str):
+                    candidates = [value]
+                elif isinstance(value, list):
+                    candidates = [v for v in value if isinstance(v, str)]
+
+                for candidate in candidates:
+                    if "." not in candidate:
+                        continue
+                    ext = candidate.rsplit(".", 1)[-1].lower()
+                    if ext in image_extensions:
+                        # daily note基準の相対パスをプロジェクトルート基準に変換
+                        resolved = posixpath.normpath(
+                            posixpath.join(daily_notes_dir, candidate)
+                        )
+                        results.append({
+                            "go_node_id": node.id,
+                            "go_node_name": node.name,
+                            "property_key": f"daily:{date_key}:{key}",
+                            "image_path": resolved,
+                            "image_format": ext,
+                            "go_properties": go_props,
+                        })
 
     @staticmethod
     def _extract_image_paths(
@@ -473,13 +533,29 @@ class DashboardDataProvider:
 
     @staticmethod
     def _matches_filters(row: dict[str, Any], filters: dict[str, Any]) -> bool:
-        """行がフィルタ条件に一致するか判定"""
+        """行がフィルタ条件に一致するか判定
+
+        bool値はYAML由来(True/False)と文字列("true"/"false")の両方に対応。
+        """
         for key, value in filters.items():
             row_value = row.get(key)
             if row_value is None:
                 return False
             if isinstance(value, list):
                 if row_value not in value:
+                    return False
+            elif isinstance(value, bool) or (
+                isinstance(value, str) and value.strip().lower() in ("true", "false")
+            ):
+                # bool/bool文字列の比較は正規化して行う
+                def _to_bool(v: Any) -> bool:
+                    if isinstance(v, bool):
+                        return v
+                    if isinstance(v, str):
+                        return v.strip().lower() == "true"
+                    return bool(v)
+
+                if _to_bool(row_value) != _to_bool(value):
                     return False
             elif row_value != value:
                 return False

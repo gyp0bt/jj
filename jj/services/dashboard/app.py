@@ -1,9 +1,12 @@
 """Streamlitダッシュボードアプリ本体
 
 jj dashboardコマンドから起動されるStreamlitアプリ。
-GraphModelを読み込み、テーブル/カード/プロット/ステータス/ギャラリーの
-5ビューを提供する。AgGridテーブル、画像ギャラリー、graph.yaml変更検知に対応。
+GraphModelを読み込み、テーブル/カード/プロット/ステータス/ギャラリー/保存済みビューの
+6ビューを提供する。AgGridテーブル、画像ギャラリー、graph.yaml変更検知に対応。
 config.yaml駆動のカラム選択・フィルタ・プロット軸・ギャラリーグリッド設定対応。
+保存済みビュー機能でフィルタ・プロット条件を保存し、config順に一括表示。
+activeフィルタはbool/文字列両方に対応（_is_truthy）。
+画像パスはプロジェクトルート基準とnotes/daily基準のフォールバック解決に対応。
 
 [READMEへ戻る](../../../README.md)
 """
@@ -183,8 +186,10 @@ def _init_shared_filters(default_filters: dict[str, Any]) -> None:
     """
     if "_filters_initialized" not in st.session_state:
         st.session_state["_filters_initialized"] = True
+        # active値はYAML由来のboolまたは文字列"true"の両方に対応
+        raw_active = default_filters.get("active", False)
         st.session_state.setdefault(
-            "_filter_active", default_filters.get("active", False)
+            "_filter_active", _is_truthy(raw_active)
         )
         st.session_state.setdefault("_filter_type", "すべて")
         st.session_state.setdefault("_filter_status", "すべて")
@@ -236,6 +241,25 @@ def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
     st.session_state["_filter_active"] = active_only
 
 
+def _is_truthy(value: Any) -> bool:
+    """bool/文字列両方に対応したtruthy判定
+
+    YAML経由の値はbool True/Falseだが、GraphService.file_to_node()では
+    文字列 "true"/"false" として格納される。両方を正しく扱う。
+
+    Args:
+        value: チェック対象の値
+
+    Returns:
+        True と見なせる場合 True
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return bool(value)
+
+
 def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """共有フィルタを適用
 
@@ -257,7 +281,7 @@ def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             r for r in filtered if r.get("analysis_status") == selected_status
         ]
     if active_only:
-        filtered = [r for r in filtered if r.get("active") is True]
+        filtered = [r for r in filtered if _is_truthy(r.get("active"))]
 
     return filtered
 
@@ -349,10 +373,14 @@ def main() -> None:
     # 共有フィルタ初期化
     _init_shared_filters(dashboard_config.default_filters)
 
-    # ページ選択
+    # ページ選択（保存済みビューがある場合は選択肢に追加）
+    page_options = ["テーブル", "カード", "プロット", "ステータス", "ギャラリー"]
+    saved_views = getattr(dashboard_config, "saved_views", [])
+    if saved_views:
+        page_options.append("保存済みビュー")
     page = st.sidebar.radio(
         "ページ",
-        ["テーブル", "カード", "プロット", "ステータス", "ギャラリー"],
+        page_options,
         index=0,
     )
 
@@ -373,6 +401,8 @@ def main() -> None:
         _render_status_page(provider)
     elif page == "ギャラリー":
         _render_gallery_page(provider, project_root, dashboard_config)
+    elif page == "保存済みビュー":
+        _render_saved_views_page(provider, project_root, dashboard_config)
 
 
 # ====================================================================
@@ -919,8 +949,13 @@ def _render_image_grid(
                     image_path_str = img_info["image_path"]
                     caption = f"{img_info['property_key']}: {Path(image_path_str).name}"
 
-                # 画像表示
+                # 画像表示（プロジェクトルート基準、フォールバック: notes/daily基準）
                 image_path = project_root / image_path_str
+                if not image_path.exists():
+                    # notes/daily基準のパスとして再試行
+                    fallback = project_root / "notes" / "daily" / image_path_str
+                    if fallback.exists():
+                        image_path = fallback
                 if image_path.exists():
                     st.image(
                         str(image_path),
@@ -929,6 +964,253 @@ def _render_image_grid(
                     )
                 else:
                     st.warning(f"画像が見つかりません: {image_path_str}")
+
+
+# ====================================================================
+# 保存済みビュー（config.yamlのsaved-views順に各ビューを表示）
+# ====================================================================
+
+
+def _render_saved_views_page(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+) -> None:
+    """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示"""
+    st.header("保存済みビュー")
+
+    saved_views = getattr(dashboard_config, "saved_views", [])
+    if not saved_views:
+        st.info(
+            "保存済みビューがありません。config.yaml の "
+            "dashboard.saved-views に定義してください。"
+        )
+        return
+
+    for idx, view in enumerate(saved_views):
+        st.markdown("---")
+        st.subheader(f"{view.name}")
+        st.caption(f"タイプ: {view.view_type}")
+
+        if view.view_type == "table":
+            _render_saved_table(provider, dashboard_config, view)
+        elif view.view_type == "plot":
+            _render_saved_plot(provider, view)
+        elif view.view_type == "gallery":
+            _render_saved_gallery(provider, project_root, dashboard_config, view)
+        elif view.view_type == "card":
+            _render_saved_card(provider, view)
+        elif view.view_type == "status":
+            _render_status_page(provider)
+
+
+def _render_saved_table(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    view: Any,
+) -> None:
+    """保存済みテーブルビューを描画"""
+    rows = provider.get_go_table()
+    if not rows:
+        st.info("go_ ファイルが見つかりません。")
+        return
+
+    # 保存済みフィルタを適用
+    filtered = _apply_saved_view_filters(rows, view.filters)
+
+    st.caption(f"{len(filtered)} / {len(rows)} 件")
+    if not filtered:
+        st.info("条件に一致するデータがありません。")
+        return
+
+    import pandas as pd
+
+    display_rows = []
+    for r in filtered:
+        row = {k: v for k, v in r.items() if k != "related_files"}
+        for k, v in row.items():
+            if isinstance(v, (dict, list)):
+                row[k] = str(v)
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+
+    # config駆動カラム選択
+    table_columns = getattr(dashboard_config, "table_columns", None)
+    if table_columns:
+        selected_cols = _select_table_columns(list(df.columns), table_columns)
+        if selected_cols:
+            df = df[[c for c in selected_cols if c in df.columns]]
+
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+def _render_saved_plot(
+    provider: DashboardDataProvider,
+    view: Any,
+) -> None:
+    """保存済みプロットビューを描画"""
+    plot_config = view.plot
+    x_key = plot_config.get("x")
+    y_key = plot_config.get("y")
+    color = plot_config.get("color")
+    chart_type = plot_config.get("chart_type", "散布図")
+
+    if not x_key or not y_key:
+        st.warning("プロット設定にx/yが指定されていません。")
+        return
+
+    data = provider.get_plot_data(x_key, y_key, color_key=color)
+
+    # 保存済みフィルタを適用（名前ベースでフィルタ）
+    if view.filters:
+        all_rows = provider.get_go_table()
+        filtered_rows = _apply_saved_view_filters(all_rows, view.filters)
+        filtered_names = {r["name"] for r in filtered_rows}
+        data = [d for d in data if d.get("name") in filtered_names]
+
+    if not data:
+        st.warning(
+            f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。"
+        )
+        return
+
+    import pandas as pd
+
+    df = pd.DataFrame(data)
+
+    try:
+        import plotly.express as px
+
+        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type)
+        st.plotly_chart(fig, use_container_width=True)
+    except ImportError:
+        st.scatter_chart(df, x=x_key, y=y_key)
+
+    st.caption(f"データ点数: {len(data)}")
+
+
+def _render_saved_gallery(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+    view: Any,
+) -> None:
+    """保存済みギャラリービューを描画"""
+    gallery_config = view.gallery
+    source = gallery_config.get("source", "has_output")
+    property_key = gallery_config.get("property_key")
+    format_filter = gallery_config.get("format")
+
+    if source == "property":
+        images = provider.get_property_images()
+        if property_key:
+            images = [
+                img for img in images if img["property_key"] == property_key
+            ]
+    else:
+        images = provider.get_output_images()
+
+    if format_filter:
+        images = [
+            img for img in images if img["image_format"] == format_filter
+        ]
+
+    if not images:
+        st.info("条件に一致する画像がありません。")
+        return
+
+    cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
+    rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+    max_display = cols_per_row * rows_per_page
+    images = images[:max_display]
+
+    st.caption(f"{len(images)} 件")
+    _render_image_grid(
+        images, cols_per_row, project_root,
+        source="property" if source == "property" else "output",
+    )
+
+
+def _render_saved_card(
+    provider: DashboardDataProvider,
+    view: Any,
+) -> None:
+    """保存済みカードビューを描画"""
+    rows = provider.get_go_table()
+    if not rows:
+        st.info("go_ ファイルが見つかりません。")
+        return
+
+    # 保存済みフィルタを適用
+    filtered = _apply_saved_view_filters(rows, view.filters)
+    if not filtered:
+        st.info("条件に一致するデータがありません。")
+        return
+
+    # 先頭のノードをカード表示
+    first_row = filtered[0]
+    node_id = first_row.get("id")
+    if node_id is None:
+        return
+
+    card = provider.get_node_card(node_id)
+    if card is None:
+        return
+
+    st.markdown(f"**{card['name']}** ({card['type']})")
+    props = {
+        k: v for k, v in card["properties"].items()
+        if k not in ("path", "include_properties")
+    }
+    if props:
+        import pandas as pd
+
+        props_flat = {}
+        for k, v in props.items():
+            if isinstance(v, (dict, list)):
+                props_flat[k] = str(v)
+            else:
+                props_flat[k] = v
+        df = pd.DataFrame([props_flat]).T
+        df.columns = ["値"]
+        st.dataframe(df, use_container_width=True)
+
+
+def _apply_saved_view_filters(
+    rows: list[dict[str, Any]], filters: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """保存済みビューのフィルタを適用
+
+    Args:
+        rows: フィルタ対象の全行データ
+        filters: 保存済みフィルタ条件
+
+    Returns:
+        フィルタ適用後の行データ
+    """
+    if not filters:
+        return rows
+
+    filtered = rows
+    for key, value in filters.items():
+        if key == "active":
+            if _is_truthy(value):
+                filtered = [r for r in filtered if _is_truthy(r.get("active"))]
+            else:
+                filtered = [
+                    r for r in filtered if not _is_truthy(r.get("active"))
+                ]
+        elif key == "type" and value != "すべて":
+            filtered = [r for r in filtered if r.get("type") == value]
+        elif key == "analysis_status" and value != "すべて":
+            filtered = [
+                r for r in filtered if r.get("analysis_status") == value
+            ]
+        else:
+            filtered = [r for r in filtered if r.get(key) == value]
+
+    return filtered
 
 
 if __name__ == "__main__":

@@ -390,6 +390,9 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] ギャラリー: プロパティ画像パス対応（Obsidian daily由来、キー別一覧） (status-071)
 - [x] ギャラリー・プロット: NxMグリッドレイアウト（スクリーンショット向け） (status-071)
 - [x] プロットビュー: config駆動デフォルトX/Y軸設定 (status-071)
+- [x] activeフィルタ: bool/文字列混在バグ修正（_is_truthy） (status-072)
+- [x] ギャラリー: daily note画像パスのプロジェクトルート基準解決 (status-072)
+- [x] 保存済みビュー: SavedViewConfigとconfig駆動ビュー一括表示 (status-072)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -672,6 +675,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-071.md)
+- [最新ステータス](./status/status-072.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
