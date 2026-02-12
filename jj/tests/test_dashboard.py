@@ -828,6 +828,7 @@ class TestDashboardConfig:
         assert cfg.plot_y is None
         assert cfg.gallery_columns == 5
         assert cfg.gallery_rows == 4
+        assert cfg.connector_configs == {}
 
     def test_none_data(self):
         """Noneからのデフォルト設定"""
@@ -885,6 +886,48 @@ class TestDashboardConfig:
         cfg = GraphConfig.from_dict({})
         assert cfg.dashboard.table_columns is None
         assert cfg.dashboard.gallery_columns == 5
+
+    def test_connector_configs(self):
+        """connectorsセクションの読み込み"""
+        from config import DashboardConfig
+
+        data = {
+            "connectors": {
+                "abaqus": {
+                    "material-curve-columns": {
+                        "plastic": {"columns": ["stress", "strain"]},
+                    }
+                },
+                "fluent": {"some-key": "value"},
+            }
+        }
+        cfg = DashboardConfig.from_dict(data)
+        assert "abaqus" in cfg.connector_configs
+        assert "fluent" in cfg.connector_configs
+        abq = cfg.get_connector_config("abaqus")
+        assert "material-curve-columns" in abq
+        assert abq["material-curve-columns"]["plastic"]["columns"] == ["stress", "strain"]
+
+    def test_get_connector_config_missing(self):
+        """存在しないコネクタキーでは空辞書"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.get_connector_config("nonexistent") == {}
+
+    def test_backward_compat_material_curve_columns(self):
+        """旧形式material-curve-columnsがabaqusコネクタに移行される"""
+        from config import DashboardConfig
+
+        data = {
+            "material-curve-columns": {
+                "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+            }
+        }
+        cfg = DashboardConfig.from_dict(data)
+        abq = cfg.get_connector_config("abaqus")
+        assert "material-curve-columns" in abq
+        assert abq["material-curve-columns"]["plastic"]["columns"] == ["stress", "strain"]
 
 
 # ====================================================================
@@ -2227,42 +2270,48 @@ class TestGetCurvePlotAxes:
 
 
 class TestDashboardConfigMaterialCurveColumns:
-    """DashboardConfig material-curve-columns のテスト"""
+    """DashboardConfig connector_configs経由のmaterial-curve-columns テスト"""
 
     def test_default_empty(self):
-        """デフォルトで空dict"""
+        """デフォルトでconnector_configsが空dict"""
         from config import DashboardConfig
 
         cfg = DashboardConfig.from_dict({})
-        assert cfg.material_curve_columns == {}
+        assert cfg.connector_configs == {}
+        assert cfg.get_connector_config("abaqus") == {}
 
-    def test_dict_format(self):
-        """辞書形式でcolumnsとx/yを指定"""
+    def test_connectors_format(self):
+        """connectors形式でabaqus固有設定を指定"""
         from config import DashboardConfig
 
         data = {
-            "material-curve-columns": {
-                "plastic": {
-                    "columns": ["stress", "strain"],
-                    "x": 1,
-                    "y": 0,
-                },
-                "elastic": {
-                    "columns": ["E", "nu"],
-                },
+            "connectors": {
+                "abaqus": {
+                    "material-curve-columns": {
+                        "plastic": {
+                            "columns": ["stress", "strain"],
+                            "x": 1,
+                            "y": 0,
+                        },
+                        "elastic": {
+                            "columns": ["E", "nu"],
+                        },
+                    }
+                }
             }
         }
         cfg = DashboardConfig.from_dict(data)
-        assert "plastic" in cfg.material_curve_columns
-        assert cfg.material_curve_columns["plastic"]["columns"] == ["stress", "strain"]
-        assert cfg.material_curve_columns["plastic"]["x"] == 1
-        assert cfg.material_curve_columns["plastic"]["y"] == 0
-        assert "elastic" in cfg.material_curve_columns
-        assert cfg.material_curve_columns["elastic"]["columns"] == ["E", "nu"]
-        assert "x" not in cfg.material_curve_columns["elastic"]
+        abq = cfg.get_connector_config("abaqus")
+        mcc = abq["material-curve-columns"]
+        assert "plastic" in mcc
+        assert mcc["plastic"]["columns"] == ["stress", "strain"]
+        assert mcc["plastic"]["x"] == 1
+        assert mcc["plastic"]["y"] == 0
+        assert "elastic" in mcc
+        assert mcc["elastic"]["columns"] == ["E", "nu"]
 
-    def test_list_shorthand(self):
-        """簡略形式（リスト）でcolumnsのみ指定"""
+    def test_backward_compat_material_curve_columns(self):
+        """旧形式material-curve-columnsがabaqusコネクタに自動移行される"""
         from config import DashboardConfig
 
         data = {
@@ -2271,10 +2320,30 @@ class TestDashboardConfigMaterialCurveColumns:
             }
         }
         cfg = DashboardConfig.from_dict(data)
-        assert cfg.material_curve_columns["density"]["columns"] == ["density"]
+        abq = cfg.get_connector_config("abaqus")
+        mcc = abq["material-curve-columns"]
+        assert mcc["density"] == ["density"]
 
     def test_graph_config_includes_mcc(self):
-        """GraphConfigからmaterial_curve_columnsが読み込まれる"""
+        """GraphConfigからconnectors.abaqus.material-curve-columnsが読み込まれる"""
+        from config import GraphConfig
+
+        cfg = GraphConfig.from_dict({
+            "dashboard": {
+                "connectors": {
+                    "abaqus": {
+                        "material-curve-columns": {
+                            "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+                        }
+                    }
+                }
+            }
+        })
+        abq = cfg.dashboard.get_connector_config("abaqus")
+        assert "plastic" in abq["material-curve-columns"]
+
+    def test_backward_compat_graph_config(self):
+        """旧形式GraphConfigのmaterial-curve-columnsも後方互換で読める"""
         from config import GraphConfig
 
         cfg = GraphConfig.from_dict({
@@ -2284,7 +2353,8 @@ class TestDashboardConfigMaterialCurveColumns:
                 }
             }
         })
-        assert "plastic" in cfg.dashboard.material_curve_columns
+        abq = cfg.dashboard.get_connector_config("abaqus")
+        assert "plastic" in abq["material-curve-columns"]
 
 
 # ====================================================================
@@ -2301,6 +2371,26 @@ class TestDashboardPageConnector:
         import services.dashboard.connectors.abaqus  # noqa: F401
 
         assert "物性一覧" in DashboardPageConnector._registry
+
+    def test_abaqus_connector_key(self):
+        """AbaqusMaterialPageConnectorのconnector_keyが設定されている"""
+        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+
+        assert AbaqusMaterialPageConnector.connector_key == "abaqus"
+
+    def test_get_connector_config(self):
+        """connector_keyでDashboardConfigからコネクタ固有設定を取得"""
+        from config import DashboardConfig
+        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+
+        cfg = DashboardConfig.from_dict({
+            "connectors": {
+                "abaqus": {"material-curve-columns": {"plastic": {"columns": ["s", "e"]}}},
+            }
+        })
+        connector = AbaqusMaterialPageConnector()
+        result = connector.get_connector_config(cfg)
+        assert "material-curve-columns" in result
 
     def test_get_connector_pages_with_material(self):
         """abaqus_materialノードがある場合にコネクターページが返される"""
@@ -2342,3 +2432,83 @@ class TestDashboardPageConnector:
         provider = DashboardDataProvider(graph)
         result = render_connector_page("存在しないページ", provider, None)
         assert result is False
+
+
+# ====================================================================
+# _parse_material_curve_columns テスト
+# ====================================================================
+
+
+class TestParseMaterialCurveColumns:
+    """_parse_material_curve_columns のテスト"""
+
+    def test_dict_format(self):
+        """辞書形式の正規化"""
+        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+
+        raw = {
+            "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+            "elastic": {"columns": ["E", "nu"]},
+        }
+        result = _parse_material_curve_columns(raw)
+        assert result["plastic"]["columns"] == ["stress", "strain"]
+        assert result["plastic"]["x"] == 1
+        assert result["plastic"]["y"] == 0
+        assert result["elastic"]["columns"] == ["E", "nu"]
+        assert "x" not in result["elastic"]
+
+    def test_list_shorthand(self):
+        """簡略形式（リスト）の正規化"""
+        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+
+        raw = {"density": ["density"]}
+        result = _parse_material_curve_columns(raw)
+        assert result["density"]["columns"] == ["density"]
+
+    def test_empty_dict(self):
+        """空辞書"""
+        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+
+        assert _parse_material_curve_columns({}) == {}
+
+    def test_non_dict_input(self):
+        """辞書でない入力は空辞書"""
+        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+
+        assert _parse_material_curve_columns("invalid") == {}
+        assert _parse_material_curve_columns(None) == {}
+
+
+# ====================================================================
+# widgets テスト
+# ====================================================================
+
+
+class TestWidgets:
+    """services/dashboard/widgets.py のテスト"""
+
+    def test_estimate_column_width_ascii(self):
+        """英数字のみの列名"""
+        from services.dashboard.widgets import estimate_column_width
+
+        width = estimate_column_width("RF3")
+        assert width == max(80, 3 * 10 + 30)
+
+    def test_estimate_column_width_japanese(self):
+        """日本語列名は2文字分"""
+        from services.dashboard.widgets import estimate_column_width
+
+        width = estimate_column_width("条件")
+        assert width == 80  # 2文字 x 2(全角) = 4文字分、4*10+30 = 70 → min 80
+
+    def test_estimate_column_width_minimum(self):
+        """最小幅は80px"""
+        from services.dashboard.widgets import estimate_column_width
+
+        assert estimate_column_width("a") == 80
+
+    def test_try_render_aggrid_import(self):
+        """try_render_aggridがインポートできる"""
+        from services.dashboard.widgets import try_render_aggrid
+
+        assert callable(try_render_aggrid)

@@ -39,8 +39,9 @@ services/
 │   ├── __init__.py         # DashboardDataProvider公開
 │   ├── app.py              # Streamlitアプリ本体（汎用ページ）
 │   ├── data_provider.py    # テーブル/カード/プロット/ステータスデータ生成（汎用）
+│   ├── widgets.py          # 共有UIヘルパー（AgGrid等、コネクタからも利用）
 │   └── connectors/         # ソフト固有のダッシュボードページ
-│       └── abaqus.py       # Abaqus物性一覧ページ（__init_subclass__自動登録）
+│       └── abaqus.py       # Abaqus物性一覧ページ（connector_key="abaqus"）
 ├── export/                 # グラフの外部出力（ローカル以外）
 │   └── connectors/
 │       └── neo4j.py        # Neo4jConnector
@@ -406,6 +407,9 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] 物性一覧ページ: abaqus_materialテーブル表示 + plastic/elastic等のラインプロット (status-074)
 - [x] ダッシュボードコネクター基盤: DashboardPageConnector(__init_subclass__自動登録) (status-076)
 - [x] Abaqus物性一覧ページをコネクターに分離: services/dashboard/connectors/abaqus.py (status-076)
+- [x] コネクタ固有config分離: DashboardConfig.connector_configs方式への移行 (status-077)
+- [x] 共有ウィジェット(widgets.py)切り出し: app.py→コネクタ間の結合度解消 (status-077)
+- [x] コネクタプラグイン化分析: 完全分離要件の整理・文書化 (status-077)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -586,11 +590,17 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 
 #### 5-3. parseコネクターのプラグイン化
 
-- [ ] 外部パッケージとしてのparseコネクター追加
+- [x] コネクタ固有config方式(`connector_configs`)の確立 (status-077)
+- [x] 共有ウィジェット切り出し（コネクタ→app.py逆依存解消） (status-077)
+- [x] プラグイン化可能性分析・要件整理 (status-077)
+- [ ] Phase P1: jj-sdkパッケージ定義（jj_types / parse_base / export_base / dashboard_base）
+- [ ] Phase P2: GraphStorage→CacheProviderプロトコル抽象化
+- [ ] Phase P3: entry_points動的発見によるコネクタ登録
+- [ ] 外部パッケージとしてのparseコネクター追加（jj-abaqus-connector等）
 - [ ] コネクターのバージョン管理
 - [ ] コネクター間の連携（例: AbaqusからFluentへのデータ転送）
 
-**参照**: [07-adapter.md](./specs/07-adapter.md#7-実装計画)
+**参照**: [07-adapter.md](./specs/07-adapter.md#7-実装計画), [status-077.md](./status/status-077.md)
 
 #### 5-4. 高度なファイル操作
 
@@ -688,6 +698,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-076.md)
+- [最新ステータス](./status/status-077.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
