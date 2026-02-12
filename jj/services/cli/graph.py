@@ -909,7 +909,10 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
 
 
 def _format_prop_value(value: Any) -> str:
-    """プロパティ値を表示用にフォーマット"""
+    """プロパティ値を表示用にフォーマット
+
+    float値は桁数が大きい場合に指数表示（小数2桁）にフォーマットする。
+    """
     if isinstance(value, dict):
         return yaml.safe_dump(
             value, allow_unicode=True, default_flow_style=False
@@ -918,6 +921,10 @@ def _format_prop_value(value: Any) -> str:
         return yaml.safe_dump(
             value, allow_unicode=True, default_flow_style=False
         ).rstrip("\n")
+    if isinstance(value, float):
+        abs_val = abs(value)
+        if abs_val != 0 and (abs_val >= 1e4 or abs_val < 1e-2):
+            return f"{value:.2e}"
     return str(value)
 
 

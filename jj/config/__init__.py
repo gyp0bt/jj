@@ -864,7 +864,10 @@ def _match_path_pattern(path: str, pattern: str) -> bool:
 
 
 def init_graph_config(base_dir: Optional[Path] = None, overwrite: bool = False) -> Path:
-    """グラフ設定ファイルを初期化（デフォルト設定をコピー）
+    """グラフ設定ファイルを初期化（default-config.yamlをコメント付きでコピー）
+
+    コメントや使用例を保持するため、yaml.safe_dumpではなく
+    default-config.yamlをテキストとして直接コピーする。
 
     Args:
         base_dir: プロジェクトルート
@@ -883,9 +886,15 @@ def init_graph_config(base_dir: Optional[Path] = None, overwrite: bool = False) 
     if config_path.exists() and not overwrite:
         return config_path
 
-    # デフォルト設定をコピー
-    default_config = load_default_config()
-    with config_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(default_config, f, allow_unicode=True, sort_keys=False)
+    # default-config.yamlをコメント付きで直接コピー
+    default_path = get_default_config_path()
+    if default_path.exists():
+        import shutil
+        shutil.copy2(default_path, config_path)
+    else:
+        # フォールバック: 辞書からyaml生成
+        default_config = load_default_config()
+        with config_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(default_config, f, allow_unicode=True, sort_keys=False)
 
     return config_path

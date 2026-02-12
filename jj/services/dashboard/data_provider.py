@@ -2,6 +2,7 @@
 
 GraphModelを受け取り、テーブル/カード/プロット/ステータスの
 各ビュー向けデータ構造に変換する。
+float値は桁数が大きい場合に指数表示（小数2桁）でフォーマットする。
 
 [READMEへ戻る](../../../README.md)
 """
@@ -9,10 +10,39 @@ GraphModelを受け取り、テーブル/カード/プロット/ステータス�
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from typing import Any
 
 from jj_types import GraphModel, Node, Relation
+
+
+def format_float_value(value: float) -> str | float:
+    """float値を表示用にフォーマット
+
+    絶対値が1e4以上または1e-2未満（0を除く）の場合、
+    指数表示で小数2桁にフォーマットする。
+    それ以外はそのまま返す。
+
+    Args:
+        value: フォーマット対象のfloat値
+
+    Returns:
+        フォーマット済み文字列 or 元の値
+    """
+    if not isinstance(value, (int, float)):
+        return value
+    if isinstance(value, bool):
+        return value
+    fval = float(value)
+    if math.isnan(fval) or math.isinf(fval):
+        return value
+    abs_val = abs(fval)
+    if abs_val == 0:
+        return value
+    if abs_val >= 1e4 or abs_val < 1e-2:
+        return f"{fval:.2e}"
+    return value
 
 
 class DashboardDataProvider:
@@ -154,12 +184,14 @@ class DashboardDataProvider:
         return points
 
     def get_property_keys(self) -> list[str]:
-        """利用可能なプロパティキー一覧
+        """利用可能なプロパティキー一覧（vocab順）
 
         go_ノードのプロパティキーを集約して返す。
+        vocab辞書の値の定義順序で優先的にソートし、
+        vocabに含まれないキーは文字列昇順で後に配置する。
 
         Returns:
-            ソート済みキーリスト
+            vocab順→文字列昇順のキーリスト
         """
         keys: set[str] = set()
         for node in self.graph.nodes:
@@ -172,7 +204,37 @@ class DashboardDataProvider:
         internal_keys = {"path", "include_properties"}
         keys -= internal_keys
 
-        return sorted(keys)
+        return self._sort_by_vocab(keys)
+
+    def _sort_by_vocab(self, keys: set[str] | list[str]) -> list[str]:
+        """vocab順でキーをソート
+
+        vocab辞書の値（日本語表記）の出現順を優先し、
+        vocabに含まれないキーは文字列昇順で後に配置する。
+
+        Args:
+            keys: ソート対象のキー集合
+
+        Returns:
+            vocab順→文字列昇順のリスト
+        """
+        # vocabの値（翻訳後キー名）の順序マップを構築
+        vocab_order: dict[str, int] = {}
+        for idx, v in enumerate(self.vocab.values()):
+            if v not in vocab_order:
+                vocab_order[v] = idx
+        # vocabのキー（翻訳前）も順序に含める
+        for idx, k in enumerate(self.vocab.keys()):
+            if k not in vocab_order:
+                vocab_order[k] = len(self.vocab) + idx
+
+        in_vocab = [k for k in keys if k in vocab_order]
+        not_in_vocab = [k for k in keys if k not in vocab_order]
+
+        in_vocab.sort(key=lambda k: vocab_order[k])
+        not_in_vocab.sort()
+
+        return in_vocab + not_in_vocab
 
     def get_status_summary(self) -> dict[str, Any]:
         """実行ステータスサマリー
@@ -500,7 +562,7 @@ class DashboardDataProvider:
     # ---- private ----
 
     def _node_to_row(self, node: Node) -> dict[str, Any]:
-        """ノードをテーブル行に変換（プロパティ展開）"""
+        """ノードをテーブル行に変換（プロパティ展開、float指数表示対応）"""
         row: dict[str, Any] = {
             "id": node.id,
             "name": node.name,
@@ -513,7 +575,7 @@ class DashboardDataProvider:
                 continue
             if key == "include_properties":
                 continue
-            row[key] = value
+            row[key] = format_float_value(value) if isinstance(value, float) else value
 
         # 関連ファイル情報を追加
         related = []
@@ -561,17 +623,16 @@ class DashboardDataProvider:
                 return False
         return True
 
-    @staticmethod
-    def _collect_columns(rows: list[dict[str, Any]]) -> list[str]:
-        """行データからカラムリストを収集"""
+    def _collect_columns(self, rows: list[dict[str, Any]]) -> list[str]:
+        """行データからカラムリストを収集（vocab順）"""
         fixed = ["id", "name", "type", "format"]
-        dynamic: list[str] = []
+        dynamic: set[str] = set()
         seen: set[str] = set(fixed)
 
         for row in rows:
             for key in row:
                 if key not in seen:
                     seen.add(key)
-                    dynamic.append(key)
+                    dynamic.add(key)
 
-        return fixed + sorted(dynamic)
+        return fixed + self._sort_by_vocab(dynamic)
