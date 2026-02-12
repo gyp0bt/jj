@@ -294,6 +294,79 @@ class DashboardDataProvider:
             },
         }
 
+    def get_output_images(
+        self,
+        node_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """画像出力ファイル一覧（has_output関係から取得）
+
+        has_output関係で結ばれたノードのうち、画像フォーマット
+        （png, gif, jpg, jpeg, bmp, svg, tiff）のものを返す。
+
+        Args:
+            node_id: 対象go_ノードID（省略時は全go_ノード）
+
+        Returns:
+            画像情報のリスト。各要素:
+            {
+                "go_node_id": int,
+                "go_node_name": str,
+                "image_node_id": int,
+                "image_name": str,
+                "image_path": str,
+                "image_format": str,
+                "go_properties": dict,
+            }
+        """
+        image_formats = {"png", "gif", "jpg", "jpeg", "bmp", "svg", "tiff"}
+        results: list[dict[str, Any]] = []
+
+        target_nodes: list[Node] = []
+        if node_id is not None:
+            node = self._node_by_id.get(node_id)
+            if node is not None:
+                target_nodes = [node]
+        else:
+            for n in self.graph.nodes:
+                name_lower = n.name.lower()
+                if name_lower.startswith("go_") or name_lower == "go":
+                    target_nodes.append(n)
+
+        for go_node in target_nodes:
+            for rel in self._relations_by_node.get(go_node.id, []):
+                if rel.label != "has_output":
+                    continue
+                if rel.node1_id != go_node.id:
+                    continue
+
+                output_node = self._node_by_id.get(rel.node2_id)
+                if output_node is None:
+                    continue
+
+                # フォーマットまたはパス拡張子で画像判定
+                fmt = output_node.format.lower() if output_node.format else ""
+                path_str = output_node.properties.get("path", "")
+                ext = path_str.rsplit(".", 1)[-1].lower() if "." in path_str else ""
+
+                if fmt not in image_formats and ext not in image_formats:
+                    continue
+
+                results.append({
+                    "go_node_id": go_node.id,
+                    "go_node_name": go_node.name,
+                    "image_node_id": output_node.id,
+                    "image_name": output_node.name,
+                    "image_path": path_str,
+                    "image_format": fmt or ext,
+                    "go_properties": {
+                        k: v
+                        for k, v in go_node.properties.items()
+                        if k not in ("path", "include_properties")
+                    },
+                })
+
+        return results
+
     # ---- private ----
 
     def _node_to_row(self, node: Node) -> dict[str, Any]:

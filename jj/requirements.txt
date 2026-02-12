@@ -25,6 +25,7 @@ neo4j>=5.0.0
 
 # ダッシュボード（jj dashboard）
 streamlit>=1.30.0
+streamlit-aggrid>=1.0.0
 plotly>=5.0.0
 
 # REST API（jj serve）

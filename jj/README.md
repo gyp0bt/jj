@@ -90,6 +90,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-069: ダッシュボード機能拡張（AgGrid・画像ギャラリー・自動リフレッシュ）。テーブルビューをAgGrid対応（チェックボックス選択・フィルタ・ソート・ページネーション、フォールバック付き）。ギャラリーページ追加（has_output関係の画像を5列グリッド表示、フォーマットフィルタ・最大表示数制御）。graph.yaml変更検知・自動リフレッシュ（mtime監視、手動/自動リフレッシュ、3-60秒間隔設定）。streamlit-aggrid依存追加。734テストパス（+13件追加）、リグレッションなし。([status-069](docs/status/status-069.md))
 - 2026-02-12 / status-068: Streamlitダッシュボード・REST API実装（Phase 2.5 D2/D3）。`jj dashboard`でStreamlitアプリ起動（テーブル/カード/プロット/ステータスの4ビュー）。`jj serve`でFastAPI REST APIサーバー起動（9エンドポイント、OpenAPIドキュメント自動生成）。CLIにdashboard/serveコマンド追加。streamlit/plotly/fastapi/uvicorn依存追加。721テストパス（+22件追加）、リグレッションなし。([status-068](docs/status/status-068.md))
 - 2026-02-12 / status-067: レガシーコード削除・Vault設定config.yaml駆動化・CLI凍結整理。旧メソッド(export_obsidian/export_data/export_neo4j/export_dashboard_json)と対応データクラス4件を完全削除。graph/__init__.pyの後方互換re-export(parse_sta_file等)を削除しテストを正規パスに修正。Obsidian Vault設定をconfig.yaml駆動化(ObsidianVaultConfigデータクラス追加)。submit/files/旧互換フラグをPhase 3まで凍結マーク。699テストパス、リグレッションなし。([status-067](docs/status/status-067.md))
 - 2026-02-12 / status-066: Obsidian Vault自動セットアップ・GraphMLエクスポーター凍結。`jj export --target obsidian`実行時に`.obsidian/`ディレクトリを自動生成（初回のみ、既存Vaultは変更しない）。app.json/community-plugins.json/core-plugins-migration.jsonの推奨構成を自動セットアップ。CLI出力にVault初期化案内追加。GraphMLエクスポーターは使用していないため凍結。699テストパス（+6件追加）。([status-066](docs/status/status-066.md))
