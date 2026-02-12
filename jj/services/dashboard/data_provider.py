@@ -559,6 +559,235 @@ class DashboardDataProvider:
                     "go_properties": go_props,
                 })
 
+    def get_array_property_keys(self) -> list[str]:
+        """go_ノードの配列型プロパティキーを返す
+
+        「PREFIX.列名」形式（例: RF.time, RF.RF3）のプロパティキーを
+        抽出してソート済みリストで返す。
+
+        Returns:
+            ソート済みの配列プロパティキーリスト
+        """
+        keys: set[str] = set()
+        for node in self.graph.nodes:
+            name_lower = node.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+            for key, value in node.properties.items():
+                if "." in key and isinstance(value, list):
+                    keys.add(key)
+        return sorted(keys)
+
+    def get_array_plot_data(
+        self,
+        node_id: int,
+        x_key: str,
+        y_keys: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        """特定ノードの配列プロパティをプロット用データに変換
+
+        Args:
+            node_id: GOノードID
+            x_key: X軸の配列プロパティキー（例: "RF.time"）
+            y_keys: Y軸の配列プロパティキー群（例: ["RF.RF1", "RF.RF3"]）
+                    省略時はx_keyと同じ接頭辞の全列を使用
+
+        Returns:
+            {
+                "name": str,
+                "x_key": str,
+                "x_values": list[float],
+                "series": [{"key": str, "values": list[float]}, ...],
+            }
+            ノードが見つからない場合はNone
+        """
+        node = self._node_by_id.get(node_id)
+        if node is None:
+            return None
+
+        x_values = node.properties.get(x_key)
+        if not isinstance(x_values, list):
+            return None
+
+        # y_keysが未指定の場合、x_keyと同じ接頭辞の全キーを使用
+        if y_keys is None:
+            prefix = x_key.split(".")[0] + "."
+            y_keys = sorted(
+                k for k in node.properties
+                if k.startswith(prefix) and k != x_key and isinstance(node.properties[k], list)
+            )
+
+        series = []
+        for y_key in y_keys:
+            y_values = node.properties.get(y_key)
+            if isinstance(y_values, list) and len(y_values) == len(x_values):
+                series.append({"key": y_key, "values": y_values})
+
+        if not series:
+            return None
+
+        return {
+            "name": node.name,
+            "x_key": x_key,
+            "x_values": x_values,
+            "series": series,
+        }
+
+    def get_array_grid_data(
+        self,
+        x_key: str,
+        y_key: str,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """全GOノードの配列プロパティをグリッドプロット用に返す
+
+        indexごとに配列データを収集し、グリッド配置で並べるためのリストを返す。
+
+        Args:
+            x_key: X軸配列キー
+            y_key: Y軸配列キー
+            filters: フィルタ条件
+
+        Returns:
+            [{
+                "node_id": int,
+                "name": str,
+                "index": str,
+                "x_values": list[float],
+                "y_values": list[float],
+                "properties": dict,
+            }, ...]
+        """
+        results: list[dict[str, Any]] = []
+
+        for node in self.graph.nodes:
+            name_lower = node.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+
+            x_vals = node.properties.get(x_key)
+            y_vals = node.properties.get(y_key)
+            if not isinstance(x_vals, list) or not isinstance(y_vals, list):
+                continue
+            if len(x_vals) != len(y_vals):
+                continue
+
+            row = self._node_to_row(node)
+            if filters and not self._matches_filters(row, filters):
+                continue
+
+            results.append({
+                "node_id": node.id,
+                "name": node.name,
+                "index": node.properties.get("index", ""),
+                "version": node.properties.get("version", ""),
+                "x_values": x_vals,
+                "y_values": y_vals,
+                "properties": {
+                    k: v for k, v in node.properties.items()
+                    if k not in ("path", "include_properties")
+                    and not (isinstance(v, list) and "." in k)
+                },
+            })
+
+        return results
+
+    def get_material_table(self) -> list[dict[str, Any]]:
+        """abaqus_materialノードの物性テーブルデータ
+
+        全abaqus_materialノードの非テーブル型プロパティを
+        フラットなテーブル行として返す。テーブル型データ（list[list]）は
+        列名だけを表示用に含める。
+
+        Returns:
+            行データのリスト
+        """
+        rows: list[dict[str, Any]] = []
+
+        for node in self.graph.nodes:
+            if node.type != "abaqus_material":
+                continue
+
+            row: dict[str, Any] = {
+                "id": node.id,
+                "name": node.name,
+            }
+
+            for key, value in node.properties.items():
+                if key in ("path", "include_properties", "source_file"):
+                    continue
+                # テーブル型データ（list[list]）はサマリのみ
+                if isinstance(value, list) and value and isinstance(value[0], list):
+                    row[key] = f"[{len(value)}行]"
+                elif isinstance(value, (dict, list)):
+                    row[key] = str(value)
+                else:
+                    row[key] = value
+
+            rows.append(row)
+
+        return rows
+
+    def get_material_table_data(
+        self,
+        node_id: int,
+        property_key: str,
+    ) -> dict[str, Any] | None:
+        """materialノードのテーブル型プロパティデータを取得
+
+        plastic, elastic等のテーブル型データ（list[list[float]]）を返す。
+
+        Args:
+            node_id: materialノードID
+            property_key: プロパティキー（例: "plastic", "elastic"）
+
+        Returns:
+            {
+                "name": str,
+                "property_key": str,
+                "data": list[list[float]],
+                "keywords": list[str],
+            }
+            見つからない場合はNone
+        """
+        node = self._node_by_id.get(node_id)
+        if node is None or node.type != "abaqus_material":
+            return None
+
+        value = node.properties.get(property_key)
+        if not isinstance(value, list) or not value:
+            return None
+
+        # テーブル型（list[list]）かチェック
+        if not isinstance(value[0], list):
+            return None
+
+        return {
+            "name": node.name,
+            "property_key": property_key,
+            "data": value,
+            "keywords": node.properties.get("keywords", []),
+        }
+
+    def get_material_table_keys(self, node_id: int) -> list[str]:
+        """materialノードのテーブル型プロパティキーを返す
+
+        Args:
+            node_id: materialノードID
+
+        Returns:
+            テーブル型プロパティキーのソート済みリスト
+        """
+        node = self._node_by_id.get(node_id)
+        if node is None or node.type != "abaqus_material":
+            return []
+
+        keys: list[str] = []
+        for key, value in node.properties.items():
+            if isinstance(value, list) and value and isinstance(value[0], list):
+                keys.append(key)
+        return sorted(keys)
+
     # ---- private ----
 
     def _node_to_row(self, node: Node) -> dict[str, Any]:

@@ -449,7 +449,10 @@ def main() -> None:
     _init_shared_filters(dashboard_config.default_filters)
 
     # ページ選択（保存済みビューがある場合は選択肢に追加）
-    page_options = ["テーブル", "カード", "プロット", "ステータス", "ギャラリー"]
+    page_options = [
+        "テーブル", "カード", "プロット", "配列プロット",
+        "物性一覧", "ステータス", "ギャラリー",
+    ]
     saved_views = getattr(dashboard_config, "saved_views", [])
     if saved_views:
         page_options.append("保存済みビュー")
@@ -472,6 +475,10 @@ def main() -> None:
         _render_card_page(provider)
     elif page == "プロット":
         _render_plot_page(provider, dashboard_config)
+    elif page == "配列プロット":
+        _render_array_plot_page(provider, dashboard_config)
+    elif page == "物性一覧":
+        _render_material_page(provider)
     elif page == "ステータス":
         _render_status_page(provider)
     elif page == "ギャラリー":
@@ -800,6 +807,332 @@ def _render_plot_grid(
                     showlegend=False,
                 )
                 st.plotly_chart(fig, use_container_width=True)
+
+
+# ====================================================================
+# 配列プロットビュー（反力プロファイル等の時系列データ）
+# ====================================================================
+
+
+def _render_array_plot_page(
+    provider: DashboardDataProvider, dashboard_config: Any
+) -> None:
+    """配列プロットビュー: GOノードの配列プロパティをラインプロット"""
+    st.header("配列プロットビュー")
+
+    array_keys = provider.get_array_property_keys()
+    if not array_keys:
+        st.info(
+            "配列プロパティが見つかりません。"
+            "CSVファイルがhas_output関係でGOファイルに紐付いている必要があります。"
+        )
+        return
+
+    # 接頭辞グループの抽出（例: RF, stress）
+    prefixes = sorted({k.split(".")[0] for k in array_keys})
+
+    # UI: 接頭辞選択 → X/Y軸選択
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        selected_prefix = st.selectbox("データグループ", prefixes)
+
+    # 選択された接頭辞のキーのみ
+    prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
+
+    with col2:
+        x_key = st.selectbox("X軸", prefix_keys, index=0)
+    with col3:
+        y_options = [k for k in prefix_keys if k != x_key]
+        if not y_options:
+            st.warning("Y軸に使用できるキーがありません。")
+            return
+        y_keys = st.multiselect("Y軸", y_options, default=y_options[:1])
+
+    if not y_keys:
+        st.info("Y軸を選択してください。")
+        return
+
+    # 表示モード: 個別ノード or グリッド比較
+    view_mode = st.radio(
+        "表示モード", ["グリッド比較", "個別ノード"], horizontal=True
+    )
+
+    if view_mode == "グリッド比較":
+        _render_array_grid(provider, dashboard_config, x_key, y_keys)
+    else:
+        _render_array_single(provider, x_key, y_keys)
+
+
+def _render_array_grid(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    x_key: str,
+    y_keys: list[str],
+) -> None:
+    """配列データのグリッド比較表示（indexごとに並べる）"""
+    cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
+
+    for y_key in y_keys:
+        st.subheader(f"{y_key} vs {x_key}")
+        grid_data = provider.get_array_grid_data(x_key, y_key)
+        if not grid_data:
+            st.info(f"'{x_key}' と '{y_key}' のデータがありません。")
+            continue
+
+        # indexでソート
+        grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
+
+        try:
+            import plotly.graph_objects as go
+
+            for row_start in range(0, len(grid_data), cols_per_row):
+                cols = st.columns(cols_per_row)
+                for col_idx, item in enumerate(
+                    grid_data[row_start: row_start + cols_per_row]
+                ):
+                    with cols[col_idx]:
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=item["x_values"],
+                            y=item["y_values"],
+                            mode="lines+markers",
+                            name=y_key,
+                        ))
+                        idx_str = item.get("index", "")
+                        ver_str = item.get("version", "")
+                        title = item["name"]
+                        if idx_str:
+                            title += f" (idx{idx_str}"
+                            if ver_str:
+                                title += f",v{ver_str}"
+                            title += ")"
+                        fig.update_layout(
+                            title=title,
+                            xaxis_title=x_key.split(".")[-1],
+                            yaxis_title=y_key.split(".")[-1],
+                            margin=dict(l=20, r=20, t=40, b=20),
+                            height=300,
+                            showlegend=False,
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+
+        except ImportError:
+            st.warning("plotlyが必要です: pip install plotly")
+
+        st.caption(f"データ数: {len(grid_data)}")
+
+
+def _render_array_single(
+    provider: DashboardDataProvider,
+    x_key: str,
+    y_keys: list[str],
+) -> None:
+    """配列データの個別ノード表示（複数Y軸重ね書き）"""
+    rows = provider.get_go_table()
+    if not rows:
+        st.info("go_ファイルが見つかりません。")
+        return
+
+    # 配列データを持つノードのみ
+    names_with_array = []
+    for r in rows:
+        node_id = r["id"]
+        node = provider._node_by_id.get(node_id)
+        if node and isinstance(node.properties.get(x_key), list):
+            names_with_array.append(r["name"])
+
+    if not names_with_array:
+        st.info(f"'{x_key}' データを持つノードがありません。")
+        return
+
+    selected = st.selectbox("ノード選択", names_with_array)
+    if not selected:
+        return
+
+    # 選択ノードのIDを取得
+    node_id = next(
+        (r["id"] for r in rows if r["name"] == selected),
+        None,
+    )
+    if node_id is None:
+        return
+
+    plot_data = provider.get_array_plot_data(node_id, x_key, y_keys)
+    if plot_data is None:
+        st.warning("配列データの取得に失敗しました。")
+        return
+
+    try:
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+        for s in plot_data["series"]:
+            fig.add_trace(go.Scatter(
+                x=plot_data["x_values"],
+                y=s["values"],
+                mode="lines+markers",
+                name=s["key"].split(".")[-1],
+            ))
+        fig.update_layout(
+            title=f"{selected}",
+            xaxis_title=x_key.split(".")[-1],
+            yaxis_title="値",
+            height=500,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    except ImportError:
+        st.warning("plotlyが必要です: pip install plotly")
+
+
+# ====================================================================
+# 物性一覧ビュー（テーブル + テーブル型データのラインプロット）
+# ====================================================================
+
+
+def _render_material_page(provider: DashboardDataProvider) -> None:
+    """物性一覧ビュー: abaqus_materialノードをテーブル表示＋ラインプロット"""
+    st.header("物性一覧")
+
+    mat_rows = provider.get_material_table()
+    if not mat_rows:
+        st.info(
+            "abaqus_materialノードが見つかりません。"
+            "material.inpファイルがパースされている必要があります。"
+        )
+        return
+
+    # テーブル表示
+    st.subheader("物性テーブル")
+    import pandas as pd
+
+    display_rows = []
+    for r in mat_rows:
+        row = {}
+        for k, v in r.items():
+            if isinstance(v, (dict, list)):
+                row[k] = str(v)
+            else:
+                row[k] = v
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    if not _try_render_aggrid(df):
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.caption(f"物性数: {len(mat_rows)}")
+
+    # テーブル型データ（plastic, elastic等）のラインプロット
+    st.markdown("---")
+    st.subheader("物性カーブ")
+
+    mat_names = [r["name"] for r in mat_rows]
+    selected_mat = st.selectbox("物性選択", mat_names)
+    if not selected_mat:
+        return
+
+    mat_id = next((r["id"] for r in mat_rows if r["name"] == selected_mat), None)
+    if mat_id is None:
+        return
+
+    table_keys = provider.get_material_table_keys(mat_id)
+    if not table_keys:
+        st.info("テーブル型データ（plastic, elastic等）がありません。")
+        return
+
+    selected_key = st.selectbox("プロパティ", table_keys)
+    if not selected_key:
+        return
+
+    table_data = provider.get_material_table_data(mat_id, selected_key)
+    if table_data is None:
+        st.warning("データの取得に失敗しました。")
+        return
+
+    # テーブルとプロットを並べて表示
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # テーブル表示
+        data_rows = table_data["data"]
+        if data_rows:
+            # 列名推定（plasticなら [stress, strain], elasticなら [E, nu]等）
+            col_names = _guess_table_column_names(selected_key, len(data_rows[0]))
+            table_df = pd.DataFrame(data_rows, columns=col_names)
+            st.dataframe(table_df, use_container_width=True, hide_index=True)
+
+    with col2:
+        # ラインプロット
+        data_rows = table_data["data"]
+        if data_rows and len(data_rows[0]) >= 2:
+            col_names = _guess_table_column_names(selected_key, len(data_rows[0]))
+            try:
+                import plotly.graph_objects as go
+
+                fig = go.Figure()
+                # 最初の列をX軸、2列目以降をY軸として描画
+                x_vals = [row[0] for row in data_rows]
+                for ci in range(1, len(data_rows[0])):
+                    y_vals = [row[ci] for row in data_rows]
+                    fig.add_trace(go.Scatter(
+                        x=x_vals if ci == 1 else [row[ci - 1] for row in data_rows],
+                        y=y_vals if ci == 1 else x_vals,
+                        mode="lines+markers",
+                        name=col_names[ci] if ci < len(col_names) else f"col{ci}",
+                    ))
+                # plastic: strain→stress のプロット（x=col[1], y=col[0]）
+                if selected_key in ("plastic", "damage-initiation"):
+                    fig.data = []  # 上のトレースをリセット
+                    x_vals = [row[1] for row in data_rows]
+                    y_vals = [row[0] for row in data_rows]
+                    fig.add_trace(go.Scatter(
+                        x=x_vals, y=y_vals,
+                        mode="lines+markers",
+                        name=selected_key,
+                    ))
+                    fig.update_layout(
+                        xaxis_title=col_names[1] if len(col_names) > 1 else "X",
+                        yaxis_title=col_names[0],
+                    )
+                else:
+                    fig.update_layout(
+                        xaxis_title=col_names[0],
+                        yaxis_title=col_names[1] if len(col_names) > 1 else "Y",
+                    )
+                fig.update_layout(
+                    title=f"{selected_mat} - {selected_key}",
+                    height=400,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                st.warning("plotlyが必要です: pip install plotly")
+
+
+def _guess_table_column_names(property_key: str, num_cols: int) -> list[str]:
+    """テーブル型プロパティの列名を推定
+
+    Args:
+        property_key: プロパティキー（plastic, elastic等）
+        num_cols: 列数
+
+    Returns:
+        列名のリスト
+    """
+    column_map: dict[str, list[str]] = {
+        "elastic": ["E", "nu"],
+        "plastic": ["stress", "strain"],
+        "density": ["density"],
+        "specific-heat": ["specific_heat"],
+        "conductivity": ["conductivity"],
+        "expansion": ["alpha"],
+        "damage-initiation": ["value", "strain"],
+        "damage-evolution": ["displacement"],
+        "creep": ["A", "n", "m"],
+    }
+    names = column_map.get(property_key, [])
+    # 不足分はcol_Nで補完
+    while len(names) < num_cols:
+        names.append(f"col_{len(names)}")
+    return names[:num_cols]
 
 
 # ====================================================================

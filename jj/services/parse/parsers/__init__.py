@@ -25,6 +25,7 @@ from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 from services.parse.parsers.json_property_parser import JsonPropertyParser
 from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 from services.parse.parsers.vocab_finalizer import VocabFinalizer
+from services.parse.parsers.csv_array_parser import CsvArrayParser
 
 __all__ = [
     "VersionRelationParser",
@@ -38,4 +39,5 @@ __all__ = [
     "JsonPropertyParser",
     "MeshInheritParser",
     "VocabFinalizer",
+    "CsvArrayParser",
 ]

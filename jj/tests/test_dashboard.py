@@ -1701,3 +1701,425 @@ class TestInitGraphConfigWithComments:
         content = config_path.read_text(encoding="utf-8")
         assert "cache-max-age-days" in content
         assert "cache-max-count" in content
+
+
+# ====================================================================
+# CsvArrayParser テスト
+# ====================================================================
+
+
+class TestCsvArrayParser:
+    """csv_array_parser のテスト"""
+
+    def test_compute_extra_token_single(self):
+        """1トークン差分の検出"""
+        from services.parse.parsers.csv_array_parser import _compute_extra_token
+
+        result = _compute_extra_token("go_idx1_w5_t20", "go_idx1_w5_t20_RF")
+        assert result == "RF"
+
+    def test_compute_extra_token_no_diff(self):
+        """トークン差分なし"""
+        from services.parse.parsers.csv_array_parser import _compute_extra_token
+
+        result = _compute_extra_token("go_idx1_w5_t20", "go_idx1_w5_t20")
+        assert result == ""
+
+    def test_compute_extra_token_two_diff(self):
+        """2トークン差分は無効"""
+        from services.parse.parsers.csv_array_parser import _compute_extra_token
+
+        result = _compute_extra_token("go_idx1", "go_idx1_RF_extra_token")
+        assert result == ""
+
+    def test_compute_extra_token_stress(self):
+        """stressトークンの検出"""
+        from services.parse.parsers.csv_array_parser import _compute_extra_token
+
+        result = _compute_extra_token("go_idx1_w5", "go_idx1_w5_stress")
+        assert result == "stress"
+
+    def test_read_csv_arrays(self, tmp_path):
+        """CSVファイルの配列読み取り"""
+        from services.parse.parsers.csv_array_parser import _read_csv_arrays
+
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("time,RF3\n0.0,0.0\n0.5,123.4\n1.0,456.7\n")
+
+        result = _read_csv_arrays(csv_file)
+        assert "time" in result
+        assert "RF3" in result
+        assert result["time"] == [0.0, 0.5, 1.0]
+        assert result["RF3"] == [0.0, 123.4, 456.7]
+
+    def test_read_csv_arrays_empty(self, tmp_path):
+        """空CSVファイル"""
+        from services.parse.parsers.csv_array_parser import _read_csv_arrays
+
+        csv_file = tmp_path / "empty.csv"
+        csv_file.write_text("")
+
+        result = _read_csv_arrays(csv_file)
+        assert result == {}
+
+    def test_read_csv_arrays_nonexistent(self, tmp_path):
+        """存在しないCSVファイル"""
+        from services.parse.parsers.csv_array_parser import _read_csv_arrays
+
+        result = _read_csv_arrays(tmp_path / "nonexistent.csv")
+        assert result == {}
+
+
+# ====================================================================
+# get_array_property_keys テスト
+# ====================================================================
+
+
+class TestGetArrayPropertyKeys:
+    """get_array_property_keys のテスト"""
+
+    def test_returns_dot_notation_keys(self):
+        """ドット記法の配列キーを返す"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "RF.time": [0.0, 0.5, 1.0],
+                        "RF.RF3": [0.0, 123.4, 456.7],
+                        "index": "1",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        keys = provider.get_array_property_keys()
+        assert "RF.time" in keys
+        assert "RF.RF3" in keys
+        assert "index" not in keys  # 非配列は含まない
+
+    def test_empty_graph(self):
+        """空グラフでは空リスト"""
+        provider = DashboardDataProvider(GraphModel(nodes=[], relations=[]))
+        assert provider.get_array_property_keys() == []
+
+
+# ====================================================================
+# get_array_plot_data テスト
+# ====================================================================
+
+
+class TestGetArrayPlotData:
+    """get_array_plot_data のテスト"""
+
+    def _make_graph(self):
+        return GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "RF.time": [0.0, 0.5, 1.0],
+                        "RF.RF1": [10.0, 20.0, 30.0],
+                        "RF.RF3": [0.0, 123.4, 456.7],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+
+    def test_returns_all_series_for_prefix(self):
+        """接頭辞のY軸を自動選択"""
+        provider = DashboardDataProvider(self._make_graph())
+        result = provider.get_array_plot_data(1, "RF.time")
+        assert result is not None
+        assert result["name"] == "go_idx1_v1"
+        assert result["x_values"] == [0.0, 0.5, 1.0]
+        series_keys = {s["key"] for s in result["series"]}
+        assert "RF.RF1" in series_keys
+        assert "RF.RF3" in series_keys
+
+    def test_explicit_y_keys(self):
+        """Y軸を明示指定"""
+        provider = DashboardDataProvider(self._make_graph())
+        result = provider.get_array_plot_data(1, "RF.time", y_keys=["RF.RF3"])
+        assert result is not None
+        assert len(result["series"]) == 1
+        assert result["series"][0]["key"] == "RF.RF3"
+
+    def test_missing_node(self):
+        """存在しないノードIDはNone"""
+        provider = DashboardDataProvider(self._make_graph())
+        assert provider.get_array_plot_data(999, "RF.time") is None
+
+
+# ====================================================================
+# get_array_grid_data テスト
+# ====================================================================
+
+
+class TestGetArrayGridData:
+    """get_array_grid_data のテスト"""
+
+    def test_returns_grid_data(self):
+        """グリッドデータを返す"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={
+                         "path": "a.inp", "index": "1", "version": "1",
+                         "RF.time": [0.0, 1.0], "RF.RF3": [0.0, 100.0],
+                     }),
+                Node(id=2, type="go", name="go_idx2_v1", format="inp",
+                     properties={
+                         "path": "b.inp", "index": "2", "version": "1",
+                         "RF.time": [0.0, 1.0], "RF.RF3": [0.0, 200.0],
+                     }),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        data = provider.get_array_grid_data("RF.time", "RF.RF3")
+        assert len(data) == 2
+        assert data[0]["name"] == "go_idx1_v1"
+        assert data[0]["x_values"] == [0.0, 1.0]
+        assert data[0]["y_values"] == [0.0, 100.0]
+
+    def test_excludes_nodes_without_arrays(self):
+        """配列データなしのノードは除外"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={"path": "a.inp", "RF.time": [0.0], "RF.RF3": [0.0]}),
+                Node(id=2, type="go", name="go_idx2_v1", format="inp",
+                     properties={"path": "b.inp", "index": "2"}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        data = provider.get_array_grid_data("RF.time", "RF.RF3")
+        assert len(data) == 1
+
+
+# ====================================================================
+# get_material_table テスト
+# ====================================================================
+
+
+class TestGetMaterialTable:
+    """get_material_table のテスト"""
+
+    def _make_material_graph(self):
+        return GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel_S235",
+                    format="material",
+                    properties={
+                        "source_file": "material.inp",
+                        "keywords": ["elastic", "plastic"],
+                        "elastic": [[210000.0, 0.3]],
+                        "plastic": [[235.0, 0.0], [360.0, 0.2]],
+                        "density": [[7.85e-09]],
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="abaqus_material",
+                    name="Aluminum_6061",
+                    format="material",
+                    properties={
+                        "source_file": "material.inp",
+                        "keywords": ["elastic"],
+                        "elastic": [[69000.0, 0.33]],
+                    },
+                ),
+                Node(
+                    id=3,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp"},
+                ),
+            ],
+            relations=[],
+        )
+
+    def test_returns_material_rows(self):
+        """abaqus_materialノードのテーブル行を返す"""
+        provider = DashboardDataProvider(self._make_material_graph())
+        rows = provider.get_material_table()
+        assert len(rows) == 2
+        names = {r["name"] for r in rows}
+        assert "Steel_S235" in names
+        assert "Aluminum_6061" in names
+
+    def test_table_data_summarized(self):
+        """テーブル型データはサマリ表示"""
+        provider = DashboardDataProvider(self._make_material_graph())
+        rows = provider.get_material_table()
+        steel = next(r for r in rows if r["name"] == "Steel_S235")
+        assert steel["plastic"] == "[2行]"
+        assert steel["elastic"] == "[1行]"
+
+    def test_excludes_go_nodes(self):
+        """go_ノードは含まれない"""
+        provider = DashboardDataProvider(self._make_material_graph())
+        rows = provider.get_material_table()
+        names = {r["name"] for r in rows}
+        assert "go_idx1_v1" not in names
+
+
+# ====================================================================
+# get_material_table_data テスト
+# ====================================================================
+
+
+class TestGetMaterialTableData:
+    """get_material_table_data のテスト"""
+
+    def test_returns_table_data(self):
+        """テーブル型プロパティデータを返す"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={
+                        "keywords": ["plastic"],
+                        "plastic": [[235.0, 0.0], [360.0, 0.2]],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        result = provider.get_material_table_data(1, "plastic")
+        assert result is not None
+        assert result["name"] == "Steel"
+        assert result["property_key"] == "plastic"
+        assert len(result["data"]) == 2
+        assert result["data"][0] == [235.0, 0.0]
+
+    def test_returns_none_for_nonexistent(self):
+        """存在しないノードIDはNone"""
+        provider = DashboardDataProvider(GraphModel(nodes=[], relations=[]))
+        assert provider.get_material_table_data(999, "plastic") is None
+
+    def test_returns_none_for_non_table(self):
+        """テーブル型でないプロパティはNone"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={"keywords": ["elastic"]},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        assert provider.get_material_table_data(1, "keywords") is None
+
+
+# ====================================================================
+# get_material_table_keys テスト
+# ====================================================================
+
+
+class TestGetMaterialTableKeys:
+    """get_material_table_keys のテスト"""
+
+    def test_returns_table_keys(self):
+        """テーブル型キーのみ返す"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={
+                        "keywords": ["elastic", "plastic"],
+                        "elastic": [[210000.0, 0.3]],
+                        "plastic": [[235.0, 0.0], [360.0, 0.2]],
+                        "verbose_name": "鋼材",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        keys = provider.get_material_table_keys(1)
+        assert "elastic" in keys
+        assert "plastic" in keys
+        assert "keywords" not in keys  # list[str]はテーブル型でない
+        assert "verbose_name" not in keys
+
+    def test_empty_for_go_node(self):
+        """go_ノードは空リスト"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1", format="inp",
+                     properties={"path": "a.inp"}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        assert provider.get_material_table_keys(1) == []
+
+
+# ====================================================================
+# _guess_table_column_names テスト
+# ====================================================================
+
+
+class TestGuessTableColumnNames:
+    """_guess_table_column_names のテスト"""
+
+    def test_plastic_columns(self):
+        """plasticの列名推定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _guess_table_column_names
+
+        names = _guess_table_column_names("plastic", 2)
+        assert names == ["stress", "strain"]
+
+    def test_elastic_columns(self):
+        """elasticの列名推定"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _guess_table_column_names
+
+        names = _guess_table_column_names("elastic", 2)
+        assert names == ["E", "nu"]
+
+    def test_unknown_columns(self):
+        """不明なキーの列名は汎用名"""
+        try:
+            import streamlit  # noqa: F401
+        except ImportError:
+            pytest.skip("streamlit not installed")
+        from services.dashboard.app import _guess_table_column_names
+
+        names = _guess_table_column_names("unknown_prop", 3)
+        assert names == ["col_0", "col_1", "col_2"]
