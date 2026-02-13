@@ -413,6 +413,10 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] CSV配列: サブディレクトリ内CSV対応（OutputRelationParser + CsvArrayParser） (status-078)
 - [x] CSV配列: ヘッダーなしCSV対応（col_N自動命名） (status-078)
 - [x] Excelダウンロード機能（テーブル/保存済みビュー、openpyxl利用） (status-078)
+- [x] 配列プロット: NG領域塗りつぶし対応（グリッド/個別/保存ビュー） (status-080)
+- [x] 物性比較: CSVエクスポート（複数materialの比較データダウンロード） (status-080)
+- [x] 保存済みビュー: 動的ビュー追加・編集・削除（session_stateベース） (status-080)
+- [x] 保存済みビュー: HTMLエクスポート（スタンドアロンHTML出力、plotlyインライン化） (status-080)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -701,6 +705,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-078.md)
+- [最新ステータス](./status/status-080.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

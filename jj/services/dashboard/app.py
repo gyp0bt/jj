@@ -1005,12 +1005,19 @@ def _render_array_plot_page(
     # 共有フィルタをprovider用のフィルタ辞書に変換
     active_filters = _get_active_filters()
 
+    # NG領域設定
+    ng_regions = getattr(dashboard_config, "ng_regions", [])
+
     if view_mode == "グリッド比較":
         _render_array_grid(
-            provider, dashboard_config, x_key, y_keys, filters=active_filters
+            provider, dashboard_config, x_key, y_keys,
+            filters=active_filters, ng_regions=ng_regions,
         )
     else:
-        _render_array_single(provider, x_key, y_keys, filters=active_filters)
+        _render_array_single(
+            provider, x_key, y_keys,
+            filters=active_filters, ng_regions=ng_regions,
+        )
 
 
 def _render_array_grid(
@@ -1019,6 +1026,7 @@ def _render_array_grid(
     x_key: str,
     y_keys: list[str],
     filters: dict[str, Any] | None = None,
+    ng_regions: list[dict[str, Any]] | None = None,
 ) -> None:
     """配列データのグリッド比較表示（indexごとに並べる）"""
     cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
@@ -1049,6 +1057,9 @@ def _render_array_grid(
                             mode="lines+markers",
                             name=y_key,
                         ))
+                        # NG領域塗りつぶし
+                        if ng_regions:
+                            _add_ng_regions(fig, ng_regions)
                         idx_str = item.get("index", "")
                         ver_str = item.get("version", "")
                         title = item["name"]
@@ -1078,6 +1089,7 @@ def _render_array_single(
     x_key: str,
     y_keys: list[str],
     filters: dict[str, Any] | None = None,
+    ng_regions: list[dict[str, Any]] | None = None,
 ) -> None:
     """配列データの個別ノード表示（複数Y軸重ね書き）"""
     rows = provider.get_go_table()
@@ -1129,6 +1141,9 @@ def _render_array_single(
                 mode="lines+markers",
                 name=s["key"].split(".")[-1],
             ))
+        # NG領域塗りつぶし
+        if ng_regions:
+            _add_ng_regions(fig, ng_regions)
         fig.update_layout(
             title=f"{selected}",
             xaxis_title=x_key.split(".")[-1],
@@ -1495,21 +1510,63 @@ def _render_saved_views_page(
     dashboard_config: Any,
     vocab: dict[str, str] | None = None,
 ) -> None:
-    """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示"""
+    """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示
+
+    config.yamlからの静的ビューに加え、session_stateに保存された
+    動的ビューも表示する。動的ビューはUI上で追加・編集・削除が可能。
+    """
     st.header("保存済みビュー")
 
-    saved_views = getattr(dashboard_config, "saved_views", [])
-    if not saved_views:
+    saved_views = list(getattr(dashboard_config, "saved_views", []))
+
+    # session_stateに保存された動的ビューを取得
+    if "_dynamic_views" not in st.session_state:
+        st.session_state["_dynamic_views"] = []
+    dynamic_views: list[dict[str, Any]] = st.session_state["_dynamic_views"]
+
+    # 動的ビューをSavedViewConfigに変換
+    from config import SavedViewConfig
+    dynamic_view_configs: list[SavedViewConfig] = []
+    for dv in dynamic_views:
+        try:
+            dynamic_view_configs.append(SavedViewConfig.from_dict(dv))
+        except (ValueError, KeyError):
+            pass
+
+    all_views = saved_views + dynamic_view_configs
+
+    if not all_views:
         st.info(
             "保存済みビューがありません。config.yaml の "
-            "dashboard.saved-views に定義してください。"
+            "dashboard.saved-views に定義するか、下のフォームから追加してください。"
         )
-        return
 
-    for idx, view in enumerate(saved_views):
+    for idx, view in enumerate(all_views):
         st.markdown("---")
-        st.subheader(f"{view.name}")
-        st.caption(f"タイプ: {view.view_type}")
+        is_dynamic = idx >= len(saved_views)
+        dyn_idx = idx - len(saved_views) if is_dynamic else -1
+
+        # ビューヘッダー（動的ビューは編集・削除ボタン付き）
+        if is_dynamic:
+            hcol1, hcol2, hcol3 = st.columns([6, 1, 1])
+            with hcol1:
+                st.subheader(f"{view.name}")
+            with hcol2:
+                if st.button("編集", key=f"_edit_dv_{dyn_idx}"):
+                    st.session_state[f"_editing_dv_{dyn_idx}"] = True
+            with hcol3:
+                if st.button("削除", key=f"_del_dv_{dyn_idx}"):
+                    st.session_state["_dynamic_views"].pop(dyn_idx)
+                    st.rerun()
+        else:
+            st.subheader(f"{view.name}")
+
+        st.caption(f"タイプ: {view.view_type}" + (" (動的)" if is_dynamic else ""))
+
+        # 動的ビュー編集フォーム
+        if is_dynamic and st.session_state.get(f"_editing_dv_{dyn_idx}", False):
+            _render_view_edit_form(provider, dyn_idx, dynamic_views[dyn_idx])
+            continue
 
         if view.view_type == "table":
             _render_saved_table(provider, dashboard_config, view, vocab)
@@ -1523,6 +1580,16 @@ def _render_saved_views_page(
             _render_status_page(provider)
         elif view.view_type == "array_plot":
             _render_saved_array_plot(provider, dashboard_config, view)
+
+    # HTMLエクスポート
+    st.markdown("---")
+    _render_html_export_button(
+        provider, project_root, dashboard_config, vocab
+    )
+
+    # 新規ビュー追加セクション
+    st.markdown("---")
+    _render_view_add_form(provider)
 
 
 def _render_saved_table(
@@ -1752,6 +1819,9 @@ def _render_saved_array_plot(
     filters = getattr(view, "filters", {}) or {}
     filter_dict = _saved_view_filters_to_provider_filters(filters) if filters else None
 
+    # NG領域設定
+    ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
+
     if mode == "single":
         # 個別ノード重ね書き（先頭ノードを表示）
         rows = provider.get_go_table()
@@ -1771,6 +1841,9 @@ def _render_saved_array_plot(
                             mode="lines+markers",
                             name=s["key"].split(".")[-1],
                         ))
+                    # NG領域塗りつぶし
+                    if ng_regions:
+                        _add_ng_regions(fig, ng_regions)
                     fig.update_layout(
                         title=plot_data["name"],
                         xaxis_title=x_key.split(".")[-1],
@@ -1804,6 +1877,9 @@ def _render_saved_array_plot(
                                 mode="lines+markers",
                                 name=y_key,
                             ))
+                            # NG領域塗りつぶし
+                            if ng_regions:
+                                _add_ng_regions(fig, ng_regions)
                             title = item["name"]
                             idx_str = item.get("index", "")
                             if idx_str:
@@ -1820,6 +1896,519 @@ def _render_saved_array_plot(
             except ImportError:
                 st.warning("plotlyが必要です。")
             st.caption(f"データ数: {len(grid_data)}")
+
+
+def _render_html_export_button(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+    vocab: dict[str, str] | None = None,
+) -> None:
+    """保存済みビューをスタンドアロンHTMLとしてエクスポート
+
+    plotlyのプロットは`fig.to_html(full_html=False)`でインライン化、
+    テーブルはpandas `df.to_html()`で変換し、1つのHTMLファイルにまとめる。
+    """
+    saved_views = list(getattr(dashboard_config, "saved_views", []))
+
+    # 動的ビューも含める
+    dynamic_views = st.session_state.get("_dynamic_views", [])
+    from config import SavedViewConfig
+    for dv in dynamic_views:
+        try:
+            saved_views.append(SavedViewConfig.from_dict(dv))
+        except (ValueError, KeyError):
+            pass
+
+    if not saved_views:
+        return
+
+    if st.button("HTMLエクスポート", key="_html_export_btn"):
+        with st.spinner("HTMLを生成中..."):
+            html = _generate_saved_views_html(
+                provider, project_root, dashboard_config, saved_views, vocab
+            )
+        st.download_button(
+            label="HTMLダウンロード",
+            data=html.encode("utf-8"),
+            file_name="dashboard_views.html",
+            mime="text/html",
+            key="_html_download_btn",
+        )
+
+
+def _generate_saved_views_html(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+    views: list[Any],
+    vocab: dict[str, str] | None = None,
+) -> str:
+    """保存済みビュー一覧をスタンドアロンHTMLに変換"""
+    import pandas as pd
+
+    sections: list[str] = []
+
+    for view in views:
+        section_html = _generate_view_html(
+            provider, project_root, dashboard_config, view, vocab
+        )
+        if section_html:
+            sections.append(
+                f'<div class="view-section">'
+                f'<h2>{view.name}</h2>'
+                f'<p class="view-type">タイプ: {view.view_type}</p>'
+                f'{section_html}'
+                f'</div>'
+            )
+
+    body = "\n<hr>\n".join(sections)
+    project_name = project_root.name if project_root else "jj"
+
+    html = f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jj Dashboard - {project_name}</title>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<style>
+body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0; padding: 20px;
+    background: #f8f9fa; color: #333;
+}}
+h1 {{ color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }}
+h2 {{ color: #374151; margin-top: 24px; }}
+.view-section {{ background: #fff; padding: 20px; margin: 16px 0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+.view-type {{ color: #6b7280; font-size: 0.9em; }}
+table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }}
+th, td {{ border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; }}
+th {{ background: #f3f4f6; font-weight: 600; }}
+tr:nth-child(even) {{ background: #f9fafb; }}
+.caption {{ color: #6b7280; font-size: 0.85em; margin: 4px 0; }}
+.plotly-graph {{ margin: 12px 0; }}
+.grid-container {{ display: grid; gap: 12px; }}
+hr {{ border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }}
+</style>
+</head>
+<body>
+<h1>jj Dashboard - {project_name}</h1>
+<p class="caption">生成日時: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+{body}
+</body>
+</html>"""
+    return html
+
+
+def _generate_view_html(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+    view: Any,
+    vocab: dict[str, str] | None = None,
+) -> str:
+    """個別ビューのHTML断片を生成"""
+    import pandas as pd
+
+    if view.view_type == "table":
+        return _generate_table_html(provider, dashboard_config, view, vocab)
+    elif view.view_type == "plot":
+        return _generate_plot_html(provider, view, dashboard_config)
+    elif view.view_type == "array_plot":
+        return _generate_array_plot_html(provider, dashboard_config, view)
+    elif view.view_type == "status":
+        return _generate_status_html(provider)
+    elif view.view_type == "card":
+        return _generate_card_html(provider, view)
+    return ""
+
+
+def _generate_table_html(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    view: Any,
+    vocab: dict[str, str] | None = None,
+) -> str:
+    """テーブルビューのHTML断片"""
+    import pandas as pd
+
+    rows = provider.get_go_table()
+    if not rows:
+        return "<p>go_ファイルが見つかりません。</p>"
+
+    filtered = _apply_saved_view_filters(rows, view.filters)
+    if not filtered:
+        return "<p>条件に一致するデータがありません。</p>"
+
+    display_rows = []
+    for r in filtered:
+        row = {k: v for k, v in r.items() if k != "related_files"}
+        for k, v in row.items():
+            if isinstance(v, (dict, list)):
+                row[k] = str(v)
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    table_columns = getattr(dashboard_config, "table_columns", None)
+    selected_cols = _select_table_columns(
+        list(df.columns), table_columns, vocab=vocab or {}
+    )
+    if selected_cols:
+        df = df[[c for c in selected_cols if c in df.columns]]
+
+    caption = f'<p class="caption">{len(filtered)} / {len(rows)} 件</p>'
+    return caption + df.to_html(index=False, classes="dataframe")
+
+
+def _generate_plot_html(
+    provider: DashboardDataProvider,
+    view: Any,
+    dashboard_config: Any = None,
+) -> str:
+    """プロットビューのHTML断片（plotly inlineHTML）"""
+    plot_config = view.plot
+    x_key = plot_config.get("x")
+    y_key = plot_config.get("y")
+    color = plot_config.get("color")
+    chart_type = plot_config.get("chart_type", "散布図")
+
+    if not x_key or not y_key:
+        return "<p>プロット設定にx/yが指定されていません。</p>"
+
+    data = provider.get_plot_data(x_key, y_key, color_key=color)
+    if view.filters:
+        all_rows = provider.get_go_table()
+        filtered_rows = _apply_saved_view_filters(all_rows, view.filters)
+        filtered_names = {r["name"] for r in filtered_rows}
+        data = [d for d in data if d.get("name") in filtered_names]
+
+    if not data:
+        return f"<p>'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。</p>"
+
+    try:
+        import pandas as pd
+        import plotly.express as px
+
+        df = pd.DataFrame(data)
+        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type)
+        ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
+        if ng_regions:
+            _add_ng_regions(fig, ng_regions)
+        group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
+        if group_line_key and group_line_key in df.columns:
+            _add_group_lines(fig, df, x_key, y_key, group_line_key)
+
+        plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
+        caption = f'<p class="caption">データ点数: {len(data)}</p>'
+        return f'<div class="plotly-graph">{plot_html}</div>{caption}'
+    except ImportError:
+        return "<p>plotlyが必要です。</p>"
+
+
+def _generate_array_plot_html(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    view: Any,
+) -> str:
+    """配列プロットビューのHTML断片"""
+    ap_config = getattr(view, "array_plot", {})
+    prefix = ap_config.get("prefix", "")
+    x_key = ap_config.get("x", "")
+    y_keys = ap_config.get("y", [])
+    mode = ap_config.get("mode", "grid")
+
+    if not x_key:
+        array_keys = provider.get_array_property_keys()
+        if prefix:
+            prefix_keys = [k for k in array_keys if k.startswith(prefix + ".")]
+        else:
+            prefix_keys = array_keys
+        if not prefix_keys:
+            return "<p>配列プロパティが見つかりません。</p>"
+        x_key = prefix_keys[0]
+        if not y_keys:
+            y_keys = [k for k in prefix_keys if k != x_key]
+
+    if isinstance(y_keys, str):
+        y_keys = [y_keys]
+    if not y_keys:
+        return "<p>Y軸の配列キーが指定されていません。</p>"
+
+    filters = getattr(view, "filters", {}) or {}
+    filter_dict = _saved_view_filters_to_provider_filters(filters) if filters else None
+    ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
+
+    parts: list[str] = []
+
+    try:
+        import plotly.graph_objects as go
+
+        for y_key in y_keys:
+            grid_data = provider.get_array_grid_data(x_key, y_key, filters=filter_dict)
+            if not grid_data:
+                continue
+            grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
+
+            parts.append(f"<h3>{y_key} vs {x_key}</h3>")
+
+            cols_per_row = getattr(dashboard_config, "gallery_columns", 4) if dashboard_config else 4
+            parts.append(f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">')
+
+            for item in grid_data:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=item["x_values"],
+                    y=item["y_values"],
+                    mode="lines+markers",
+                    name=y_key,
+                ))
+                if ng_regions:
+                    _add_ng_regions(fig, ng_regions)
+                title = item["name"]
+                idx_str = item.get("index", "")
+                if idx_str:
+                    title += f" (idx{idx_str})"
+                fig.update_layout(
+                    title=title,
+                    xaxis_title=x_key.split(".")[-1],
+                    yaxis_title=y_key.split(".")[-1],
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    height=300,
+                    showlegend=False,
+                )
+                plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
+                parts.append(f'<div class="plotly-graph">{plot_html}</div>')
+
+            parts.append("</div>")
+            parts.append(f'<p class="caption">データ数: {len(grid_data)}</p>')
+
+    except ImportError:
+        return "<p>plotlyが必要です。</p>"
+
+    return "\n".join(parts)
+
+
+def _generate_status_html(
+    provider: DashboardDataProvider,
+) -> str:
+    """ステータスビューのHTML断片"""
+    import pandas as pd
+
+    status = provider.get_status_summary()
+    metrics = (
+        f'<div style="display:flex;gap:24px;margin:12px 0;">'
+        f'<div><strong>合計</strong>: {status["total"]}</div>'
+        f'<div><strong>完了</strong>: {status["completed"]}</div>'
+        f'<div><strong>失敗</strong>: {status["failed"]}</div>'
+        f'<div><strong>不明</strong>: {status["unknown"]}</div>'
+        f'</div>'
+    )
+    items = status["items"]
+    if items:
+        df = pd.DataFrame(items)
+        return metrics + df.to_html(index=False, classes="dataframe")
+    return metrics + "<p>go_ファイルが見つかりません。</p>"
+
+
+def _generate_card_html(
+    provider: DashboardDataProvider,
+    view: Any,
+) -> str:
+    """カードビューのHTML断片"""
+    import pandas as pd
+
+    rows = provider.get_go_table()
+    if not rows:
+        return "<p>go_ファイルが見つかりません。</p>"
+
+    filtered = _apply_saved_view_filters(rows, view.filters)
+    if not filtered:
+        return "<p>条件に一致するデータがありません。</p>"
+
+    first_row = filtered[0]
+    node_id = first_row.get("id")
+    if node_id is None:
+        return ""
+
+    card = provider.get_node_card(node_id)
+    if card is None:
+        return ""
+
+    props = {
+        k: v for k, v in card["properties"].items()
+        if k not in ("path", "include_properties")
+    }
+    props_flat = {}
+    for k, v in props.items():
+        if isinstance(v, (dict, list)):
+            props_flat[k] = str(v)
+        else:
+            props_flat[k] = v
+
+    parts = [f"<p><strong>{card['name']}</strong> ({card['type']})</p>"]
+    if props_flat:
+        df = pd.DataFrame([props_flat]).T
+        df.columns = ["値"]
+        parts.append(df.to_html(classes="dataframe"))
+    return "\n".join(parts)
+
+
+def _render_view_add_form(
+    provider: DashboardDataProvider,
+) -> None:
+    """保存済みビューの新規追加フォーム"""
+    with st.expander("ビューを追加", expanded=False):
+        view_name = st.text_input("ビュー名", key="_add_view_name")
+        view_type = st.selectbox(
+            "タイプ",
+            ["table", "plot", "array_plot", "gallery", "card", "status"],
+            key="_add_view_type",
+        )
+
+        # フィルタ設定
+        st.markdown("**フィルタ（任意）**")
+        fc1, fc2, fc3 = st.columns(3)
+        with fc1:
+            f_type = st.text_input("type", key="_add_view_f_type")
+        with fc2:
+            f_status = st.text_input("analysis_status", key="_add_view_f_status")
+        with fc3:
+            f_active = st.checkbox("active", key="_add_view_f_active")
+
+        # タイプ固有設定
+        plot_config: dict[str, Any] = {}
+        array_plot_config: dict[str, Any] = {}
+        gallery_config: dict[str, Any] = {}
+
+        if view_type == "plot":
+            st.markdown("**プロット設定**")
+            keys = provider.get_property_keys()
+            pc1, pc2, pc3 = st.columns(3)
+            with pc1:
+                px_key = st.selectbox("X軸", keys, key="_add_view_px") if keys else ""
+            with pc2:
+                py_key = st.selectbox("Y軸", keys, key="_add_view_py", index=min(1, len(keys) - 1)) if keys else ""
+            with pc3:
+                p_chart = st.selectbox("チャート", ["散布図", "棒グラフ", "線図"], key="_add_view_pchart")
+            plot_config = {"x": px_key, "y": py_key, "chart_type": p_chart}
+
+        elif view_type == "array_plot":
+            st.markdown("**配列プロット設定**")
+            array_keys = provider.get_array_property_keys()
+            if array_keys:
+                prefixes = sorted({k.split(".")[0] for k in array_keys})
+                ac1, ac2 = st.columns(2)
+                with ac1:
+                    ap_prefix = st.selectbox("プレフィックス", prefixes, key="_add_view_ap_prefix")
+                with ac2:
+                    ap_mode = st.selectbox("モード", ["grid", "single"], key="_add_view_ap_mode")
+                prefix_keys = [k for k in array_keys if k.startswith(ap_prefix + ".")]
+                ap_x = st.selectbox("X軸", prefix_keys, key="_add_view_ap_x") if prefix_keys else ""
+                ap_y_options = [k for k in prefix_keys if k != ap_x]
+                ap_y = st.multiselect("Y軸", ap_y_options, key="_add_view_ap_y")
+                array_plot_config = {
+                    "prefix": ap_prefix, "x": ap_x,
+                    "y": ap_y, "mode": ap_mode,
+                }
+
+        elif view_type == "gallery":
+            st.markdown("**ギャラリー設定**")
+            gc1, gc2 = st.columns(2)
+            with gc1:
+                g_source = st.selectbox("ソース", ["has_output", "property"], key="_add_view_gsrc")
+            with gc2:
+                g_format = st.text_input("フォーマット", key="_add_view_gfmt")
+            gallery_config = {"source": g_source}
+            if g_format:
+                gallery_config["format"] = g_format
+
+        if st.button("追加", key="_add_view_btn"):
+            if not view_name:
+                st.warning("ビュー名を入力してください。")
+            else:
+                filters: dict[str, Any] = {}
+                if f_type:
+                    filters["type"] = f_type
+                if f_status:
+                    filters["analysis_status"] = f_status
+                if f_active:
+                    filters["active"] = True
+
+                new_view: dict[str, Any] = {
+                    "name": view_name,
+                    "type": view_type,
+                    "filters": filters,
+                    "plot": plot_config,
+                    "array_plot": array_plot_config,
+                    "gallery": gallery_config,
+                }
+                st.session_state["_dynamic_views"].append(new_view)
+                st.rerun()
+
+
+def _render_view_edit_form(
+    provider: DashboardDataProvider,
+    dyn_idx: int,
+    view_data: dict[str, Any],
+) -> None:
+    """動的ビューの編集フォーム"""
+    with st.container():
+        view_name = st.text_input(
+            "ビュー名", value=view_data.get("name", ""),
+            key=f"_edit_name_{dyn_idx}",
+        )
+        view_type = st.selectbox(
+            "タイプ",
+            ["table", "plot", "array_plot", "gallery", "card", "status"],
+            index=["table", "plot", "array_plot", "gallery", "card", "status"].index(
+                view_data.get("type", "table")
+            ),
+            key=f"_edit_type_{dyn_idx}",
+        )
+
+        # フィルタ設定
+        st.markdown("**フィルタ**")
+        existing_filters = view_data.get("filters", {})
+        fc1, fc2, fc3 = st.columns(3)
+        with fc1:
+            f_type = st.text_input(
+                "type", value=existing_filters.get("type", ""),
+                key=f"_edit_f_type_{dyn_idx}",
+            )
+        with fc2:
+            f_status = st.text_input(
+                "analysis_status",
+                value=existing_filters.get("analysis_status", ""),
+                key=f"_edit_f_status_{dyn_idx}",
+            )
+        with fc3:
+            f_active = st.checkbox(
+                "active", value=existing_filters.get("active", False),
+                key=f"_edit_f_active_{dyn_idx}",
+            )
+
+        ec1, ec2 = st.columns(2)
+        with ec1:
+            if st.button("保存", key=f"_edit_save_{dyn_idx}"):
+                filters: dict[str, Any] = {}
+                if f_type:
+                    filters["type"] = f_type
+                if f_status:
+                    filters["analysis_status"] = f_status
+                if f_active:
+                    filters["active"] = True
+
+                view_data["name"] = view_name
+                view_data["type"] = view_type
+                view_data["filters"] = filters
+                st.session_state["_dynamic_views"][dyn_idx] = view_data
+                st.session_state[f"_editing_dv_{dyn_idx}"] = False
+                st.rerun()
+        with ec2:
+            if st.button("キャンセル", key=f"_edit_cancel_{dyn_idx}"):
+                st.session_state[f"_editing_dv_{dyn_idx}"] = False
+                st.rerun()
 
 
 def _saved_view_filters_to_provider_filters(

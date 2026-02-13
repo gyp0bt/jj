@@ -91,6 +91,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-13 / status-080: ダッシュボード機能拡張。配列プロット全モードにNG領域対応。物性比較CSVエクスポート追加。保存済みビューの動的追加・編集・削除UI追加。保存済みビューのスタンドアロンHTMLエクスポート機能追加（plotlyインライン化、テーブル・ステータス対応）。11テスト追加。([status-080](docs/status/status-080.md))
 - 2026-02-13 / status-079: ダッシュボード機能拡張。配列プロットに保存済みビュー（array_plot型）とフィルタ連携を追加。物性一覧に比較機能（複数materialカーブ重ね書き）とgo_ノード使用関係表示を追加。プロットにNG領域塗りつぶし（矩形/カーブ、config駆動）とグループ結線（同一条件データ点を灰色点線で結線）を追加。16テスト追加。([status-079](docs/status/status-079.md))
 - 2026-02-13 / status-078: CSV配列拡張（サブディレクトリCSV/ヘッダーなしCSV）・Excelダウンロード・REST API拡張（POST parse/プロパティ比較フィルター）。15テスト追加。([status-078](docs/status/status-078.md))
 - 2026-02-12 / status-077: コネクタ固有config分離・プラグイン化分析。DashboardConfig.material_curve_columnsをconnector_configs辞書方式に移行（後方互換あり）。DashboardPageConnectorにconnector_key属性追加。AgGridヘルパーをwidgets.pyに切り出しコネクタ→app.pyの逆依存を解消。Abaqusコネクタを完全分離するための3フェーズ計画（SDK定義/キャッシュIF抽象化/動的発見）を分析・文書化。48テスト全パス（12件追加）。([status-077](docs/status/status-077.md))
