@@ -279,6 +279,31 @@ dashboard:
   #   gallery-rows: 6
   # gallery-rows: 4
 
+  # NG領域定義（プロットビューに赤い塗りつぶし領域を追加）
+  # 矩形タイプ: x_min/x_max/y_minで/y_maxで範囲を指定
+  # カーブタイプ: points（[x,y]の配列）で境界線を定義し、fill（above/below）で塗りつぶし方向を指定
+  # 使用例:
+  #   ng-regions:
+  #     - type: rect
+  #       label: NG領域
+  #       x_min: 0
+  #       x_max: 100
+  #       y_min: 0
+  #       y_max: 5
+  #       color: "rgba(255,0,0,0.1)"
+  #     - type: curve
+  #       label: Baskinカーブ
+  #       points: [[0, 100], [50, 200], [100, 250]]
+  #       fill: below
+  #       color: "rgba(255,0,0,0.1)"
+  # ng-regions:
+
+  # グループ結線キー（同一値のデータ点を灰色点線で結線、プロットビュー用）
+  # 同じ条件（indexや実験条件）のバージョン違いデータを結線して傾向を可視化します。
+  # 使用例:
+  #   group-line-key: index
+  # group-line-key:
+
   # コネクタ固有設定（connectors）
   # 各ダッシュボードコネクターが使用する固有設定を定義します。
   # キーはコネクター名（例: abaqus）、値はコネクター固有の設定辞書です。
@@ -324,7 +349,7 @@ dashboard:
 
   # 保存済みビュー（ダッシュボードの「保存済みビュー」ページに表示順で表示）
   # 各ビューにはフィルタ条件、プロット条件、ギャラリー条件を指定できます。
-  # ビュータイプ: table / plot / gallery / card / status
+  # ビュータイプ: table / plot / gallery / card / status / array_plot
   # 使用例:
   #   saved-views:
   #     - name: アクティブ解析一覧
@@ -345,6 +370,15 @@ dashboard:
   #       gallery:
   #         source: property
   #         property_key: screenshot
+  #     - name: 反力プロファイル比較
+  #       type: array_plot
+  #       filters:
+  #         active: true
+  #       array_plot:
+  #         prefix: RF
+  #         x: RF.time
+  #         y: [RF.RF3]
+  #         mode: grid
   # saved-views:
 
 # ========================================================================

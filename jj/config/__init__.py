@@ -606,10 +606,11 @@ class SavedViewConfig:
     フィルタ・プロット条件を保存し、ダッシュボードで順番に表示する。
     """
     name: str  # ビュー名
-    view_type: str  # "table" | "plot" | "gallery" | "card" | "status"
+    view_type: str  # "table" | "plot" | "gallery" | "card" | "status" | "array_plot"
     filters: dict[str, Any]  # フィルタ条件
     plot: dict[str, str | None]  # プロット条件 {"x": ..., "y": ..., "color": ..., "chart_type": ...}
     gallery: dict[str, Any]  # ギャラリー条件 {"source": ..., "property_key": ..., "format": ...}
+    array_plot: dict[str, Any]  # 配列プロット条件 {"prefix": ..., "x": ..., "y": [...], "mode": ...}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SavedViewConfig":
@@ -617,9 +618,9 @@ class SavedViewConfig:
         if not name:
             raise ValueError("saved-views[].name is required")
         view_type = data.get("type", "table")
-        if view_type not in ("table", "plot", "gallery", "card", "status"):
+        if view_type not in ("table", "plot", "gallery", "card", "status", "array_plot"):
             raise ValueError(
-                f"saved-views[].type must be one of: table, plot, gallery, card, status (got '{view_type}')"
+                f"saved-views[].type must be one of: table, plot, gallery, card, status, array_plot (got '{view_type}')"
             )
         filters = data.get("filters", {})
         if not isinstance(filters, dict):
@@ -630,12 +631,16 @@ class SavedViewConfig:
         gallery = data.get("gallery", {})
         if not isinstance(gallery, dict):
             gallery = {}
+        array_plot = data.get("array_plot", {})
+        if not isinstance(array_plot, dict):
+            array_plot = {}
         return cls(
             name=name,
             view_type=view_type,
             filters=filters,
             plot=plot,
             gallery=gallery,
+            array_plot=array_plot,
         )
 
 
@@ -650,6 +655,8 @@ class DashboardConfig:
     gallery_rows: int  # ギャラリーグリッド行数
     saved_views: list[SavedViewConfig]  # 保存済みビュー（表示順）
     connector_configs: dict[str, dict[str, Any]]  # コネクタ固有設定（キー: コネクタ名）
+    ng_regions: list[dict[str, Any]]  # NG領域定義（矩形/カーブ）
+    group_line_key: str | None  # グループ結線キー（同一値のデータ点を結線）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -674,6 +681,8 @@ class DashboardConfig:
                 gallery_rows=4,
                 saved_views=[],
                 connector_configs={},
+                ng_regions=[],
+                group_line_key=None,
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -711,6 +720,18 @@ class DashboardConfig:
             raw_mcc = data["material-curve-columns"]
             if isinstance(raw_mcc, dict):
                 connector_configs["abaqus"] = {"material-curve-columns": raw_mcc}
+        # NG領域定義の読み込み
+        raw_ng_regions = data.get("ng-regions", [])
+        if not isinstance(raw_ng_regions, list):
+            raw_ng_regions = []
+        ng_regions: list[dict[str, Any]] = []
+        for r in raw_ng_regions:
+            if isinstance(r, dict):
+                ng_regions.append(dict(r))
+        # グループ結線キー
+        group_line_key = data.get("group-line-key")
+        if group_line_key is not None:
+            group_line_key = str(group_line_key)
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             default_filters=default_filters,
@@ -720,6 +741,8 @@ class DashboardConfig:
             gallery_rows=gallery_rows,
             saved_views=saved_views,
             connector_configs=connector_configs,
+            ng_regions=ng_regions,
+            group_line_key=group_line_key,
         )
 
 

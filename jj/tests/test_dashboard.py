@@ -2835,3 +2835,333 @@ def _make_project_graph_with_subdir_csv():
     graph.add_relation = mock_add_relation
 
     return graph
+
+
+# ====================================================================
+# SavedViewConfig: array_plotタイプ
+# ====================================================================
+
+
+class TestSavedViewConfigArrayPlot:
+    """SavedViewConfig の array_plot タイプテスト"""
+
+    def test_array_plot_type_accepted(self):
+        """array_plotタイプが受け入れられる"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({
+            "name": "テスト配列プロット",
+            "type": "array_plot",
+            "array_plot": {
+                "prefix": "RF",
+                "x": "RF.time",
+                "y": ["RF.RF3"],
+                "mode": "grid",
+            },
+        })
+        assert view.view_type == "array_plot"
+        assert view.array_plot["prefix"] == "RF"
+        assert view.array_plot["x"] == "RF.time"
+        assert view.array_plot["y"] == ["RF.RF3"]
+        assert view.array_plot["mode"] == "grid"
+
+    def test_array_plot_default_empty(self):
+        """array_plot未指定時は空辞書"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({
+            "name": "テスト",
+            "type": "table",
+        })
+        assert view.array_plot == {}
+
+    def test_invalid_type_raises(self):
+        """不正なタイプはValueError"""
+        from config import SavedViewConfig
+
+        with pytest.raises(ValueError, match="saved-views"):
+            SavedViewConfig.from_dict({
+                "name": "テスト",
+                "type": "invalid_type",
+            })
+
+
+# ====================================================================
+# DashboardConfig: NG領域・グループ結線
+# ====================================================================
+
+
+class TestDashboardConfigNgRegions:
+    """DashboardConfig の ng-regions テスト"""
+
+    def test_ng_regions_rect(self):
+        """矩形NG領域の読み込み"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({
+            "ng-regions": [
+                {
+                    "type": "rect",
+                    "x_min": 0,
+                    "x_max": 100,
+                    "y_min": 0,
+                    "y_max": 5,
+                    "color": "rgba(255,0,0,0.1)",
+                    "label": "NG",
+                },
+            ],
+        })
+        assert len(config.ng_regions) == 1
+        assert config.ng_regions[0]["type"] == "rect"
+        assert config.ng_regions[0]["x_max"] == 100
+
+    def test_ng_regions_curve(self):
+        """カーブNG領域の読み込み"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({
+            "ng-regions": [
+                {
+                    "type": "curve",
+                    "points": [[0, 100], [50, 200]],
+                    "fill": "below",
+                    "label": "Baskin",
+                },
+            ],
+        })
+        assert len(config.ng_regions) == 1
+        assert config.ng_regions[0]["type"] == "curve"
+        assert len(config.ng_regions[0]["points"]) == 2
+
+    def test_ng_regions_default_empty(self):
+        """未指定時は空リスト"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({})
+        assert config.ng_regions == []
+
+    def test_group_line_key(self):
+        """グループ結線キーの読み込み"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({
+            "group-line-key": "index",
+        })
+        assert config.group_line_key == "index"
+
+    def test_group_line_key_default_none(self):
+        """未指定時はNone"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({})
+        assert config.group_line_key is None
+
+
+# ====================================================================
+# 物性比較・使用関係
+# ====================================================================
+
+
+def _make_material_graph() -> GraphModel:
+    """物性比較テスト用GraphModel"""
+    nodes = [
+        Node(
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
+            properties={"path": "go_idx1_v1.inp", "index": "1", "active": True},
+        ),
+        Node(
+            id=2,
+            type="go",
+            name="go_idx2_v1",
+            format="inp",
+            properties={"path": "go_idx2_v1.inp", "index": "2", "active": True},
+        ),
+        Node(
+            id=10,
+            type="abaqus_material",
+            name="Steel",
+            format="material",
+            properties={
+                "source_file": "material.inp",
+                "plastic": [[100, 0.0], [200, 0.01], [250, 0.02]],
+                "elastic": [[210000, 0.3]],
+            },
+        ),
+        Node(
+            id=11,
+            type="abaqus_material",
+            name="Aluminum",
+            format="material",
+            properties={
+                "source_file": "material.inp",
+                "plastic": [[70, 0.0], [150, 0.01], [180, 0.02]],
+                "elastic": [[70000, 0.33]],
+            },
+        ),
+    ]
+    relations = [
+        Relation(id=1, label="uses_material", node1_id=1, node2_id=10),
+        Relation(id=2, label="uses_material", node1_id=1, node2_id=11),
+        Relation(id=3, label="uses_material", node1_id=2, node2_id=10),
+    ]
+    return GraphModel(nodes=nodes, relations=relations)
+
+
+class TestMaterialComparison:
+    """物性比較機能のテスト"""
+
+    def test_get_material_table_keys(self):
+        """テーブル型プロパティキーの取得"""
+        from services.dashboard.connectors.abaqus import get_material_table_keys
+
+        graph = _make_material_graph()
+        provider = DashboardDataProvider(graph)
+
+        keys = get_material_table_keys(provider, 10)
+        assert "plastic" in keys
+        assert "elastic" in keys
+
+    def test_get_material_table_data(self):
+        """テーブル型プロパティデータの取得"""
+        from services.dashboard.connectors.abaqus import get_material_table_data
+
+        graph = _make_material_graph()
+        provider = DashboardDataProvider(graph)
+
+        data = get_material_table_data(provider, 10, "plastic")
+        assert data is not None
+        assert data["name"] == "Steel"
+        assert len(data["data"]) == 3
+
+    def test_get_material_table_multiple(self):
+        """複数materialのテーブルデータが取得できる"""
+        from services.dashboard.connectors.abaqus import (
+            get_material_table,
+            get_material_table_data,
+        )
+
+        graph = _make_material_graph()
+        provider = DashboardDataProvider(graph)
+
+        mat_rows = get_material_table(provider)
+        assert len(mat_rows) == 2
+
+        steel_data = get_material_table_data(provider, 10, "plastic")
+        aluminum_data = get_material_table_data(provider, 11, "plastic")
+        assert steel_data is not None
+        assert aluminum_data is not None
+        assert steel_data["data"][0][0] == 100
+        assert aluminum_data["data"][0][0] == 70
+
+
+class TestMaterialUsage:
+    """物性使用関係のテスト"""
+
+    def test_get_material_usage(self):
+        """物性使用関係の取得"""
+        from services.dashboard.connectors.abaqus import get_material_usage
+
+        graph = _make_material_graph()
+        provider = DashboardDataProvider(graph)
+
+        usage = get_material_usage(provider)
+        assert len(usage) == 2
+
+        steel_usage = next(u for u in usage if u["material_name"] == "Steel")
+        assert len(steel_usage["go_nodes"]) == 2
+        go_names = {g["name"] for g in steel_usage["go_nodes"]}
+        assert "go_idx1_v1" in go_names
+        assert "go_idx2_v1" in go_names
+
+        aluminum_usage = next(u for u in usage if u["material_name"] == "Aluminum")
+        assert len(aluminum_usage["go_nodes"]) == 1
+        assert aluminum_usage["go_nodes"][0]["name"] == "go_idx1_v1"
+
+    def test_get_material_usage_empty(self):
+        """uses_material関係なしの場合"""
+        from services.dashboard.connectors.abaqus import get_material_usage
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="abaqus_material", name="Steel",
+                     format="material", properties={}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+
+        usage = get_material_usage(provider)
+        assert len(usage) == 1
+        assert len(usage[0]["go_nodes"]) == 0
+
+
+# ====================================================================
+# 配列プロットフィルタ連携
+# ====================================================================
+
+
+class TestArrayPlotFilters:
+    """配列プロットのフィルタ連携テスト"""
+
+    def test_get_array_grid_data_with_filters(self):
+        """フィルタ付きでget_array_grid_dataが正しく動作"""
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_idx1_v1", format="inp",
+                     properties={
+                         "path": "a.inp", "active": True, "index": "1",
+                         "RF.time": [0, 1, 2], "RF.RF3": [10, 20, 30],
+                     }),
+                Node(id=2, type="go", name="go_idx2_v1", format="inp",
+                     properties={
+                         "path": "b.inp", "active": False, "index": "2",
+                         "RF.time": [0, 1, 2], "RF.RF3": [5, 10, 15],
+                     }),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+
+        # フィルタなし: 両方
+        all_data = provider.get_array_grid_data("RF.time", "RF.RF3")
+        assert len(all_data) == 2
+
+        # activeフィルタ: 1件のみ
+        active_data = provider.get_array_grid_data(
+            "RF.time", "RF.RF3", filters={"active": True}
+        )
+        assert len(active_data) == 1
+        assert active_data[0]["name"] == "go_idx1_v1"
+
+
+# ====================================================================
+# NG領域ヘルパー (app.pyのインポート不要なロジックテスト)
+# ====================================================================
+
+
+class TestNgRegionConfig:
+    """NG領域config読み込みテスト"""
+
+    def test_ng_regions_non_list(self):
+        """ng-regionsが非リストの場合は空リスト"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({"ng-regions": "invalid"})
+        assert config.ng_regions == []
+
+    def test_ng_regions_mixed(self):
+        """矩形とカーブの混合"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({
+            "ng-regions": [
+                {"type": "rect", "x_min": 0, "x_max": 10, "y_min": 0, "y_max": 5},
+                {"type": "curve", "points": [[0, 1], [10, 2]], "fill": "above"},
+            ],
+        })
+        assert len(config.ng_regions) == 2
+        assert config.ng_regions[0]["type"] == "rect"
+        assert config.ng_regions[1]["type"] == "curve"
