@@ -420,7 +420,10 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] 描画/クエリロジック分離: query.py/html_export.py/abaqus_query.pyに純粋関数抽出 (status-081)
 - [x] 純粋関数モジュール単体テスト: 65テスト追加（query.py/html_export.py/abaqus_query.py） (status-082)
 - [ ] app.py後方互換ラッパー削除: テストインポート移行→ラッパー関数削除 (status-082計画)
-- [ ] services/query昇格: dashboard/query.pyの汎用関数をjjレベルに昇格 (status-082設計検討)
+- [x] services/query昇格: dashboard/query.pyの汎用関数をjjレベルに昇格 (status-084)
+- [x] API層のservices.service完全依存化: ApiServiceクラス新設 (status-085)
+- [x] jj-cli分離: dashboard/serveランチャーをlaunchers.pyに抽出 (status-085)
+- [x] jj-dashboard分離: 分離境界の明確化・オプショナル依存定義 (status-085)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -604,9 +607,9 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [x] コネクタ固有config方式(`connector_configs`)の確立 (status-077)
 - [x] 共有ウィジェット切り出し（コネクタ→app.py逆依存解消） (status-077)
 - [x] プラグイン化可能性分析・要件整理 (status-077)
-- [ ] Phase P1: jj-sdkパッケージ定義（jj_types / parse_base / export_base / dashboard_base）
-- [ ] Phase P2: GraphStorage→CacheProviderプロトコル抽象化
-- [ ] Phase P3: entry_points動的発見によるコネクタ登録
+- [x] Phase P1: jj-sdkパッケージ定義（services/sdk/ に公開API集約） (status-085)
+- [x] Phase P2: GraphStorage→CacheProviderプロトコル抽象化（Protocol定義＋GraphStorage準拠確認） (status-085)
+- [ ] Phase P3: entry_points動的発見によるコネクタ登録（pyproject.tomlベース）
 - [ ] 外部パッケージとしてのparseコネクター追加（jj-abaqus-connector等）
 - [ ] コネクターのバージョン管理
 - [ ] コネクター間の連携（例: AbaqusからFluentへのデータ転送）
@@ -709,6 +712,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-080.md)
+- [最新ステータス](./status/status-085.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

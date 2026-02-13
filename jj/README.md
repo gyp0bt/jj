@@ -78,7 +78,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `services/export/connectors/` : 外部ツールへのエクスポート（Neo4jConnector等）
   - `services/api/` : REST APIサーバー（FastAPI、jj serve）
   - `services/run/` : スクリプトラッパー（jj r）
-  - `services/service/` : サービス横断オーケストレーション（QueryService等）
+  - `services/service/` : サービス横断オーケストレーション（ApiService/QueryService等）
+  - `services/sdk/` : プラグイン開発用公開インターフェース（jj-sdk）
   - `services/lib/` : 薄いユーティリティ（credentials, file等）
 - `shared/` : jj-dbとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
 - `shared/tests/test_asset1/` : jj/jj-db共通テストアセット（Abaqusプロジェクト）
@@ -92,6 +93,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-13 / status-085: API層リファクタリング・プラグイン化・CLI/Dashboard分離。ApiServiceクラス新設でAPI層のservices.service完全依存化。jj-sdkパッケージ新設（プラグイン化Phase 1）。CacheProviderプロトコル定義（Phase 2）。dashboard/serveランチャー分離。29テスト新規。([status-085](docs/status/status-085.md))
 - 2026-02-13 / status-084: services/queryパッケージ新設。props条件式フィルタ(props.KEY.OPERATOR=VALUE)を汎用化しdict/Node両対応に。QueryServiceクラス追加。API依存をservices.service経由に変更。55テスト新規。([status-084](docs/status/status-084.md))
 - 2026-02-13 / status-083: テストインポート移行(app.*→query.*/html_export.*)。app.pyラッパー関数8件削除。([status-083](docs/status/status-083.md))
 - 2026-02-13 / status-082: 純粋関数モジュール（query.py/html_export.py/abaqus_query.py）の単体テスト65件追加。app.py後方互換ラッパー削除計画を文書化。services/query（jjレベル）昇格の設計検討を文書化。([status-082](docs/status/status-082.md))

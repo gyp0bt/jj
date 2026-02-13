@@ -12,6 +12,7 @@ from services.service.info import InfoService
 from services.service.graph_command import GraphCommandService
 from services.service.run_command import RunCommandService
 from services.service.query_service import QueryService
+from services.service.api_service import ApiService
 
 __all__ = [
     "SubmitService",
@@ -19,4 +20,5 @@ __all__ = [
     "GraphCommandService",
     "RunCommandService",
     "QueryService",
+    "ApiService",
 ]
