@@ -23,90 +23,13 @@ jj serveで起動されるREST APIのエンドポイントを定義する。
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from jj_types import GraphModel, Node
-from services.dashboard.data_provider import DashboardDataProvider
-from services.graph import GraphService
-
-
-# プロパティフィルターのパターン: props.KEY.OPERATOR
-_PROP_FILTER_PATTERN = re.compile(r"^props\.(.+)\.(eq|ne|gt|ge|lt|le)$")
-
-# 比較オペレータの実装
-_OPERATORS: dict[str, Any] = {
-    "eq": lambda a, b: a == b,
-    "ne": lambda a, b: a != b,
-    "gt": lambda a, b: a > b,
-    "ge": lambda a, b: a >= b,
-    "lt": lambda a, b: a < b,
-    "le": lambda a, b: a <= b,
-}
-
-
-def _parse_prop_filters(query_params: dict[str, str]) -> list[tuple[str, str, float]]:
-    """クエリパラメータからプロパティフィルターを抽出する
-
-    Args:
-        query_params: リクエストのクエリパラメータ辞書
-
-    Returns:
-        [(プロパティキー, オペレータ, 比較値), ...] のリスト
-    """
-    filters: list[tuple[str, str, float]] = []
-    for key, value in query_params.items():
-        match = _PROP_FILTER_PATTERN.match(key)
-        if match:
-            prop_key = match.group(1)
-            operator = match.group(2)
-            try:
-                num_value = float(value)
-                filters.append((prop_key, operator, num_value))
-            except (ValueError, TypeError):
-                continue
-    return filters
-
-
-def _apply_prop_filters(
-    nodes: list[Node], filters: list[tuple[str, str, float]]
-) -> list[Node]:
-    """プロパティ比較フィルターを適用する
-
-    Args:
-        nodes: フィルタ対象のノードリスト
-        filters: [(プロパティキー, オペレータ, 比較値), ...]
-
-    Returns:
-        フィルタ通過したノードリスト
-    """
-    if not filters:
-        return nodes
-
-    result: list[Node] = []
-    for node in nodes:
-        passed = True
-        for prop_key, operator, compare_value in filters:
-            prop_value = node.properties.get(prop_key)
-            if prop_value is None:
-                passed = False
-                break
-            try:
-                num_prop = float(prop_value)
-            except (ValueError, TypeError):
-                passed = False
-                break
-            op_func = _OPERATORS.get(operator)
-            if op_func is None or not op_func(num_prop, compare_value):
-                passed = False
-                break
-        if passed:
-            result.append(node)
-    return result
+from services.service import QueryService
 
 
 def create_app(project_root: Path) -> FastAPI:
@@ -140,15 +63,20 @@ def create_app(project_root: Path) -> FastAPI:
         "provider": None,
     }
 
-    def _get_graph() -> GraphModel:
+    def _get_graph():
         """GraphModelを取得（遅延ロード）"""
+        from jj_types import GraphModel
+        from services.graph import GraphService
+
         if state["graph"] is None:
             svc = GraphService(project_root=state["project_root"])
             state["graph"] = svc.load()
         return state["graph"]
 
-    def _get_provider() -> DashboardDataProvider:
+    def _get_provider():
         """DashboardDataProviderを取得（遅延ロード）"""
+        from services.dashboard.data_provider import DashboardDataProvider
+
         if state["provider"] is None:
             graph = _get_graph()
             try:
@@ -199,20 +127,14 @@ def create_app(project_root: Path) -> FastAPI:
         graph = _get_graph()
         nodes = list(graph.nodes)
 
-        if type is not None:
-            nodes = [n for n in nodes if n.type == type]
-        if active is not None:
-            nodes = [
-                n for n in nodes if n.properties.get("active") == active
-            ]
-        if name is not None:
-            name_lower = name.lower()
-            nodes = [n for n in nodes if name_lower in n.name.lower()]
-
-        # プロパティ比較フィルター
-        prop_filters = _parse_prop_filters(dict(request.query_params))
-        if prop_filters:
-            nodes = _apply_prop_filters(nodes, prop_filters)
+        # QueryServiceでフィルタリングを一括適用
+        nodes = QueryService.filter_nodes(
+            nodes,
+            type_filter=type,
+            active_filter=active,
+            name_filter=name,
+            query_params=dict(request.query_params),
+        )
 
         total = len(nodes)
         nodes = nodes[offset : offset + limit]
@@ -291,6 +213,8 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/summary")
     def get_summary() -> dict[str, Any]:
         """サマリー統計を返す"""
+        from services.graph import GraphService
+
         graph = _get_graph()
         svc = GraphService(project_root=state["project_root"])
         summary = svc.summary(graph)
@@ -328,6 +252,8 @@ def create_app(project_root: Path) -> FastAPI:
         Returns:
             パース結果のサマリー
         """
+        from services.graph import GraphService
+
         svc = GraphService(project_root=state["project_root"])
         graph, save_path = svc.parse_and_save(full_mode=full)
 
