@@ -18,6 +18,10 @@ jj serveで起動されるREST APIのエンドポイントを定義する。
   GET /api/v1/nodes?props.RF3.gt=5&props.temperature.lt=400
   対応オペレータ: eq, ne, gt, ge, lt, le
 
+依存関係:
+  routes.py → services.service.ApiService → GraphService/DashboardDataProvider
+  routes.py → services.service.QueryService (ノードフィルタのみ)
+
 [READMEへ戻る](../../../README.md)
 """
 
@@ -29,7 +33,7 @@ from typing import Any, Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from services.service import QueryService
+from services.service import ApiService, QueryService
 
 
 def create_app(project_root: Path) -> FastAPI:
@@ -56,42 +60,8 @@ def create_app(project_root: Path) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # 状態保持
-    state: dict[str, Any] = {
-        "project_root": project_root,
-        "graph": None,
-        "provider": None,
-    }
-
-    def _get_graph():
-        """GraphModelを取得（遅延ロード）"""
-        from jj_types import GraphModel
-        from services.graph import GraphService
-
-        if state["graph"] is None:
-            svc = GraphService(project_root=state["project_root"])
-            state["graph"] = svc.load()
-        return state["graph"]
-
-    def _get_provider():
-        """DashboardDataProviderを取得（遅延ロード）"""
-        from services.dashboard.data_provider import DashboardDataProvider
-
-        if state["provider"] is None:
-            graph = _get_graph()
-            try:
-                from config import GraphConfig
-
-                config = GraphConfig.load(base_dir=state["project_root"])
-                vocab = config.vocab
-                units = config.export.units
-            except Exception:
-                vocab = {}
-                units = {}
-            state["provider"] = DashboardDataProvider(
-                graph, vocab=vocab, units=units
-            )
-        return state["provider"]
+    # サービス層のみに依存
+    api_svc = ApiService(project_root)
 
     # ------------------------------------------
     # GET /api/v1/graph
@@ -99,7 +69,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/graph")
     def get_graph() -> dict[str, Any]:
         """グラフ全体（nodes + relations）を返す"""
-        graph = _get_graph()
+        graph = api_svc.get_graph()
         return {
             "nodes": [n.model_dump() for n in graph.nodes],
             "relations": [r.model_dump() for r in graph.relations],
@@ -124,8 +94,7 @@ def create_app(project_root: Path) -> FastAPI:
             ?props.temperature.le=400 → temperature <= 400 のノードのみ
             対応オペレータ: eq, ne, gt, ge, lt, le
         """
-        graph = _get_graph()
-        nodes = list(graph.nodes)
+        nodes = api_svc.get_nodes()
 
         # QueryServiceでフィルタリングを一括適用
         nodes = QueryService.filter_nodes(
@@ -152,8 +121,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/nodes/{node_id}")
     def get_node(node_id: int) -> dict[str, Any]:
         """ノード詳細を返す"""
-        provider = _get_provider()
-        card = provider.get_node_card(node_id)
+        card = api_svc.get_node_card(node_id)
         if card is None:
             raise HTTPException(status_code=404, detail="Node not found")
         return card
@@ -167,8 +135,7 @@ def create_app(project_root: Path) -> FastAPI:
         label: Optional[str] = Query(None, description="リレーションラベルでフィルタ"),
     ) -> dict[str, Any]:
         """関連ノードを返す"""
-        provider = _get_provider()
-        related = provider.get_related_files(node_id, label=label)
+        related = api_svc.get_related_files(node_id, label=label)
         return {"node_id": node_id, "related": related}
 
     # ------------------------------------------
@@ -181,11 +148,7 @@ def create_app(project_root: Path) -> FastAPI:
         offset: int = Query(0, description="オフセット", ge=0),
     ) -> dict[str, Any]:
         """リレーション一覧を返す"""
-        graph = _get_graph()
-        relations = list(graph.relations)
-
-        if label is not None:
-            relations = [r for r in relations if r.label == label]
+        relations = api_svc.filter_relations(label=label)
 
         total = len(relations)
         relations = relations[offset : offset + limit]
@@ -203,8 +166,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/properties/keys")
     def get_property_keys() -> dict[str, Any]:
         """利用可能なプロパティキー一覧を返す"""
-        provider = _get_provider()
-        keys = provider.get_property_keys()
+        keys = api_svc.get_property_keys()
         return {"keys": keys}
 
     # ------------------------------------------
@@ -213,20 +175,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/summary")
     def get_summary() -> dict[str, Any]:
         """サマリー統計を返す"""
-        from services.graph import GraphService
-
-        graph = _get_graph()
-        svc = GraphService(project_root=state["project_root"])
-        summary = svc.summary(graph)
-
-        # go_テーブル行数も追加
-        provider = _get_provider()
-        go_rows = provider.get_go_table()
-
-        return {
-            **summary,
-            "go_file_count": len(go_rows),
-        }
+        return api_svc.get_summary()
 
     # ------------------------------------------
     # GET /api/v1/status
@@ -234,8 +183,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/status")
     def get_status() -> dict[str, Any]:
         """実行ステータスを返す"""
-        provider = _get_provider()
-        return provider.get_status_summary()
+        return api_svc.get_status_summary()
 
     # ------------------------------------------
     # POST /api/v1/parse
@@ -252,21 +200,7 @@ def create_app(project_root: Path) -> FastAPI:
         Returns:
             パース結果のサマリー
         """
-        from services.graph import GraphService
-
-        svc = GraphService(project_root=state["project_root"])
-        graph, save_path = svc.parse_and_save(full_mode=full)
-
-        # キャッシュをリセットして新しいグラフをロード
-        state["graph"] = graph
-        state["provider"] = None
-
-        summary = svc.summary(graph)
-        return {
-            "status": "parsed",
-            "save_path": str(save_path),
-            **summary,
-        }
+        return api_svc.parse_project(full=full)
 
     # ------------------------------------------
     # POST /api/v1/reload
@@ -274,9 +208,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.post("/api/v1/reload")
     def reload_graph() -> dict[str, str]:
         """グラフデータを再読み込みする"""
-        state["graph"] = None
-        state["provider"] = None
-        _ = _get_graph()
+        api_svc.reload_graph()
         return {"status": "reloaded"}
 
     return app
