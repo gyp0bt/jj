@@ -91,6 +91,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-13 / status-082: 純粋関数モジュール（query.py/html_export.py/abaqus_query.py）の単体テスト65件追加。app.py後方互換ラッパー削除計画を文書化。services/query（jjレベル）昇格の設計検討を文書化。([status-082](docs/status/status-082.md))
+- 2026-02-13 / status-081: ダッシュボード描画/クエリロジック分離。app.pyから純粋関数群をquery.py/html_export.py/abaqus_query.pyに抽出。([status-081](docs/status/status-081.md))
 - 2026-02-13 / status-080: ダッシュボード機能拡張。配列プロット全モードにNG領域対応。物性比較CSVエクスポート追加。保存済みビューの動的追加・編集・削除UI追加。保存済みビューのスタンドアロンHTMLエクスポート機能追加（plotlyインライン化、テーブル・ステータス対応）。11テスト追加。([status-080](docs/status/status-080.md))
 - 2026-02-13 / status-079: ダッシュボード機能拡張。配列プロットに保存済みビュー（array_plot型）とフィルタ連携を追加。物性一覧に比較機能（複数materialカーブ重ね書き）とgo_ノード使用関係表示を追加。プロットにNG領域塗りつぶし（矩形/カーブ、config駆動）とグループ結線（同一条件データ点を灰色点線で結線）を追加。16テスト追加。([status-079](docs/status/status-079.md))
 - 2026-02-13 / status-078: CSV配列拡張（サブディレクトリCSV/ヘッダーなしCSV）・Excelダウンロード・REST API拡張（POST parse/プロパティ比較フィルター）。15テスト追加。([status-078](docs/status/status-078.md))
