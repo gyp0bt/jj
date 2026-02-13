@@ -3165,3 +3165,287 @@ class TestNgRegionConfig:
         assert len(config.ng_regions) == 2
         assert config.ng_regions[0]["type"] == "rect"
         assert config.ng_regions[1]["type"] == "curve"
+
+
+# ====================================================================
+# 物性比較CSVエクスポート テスト
+# ====================================================================
+
+
+class TestMaterialComparisonCsv:
+    """物性比較のCSVエクスポートデータ生成テスト"""
+
+    def _make_material_graph(self) -> GraphModel:
+        """物性比較テスト用GraphModel"""
+        return GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="abaqus_material", name="Steel",
+                    format="material",
+                    properties={
+                        "plastic": [[100.0, 0.0], [200.0, 0.01], [250.0, 0.05]],
+                        "elastic": [[210000.0, 0.3]],
+                    },
+                ),
+                Node(
+                    id=2, type="abaqus_material", name="Aluminum",
+                    format="material",
+                    properties={
+                        "plastic": [[80.0, 0.0], [150.0, 0.02]],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+
+    def test_comparison_data_collection(self):
+        """比較データがmaterial別に正しく収集される"""
+        from services.dashboard.connectors.abaqus import (
+            get_material_table,
+            get_material_table_data,
+            guess_table_column_names,
+            get_curve_plot_axes,
+        )
+
+        graph = self._make_material_graph()
+        provider = DashboardDataProvider(graph)
+        mat_rows = get_material_table(provider)
+
+        # 両方のmaterialがplasticを持つ
+        comparison_data = []
+        for mat_name in ["Steel", "Aluminum"]:
+            mat_id = next(r["id"] for r in mat_rows if r["name"] == mat_name)
+            table_data = get_material_table_data(provider, mat_id, "plastic")
+            assert table_data is not None
+            data_rows = table_data["data"]
+            num_cols = len(data_rows[0])
+            col_names = guess_table_column_names("plastic", num_cols, None)
+            for row in data_rows:
+                entry = {"material": mat_name}
+                for ci, cn in enumerate(col_names):
+                    if ci < len(row):
+                        entry[cn] = row[ci]
+                comparison_data.append(entry)
+
+        assert len(comparison_data) == 5  # Steel: 3行 + Aluminum: 2行
+        assert comparison_data[0]["material"] == "Steel"
+        assert comparison_data[3]["material"] == "Aluminum"
+
+    def test_comparison_csv_format(self):
+        """CSV変換が正しくフォーマットされる"""
+        import pandas as pd
+
+        data = [
+            {"material": "Steel", "col_0": 100.0, "col_1": 0.0},
+            {"material": "Steel", "col_0": 200.0, "col_1": 0.01},
+            {"material": "Aluminum", "col_0": 80.0, "col_1": 0.0},
+        ]
+        csv_df = pd.DataFrame(data)
+        csv_str = csv_df.to_csv(index=False)
+        lines = csv_str.strip().split("\n")
+        assert lines[0] == "material,col_0,col_1"
+        assert len(lines) == 4  # header + 3 data rows
+
+
+# ====================================================================
+# HTMLエクスポート テスト
+# ====================================================================
+
+
+@pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("streamlit"),
+    reason="streamlit not installed",
+)
+class TestHtmlExport:
+    """保存済みビューHTMLエクスポートのテスト"""
+
+    def _make_test_graph(self) -> GraphModel:
+        return GraphModel(
+            nodes=[
+                Node(
+                    id=1, type="go", name="go_test1", format="inp",
+                    properties={
+                        "path": "go_test1.inp",
+                        "active": True,
+                        "analysis_status": "completed",
+                        "RF3": 5.0,
+                        "temperature": 300,
+                    },
+                ),
+                Node(
+                    id=2, type="go", name="go_test2", format="inp",
+                    properties={
+                        "path": "go_test2.inp",
+                        "active": True,
+                        "analysis_status": "failed",
+                        "RF3": 3.0,
+                        "temperature": 350,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+
+    def test_generate_table_html(self):
+        """テーブルビューのHTML生成"""
+        from config import SavedViewConfig, DashboardConfig
+        from services.dashboard.app import _generate_table_html
+
+        graph = self._make_test_graph()
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict({
+            "name": "test_table",
+            "type": "table",
+        })
+        html = _generate_table_html(provider, dashboard_config, view)
+        assert "go_test1" in html
+        assert "go_test2" in html
+        assert "<table" in html
+
+    def test_generate_table_html_with_filter(self):
+        """フィルタ付きテーブルビューのHTML生成"""
+        from config import SavedViewConfig, DashboardConfig
+        from services.dashboard.app import _generate_table_html
+
+        graph = self._make_test_graph()
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict({
+            "name": "completed_only",
+            "type": "table",
+            "filters": {"analysis_status": "completed"},
+        })
+        html = _generate_table_html(provider, dashboard_config, view)
+        assert "go_test1" in html
+        assert "go_test2" not in html
+        assert "1 / 2 件" in html
+
+    def test_generate_status_html(self):
+        """ステータスビューのHTML生成"""
+        from services.dashboard.app import _generate_status_html
+
+        graph = self._make_test_graph()
+        provider = DashboardDataProvider(graph)
+        html = _generate_status_html(provider)
+        assert "合計" in html
+        assert "2" in html
+
+    def test_generate_plot_html(self):
+        """プロットビューのHTML生成（plotly依存）"""
+        try:
+            import plotly  # noqa: F401
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from config import SavedViewConfig, DashboardConfig
+        from services.dashboard.app import _generate_plot_html
+
+        graph = self._make_test_graph()
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict({
+            "name": "test_plot",
+            "type": "plot",
+            "plot": {"x": "RF3", "y": "temperature"},
+        })
+        html = _generate_plot_html(provider, view, dashboard_config)
+        assert "plotly-graph" in html or "データ点数" in html
+
+    def test_generate_card_html(self):
+        """カードビューのHTML生成"""
+        from config import SavedViewConfig
+        from services.dashboard.app import _generate_card_html
+
+        graph = self._make_test_graph()
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict({
+            "name": "test_card",
+            "type": "card",
+        })
+        html = _generate_card_html(provider, view)
+        assert "go_test1" in html
+
+    def test_full_html_generation(self):
+        """全体HTMLの生成"""
+        from pathlib import Path
+        from config import SavedViewConfig, DashboardConfig
+        from services.dashboard.app import _generate_saved_views_html
+
+        graph = self._make_test_graph()
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({})
+        views = [
+            SavedViewConfig.from_dict({"name": "テスト一覧", "type": "table"}),
+            SavedViewConfig.from_dict({"name": "ステータス", "type": "status"}),
+        ]
+        html = _generate_saved_views_html(
+            provider, Path("/tmp"), dashboard_config, views
+        )
+        assert "<!DOCTYPE html>" in html
+        assert "テスト一覧" in html
+        assert "ステータス" in html
+        assert "plotly-latest.min.js" in html
+
+
+# ====================================================================
+# 動的ビュー追加 テスト
+# ====================================================================
+
+
+class TestDynamicViews:
+    """動的ビューのSavedViewConfig変換テスト"""
+
+    def test_dynamic_view_to_config(self):
+        """動的ビューの辞書がSavedViewConfigに変換される"""
+        from config import SavedViewConfig
+
+        view_data = {
+            "name": "テスト動的ビュー",
+            "type": "table",
+            "filters": {"active": True},
+            "plot": {},
+            "array_plot": {},
+            "gallery": {},
+        }
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.name == "テスト動的ビュー"
+        assert view.view_type == "table"
+        assert view.filters == {"active": True}
+
+    def test_dynamic_view_plot_type(self):
+        """プロットタイプの動的ビュー"""
+        from config import SavedViewConfig
+
+        view_data = {
+            "name": "動的プロット",
+            "type": "plot",
+            "filters": {},
+            "plot": {"x": "RF3", "y": "temperature", "chart_type": "散布図"},
+            "array_plot": {},
+            "gallery": {},
+        }
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.view_type == "plot"
+        assert view.plot["x"] == "RF3"
+
+    def test_dynamic_view_array_plot_type(self):
+        """配列プロットタイプの動的ビュー"""
+        from config import SavedViewConfig
+
+        view_data = {
+            "name": "動的配列プロット",
+            "type": "array_plot",
+            "filters": {},
+            "plot": {},
+            "array_plot": {
+                "prefix": "RF",
+                "x": "RF.time",
+                "y": ["RF.RF3"],
+                "mode": "grid",
+            },
+            "gallery": {},
+        }
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.view_type == "array_plot"
+        assert view.array_plot["prefix"] == "RF"

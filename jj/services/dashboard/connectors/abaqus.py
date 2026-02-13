@@ -418,11 +418,43 @@ def _render_material_comparison(
         st.info("物性を選択してください。")
         return
 
+    # 比較データの収集（プロット + CSVエクスポート用）
+    import pandas as pd
+
+    comparison_data: list[dict[str, Any]] = []
+    num_cols = 2  # デフォルト
+
+    for mat_name in selected_mats:
+        mat_id = next(
+            (r["id"] for r in mat_rows if r["name"] == mat_name), None
+        )
+        if mat_id is None:
+            continue
+        table_data = get_material_table_data(provider, mat_id, compare_key)
+        if table_data is None:
+            continue
+        data_rows = table_data["data"]
+        if not data_rows or len(data_rows[0]) < 2:
+            continue
+        num_cols = len(data_rows[0])
+        x_idx, y_idx = get_curve_plot_axes(
+            compare_key, num_cols, mcc
+        )
+        col_names = guess_table_column_names(compare_key, num_cols, mcc)
+        for row in data_rows:
+            entry: dict[str, Any] = {"material": mat_name}
+            for ci, cn in enumerate(col_names):
+                if ci < len(row):
+                    entry[cn] = row[ci]
+            comparison_data.append(entry)
+
     # 重ね書きプロット
     try:
         import plotly.graph_objects as go
 
         fig = go.Figure()
+        col_names = guess_table_column_names(compare_key, num_cols, mcc)
+        x_idx, y_idx = get_curve_plot_axes(compare_key, num_cols, mcc)
 
         for mat_name in selected_mats:
             mat_id = next(
@@ -436,9 +468,6 @@ def _render_material_comparison(
             data_rows = table_data["data"]
             if not data_rows or len(data_rows[0]) < 2:
                 continue
-            x_idx, y_idx = get_curve_plot_axes(
-                compare_key, len(data_rows[0]), mcc
-            )
             x_vals = [row[x_idx] for row in data_rows]
             y_vals = [row[y_idx] for row in data_rows]
             fig.add_trace(go.Scatter(
@@ -447,9 +476,8 @@ def _render_material_comparison(
                 name=mat_name,
             ))
 
-        col_names = guess_table_column_names(compare_key, 2, mcc)
-        x_label = col_names[0] if len(col_names) > 0 else "X"
-        y_label = col_names[1] if len(col_names) > 1 else "Y"
+        x_label = col_names[x_idx] if x_idx < len(col_names) else "X"
+        y_label = col_names[y_idx] if y_idx < len(col_names) else "Y"
         fig.update_layout(
             xaxis_title=x_label,
             yaxis_title=y_label,
@@ -459,6 +487,17 @@ def _render_material_comparison(
         st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         st.warning("plotlyが必要です: pip install plotly")
+
+    # CSVエクスポートボタン
+    if comparison_data:
+        csv_df = pd.DataFrame(comparison_data)
+        csv_bytes = csv_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            label="比較データCSVダウンロード",
+            data=csv_bytes,
+            file_name=f"material_comparison_{compare_key}.csv",
+            mime="text/csv",
+        )
 
 
 # ====================================================================
