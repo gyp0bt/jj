@@ -10,7 +10,7 @@ CLIで利用する主要サービス群のルートです。各サブモジュ�
 - `run/`: `jj r` で実行するシステムコマンドのラップとログ/トレース収集。
 - `file/`: グラフ情報を保持しつつファイル操作・履歴管理・ssh送受信。
 - `ssh/`: SSHによる送受信やリモートコマンド実行のユーティリティ。
-- `dashboard/`: ダッシュボード向けデータ供給（DashboardDataProvider）。
+- `dashboard/`: ダッシュボード（Streamlit）。描画層(app.py)、クエリ層(query.py)、データ供給層(data_provider.py)、HTMLエクスポート(html_export.py)に分離。コネクター(connectors/)でソフト固有ページを提供。
 - `service/`: 各サービスをアセンブルし、CLIに渡す処理関数を提供。
 
 ## 依存ルール
