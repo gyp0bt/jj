@@ -1,26 +1,23 @@
-"""Streamlitダッシュボードアプリ本体（汎用ページのみ）
+"""Streamlitダッシュボードアプリ本体（描画層）
 
 jj dashboardコマンドから起動されるStreamlitアプリ。
 GraphModelを読み込み、テーブル/カード/プロット/ステータス/ギャラリー/保存済みビューの
 汎用ビューを提供する。ソフトウェア固有ページ（例: Abaqus物性一覧）は
 services/dashboard/connectors/ のコネクターとして実装・自動登録される。
 
-AgGridテーブル、画像ギャラリー、graph.yaml変更検知に対応。
-config.yaml駆動のカラム選択・フィルタ・プロット軸・ギャラリーグリッド設定対応。
-保存済みビュー機能でフィルタ・プロット条件を保存し、config順に一括表示。
-activeフィルタはbool/文字列両方に対応（_is_truthy）。
-画像パスはプロジェクトルート基準とnotes/daily基準のフォールバック解決に対応。
-ギャラリーはgo_propertiesのキーやproperty_keyでグループ表示可能（daily:日付:キー→キー正規化）。
-テーブル列・プロット軸・プロパティキー一覧はvocab順（vocab定義順→未定義は文字列昇順）。
-float値は桁数が大きい場合に指数表示（小数2桁）。
-AgGridは列名文字幅に基づく初期列幅設定。
+## 責務分離（status-078）
+- **描画層（本ファイル）**: Streamlit UIの構築・ユーザー操作の処理
+- **クエリ層（query.py）**: フィルタ・ソート・カラム選択等の純粋ロジック
+- **データ供給層（data_provider.py）**: GraphModelからのデータ取得
+- **HTMLエクスポート（html_export.py）**: スタンドアロンHTML生成
+- **共有ウィジェット（widgets.py）**: AgGrid等のUIヘルパー
+- **コネクター（connectors/）**: ソフトウェア固有ページ
 
 [READMEへ戻る](../../../README.md)
 """
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import sys
 from pathlib import Path
@@ -36,35 +33,27 @@ if _project_src not in sys.path:
 from jj_types import GraphModel
 from services.dashboard.data_provider import DashboardDataProvider
 from services.dashboard.connectors import get_connector_pages, render_connector_page
+from services.dashboard.query import (
+    find_graph_path,
+    get_graph_mtime,
+    is_truthy,
+    select_table_columns,
+    apply_filters,
+    apply_saved_view_filters,
+    saved_view_filters_to_provider_filters,
+    normalize_group_key,
+    collect_group_keys,
+)
+from services.dashboard.html_export import (
+    generate_saved_views_html,
+    _create_plot_figure,
+    _add_ng_regions_to_fig,
+    _add_group_lines_to_fig,
+)
 from services.graph import GraphService
 
 # コネクター自動登録（インポート時に__init_subclass__で登録される）
 import services.dashboard.connectors.abaqus  # noqa: F401
-
-
-# ====================================================================
-# graph.yaml変更検知
-# ====================================================================
-
-_GRAPH_EXTENSIONS = ("yaml", "yml", "json")
-
-
-def _find_graph_path(project_root: Path) -> Path | None:
-    """graph.yamlの実パスを検出"""
-    storage_dir = project_root / ".jj" / "storage"
-    for ext in _GRAPH_EXTENSIONS:
-        p = storage_dir / f"graph.{ext}"
-        if p.exists():
-            return p
-    return None
-
-
-def _get_graph_mtime(project_root: Path) -> float:
-    """graph.yamlの更新時刻を取得"""
-    graph_path = _find_graph_path(project_root)
-    if graph_path is not None:
-        return graph_path.stat().st_mtime
-    return 0.0
 
 
 def _check_graph_changed(project_root: Path) -> bool:
@@ -73,7 +62,7 @@ def _check_graph_changed(project_root: Path) -> bool:
     Returns:
         True: 変更あり（リロード必要）
     """
-    current_mtime = _get_graph_mtime(project_root)
+    current_mtime = get_graph_mtime(project_root)
     prev_mtime = st.session_state.get("_graph_mtime", 0.0)
 
     if prev_mtime == 0.0:
@@ -125,38 +114,16 @@ def _estimate_column_width(col_name: str) -> int:
 
 
 # ====================================================================
-# カラムフィルタリング（config.yamlのtable-columns対応）
+# カラムフィルタリング（query.pyへの後方互換ラッパー）
 # ====================================================================
 
 
 def _sort_columns_by_vocab(
     columns: list[str], vocab: dict[str, str]
 ) -> list[str]:
-    """vocab順でカラムをソート
-
-    vocab辞書の値（日本語表記）の出現順を優先し、
-    vocabに含まれないカラムは文字列昇順で後に配置する。
-
-    Args:
-        columns: ソート対象のカラムリスト
-        vocab: vocabマッピング
-
-    Returns:
-        vocab順→文字列昇順のリスト
-    """
-    vocab_order: dict[str, int] = {}
-    for idx, v in enumerate(vocab.values()):
-        if v not in vocab_order:
-            vocab_order[v] = idx
-    for idx, k in enumerate(vocab.keys()):
-        if k not in vocab_order:
-            vocab_order[k] = len(vocab) + idx
-
-    in_vocab = [c for c in columns if c in vocab_order]
-    not_in_vocab = [c for c in columns if c not in vocab_order]
-    in_vocab.sort(key=lambda c: vocab_order[c])
-    not_in_vocab.sort()
-    return in_vocab + not_in_vocab
+    """query.sort_columns_by_vocabへの委譲ラッパー（後方互換）"""
+    from services.dashboard.query import sort_columns_by_vocab
+    return sort_columns_by_vocab(columns, vocab)
 
 
 def _select_table_columns(
@@ -164,43 +131,8 @@ def _select_table_columns(
     table_columns: list[str] | None,
     vocab: dict[str, str] | None = None,
 ) -> list[str]:
-    """config指定に基づいてテーブルカラムをフィルタ・並べ替え
-
-    table_columnsが指定されていない場合はvocab順でソートして返す。
-
-    Args:
-        all_columns: DataFrameの全カラム名
-        table_columns: config.dashboard.table-columns（globパターン対応）
-        vocab: vocabマッピング（vocab順ソート用）
-
-    Returns:
-        表示するカラムのリスト（順序付き）
-    """
-    # 固定カラム（常に先頭に表示）
-    fixed = ["name", "type", "format"]
-
-    if table_columns is None:
-        # table-columns未指定の場合: 固定カラム + vocab順でソート
-        remaining = [c for c in all_columns if c not in fixed]
-        if vocab:
-            remaining = _sort_columns_by_vocab(remaining, vocab)
-        result = [c for c in fixed if c in all_columns] + remaining
-        return result
-
-    ordered: list[str] = []
-    seen: set[str] = set(fixed)
-
-    for pattern in table_columns:
-        for col in all_columns:
-            if col in seen:
-                continue
-            if fnmatch.fnmatch(col, pattern) or col == pattern:
-                ordered.append(col)
-                seen.add(col)
-
-    # 固定カラム（存在するもののみ） + 指定カラム
-    result = [c for c in fixed if c in all_columns] + ordered
-    return result
+    """query.select_table_columnsへの委譲ラッパー（後方互換）"""
+    return select_table_columns(all_columns, table_columns, vocab=vocab)
 
 
 # ====================================================================
@@ -219,7 +151,7 @@ def _init_shared_filters(default_filters: dict[str, Any]) -> None:
         # active値はYAML由来のboolまたは文字列"true"の両方に対応
         raw_active = default_filters.get("active", False)
         st.session_state.setdefault(
-            "_filter_active", _is_truthy(raw_active)
+            "_filter_active", is_truthy(raw_active)
         )
         st.session_state.setdefault("_filter_type", "すべて")
         st.session_state.setdefault("_filter_status", "すべて")
@@ -272,22 +204,8 @@ def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
 
 
 def _is_truthy(value: Any) -> bool:
-    """bool/文字列両方に対応したtruthy判定
-
-    YAML経由の値はbool True/Falseだが、GraphService.file_to_node()では
-    文字列 "true"/"false" として格納される。両方を正しく扱う。
-
-    Args:
-        value: チェック対象の値
-
-    Returns:
-        True と見なせる場合 True
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() == "true"
-    return bool(value)
+    """query.is_truthyへの委譲ラッパー（後方互換）"""
+    return is_truthy(value)
 
 
 def _get_active_filters() -> dict[str, Any] | None:
@@ -312,7 +230,7 @@ def _get_active_filters() -> dict[str, Any] | None:
 
 
 def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """共有フィルタを適用
+    """共有フィルタを適用（session_stateからフィルタ条件を取得してquery層に委譲）
 
     Args:
         rows: フィルタ対象の全行データ
@@ -320,21 +238,16 @@ def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Returns:
         フィルタ適用後の行データ
     """
-    filtered = rows
     selected_type = st.session_state.get("_filter_type", "すべて")
     selected_status = st.session_state.get("_filter_status", "すべて")
     active_only = st.session_state.get("_filter_active", False)
 
-    if selected_type != "すべて":
-        filtered = [r for r in filtered if r.get("type") == selected_type]
-    if selected_status != "すべて":
-        filtered = [
-            r for r in filtered if r.get("analysis_status") == selected_status
-        ]
-    if active_only:
-        filtered = [r for r in filtered if _is_truthy(r.get("active"))]
-
-    return filtered
+    return apply_filters(
+        rows,
+        type_filter=selected_type,
+        status_filter=selected_status,
+        active_only=active_only,
+    )
 
 
 # ====================================================================
@@ -364,7 +277,7 @@ def main() -> None:
 
     # 手動再読み込みボタン
     if st.sidebar.button("再読み込み"):
-        st.session_state["_graph_mtime"] = _get_graph_mtime(project_root)
+        st.session_state["_graph_mtime"] = get_graph_mtime(project_root)
         st.rerun()
 
     # 自動リフレッシュ設定
@@ -743,77 +656,8 @@ def _render_plot_page(
 
 
 def _add_ng_regions(fig: Any, ng_regions: list[dict[str, Any]]) -> None:
-    """プロットにNG領域（矩形/カーブ）を追加
-
-    矩形タイプ: {"type": "rect", "x_min": float, "x_max": float,
-                  "y_min": float, "y_max": float, "color": str, "label": str}
-    カーブタイプ: {"type": "curve", "points": [[x,y],...],
-                   "fill": "above"|"below", "color": str, "label": str}
-    """
-    import plotly.graph_objects as go
-
-    for region in ng_regions:
-        rtype = region.get("type", "rect")
-        color = region.get("color", "rgba(255,0,0,0.1)")
-        label = region.get("label", "NG")
-
-        if rtype == "curve":
-            points = region.get("points", [])
-            if not points:
-                continue
-            x_pts = [p[0] for p in points]
-            y_pts = [p[1] for p in points]
-            fill_dir = region.get("fill", "above")
-            # カーブの境界線
-            fig.add_trace(go.Scatter(
-                x=x_pts, y=y_pts,
-                mode="lines",
-                line=dict(color=color.replace("0.1", "0.6") if "rgba" in color else color, dash="dash"),
-                name=label,
-                showlegend=True,
-            ))
-            # 塗りつぶし
-            if fill_dir == "above":
-                fig.add_trace(go.Scatter(
-                    x=x_pts, y=y_pts,
-                    fill="tonexty" if len(fig.data) > 1 else "tozeroy",
-                    fillcolor=color,
-                    line=dict(width=0),
-                    showlegend=False,
-                    hoverinfo="skip",
-                ))
-            elif fill_dir == "below":
-                fig.add_trace(go.Scatter(
-                    x=x_pts, y=y_pts,
-                    fill="tozeroy",
-                    fillcolor=color,
-                    line=dict(width=0),
-                    showlegend=False,
-                    hoverinfo="skip",
-                ))
-        else:
-            # 矩形
-            x0 = region.get("x_min")
-            x1 = region.get("x_max")
-            y0 = region.get("y_min")
-            y1 = region.get("y_max")
-            fig.add_shape(
-                type="rect",
-                x0=x0, x1=x1, y0=y0, y1=y1,
-                fillcolor=color,
-                line=dict(width=0),
-                layer="below",
-            )
-            # ラベル（右上に配置）
-            if label and x1 is not None and y1 is not None:
-                fig.add_annotation(
-                    x=x1, y=y1,
-                    text=label,
-                    showarrow=False,
-                    font=dict(size=10, color="red"),
-                    xanchor="right",
-                    yanchor="bottom",
-                )
+    """html_export._add_ng_regions_to_figへの委譲ラッパー（後方互換）"""
+    _add_ng_regions_to_fig(fig, ng_regions)
 
 
 def _add_group_lines(
@@ -823,67 +667,11 @@ def _add_group_lines(
     y_key: str,
     group_key: str,
 ) -> None:
-    """同一グループのデータ点を灰色点線で結線
-
-    Args:
-        fig: plotly Figure
-        df: データフレーム
-        x_key: X軸キー
-        y_key: Y軸キー
-        group_key: グループ化キー
-    """
-    import plotly.graph_objects as go
-
-    for group_val, group_df in df.groupby(group_key):
-        if len(group_df) < 2:
-            continue
-        sorted_df = group_df.sort_values(x_key)
-        fig.add_trace(go.Scatter(
-            x=sorted_df[x_key].tolist(),
-            y=sorted_df[y_key].tolist(),
-            mode="lines",
-            line=dict(color="gray", width=1, dash="dot"),
-            showlegend=False,
-            hoverinfo="skip",
-        ))
+    """html_export._add_group_lines_to_figへの委譲ラッパー（後方互換）"""
+    _add_group_lines_to_fig(fig, df, x_key, y_key, group_key)
 
 
-def _create_plot_figure(
-    px: Any,
-    df: "pd.DataFrame",
-    x_key: str,
-    y_key: str,
-    color: str | None,
-    chart_type: str,
-) -> Any:
-    """plotlyのFigureオブジェクトを作成"""
-    if chart_type == "散布図":
-        return px.scatter(
-            df,
-            x=x_key,
-            y=y_key,
-            color=color,
-            hover_name="name",
-            title=f"{y_key} vs {x_key}",
-        )
-    elif chart_type == "棒グラフ":
-        return px.bar(
-            df,
-            x="name",
-            y=y_key,
-            color=color,
-            title=f"{y_key} by name",
-        )
-    else:
-        return px.line(
-            df,
-            x=x_key,
-            y=y_key,
-            color=color,
-            hover_name="name",
-            title=f"{y_key} vs {x_key}",
-            markers=True,
-        )
+# _create_plot_figure はhtml_export.pyからインポート済み
 
 
 def _render_plot_grid(
@@ -1235,16 +1023,8 @@ def _render_gallery_page(
 
 
 def _normalize_group_key(key: str) -> str:
-    """グループキーを正規化（daily:日付:キー → キー部分のみ）
-
-    property_keyが "daily:2026-01-15:screenshot" の場合、
-    グルーピング用に "screenshot" に正規化する。
-    """
-    if key.startswith("daily:"):
-        parts = key.split(":", 2)
-        if len(parts) >= 3:
-            return parts[2]
-    return key
+    """query.normalize_group_keyへの委譲ラッパー（後方互換）"""
+    return normalize_group_key(key)
 
 
 def _render_gallery_grouped(
@@ -1422,26 +1202,8 @@ def _render_gallery_property_images(
 def _collect_group_keys(
     images: list[dict[str, Any]], source: str
 ) -> list[str]:
-    """画像リストからグループ化に利用できるキーを収集
-
-    Args:
-        images: 画像情報のリスト
-        source: "output" or "property"
-
-    Returns:
-        グループ化に利用可能なキーのリスト
-    """
-    keys: set[str] = set()
-    for img in images:
-        props = img.get("go_properties", {})
-        for k in props:
-            if k not in ("path", "include_properties"):
-                keys.add(k)
-    result = sorted(keys)
-    # propertyソースの場合はproperty_keyでのグルーピングも追加
-    if source == "property":
-        result = ["property_key"] + result
-    return result
+    """query.collect_group_keysへの委譲ラッパー（後方互換）"""
+    return collect_group_keys(images, source)
 
 
 def _render_image_grid(
@@ -1605,7 +1367,7 @@ def _render_saved_table(
         return
 
     # 保存済みフィルタを適用
-    filtered = _apply_saved_view_filters(rows, view.filters)
+    filtered = apply_saved_view_filters(rows, view.filters)
 
     st.caption(f"{len(filtered)} / {len(rows)} 件")
     if not filtered:
@@ -1659,7 +1421,7 @@ def _render_saved_plot(
     # 保存済みフィルタを適用（名前ベースでフィルタ）
     if view.filters:
         all_rows = provider.get_go_table()
-        filtered_rows = _apply_saved_view_filters(all_rows, view.filters)
+        filtered_rows = apply_saved_view_filters(all_rows, view.filters)
         filtered_names = {r["name"] for r in filtered_rows}
         data = [d for d in data if d.get("name") in filtered_names]
 
@@ -1745,7 +1507,7 @@ def _render_saved_card(
         return
 
     # 保存済みフィルタを適用
-    filtered = _apply_saved_view_filters(rows, view.filters)
+    filtered = apply_saved_view_filters(rows, view.filters)
     if not filtered:
         st.info("条件に一致するデータがありません。")
         return
@@ -1817,7 +1579,7 @@ def _render_saved_array_plot(
 
     # フィルタ適用
     filters = getattr(view, "filters", {}) or {}
-    filter_dict = _saved_view_filters_to_provider_filters(filters) if filters else None
+    filter_dict = saved_view_filters_to_provider_filters(filters) if filters else None
 
     # NG領域設定
     ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
@@ -1826,7 +1588,7 @@ def _render_saved_array_plot(
         # 個別ノード重ね書き（先頭ノードを表示）
         rows = provider.get_go_table()
         if filters:
-            rows = _apply_saved_view_filters(rows, filters)
+            rows = apply_saved_view_filters(rows, filters)
         if rows:
             node_id = rows[0]["id"]
             plot_data = provider.get_array_plot_data(node_id, x_key, y_keys)
@@ -1925,7 +1687,7 @@ def _render_html_export_button(
 
     if st.button("HTMLエクスポート", key="_html_export_btn"):
         with st.spinner("HTMLを生成中..."):
-            html = _generate_saved_views_html(
+            html = generate_saved_views_html(
                 provider, project_root, dashboard_config, saved_views, vocab
             )
         st.download_button(
@@ -1935,323 +1697,6 @@ def _render_html_export_button(
             mime="text/html",
             key="_html_download_btn",
         )
-
-
-def _generate_saved_views_html(
-    provider: DashboardDataProvider,
-    project_root: Path,
-    dashboard_config: Any,
-    views: list[Any],
-    vocab: dict[str, str] | None = None,
-) -> str:
-    """保存済みビュー一覧をスタンドアロンHTMLに変換"""
-    import pandas as pd
-
-    sections: list[str] = []
-
-    for view in views:
-        section_html = _generate_view_html(
-            provider, project_root, dashboard_config, view, vocab
-        )
-        if section_html:
-            sections.append(
-                f'<div class="view-section">'
-                f'<h2>{view.name}</h2>'
-                f'<p class="view-type">タイプ: {view.view_type}</p>'
-                f'{section_html}'
-                f'</div>'
-            )
-
-    body = "\n<hr>\n".join(sections)
-    project_name = project_root.name if project_root else "jj"
-
-    html = f"""<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>jj Dashboard - {project_name}</title>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<style>
-body {{
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    margin: 0; padding: 20px;
-    background: #f8f9fa; color: #333;
-}}
-h1 {{ color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }}
-h2 {{ color: #374151; margin-top: 24px; }}
-.view-section {{ background: #fff; padding: 20px; margin: 16px 0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-.view-type {{ color: #6b7280; font-size: 0.9em; }}
-table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.9em; }}
-th, td {{ border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; }}
-th {{ background: #f3f4f6; font-weight: 600; }}
-tr:nth-child(even) {{ background: #f9fafb; }}
-.caption {{ color: #6b7280; font-size: 0.85em; margin: 4px 0; }}
-.plotly-graph {{ margin: 12px 0; }}
-.grid-container {{ display: grid; gap: 12px; }}
-hr {{ border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }}
-</style>
-</head>
-<body>
-<h1>jj Dashboard - {project_name}</h1>
-<p class="caption">生成日時: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-{body}
-</body>
-</html>"""
-    return html
-
-
-def _generate_view_html(
-    provider: DashboardDataProvider,
-    project_root: Path,
-    dashboard_config: Any,
-    view: Any,
-    vocab: dict[str, str] | None = None,
-) -> str:
-    """個別ビューのHTML断片を生成"""
-    import pandas as pd
-
-    if view.view_type == "table":
-        return _generate_table_html(provider, dashboard_config, view, vocab)
-    elif view.view_type == "plot":
-        return _generate_plot_html(provider, view, dashboard_config)
-    elif view.view_type == "array_plot":
-        return _generate_array_plot_html(provider, dashboard_config, view)
-    elif view.view_type == "status":
-        return _generate_status_html(provider)
-    elif view.view_type == "card":
-        return _generate_card_html(provider, view)
-    return ""
-
-
-def _generate_table_html(
-    provider: DashboardDataProvider,
-    dashboard_config: Any,
-    view: Any,
-    vocab: dict[str, str] | None = None,
-) -> str:
-    """テーブルビューのHTML断片"""
-    import pandas as pd
-
-    rows = provider.get_go_table()
-    if not rows:
-        return "<p>go_ファイルが見つかりません。</p>"
-
-    filtered = _apply_saved_view_filters(rows, view.filters)
-    if not filtered:
-        return "<p>条件に一致するデータがありません。</p>"
-
-    display_rows = []
-    for r in filtered:
-        row = {k: v for k, v in r.items() if k != "related_files"}
-        for k, v in row.items():
-            if isinstance(v, (dict, list)):
-                row[k] = str(v)
-        display_rows.append(row)
-
-    df = pd.DataFrame(display_rows)
-    table_columns = getattr(dashboard_config, "table_columns", None)
-    selected_cols = _select_table_columns(
-        list(df.columns), table_columns, vocab=vocab or {}
-    )
-    if selected_cols:
-        df = df[[c for c in selected_cols if c in df.columns]]
-
-    caption = f'<p class="caption">{len(filtered)} / {len(rows)} 件</p>'
-    return caption + df.to_html(index=False, classes="dataframe")
-
-
-def _generate_plot_html(
-    provider: DashboardDataProvider,
-    view: Any,
-    dashboard_config: Any = None,
-) -> str:
-    """プロットビューのHTML断片（plotly inlineHTML）"""
-    plot_config = view.plot
-    x_key = plot_config.get("x")
-    y_key = plot_config.get("y")
-    color = plot_config.get("color")
-    chart_type = plot_config.get("chart_type", "散布図")
-
-    if not x_key or not y_key:
-        return "<p>プロット設定にx/yが指定されていません。</p>"
-
-    data = provider.get_plot_data(x_key, y_key, color_key=color)
-    if view.filters:
-        all_rows = provider.get_go_table()
-        filtered_rows = _apply_saved_view_filters(all_rows, view.filters)
-        filtered_names = {r["name"] for r in filtered_rows}
-        data = [d for d in data if d.get("name") in filtered_names]
-
-    if not data:
-        return f"<p>'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。</p>"
-
-    try:
-        import pandas as pd
-        import plotly.express as px
-
-        df = pd.DataFrame(data)
-        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type)
-        ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
-        if ng_regions:
-            _add_ng_regions(fig, ng_regions)
-        group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
-        if group_line_key and group_line_key in df.columns:
-            _add_group_lines(fig, df, x_key, y_key, group_line_key)
-
-        plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
-        caption = f'<p class="caption">データ点数: {len(data)}</p>'
-        return f'<div class="plotly-graph">{plot_html}</div>{caption}'
-    except ImportError:
-        return "<p>plotlyが必要です。</p>"
-
-
-def _generate_array_plot_html(
-    provider: DashboardDataProvider,
-    dashboard_config: Any,
-    view: Any,
-) -> str:
-    """配列プロットビューのHTML断片"""
-    ap_config = getattr(view, "array_plot", {})
-    prefix = ap_config.get("prefix", "")
-    x_key = ap_config.get("x", "")
-    y_keys = ap_config.get("y", [])
-    mode = ap_config.get("mode", "grid")
-
-    if not x_key:
-        array_keys = provider.get_array_property_keys()
-        if prefix:
-            prefix_keys = [k for k in array_keys if k.startswith(prefix + ".")]
-        else:
-            prefix_keys = array_keys
-        if not prefix_keys:
-            return "<p>配列プロパティが見つかりません。</p>"
-        x_key = prefix_keys[0]
-        if not y_keys:
-            y_keys = [k for k in prefix_keys if k != x_key]
-
-    if isinstance(y_keys, str):
-        y_keys = [y_keys]
-    if not y_keys:
-        return "<p>Y軸の配列キーが指定されていません。</p>"
-
-    filters = getattr(view, "filters", {}) or {}
-    filter_dict = _saved_view_filters_to_provider_filters(filters) if filters else None
-    ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
-
-    parts: list[str] = []
-
-    try:
-        import plotly.graph_objects as go
-
-        for y_key in y_keys:
-            grid_data = provider.get_array_grid_data(x_key, y_key, filters=filter_dict)
-            if not grid_data:
-                continue
-            grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
-
-            parts.append(f"<h3>{y_key} vs {x_key}</h3>")
-
-            cols_per_row = getattr(dashboard_config, "gallery_columns", 4) if dashboard_config else 4
-            parts.append(f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">')
-
-            for item in grid_data:
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=item["x_values"],
-                    y=item["y_values"],
-                    mode="lines+markers",
-                    name=y_key,
-                ))
-                if ng_regions:
-                    _add_ng_regions(fig, ng_regions)
-                title = item["name"]
-                idx_str = item.get("index", "")
-                if idx_str:
-                    title += f" (idx{idx_str})"
-                fig.update_layout(
-                    title=title,
-                    xaxis_title=x_key.split(".")[-1],
-                    yaxis_title=y_key.split(".")[-1],
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    height=300,
-                    showlegend=False,
-                )
-                plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
-                parts.append(f'<div class="plotly-graph">{plot_html}</div>')
-
-            parts.append("</div>")
-            parts.append(f'<p class="caption">データ数: {len(grid_data)}</p>')
-
-    except ImportError:
-        return "<p>plotlyが必要です。</p>"
-
-    return "\n".join(parts)
-
-
-def _generate_status_html(
-    provider: DashboardDataProvider,
-) -> str:
-    """ステータスビューのHTML断片"""
-    import pandas as pd
-
-    status = provider.get_status_summary()
-    metrics = (
-        f'<div style="display:flex;gap:24px;margin:12px 0;">'
-        f'<div><strong>合計</strong>: {status["total"]}</div>'
-        f'<div><strong>完了</strong>: {status["completed"]}</div>'
-        f'<div><strong>失敗</strong>: {status["failed"]}</div>'
-        f'<div><strong>不明</strong>: {status["unknown"]}</div>'
-        f'</div>'
-    )
-    items = status["items"]
-    if items:
-        df = pd.DataFrame(items)
-        return metrics + df.to_html(index=False, classes="dataframe")
-    return metrics + "<p>go_ファイルが見つかりません。</p>"
-
-
-def _generate_card_html(
-    provider: DashboardDataProvider,
-    view: Any,
-) -> str:
-    """カードビューのHTML断片"""
-    import pandas as pd
-
-    rows = provider.get_go_table()
-    if not rows:
-        return "<p>go_ファイルが見つかりません。</p>"
-
-    filtered = _apply_saved_view_filters(rows, view.filters)
-    if not filtered:
-        return "<p>条件に一致するデータがありません。</p>"
-
-    first_row = filtered[0]
-    node_id = first_row.get("id")
-    if node_id is None:
-        return ""
-
-    card = provider.get_node_card(node_id)
-    if card is None:
-        return ""
-
-    props = {
-        k: v for k, v in card["properties"].items()
-        if k not in ("path", "include_properties")
-    }
-    props_flat = {}
-    for k, v in props.items():
-        if isinstance(v, (dict, list)):
-            props_flat[k] = str(v)
-        else:
-            props_flat[k] = v
-
-    parts = [f"<p><strong>{card['name']}</strong> ({card['type']})</p>"]
-    if props_flat:
-        df = pd.DataFrame([props_flat]).T
-        df.columns = ["値"]
-        parts.append(df.to_html(classes="dataframe"))
-    return "\n".join(parts)
 
 
 def _render_view_add_form(
@@ -2411,50 +1856,8 @@ def _render_view_edit_form(
                 st.rerun()
 
 
-def _saved_view_filters_to_provider_filters(
-    filters: dict[str, Any],
-) -> dict[str, Any]:
-    """保存済みビューのフィルタをDashboardDataProvider.get_*のfilters形式に変換"""
-    result: dict[str, Any] = {}
-    for key, value in filters.items():
-        result[key] = value
-    return result
-
-
-def _apply_saved_view_filters(
-    rows: list[dict[str, Any]], filters: dict[str, Any]
-) -> list[dict[str, Any]]:
-    """保存済みビューのフィルタを適用
-
-    Args:
-        rows: フィルタ対象の全行データ
-        filters: 保存済みフィルタ条件
-
-    Returns:
-        フィルタ適用後の行データ
-    """
-    if not filters:
-        return rows
-
-    filtered = rows
-    for key, value in filters.items():
-        if key == "active":
-            if _is_truthy(value):
-                filtered = [r for r in filtered if _is_truthy(r.get("active"))]
-            else:
-                filtered = [
-                    r for r in filtered if not _is_truthy(r.get("active"))
-                ]
-        elif key == "type" and value != "すべて":
-            filtered = [r for r in filtered if r.get("type") == value]
-        elif key == "analysis_status" and value != "すべて":
-            filtered = [
-                r for r in filtered if r.get("analysis_status") == value
-            ]
-        else:
-            filtered = [r for r in filtered if r.get(key) == value]
-
-    return filtered
+# _saved_view_filters_to_provider_filters, _apply_saved_view_filters は
+# query.py からトップレベルでインポート済み
 
 
 if __name__ == "__main__":
