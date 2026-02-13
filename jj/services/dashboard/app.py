@@ -118,22 +118,6 @@ def _estimate_column_width(col_name: str) -> int:
 # ====================================================================
 
 
-def _sort_columns_by_vocab(
-    columns: list[str], vocab: dict[str, str]
-) -> list[str]:
-    """query.sort_columns_by_vocabへの委譲ラッパー（後方互換）"""
-    from services.dashboard.query import sort_columns_by_vocab
-    return sort_columns_by_vocab(columns, vocab)
-
-
-def _select_table_columns(
-    all_columns: list[str],
-    table_columns: list[str] | None,
-    vocab: dict[str, str] | None = None,
-) -> list[str]:
-    """query.select_table_columnsへの委譲ラッパー（後方互換）"""
-    return select_table_columns(all_columns, table_columns, vocab=vocab)
-
 
 # ====================================================================
 # 共有フィルタ（session_stateで永続化・ビュー間共有）
@@ -203,11 +187,6 @@ def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
     st.session_state["_filter_active"] = active_only
 
 
-def _is_truthy(value: Any) -> bool:
-    """query.is_truthyへの委譲ラッパー（後方互換）"""
-    return is_truthy(value)
-
-
 def _get_active_filters() -> dict[str, Any] | None:
     """現在の共有フィルタ設定をprovider用辞書として取得
 
@@ -227,27 +206,6 @@ def _get_active_filters() -> dict[str, Any] | None:
         filters["active"] = True
 
     return filters if filters else None
-
-
-def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """共有フィルタを適用（session_stateからフィルタ条件を取得してquery層に委譲）
-
-    Args:
-        rows: フィルタ対象の全行データ
-
-    Returns:
-        フィルタ適用後の行データ
-    """
-    selected_type = st.session_state.get("_filter_type", "すべて")
-    selected_status = st.session_state.get("_filter_status", "すべて")
-    active_only = st.session_state.get("_filter_active", False)
-
-    return apply_filters(
-        rows,
-        type_filter=selected_type,
-        status_filter=selected_status,
-        active_only=active_only,
-    )
 
 
 # ====================================================================
@@ -399,7 +357,12 @@ def _render_table_page(
 
     # 共有フィルタ（サイドバー描画 + 適用）
     _render_shared_filters(rows)
-    filtered = _apply_shared_filters(rows)
+    filtered = apply_filters(
+        rows,
+        type_filter=st.session_state.get("_filter_type", "すべて"),
+        status_filter=st.session_state.get("_filter_status", "すべて"),
+        active_only=st.session_state.get("_filter_active", False),
+    )
 
     st.caption(f"{len(filtered)} / {len(rows)} 件")
 
@@ -423,7 +386,7 @@ def _render_table_page(
 
     # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)
-    selected_cols = _select_table_columns(
+    selected_cols = select_table_columns(
         list(df.columns), table_columns, vocab=vocab or {}
     )
     if selected_cols:
@@ -642,36 +605,17 @@ def _render_plot_page(
             # NG領域塗りつぶし
             ng_regions = getattr(dashboard_config, "ng_regions", [])
             if ng_regions:
-                _add_ng_regions(fig, ng_regions)
+                _add_ng_regions_to_fig(fig, ng_regions)
             # グループ結線
             gl_key = selected_group_line if selected_group_line != "なし" else None
             if gl_key and gl_key in df.columns:
-                _add_group_lines(fig, df, x_key, y_key, gl_key)
+                _add_group_lines_to_fig(fig, df, x_key, y_key, gl_key)
             st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         # plotlyがない場合はStreamlit組み込みチャートを使用
         st.scatter_chart(df, x=x_key, y=y_key)
 
     st.caption(f"データ点数: {len(data)}")
-
-
-def _add_ng_regions(fig: Any, ng_regions: list[dict[str, Any]]) -> None:
-    """html_export._add_ng_regions_to_figへの委譲ラッパー（後方互換）"""
-    _add_ng_regions_to_fig(fig, ng_regions)
-
-
-def _add_group_lines(
-    fig: Any,
-    df: "pd.DataFrame",
-    x_key: str,
-    y_key: str,
-    group_key: str,
-) -> None:
-    """html_export._add_group_lines_to_figへの委譲ラッパー（後方互換）"""
-    _add_group_lines_to_fig(fig, df, x_key, y_key, group_key)
-
-
-# _create_plot_figure はhtml_export.pyからインポート済み
 
 
 def _render_plot_grid(
@@ -847,7 +791,7 @@ def _render_array_grid(
                         ))
                         # NG領域塗りつぶし
                         if ng_regions:
-                            _add_ng_regions(fig, ng_regions)
+                            _add_ng_regions_to_fig(fig, ng_regions)
                         idx_str = item.get("index", "")
                         ver_str = item.get("version", "")
                         title = item["name"]
@@ -931,7 +875,7 @@ def _render_array_single(
             ))
         # NG領域塗りつぶし
         if ng_regions:
-            _add_ng_regions(fig, ng_regions)
+            _add_ng_regions_to_fig(fig, ng_regions)
         fig.update_layout(
             title=f"{selected}",
             xaxis_title=x_key.split(".")[-1],
@@ -1022,11 +966,6 @@ def _render_gallery_page(
         _render_gallery_property_images(provider, project_root, dashboard_config)
 
 
-def _normalize_group_key(key: str) -> str:
-    """query.normalize_group_keyへの委譲ラッパー（後方互換）"""
-    return normalize_group_key(key)
-
-
 def _render_gallery_grouped(
     images: list[dict[str, Any]],
     cols_per_row: int,
@@ -1050,7 +989,7 @@ def _render_gallery_grouped(
         if group_key == "property_key":
             # property_keyでグルーピング（daily:日付:キー → キー部分のみ）
             raw_key = img.get("property_key", "")
-            gk = _normalize_group_key(raw_key)
+            gk = normalize_group_key(raw_key)
         else:
             # go_propertiesのキーでグルーピング
             gk = str(img.get("go_properties", {}).get(group_key, "（未設定）"))
@@ -1086,7 +1025,7 @@ def _render_gallery_output_images(
         images = [img for img in images if img["image_format"] == selected_format]
 
     # グループ表示オプション
-    group_keys = _collect_group_keys(images, source="output")
+    group_keys = collect_group_keys(images, source="output")
     group_by = st.sidebar.selectbox(
         "グループ表示", ["なし"] + group_keys, key="_gallery_output_group"
     )
@@ -1158,7 +1097,7 @@ def _render_gallery_property_images(
         images = [img for img in images if img["image_format"] == selected_format]
 
     # グループ表示オプション
-    group_keys = _collect_group_keys(images, source="property")
+    group_keys = collect_group_keys(images, source="property")
     group_by = st.sidebar.selectbox(
         "グループ表示（プロパティ）", ["なし"] + group_keys,
         key="_gallery_property_group",
@@ -1197,13 +1136,6 @@ def _render_gallery_property_images(
 
     # NxMグリッドで表示
     _render_image_grid(page_images, cols_per_row, project_root, source="property")
-
-
-def _collect_group_keys(
-    images: list[dict[str, Any]], source: str
-) -> list[str]:
-    """query.collect_group_keysへの委譲ラッパー（後方互換）"""
-    return collect_group_keys(images, source)
 
 
 def _render_image_grid(
@@ -1388,7 +1320,7 @@ def _render_saved_table(
 
     # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)
-    selected_cols = _select_table_columns(
+    selected_cols = select_table_columns(
         list(df.columns), table_columns, vocab=vocab or {}
     )
     if selected_cols:
@@ -1442,11 +1374,11 @@ def _render_saved_plot(
         # NG領域塗りつぶし
         ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
         if ng_regions:
-            _add_ng_regions(fig, ng_regions)
+            _add_ng_regions_to_fig(fig, ng_regions)
         # グループ結線
         group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
         if group_line_key and group_line_key in df.columns:
-            _add_group_lines(fig, df, x_key, y_key, group_line_key)
+            _add_group_lines_to_fig(fig, df, x_key, y_key, group_line_key)
         st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         st.scatter_chart(df, x=x_key, y=y_key)
@@ -1605,7 +1537,7 @@ def _render_saved_array_plot(
                         ))
                     # NG領域塗りつぶし
                     if ng_regions:
-                        _add_ng_regions(fig, ng_regions)
+                        _add_ng_regions_to_fig(fig, ng_regions)
                     fig.update_layout(
                         title=plot_data["name"],
                         xaxis_title=x_key.split(".")[-1],
@@ -1641,7 +1573,7 @@ def _render_saved_array_plot(
                             ))
                             # NG領域塗りつぶし
                             if ng_regions:
-                                _add_ng_regions(fig, ng_regions)
+                                _add_ng_regions_to_fig(fig, ng_regions)
                             title = item["name"]
                             idx_str = item.get("index", "")
                             if idx_str:
