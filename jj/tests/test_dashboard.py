@@ -3449,3 +3449,788 @@ class TestDynamicViews:
         view = SavedViewConfig.from_dict(view_data)
         assert view.view_type == "array_plot"
         assert view.array_plot["prefix"] == "RF"
+
+
+# ====================================================================
+# query.py 単体テスト（Streamlit非依存）
+# ====================================================================
+
+
+class TestQueryModule:
+    """services/dashboard/query.py の純粋関数テスト"""
+
+    # ---- is_truthy ----
+
+    def test_is_truthy_bool_true(self):
+        from services.dashboard.query import is_truthy
+
+        assert is_truthy(True) is True
+
+    def test_is_truthy_bool_false(self):
+        from services.dashboard.query import is_truthy
+
+        assert is_truthy(False) is False
+
+    def test_is_truthy_string_true(self):
+        from services.dashboard.query import is_truthy
+
+        assert is_truthy("true") is True
+        assert is_truthy("True") is True
+        assert is_truthy("TRUE") is True
+        assert is_truthy(" true ") is True
+
+    def test_is_truthy_string_false(self):
+        from services.dashboard.query import is_truthy
+
+        assert is_truthy("false") is False
+        assert is_truthy("False") is False
+        assert is_truthy("") is False
+
+    def test_is_truthy_none(self):
+        from services.dashboard.query import is_truthy
+
+        assert is_truthy(None) is False
+
+    def test_is_truthy_int(self):
+        from services.dashboard.query import is_truthy
+
+        assert is_truthy(1) is True
+        assert is_truthy(0) is False
+
+    # ---- sort_columns_by_vocab ----
+
+    def test_sort_columns_by_vocab_basic(self):
+        from services.dashboard.query import sort_columns_by_vocab
+
+        vocab = {"条件": "condition", "RF3": "RF3", "温度": "temperature"}
+        columns = ["温度", "RF3", "条件", "extra"]
+        result = sort_columns_by_vocab(columns, vocab)
+        # vocab値の出現順: condition(0), RF3(1), temperature(2)
+        # vocabキー: 条件(3), RF3(4), 温度(5)
+        # "条件"はvocab_order["条件"]=3, "RF3"はvocab_order["RF3"]=4, "温度"はvocab_order["温度"]=5
+        # ただしvocab値も: condition(0), RF3(1), temperature(2)
+        # 各カラムが vocab_order にあるか: 温度→5, RF3→1(値一致), 条件→3
+        # in_vocab: RF3(1), 条件(3), 温度(5) -> sorted by order
+        # not_in_vocab: extra
+        assert result[-1] == "extra"
+        assert "RF3" in result
+        assert "条件" in result
+        assert "温度" in result
+
+    def test_sort_columns_by_vocab_empty(self):
+        from services.dashboard.query import sort_columns_by_vocab
+
+        assert sort_columns_by_vocab([], {}) == []
+
+    def test_sort_columns_by_vocab_no_vocab(self):
+        from services.dashboard.query import sort_columns_by_vocab
+
+        columns = ["b", "a", "c"]
+        result = sort_columns_by_vocab(columns, {})
+        assert result == ["a", "b", "c"]
+
+    # ---- select_table_columns ----
+
+    def test_select_table_columns_none(self):
+        from services.dashboard.query import select_table_columns
+
+        cols = ["name", "type", "format", "index", "RF3"]
+        result = select_table_columns(cols, None)
+        assert result == cols
+
+    def test_select_table_columns_with_patterns(self):
+        from services.dashboard.query import select_table_columns
+
+        all_cols = ["name", "type", "format", "index", "RF3", "temperature", "active"]
+        result = select_table_columns(all_cols, ["RF3", "index"])
+        assert result == ["name", "type", "format", "RF3", "index"]
+
+    def test_select_table_columns_glob(self):
+        from services.dashboard.query import select_table_columns
+
+        all_cols = ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
+        result = select_table_columns(all_cols, ["stress*", "RF3"])
+        assert result == ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
+
+    def test_select_table_columns_no_match(self):
+        from services.dashboard.query import select_table_columns
+
+        all_cols = ["name", "type", "format", "index"]
+        result = select_table_columns(all_cols, ["nonexistent"])
+        assert result == ["name", "type", "format"]
+
+    def test_select_table_columns_with_vocab(self):
+        from services.dashboard.query import select_table_columns
+
+        all_cols = ["name", "type", "format", "RF3", "温度"]
+        vocab = {"RF3": "RF3", "温度": "temperature"}
+        result = select_table_columns(all_cols, None, vocab=vocab)
+        assert "name" in result
+        assert "RF3" in result
+        assert "温度" in result
+
+    # ---- apply_filters ----
+
+    def test_apply_filters_no_filter(self):
+        from services.dashboard.query import apply_filters
+
+        rows = [
+            {"type": "go", "analysis_status": "completed", "active": True},
+            {"type": "go", "analysis_status": "failed", "active": False},
+        ]
+        assert len(apply_filters(rows)) == 2
+
+    def test_apply_filters_type(self):
+        from services.dashboard.query import apply_filters
+
+        rows = [
+            {"type": "go", "analysis_status": "completed"},
+            {"type": "material", "analysis_status": "completed"},
+        ]
+        result = apply_filters(rows, type_filter="go")
+        assert len(result) == 1
+        assert result[0]["type"] == "go"
+
+    def test_apply_filters_status(self):
+        from services.dashboard.query import apply_filters
+
+        rows = [
+            {"type": "go", "analysis_status": "completed"},
+            {"type": "go", "analysis_status": "failed"},
+        ]
+        result = apply_filters(rows, status_filter="completed")
+        assert len(result) == 1
+        assert result[0]["analysis_status"] == "completed"
+
+    def test_apply_filters_active_only(self):
+        from services.dashboard.query import apply_filters
+
+        rows = [
+            {"active": True, "type": "go"},
+            {"active": False, "type": "go"},
+            {"active": "true", "type": "go"},
+        ]
+        result = apply_filters(rows, active_only=True)
+        assert len(result) == 2
+
+    def test_apply_filters_all_combined(self):
+        from services.dashboard.query import apply_filters
+
+        rows = [
+            {"type": "go", "analysis_status": "completed", "active": True},
+            {"type": "go", "analysis_status": "failed", "active": True},
+            {"type": "material", "analysis_status": "completed", "active": True},
+            {"type": "go", "analysis_status": "completed", "active": False},
+        ]
+        result = apply_filters(
+            rows, type_filter="go", status_filter="completed", active_only=True
+        )
+        assert len(result) == 1
+        assert result[0]["type"] == "go"
+        assert result[0]["analysis_status"] == "completed"
+        assert result[0]["active"] is True
+
+    def test_apply_filters_type_all(self):
+        """'すべて'はフィルタ無効"""
+        from services.dashboard.query import apply_filters
+
+        rows = [{"type": "go"}, {"type": "material"}]
+        assert len(apply_filters(rows, type_filter="すべて")) == 2
+
+    # ---- apply_saved_view_filters ----
+
+    def test_apply_saved_view_filters_empty(self):
+        from services.dashboard.query import apply_saved_view_filters
+
+        rows = [{"name": "a"}, {"name": "b"}]
+        assert len(apply_saved_view_filters(rows, {})) == 2
+
+    def test_apply_saved_view_filters_active_true(self):
+        from services.dashboard.query import apply_saved_view_filters
+
+        rows = [
+            {"name": "a", "active": True},
+            {"name": "b", "active": False},
+        ]
+        result = apply_saved_view_filters(rows, {"active": True})
+        assert len(result) == 1
+        assert result[0]["name"] == "a"
+
+    def test_apply_saved_view_filters_active_false(self):
+        from services.dashboard.query import apply_saved_view_filters
+
+        rows = [
+            {"name": "a", "active": True},
+            {"name": "b", "active": False},
+        ]
+        result = apply_saved_view_filters(rows, {"active": False})
+        assert len(result) == 1
+        assert result[0]["name"] == "b"
+
+    def test_apply_saved_view_filters_type(self):
+        from services.dashboard.query import apply_saved_view_filters
+
+        rows = [
+            {"name": "a", "type": "go"},
+            {"name": "b", "type": "material"},
+        ]
+        result = apply_saved_view_filters(rows, {"type": "go"})
+        assert len(result) == 1
+
+    def test_apply_saved_view_filters_custom_key(self):
+        from services.dashboard.query import apply_saved_view_filters
+
+        rows = [
+            {"name": "a", "index": "1"},
+            {"name": "b", "index": "2"},
+        ]
+        result = apply_saved_view_filters(rows, {"index": "1"})
+        assert len(result) == 1
+        assert result[0]["name"] == "a"
+
+    # ---- saved_view_filters_to_provider_filters ----
+
+    def test_saved_view_filters_to_provider_filters(self):
+        from services.dashboard.query import saved_view_filters_to_provider_filters
+
+        filters = {"active": True, "type": "go"}
+        result = saved_view_filters_to_provider_filters(filters)
+        assert result == {"active": True, "type": "go"}
+
+    # ---- normalize_group_key ----
+
+    def test_normalize_group_key_daily(self):
+        from services.dashboard.query import normalize_group_key
+
+        assert normalize_group_key("daily:2026-01-15:screenshot") == "screenshot"
+
+    def test_normalize_group_key_plain(self):
+        from services.dashboard.query import normalize_group_key
+
+        assert normalize_group_key("index") == "index"
+
+    def test_normalize_group_key_daily_short(self):
+        from services.dashboard.query import normalize_group_key
+
+        assert normalize_group_key("daily:2026-01-15") == "daily:2026-01-15"
+
+    # ---- collect_group_keys ----
+
+    def test_collect_group_keys_output(self):
+        from services.dashboard.query import collect_group_keys
+
+        images = [
+            {"go_properties": {"index": "1", "version": "1"}},
+            {"go_properties": {"index": "2", "status": "ok"}},
+        ]
+        result = collect_group_keys(images, "output")
+        assert "index" in result
+        assert "version" in result
+        assert "status" in result
+        assert result == sorted(result)
+
+    def test_collect_group_keys_property(self):
+        from services.dashboard.query import collect_group_keys
+
+        images = [
+            {"go_properties": {"index": "1"}},
+        ]
+        result = collect_group_keys(images, "property")
+        assert result[0] == "property_key"
+        assert "index" in result
+
+    def test_collect_group_keys_excludes_internal(self):
+        from services.dashboard.query import collect_group_keys
+
+        images = [
+            {"go_properties": {"path": "a.inp", "include_properties": [], "index": "1"}},
+        ]
+        result = collect_group_keys(images, "output")
+        assert "path" not in result
+        assert "include_properties" not in result
+        assert "index" in result
+
+    def test_collect_group_keys_empty(self):
+        from services.dashboard.query import collect_group_keys
+
+        assert collect_group_keys([], "output") == []
+
+    # ---- find_graph_path / get_graph_mtime ----
+
+    def test_find_graph_path_yaml(self, tmp_path):
+        from services.dashboard.query import find_graph_path
+
+        storage = tmp_path / ".jj" / "storage"
+        storage.mkdir(parents=True)
+        (storage / "graph.yaml").write_text("nodes: []\n")
+        result = find_graph_path(tmp_path)
+        assert result is not None
+        assert result.name == "graph.yaml"
+
+    def test_find_graph_path_json(self, tmp_path):
+        from services.dashboard.query import find_graph_path
+
+        storage = tmp_path / ".jj" / "storage"
+        storage.mkdir(parents=True)
+        (storage / "graph.json").write_text("{}")
+        result = find_graph_path(tmp_path)
+        assert result is not None
+        assert result.name == "graph.json"
+
+    def test_find_graph_path_none(self, tmp_path):
+        from services.dashboard.query import find_graph_path
+
+        assert find_graph_path(tmp_path) is None
+
+    def test_get_graph_mtime(self, tmp_path):
+        from services.dashboard.query import get_graph_mtime
+
+        storage = tmp_path / ".jj" / "storage"
+        storage.mkdir(parents=True)
+        (storage / "graph.yaml").write_text("nodes: []\n")
+        mtime = get_graph_mtime(tmp_path)
+        assert isinstance(mtime, float)
+        assert mtime > 0
+
+    def test_get_graph_mtime_no_file(self, tmp_path):
+        from services.dashboard.query import get_graph_mtime
+
+        assert get_graph_mtime(tmp_path) == 0.0
+
+
+# ====================================================================
+# abaqus_query.py 単体テスト
+# ====================================================================
+
+
+class TestAbaqusQueryModule:
+    """services/dashboard/connectors/abaqus_query.py の純粋関数テスト"""
+
+    @pytest.fixture
+    def material_graph(self):
+        """abaqus_materialノードを含むテスト用GraphModel"""
+        return GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "index": "1",
+                        "active": True,
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={
+                        "source_file": "material.inp",
+                        "keywords": ["elastic", "plastic"],
+                        "elastic": [[210000.0, 0.3]],
+                        "plastic": [
+                            [200.0, 0.0],
+                            [300.0, 0.05],
+                            [350.0, 0.10],
+                        ],
+                        "density": 7.85e-9,
+                    },
+                ),
+                Node(
+                    id=3,
+                    type="abaqus_material",
+                    name="Aluminum",
+                    format="material",
+                    properties={
+                        "source_file": "material.inp",
+                        "keywords": ["elastic"],
+                        "elastic": [[70000.0, 0.33]],
+                        "density": 2.7e-9,
+                    },
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="uses_material", node1_id=1, node2_id=2),
+                Relation(id=2, label="uses_material", node1_id=1, node2_id=3),
+            ],
+        )
+
+    @pytest.fixture
+    def material_provider(self, material_graph):
+        return DashboardDataProvider(material_graph)
+
+    # ---- get_material_table ----
+
+    def test_get_material_table(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table
+
+        rows = get_material_table(material_provider)
+        assert len(rows) == 2
+        names = {r["name"] for r in rows}
+        assert "Steel" in names
+        assert "Aluminum" in names
+
+    def test_get_material_table_excludes_internal(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table
+
+        rows = get_material_table(material_provider)
+        for row in rows:
+            assert "source_file" not in row
+            assert "path" not in row
+
+    def test_get_material_table_table_data_summary(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table
+
+        rows = get_material_table(material_provider)
+        steel = [r for r in rows if r["name"] == "Steel"][0]
+        # テーブル型データ（list[list]）はサマリ表示
+        assert steel["plastic"] == "[3行]"
+        assert steel["elastic"] == "[1行]"
+        # スカラ値はそのまま
+        assert steel["density"] == 7.85e-9
+
+    # ---- get_material_table_data ----
+
+    def test_get_material_table_data(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_data
+
+        result = get_material_table_data(material_provider, 2, "plastic")
+        assert result is not None
+        assert result["name"] == "Steel"
+        assert result["property_key"] == "plastic"
+        assert len(result["data"]) == 3
+        assert result["data"][0] == [200.0, 0.0]
+        assert "elastic" in result["keywords"]
+
+    def test_get_material_table_data_not_table(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_data
+
+        # density はスカラ値なので None
+        assert get_material_table_data(material_provider, 2, "density") is None
+
+    def test_get_material_table_data_missing_key(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_data
+
+        assert get_material_table_data(material_provider, 2, "nonexistent") is None
+
+    def test_get_material_table_data_wrong_node(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_data
+
+        # go_ノードはabaqus_materialではない
+        assert get_material_table_data(material_provider, 1, "plastic") is None
+
+    def test_get_material_table_data_missing_node(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_data
+
+        assert get_material_table_data(material_provider, 999, "plastic") is None
+
+    # ---- get_material_table_keys ----
+
+    def test_get_material_table_keys(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+
+        keys = get_material_table_keys(material_provider, 2)
+        assert "elastic" in keys
+        assert "plastic" in keys
+        assert "density" not in keys
+        assert keys == sorted(keys)
+
+    def test_get_material_table_keys_aluminum(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+
+        keys = get_material_table_keys(material_provider, 3)
+        assert "elastic" in keys
+        assert "plastic" not in keys
+
+    def test_get_material_table_keys_wrong_node(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+
+        assert get_material_table_keys(material_provider, 1) == []
+
+    def test_get_material_table_keys_missing_node(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+
+        assert get_material_table_keys(material_provider, 999) == []
+
+    # ---- guess_table_column_names ----
+
+    def test_guess_table_column_names_with_config(self):
+        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+
+        mcc = {"plastic": {"columns": ["stress", "strain"]}}
+        result = guess_table_column_names("plastic", 2, mcc)
+        assert result == ["stress", "strain"]
+
+    def test_guess_table_column_names_more_cols(self):
+        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+
+        mcc = {"plastic": {"columns": ["stress", "strain"]}}
+        result = guess_table_column_names("plastic", 4, mcc)
+        assert result == ["stress", "strain", "col_2", "col_3"]
+
+    def test_guess_table_column_names_no_config(self):
+        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+
+        result = guess_table_column_names("plastic", 3, None)
+        assert result == ["col_0", "col_1", "col_2"]
+
+    def test_guess_table_column_names_unknown_key(self):
+        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+
+        mcc = {"elastic": {"columns": ["E", "nu"]}}
+        result = guess_table_column_names("plastic", 2, mcc)
+        assert result == ["col_0", "col_1"]
+
+    def test_guess_table_column_names_fewer_cols(self):
+        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+
+        mcc = {"plastic": {"columns": ["stress", "strain", "temp"]}}
+        result = guess_table_column_names("plastic", 2, mcc)
+        assert result == ["stress", "strain"]
+
+    # ---- get_curve_plot_axes ----
+
+    def test_get_curve_plot_axes_default(self):
+        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+
+        x, y = get_curve_plot_axes("plastic", 3, None)
+        assert x == 0
+        assert y == 1
+
+    def test_get_curve_plot_axes_from_config(self):
+        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+
+        mcc = {"plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0}}
+        x, y = get_curve_plot_axes("plastic", 2, mcc)
+        assert x == 1
+        assert y == 0
+
+    def test_get_curve_plot_axes_clamped(self):
+        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+
+        mcc = {"plastic": {"columns": ["a", "b"], "x": 10, "y": 10}}
+        x, y = get_curve_plot_axes("plastic", 2, mcc)
+        assert x == 1  # clamped to num_cols - 1
+        assert y == 1
+
+    def test_get_curve_plot_axes_single_col(self):
+        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+
+        x, y = get_curve_plot_axes("plastic", 1, None)
+        assert x == 0
+        assert y == 0
+
+    # ---- parse_material_curve_columns ----
+
+    def test_parse_material_curve_columns_dict_format(self):
+        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+
+        raw = {
+            "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+            "elastic": {"columns": ["E", "nu"]},
+        }
+        result = parse_material_curve_columns(raw)
+        assert result["plastic"]["columns"] == ["stress", "strain"]
+        assert result["plastic"]["x"] == 1
+        assert result["plastic"]["y"] == 0
+        assert result["elastic"]["columns"] == ["E", "nu"]
+        assert "x" not in result["elastic"]
+
+    def test_parse_material_curve_columns_list_format(self):
+        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+
+        raw = {"plastic": ["stress", "strain"]}
+        result = parse_material_curve_columns(raw)
+        assert result["plastic"]["columns"] == ["stress", "strain"]
+
+    def test_parse_material_curve_columns_empty(self):
+        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+
+        assert parse_material_curve_columns({}) == {}
+
+    def test_parse_material_curve_columns_invalid(self):
+        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+
+        assert parse_material_curve_columns("invalid") == {}
+
+    # ---- get_material_usage ----
+
+    def test_get_material_usage(self, material_provider):
+        from services.dashboard.connectors.abaqus_query import get_material_usage
+
+        usage = get_material_usage(material_provider)
+        assert len(usage) == 2
+        steel_usage = [u for u in usage if u["material_name"] == "Steel"][0]
+        assert steel_usage["material_id"] == 2
+        assert len(steel_usage["go_nodes"]) == 1
+        assert steel_usage["go_nodes"][0]["name"] == "go_idx1_v1"
+
+    def test_get_material_usage_no_relations(self):
+        from services.dashboard.connectors.abaqus_query import get_material_usage
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={"keywords": ["elastic"]},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        usage = get_material_usage(provider)
+        assert len(usage) == 1
+        assert usage[0]["go_nodes"] == []
+
+
+# ====================================================================
+# html_export.py ヘルパー関数テスト
+# ====================================================================
+
+
+class TestHtmlExportHelpers:
+    """services/dashboard/html_export.py のplotlyヘルパー関数テスト"""
+
+    def test_create_plot_figure_scatter(self):
+        try:
+            import plotly.express as px
+            import pandas as pd
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({
+            "x": [1, 2, 3],
+            "y": [4, 5, 6],
+            "name": ["a", "b", "c"],
+        })
+        fig = _create_plot_figure(px, df, "x", "y", None, "散布図")
+        assert fig is not None
+        assert len(fig.data) >= 1
+
+    def test_create_plot_figure_bar(self):
+        try:
+            import plotly.express as px
+            import pandas as pd
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({
+            "x": [1, 2, 3],
+            "y": [4, 5, 6],
+            "name": ["a", "b", "c"],
+        })
+        fig = _create_plot_figure(px, df, "x", "y", None, "棒グラフ")
+        assert fig is not None
+
+    def test_create_plot_figure_line(self):
+        try:
+            import plotly.express as px
+            import pandas as pd
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({
+            "x": [1, 2, 3],
+            "y": [4, 5, 6],
+            "name": ["a", "b", "c"],
+        })
+        fig = _create_plot_figure(px, df, "x", "y", None, "折れ線")
+        assert fig is not None
+
+    def test_add_ng_regions_rect(self):
+        try:
+            import plotly.graph_objects as go
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from services.dashboard.html_export import _add_ng_regions_to_fig
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]))
+        ng_regions = [
+            {"type": "rect", "x_min": 0, "x_max": 2, "y_min": 0, "y_max": 3,
+             "color": "rgba(255,0,0,0.1)", "label": "NG"},
+        ]
+        _add_ng_regions_to_fig(fig, ng_regions)
+        # 矩形はshapeとして追加される
+        assert len(fig.layout.shapes) == 1
+
+    def test_add_ng_regions_curve(self):
+        try:
+            import plotly.graph_objects as go
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from services.dashboard.html_export import _add_ng_regions_to_fig
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]))
+        ng_regions = [
+            {"type": "curve", "points": [[1, 2], [2, 3], [3, 4]],
+             "fill": "above", "color": "rgba(255,0,0,0.1)", "label": "NG curve"},
+        ]
+        _add_ng_regions_to_fig(fig, ng_regions)
+        # カーブはtrace（境界線 + fill）として追加
+        assert len(fig.data) >= 2
+
+    def test_add_ng_regions_empty(self):
+        try:
+            import plotly.graph_objects as go
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from services.dashboard.html_export import _add_ng_regions_to_fig
+
+        fig = go.Figure()
+        _add_ng_regions_to_fig(fig, [])
+        assert len(fig.data) == 0
+
+    def test_add_group_lines(self):
+        try:
+            import plotly.graph_objects as go
+            import pandas as pd
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _add_group_lines_to_fig
+
+        fig = go.Figure()
+        df = pd.DataFrame({
+            "x": [1, 2, 3, 4],
+            "y": [10, 20, 30, 40],
+            "group": ["A", "A", "B", "B"],
+        })
+        _add_group_lines_to_fig(fig, df, "x", "y", "group")
+        # 2グループ、各2点以上なのでそれぞれ結線される
+        assert len(fig.data) == 2
+
+    def test_add_group_lines_single_point_group(self):
+        try:
+            import plotly.graph_objects as go
+            import pandas as pd
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _add_group_lines_to_fig
+
+        fig = go.Figure()
+        df = pd.DataFrame({
+            "x": [1, 2],
+            "y": [10, 20],
+            "group": ["A", "B"],
+        })
+        _add_group_lines_to_fig(fig, df, "x", "y", "group")
+        # 各グループ1点のみなので結線なし
+        assert len(fig.data) == 0

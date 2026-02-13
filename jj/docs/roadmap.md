@@ -417,6 +417,10 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] 物性比較: CSVエクスポート（複数materialの比較データダウンロード） (status-080)
 - [x] 保存済みビュー: 動的ビュー追加・編集・削除（session_stateベース） (status-080)
 - [x] 保存済みビュー: HTMLエクスポート（スタンドアロンHTML出力、plotlyインライン化） (status-080)
+- [x] 描画/クエリロジック分離: query.py/html_export.py/abaqus_query.pyに純粋関数抽出 (status-081)
+- [x] 純粋関数モジュール単体テスト: 65テスト追加（query.py/html_export.py/abaqus_query.py） (status-082)
+- [ ] app.py後方互換ラッパー削除: テストインポート移行→ラッパー関数削除 (status-082計画)
+- [ ] services/query昇格: dashboard/query.pyの汎用関数をjjレベルに昇格 (status-082設計検討)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
