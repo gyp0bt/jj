@@ -2512,3 +2512,326 @@ class TestWidgets:
         from services.dashboard.widgets import try_render_aggrid
 
         assert callable(try_render_aggrid)
+
+
+# ====================================================================
+# CSV配列: サブディレクトリCSV・ヘッダーなしCSV テスト
+# ====================================================================
+
+
+class TestCsvArraySubdirectory:
+    """サブディレクトリCSVの接頭辞決定テスト"""
+
+    def test_compute_prefix_token_diff(self):
+        """トークン差分方式の接頭辞"""
+        from services.parse.parsers.csv_array_parser import _compute_prefix
+        from jj_types import Node
+
+        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
+                        properties={"path": "go_idx1_w5_t20.inp"})
+        out_node = Node(id=2, type="go", name="go_idx1_w5_t20_RF", format="csv",
+                        properties={"path": "go_idx1_w5_t20_RF.csv"})
+        assert _compute_prefix(inp_node, out_node) == "RF"
+
+    def test_compute_prefix_subdirectory(self):
+        """サブディレクトリ方式の接頭辞"""
+        from services.parse.parsers.csv_array_parser import _compute_prefix
+        from jj_types import Node
+
+        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
+                        properties={"path": "go_idx1_w5_t20.inp"})
+        out_node = Node(id=2, type="go", name="history_RF3", format="csv",
+                        properties={"path": "go_idx1_w5_t20/history_RF3.csv"})
+        assert _compute_prefix(inp_node, out_node) == "history_RF3"
+
+    def test_compute_prefix_no_match(self):
+        """マッチしない場合は空文字"""
+        from services.parse.parsers.csv_array_parser import _compute_prefix
+        from jj_types import Node
+
+        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
+                        properties={"path": "go_idx1_w5_t20.inp"})
+        out_node = Node(id=2, type="go", name="unrelated", format="csv",
+                        properties={"path": "other_dir/unrelated.csv"})
+        assert _compute_prefix(inp_node, out_node) == ""
+
+
+class TestCsvHeaderlessDetection:
+    """ヘッダーなしCSV検出テスト"""
+
+    def test_is_header_row_with_text(self):
+        """テキストを含む行はヘッダー"""
+        from services.parse.parsers.csv_array_parser import _is_header_row
+
+        assert _is_header_row(["time", "RF3"]) is True
+
+    def test_is_header_row_all_numeric(self):
+        """全て数値の行はデータ行（ヘッダーではない）"""
+        from services.parse.parsers.csv_array_parser import _is_header_row
+
+        assert _is_header_row(["0.0", "123.4"]) is False
+
+    def test_is_header_row_mixed(self):
+        """1つでも非数値があればヘッダー"""
+        from services.parse.parsers.csv_array_parser import _is_header_row
+
+        assert _is_header_row(["time", "0.5"]) is True
+
+    def test_is_header_row_empty(self):
+        """空行はヘッダーではない"""
+        from services.parse.parsers.csv_array_parser import _is_header_row
+
+        assert _is_header_row([]) is False
+
+    def test_read_csv_headerless(self, tmp_path):
+        """ヘッダーなしCSVをcol_Nで自動命名"""
+        from services.parse.parsers.csv_array_parser import _read_csv_arrays
+
+        csv_file = tmp_path / "headerless.csv"
+        csv_file.write_text("0.0,0.0\n0.5,123.4\n1.0,456.7\n")
+
+        result = _read_csv_arrays(csv_file)
+        assert "col_0" in result
+        assert "col_1" in result
+        assert result["col_0"] == [0.0, 0.5, 1.0]
+        assert result["col_1"] == [0.0, 123.4, 456.7]
+
+    def test_read_csv_with_header(self, tmp_path):
+        """ヘッダーありCSVは従来通り"""
+        from services.parse.parsers.csv_array_parser import _read_csv_arrays
+
+        csv_file = tmp_path / "with_header.csv"
+        csv_file.write_text("time,RF3\n0.0,0.0\n0.5,123.4\n")
+
+        result = _read_csv_arrays(csv_file)
+        assert "time" in result
+        assert "RF3" in result
+        assert result["time"] == [0.0, 0.5]
+        assert result["RF3"] == [0.0, 123.4]
+
+
+# ====================================================================
+# OutputRelationParser サブディレクトリ テスト
+# ====================================================================
+
+
+class TestOutputRelationSubdirectory:
+    """OutputRelationParserのサブディレクトリマッチテスト"""
+
+    def test_subdirectory_csv_linked(self):
+        """サブディレクトリ内のCSVがhas_output関係でリンクされる"""
+        from services.parse.parsers.output_parser import OutputRelationParser
+
+        graph = _make_project_graph_with_subdir_csv()
+        parser = OutputRelationParser()
+        result = parser.apply(graph)
+
+        # has_output関係が作成されたか確認
+        has_output_rels = [r for r in result.relations if r.label == "has_output"]
+        # go_idx1_w5_t20(id=1) → history_RF3(id=2) の関係が存在するはず
+        linked_pairs = [(r.node1_id, r.node2_id) for r in has_output_rels]
+        assert (1, 2) in linked_pairs
+
+
+# ====================================================================
+# REST API: POST /api/v1/parse テスト
+# ====================================================================
+
+
+class TestRestApiParse:
+    """REST API POST /api/v1/parse のテスト"""
+
+    @pytest.fixture
+    def client_with_project(self, tmp_path):
+        """テスト用FastAPIクライアント（パース可能なプロジェクト）"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            pytest.skip("fastapi not installed")
+
+        import yaml
+
+        # 最小限のconfig.yaml + graph.yaml
+        config_dir = tmp_path / ".jj" / "config"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.yaml").write_text(
+            yaml.safe_dump({"vocab": {}}),
+            encoding="utf-8",
+        )
+
+        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir.mkdir(parents=True)
+        graph_file = storage_dir / "graph.yaml"
+        graph_file.write_text(
+            yaml.safe_dump({"nodes": [], "relations": []}),
+            encoding="utf-8",
+        )
+
+        from services.api.routes import create_app
+
+        app = create_app(tmp_path)
+        return TestClient(app)
+
+    def test_parse_endpoint_exists(self, client_with_project):
+        """POST /api/v1/parse エンドポイントが存在する"""
+        resp = client_with_project.post("/api/v1/parse")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "parsed"
+        assert "total_nodes" in data
+        assert "total_relations" in data
+
+
+# ====================================================================
+# REST API: プロパティフィルター テスト
+# ====================================================================
+
+
+class TestRestApiPropFilter:
+    """REST API プロパティ比較フィルターのテスト"""
+
+    def test_parse_prop_filters(self):
+        """プロパティフィルターのパース"""
+        from services.api.routes import _parse_prop_filters
+
+        params = {
+            "type": "go",
+            "props.RF3.gt": "5",
+            "props.temperature.le": "400",
+            "limit": "100",
+        }
+        filters = _parse_prop_filters(params)
+        assert len(filters) == 2
+        assert ("RF3", "gt", 5.0) in filters
+        assert ("temperature", "le", 400.0) in filters
+
+    def test_apply_prop_filters(self):
+        """プロパティフィルターの適用"""
+        from services.api.routes import _apply_prop_filters
+        from jj_types import Node
+
+        nodes = [
+            Node(id=1, type="go", name="a", format="inp",
+                 properties={"RF3": 3.0, "temperature": 300}),
+            Node(id=2, type="go", name="b", format="inp",
+                 properties={"RF3": 8.0, "temperature": 350}),
+            Node(id=3, type="go", name="c", format="inp",
+                 properties={"RF3": 5.0, "temperature": 400}),
+        ]
+
+        # RF3 > 5
+        result = _apply_prop_filters(nodes, [("RF3", "gt", 5.0)])
+        assert len(result) == 1
+        assert result[0].name == "b"
+
+        # RF3 >= 5
+        result = _apply_prop_filters(nodes, [("RF3", "ge", 5.0)])
+        assert len(result) == 2
+        names = {n.name for n in result}
+        assert "b" in names
+        assert "c" in names
+
+    def test_apply_prop_filters_combined(self):
+        """複合プロパティフィルター"""
+        from services.api.routes import _apply_prop_filters
+        from jj_types import Node
+
+        nodes = [
+            Node(id=1, type="go", name="a", format="inp",
+                 properties={"RF3": 3.0, "temperature": 300}),
+            Node(id=2, type="go", name="b", format="inp",
+                 properties={"RF3": 8.0, "temperature": 350}),
+            Node(id=3, type="go", name="c", format="inp",
+                 properties={"RF3": 5.0, "temperature": 400}),
+        ]
+
+        # RF3 > 4 AND temperature < 400
+        result = _apply_prop_filters(nodes, [
+            ("RF3", "gt", 4.0),
+            ("temperature", "lt", 400.0),
+        ])
+        assert len(result) == 1
+        assert result[0].name == "b"
+
+    def test_prop_filter_via_api(self):
+        """APIエンドポイント経由のプロパティフィルター"""
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            pytest.skip("fastapi not installed")
+
+        import yaml
+
+        graph = _make_test_graph()
+
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            storage_dir = tmp_path / ".jj" / "storage"
+            storage_dir.mkdir(parents=True)
+            graph_data = {
+                "nodes": [n.model_dump() for n in graph.nodes],
+                "relations": [r.model_dump() for r in graph.relations],
+            }
+            (storage_dir / "graph.yaml").write_text(
+                yaml.safe_dump(graph_data, allow_unicode=True),
+                encoding="utf-8",
+            )
+
+            from services.api.routes import create_app
+
+            app = create_app(tmp_path)
+            client = TestClient(app)
+
+            # RF3 > 5 のノードのみ
+            resp = client.get("/api/v1/nodes?props.RF3.gt=5")
+            assert resp.status_code == 200
+            data = resp.json()
+            for node in data["nodes"]:
+                rf3 = node["properties"].get("RF3")
+                if rf3 is not None:
+                    assert float(rf3) > 5
+
+
+# ====================================================================
+# テストヘルパー
+# ====================================================================
+
+
+def _make_project_graph_with_subdir_csv():
+    """サブディレクトリCSVテスト用のProjectGraph風オブジェクトを作成"""
+    from unittest.mock import MagicMock
+    from jj_types import Node
+
+    graph = MagicMock()
+    graph.config.file_relations.input_extensions = {".inp"}
+    graph.config.file_relations.result_extensions = {".odb", ".sta"}
+
+    inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
+                    properties={"path": "go_idx1_w5_t20.inp", "index": "1"})
+    csv_node = Node(id=2, type="go", name="history_RF3", format="csv",
+                    properties={"path": "go_idx1_w5_t20/history_RF3.csv", "index": ""})
+
+    graph.nodes = [inp_node, csv_node]
+    graph.relations = []
+
+    _next_id = [10]
+
+    def mock_next_rel_id():
+        _next_id[0] += 1
+        return _next_id[0]
+
+    graph.next_relation_id = mock_next_rel_id
+    graph.get_node_index.side_effect = lambda n: n.properties.get("index", "")
+
+    added_relations = []
+
+    def mock_add_relation(rel):
+        added_relations.append(rel)
+        graph.relations.append(rel)
+
+    graph.add_relation = mock_add_relation
+
+    return graph

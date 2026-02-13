@@ -410,6 +410,9 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] コネクタ固有config分離: DashboardConfig.connector_configs方式への移行 (status-077)
 - [x] 共有ウィジェット(widgets.py)切り出し: app.py→コネクタ間の結合度解消 (status-077)
 - [x] コネクタプラグイン化分析: 完全分離要件の整理・文書化 (status-077)
+- [x] CSV配列: サブディレクトリ内CSV対応（OutputRelationParser + CsvArrayParser） (status-078)
+- [x] CSV配列: ヘッダーなしCSV対応（col_N自動命名） (status-078)
+- [x] Excelダウンロード機能（テーブル/保存済みビュー、openpyxl利用） (status-078)
 
 #### D3. REST API（jj serve） ✅ (status-068)
 
@@ -420,8 +423,8 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] `/api/v1/graph`, `/api/v1/nodes/{id}`, `/api/v1/nodes/{id}/related`
 - [x] `/api/v1/properties/keys`
 - [x] `POST /api/v1/reload`（グラフ再読み込み）
-- [ ] `POST /api/v1/parse`（再パース実行）
-- [ ] クエリフィルター拡張（props.RF3.gt=5等の条件式）
+- [x] `POST /api/v1/parse`（再パース実行） (status-078)
+- [x] クエリフィルター拡張（props.RF3.gt=5等の条件式） (status-078)
 
 #### D4. jj-db統合
 
@@ -698,6 +701,6 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-077.md)
+- [最新ステータス](./status/status-078.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)
