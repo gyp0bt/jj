@@ -91,6 +91,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-13 / status-079: ダッシュボード機能拡張。配列プロットに保存済みビュー（array_plot型）とフィルタ連携を追加。物性一覧に比較機能（複数materialカーブ重ね書き）とgo_ノード使用関係表示を追加。プロットにNG領域塗りつぶし（矩形/カーブ、config駆動）とグループ結線（同一条件データ点を灰色点線で結線）を追加。16テスト追加。([status-079](docs/status/status-079.md))
+- 2026-02-13 / status-078: CSV配列拡張（サブディレクトリCSV/ヘッダーなしCSV）・Excelダウンロード・REST API拡張（POST parse/プロパティ比較フィルター）。15テスト追加。([status-078](docs/status/status-078.md))
 - 2026-02-12 / status-077: コネクタ固有config分離・プラグイン化分析。DashboardConfig.material_curve_columnsをconnector_configs辞書方式に移行（後方互換あり）。DashboardPageConnectorにconnector_key属性追加。AgGridヘルパーをwidgets.pyに切り出しコネクタ→app.pyの逆依存を解消。Abaqusコネクタを完全分離するための3フェーズ計画（SDK定義/キャッシュIF抽象化/動的発見）を分析・文書化。48テスト全パス（12件追加）。([status-077](docs/status/status-077.md))
 - 2026-02-12 / status-076: ダッシュボードAbaqus依存コネクター分離。物性一覧ページとデータプロバイダーメソッド3つをservices/dashboard/connectors/abaqus.pyに分離。DashboardPageConnector基底クラス（__init_subclass__自動登録）で動的ページ追加を実現。汎用ページ（テーブル/カード/プロット等）はapp.py/data_provider.pyに保持。27テスト全パス。([status-076](docs/status/status-076.md))
 - 2026-02-12 / status-074: CSVパース配列取り込み・ダッシュボード配列プロット・物性一覧。CsvArrayParser追加（has_output関係CSVのトークン差分でプレフィックス決定、配列データをRF.time/RF.RF3形式でGOノードに格納）。配列プロットページ（グリッド比較+個別ノード重ね書き）。物性一覧ページ（abaqus_materialテーブル+plastic/elastic等のラインプロット）。22テスト追加。([status-074](docs/status/status-074.md))

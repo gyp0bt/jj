@@ -290,6 +290,27 @@ def _is_truthy(value: Any) -> bool:
     return bool(value)
 
 
+def _get_active_filters() -> dict[str, Any] | None:
+    """現在の共有フィルタ設定をprovider用辞書として取得
+
+    Returns:
+        フィルタが有効な場合はdict、全件表示の場合はNone
+    """
+    filters: dict[str, Any] = {}
+    selected_type = st.session_state.get("_filter_type", "すべて")
+    selected_status = st.session_state.get("_filter_status", "すべて")
+    active_only = st.session_state.get("_filter_active", False)
+
+    if selected_type != "すべて":
+        filters["type"] = selected_type
+    if selected_status != "すべて":
+        filters["analysis_status"] = selected_status
+    if active_only:
+        filters["active"] = True
+
+    return filters if filters else None
+
+
 def _apply_shared_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """共有フィルタを適用
 
@@ -680,6 +701,18 @@ def _render_plot_page(
     gallery_rows = getattr(dashboard_config, "gallery_rows", 4)
     grid_mode = st.checkbox("グリッドモード（スクリーンショット用）", value=False)
 
+    # グループ結線設定
+    group_line_key = getattr(dashboard_config, "group_line_key", None)
+    group_line_options = ["なし"] + [k for k in keys if k != x_key and k != y_key]
+    col_gl1, col_gl2 = st.columns(2)
+    with col_gl1:
+        gl_default = 0
+        if group_line_key and group_line_key in group_line_options:
+            gl_default = group_line_options.index(group_line_key)
+        selected_group_line = st.selectbox(
+            "グループ結線キー", group_line_options, index=gl_default
+        )
+
     try:
         import plotly.express as px
 
@@ -693,12 +726,126 @@ def _render_plot_page(
             fig = _create_plot_figure(
                 px, df, x_key, y_key, color, chart_type
             )
+            # NG領域塗りつぶし
+            ng_regions = getattr(dashboard_config, "ng_regions", [])
+            if ng_regions:
+                _add_ng_regions(fig, ng_regions)
+            # グループ結線
+            gl_key = selected_group_line if selected_group_line != "なし" else None
+            if gl_key and gl_key in df.columns:
+                _add_group_lines(fig, df, x_key, y_key, gl_key)
             st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         # plotlyがない場合はStreamlit組み込みチャートを使用
         st.scatter_chart(df, x=x_key, y=y_key)
 
     st.caption(f"データ点数: {len(data)}")
+
+
+def _add_ng_regions(fig: Any, ng_regions: list[dict[str, Any]]) -> None:
+    """プロットにNG領域（矩形/カーブ）を追加
+
+    矩形タイプ: {"type": "rect", "x_min": float, "x_max": float,
+                  "y_min": float, "y_max": float, "color": str, "label": str}
+    カーブタイプ: {"type": "curve", "points": [[x,y],...],
+                   "fill": "above"|"below", "color": str, "label": str}
+    """
+    import plotly.graph_objects as go
+
+    for region in ng_regions:
+        rtype = region.get("type", "rect")
+        color = region.get("color", "rgba(255,0,0,0.1)")
+        label = region.get("label", "NG")
+
+        if rtype == "curve":
+            points = region.get("points", [])
+            if not points:
+                continue
+            x_pts = [p[0] for p in points]
+            y_pts = [p[1] for p in points]
+            fill_dir = region.get("fill", "above")
+            # カーブの境界線
+            fig.add_trace(go.Scatter(
+                x=x_pts, y=y_pts,
+                mode="lines",
+                line=dict(color=color.replace("0.1", "0.6") if "rgba" in color else color, dash="dash"),
+                name=label,
+                showlegend=True,
+            ))
+            # 塗りつぶし
+            if fill_dir == "above":
+                fig.add_trace(go.Scatter(
+                    x=x_pts, y=y_pts,
+                    fill="tonexty" if len(fig.data) > 1 else "tozeroy",
+                    fillcolor=color,
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+            elif fill_dir == "below":
+                fig.add_trace(go.Scatter(
+                    x=x_pts, y=y_pts,
+                    fill="tozeroy",
+                    fillcolor=color,
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+        else:
+            # 矩形
+            x0 = region.get("x_min")
+            x1 = region.get("x_max")
+            y0 = region.get("y_min")
+            y1 = region.get("y_max")
+            fig.add_shape(
+                type="rect",
+                x0=x0, x1=x1, y0=y0, y1=y1,
+                fillcolor=color,
+                line=dict(width=0),
+                layer="below",
+            )
+            # ラベル（右上に配置）
+            if label and x1 is not None and y1 is not None:
+                fig.add_annotation(
+                    x=x1, y=y1,
+                    text=label,
+                    showarrow=False,
+                    font=dict(size=10, color="red"),
+                    xanchor="right",
+                    yanchor="bottom",
+                )
+
+
+def _add_group_lines(
+    fig: Any,
+    df: "pd.DataFrame",
+    x_key: str,
+    y_key: str,
+    group_key: str,
+) -> None:
+    """同一グループのデータ点を灰色点線で結線
+
+    Args:
+        fig: plotly Figure
+        df: データフレーム
+        x_key: X軸キー
+        y_key: Y軸キー
+        group_key: グループ化キー
+    """
+    import plotly.graph_objects as go
+
+    for group_val, group_df in df.groupby(group_key):
+        if len(group_df) < 2:
+            continue
+        sorted_df = group_df.sort_values(x_key)
+        fig.add_trace(go.Scatter(
+            x=sorted_df[x_key].tolist(),
+            y=sorted_df[y_key].tolist(),
+            mode="lines",
+            line=dict(color="gray", width=1, dash="dot"),
+            showlegend=False,
+            hoverinfo="skip",
+        ))
 
 
 def _create_plot_figure(
@@ -822,6 +969,10 @@ def _render_array_plot_page(
         )
         return
 
+    # 共有フィルタ（サイドバー描画 + 適用）
+    rows = provider.get_go_table()
+    _render_shared_filters(rows)
+
     # 接頭辞グループの抽出（例: RF, stress）
     prefixes = sorted({k.split(".")[0] for k in array_keys})
 
@@ -851,10 +1002,15 @@ def _render_array_plot_page(
         "表示モード", ["グリッド比較", "個別ノード"], horizontal=True
     )
 
+    # 共有フィルタをprovider用のフィルタ辞書に変換
+    active_filters = _get_active_filters()
+
     if view_mode == "グリッド比較":
-        _render_array_grid(provider, dashboard_config, x_key, y_keys)
+        _render_array_grid(
+            provider, dashboard_config, x_key, y_keys, filters=active_filters
+        )
     else:
-        _render_array_single(provider, x_key, y_keys)
+        _render_array_single(provider, x_key, y_keys, filters=active_filters)
 
 
 def _render_array_grid(
@@ -862,13 +1018,14 @@ def _render_array_grid(
     dashboard_config: Any,
     x_key: str,
     y_keys: list[str],
+    filters: dict[str, Any] | None = None,
 ) -> None:
     """配列データのグリッド比較表示（indexごとに並べる）"""
     cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
 
     for y_key in y_keys:
         st.subheader(f"{y_key} vs {x_key}")
-        grid_data = provider.get_array_grid_data(x_key, y_key)
+        grid_data = provider.get_array_grid_data(x_key, y_key, filters=filters)
         if not grid_data:
             st.info(f"'{x_key}' と '{y_key}' のデータがありません。")
             continue
@@ -920,12 +1077,17 @@ def _render_array_single(
     provider: DashboardDataProvider,
     x_key: str,
     y_keys: list[str],
+    filters: dict[str, Any] | None = None,
 ) -> None:
     """配列データの個別ノード表示（複数Y軸重ね書き）"""
     rows = provider.get_go_table()
     if not rows:
         st.info("go_ファイルが見つかりません。")
         return
+
+    # フィルタ適用
+    if filters:
+        rows = [r for r in rows if provider._matches_filters(r, filters)]
 
     # 配列データを持つノードのみ
     names_with_array = []
@@ -1352,13 +1514,15 @@ def _render_saved_views_page(
         if view.view_type == "table":
             _render_saved_table(provider, dashboard_config, view, vocab)
         elif view.view_type == "plot":
-            _render_saved_plot(provider, view)
+            _render_saved_plot(provider, view, dashboard_config)
         elif view.view_type == "gallery":
             _render_saved_gallery(provider, project_root, dashboard_config, view)
         elif view.view_type == "card":
             _render_saved_card(provider, view)
         elif view.view_type == "status":
             _render_status_page(provider)
+        elif view.view_type == "array_plot":
+            _render_saved_array_plot(provider, dashboard_config, view)
 
 
 def _render_saved_table(
@@ -1410,6 +1574,7 @@ def _render_saved_table(
 def _render_saved_plot(
     provider: DashboardDataProvider,
     view: Any,
+    dashboard_config: Any = None,
 ) -> None:
     """保存済みプロットビューを描画"""
     plot_config = view.plot
@@ -1445,6 +1610,14 @@ def _render_saved_plot(
         import plotly.express as px
 
         fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type)
+        # NG領域塗りつぶし
+        ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
+        if ng_regions:
+            _add_ng_regions(fig, ng_regions)
+        # グループ結線
+        group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
+        if group_line_key and group_line_key in df.columns:
+            _add_group_lines(fig, df, x_key, y_key, group_line_key)
         st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         st.scatter_chart(df, x=x_key, y=y_key)
@@ -1537,6 +1710,126 @@ def _render_saved_card(
         df = pd.DataFrame([props_flat]).T
         df.columns = ["値"]
         st.dataframe(df, use_container_width=True)
+
+
+def _render_saved_array_plot(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    view: Any,
+) -> None:
+    """保存済み配列プロットビューを描画
+
+    array_plot設定: {"prefix": "RF", "x": "RF.time", "y": ["RF.RF3"], "mode": "grid"}
+    """
+    ap_config = getattr(view, "array_plot", {})
+    prefix = ap_config.get("prefix", "")
+    x_key = ap_config.get("x", "")
+    y_keys = ap_config.get("y", [])
+    mode = ap_config.get("mode", "grid")
+
+    if not x_key:
+        # 接頭辞から自動決定
+        array_keys = provider.get_array_property_keys()
+        if prefix:
+            prefix_keys = [k for k in array_keys if k.startswith(prefix + ".")]
+        else:
+            prefix_keys = array_keys
+        if not prefix_keys:
+            st.info("配列プロパティが見つかりません。")
+            return
+        x_key = prefix_keys[0]
+        if not y_keys:
+            y_keys = [k for k in prefix_keys if k != x_key]
+
+    if isinstance(y_keys, str):
+        y_keys = [y_keys]
+
+    if not y_keys:
+        st.info("Y軸の配列キーが指定されていません。")
+        return
+
+    # フィルタ適用
+    filters = getattr(view, "filters", {}) or {}
+    filter_dict = _saved_view_filters_to_provider_filters(filters) if filters else None
+
+    if mode == "single":
+        # 個別ノード重ね書き（先頭ノードを表示）
+        rows = provider.get_go_table()
+        if filters:
+            rows = _apply_saved_view_filters(rows, filters)
+        if rows:
+            node_id = rows[0]["id"]
+            plot_data = provider.get_array_plot_data(node_id, x_key, y_keys)
+            if plot_data:
+                try:
+                    import plotly.graph_objects as go
+                    fig = go.Figure()
+                    for s in plot_data["series"]:
+                        fig.add_trace(go.Scatter(
+                            x=plot_data["x_values"],
+                            y=s["values"],
+                            mode="lines+markers",
+                            name=s["key"].split(".")[-1],
+                        ))
+                    fig.update_layout(
+                        title=plot_data["name"],
+                        xaxis_title=x_key.split(".")[-1],
+                        yaxis_title="値",
+                        height=500,
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                except ImportError:
+                    st.warning("plotlyが必要です。")
+    else:
+        # グリッド比較
+        for y_key in y_keys:
+            grid_data = provider.get_array_grid_data(x_key, y_key, filters=filter_dict)
+            if not grid_data:
+                continue
+            grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
+            cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
+            st.markdown(f"**{y_key} vs {x_key}**")
+            try:
+                import plotly.graph_objects as go
+                for row_start in range(0, len(grid_data), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for col_idx, item in enumerate(
+                        grid_data[row_start: row_start + cols_per_row]
+                    ):
+                        with cols[col_idx]:
+                            fig = go.Figure()
+                            fig.add_trace(go.Scatter(
+                                x=item["x_values"],
+                                y=item["y_values"],
+                                mode="lines+markers",
+                                name=y_key,
+                            ))
+                            title = item["name"]
+                            idx_str = item.get("index", "")
+                            if idx_str:
+                                title += f" (idx{idx_str})"
+                            fig.update_layout(
+                                title=title,
+                                xaxis_title=x_key.split(".")[-1],
+                                yaxis_title=y_key.split(".")[-1],
+                                margin=dict(l=20, r=20, t=40, b=20),
+                                height=300,
+                                showlegend=False,
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                st.warning("plotlyが必要です。")
+            st.caption(f"データ数: {len(grid_data)}")
+
+
+def _saved_view_filters_to_provider_filters(
+    filters: dict[str, Any],
+) -> dict[str, Any]:
+    """保存済みビューのフィルタをDashboardDataProvider.get_*のfilters形式に変換"""
+    result: dict[str, Any] = {}
+    for key, value in filters.items():
+        result[key] = value
+    return result
 
 
 def _apply_saved_view_filters(
