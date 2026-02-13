@@ -113,67 +113,15 @@ def _get_project_root() -> Path:
 
 
 def _try_render_aggrid(df: "pd.DataFrame") -> bool:
-    """AgGridでDataFrameを表示。失敗時はFalseを返す。
-
-    列幅は列名の文字数に基づいて初期設定する。
-    日本語は2文字分、英数字は1文字分として計算し、
-    最低限列名が見える幅を確保する。
-
-    Returns:
-        True: AgGridで描画成功、False: インポート不可
-    """
-    try:
-        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-    except ImportError:
-        return False
-
-    gb = GridOptionsBuilder.from_dataframe(df)
-    gb.configure_default_column(
-        filterable=True,
-        sortable=True,
-        resizable=True,
-    )
-    # 各列の幅を列名の文字幅に基づいて設定
-    for col_name in df.columns:
-        width = _estimate_column_width(col_name)
-        gb.configure_column(col_name, minWidth=width, initialWidth=width)
-    gb.configure_selection(
-        selection_mode="multiple",
-        use_checkbox=True,
-    )
-    gb.configure_pagination(paginationAutoPageSize=True)
-    grid_options = gb.build()
-
-    AgGrid(
-        df,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=False,
-        theme="streamlit",
-    )
-    return True
+    """AgGridでDataFrameを表示（widgets.pyへの委譲ラッパー）"""
+    from services.dashboard.widgets import try_render_aggrid
+    return try_render_aggrid(df)
 
 
 def _estimate_column_width(col_name: str) -> int:
-    """列名の文字幅からAgGrid列幅（px）を推定
-
-    日本語（全角）文字は2文字分、英数字は1文字分として計算。
-    1文字あたり約10pxとし、パディング30pxを加算。
-    最小幅は80px。
-
-    Args:
-        col_name: 列名
-
-    Returns:
-        推定列幅（ピクセル）
-    """
-    char_width = 0
-    for ch in col_name:
-        if ord(ch) > 0x7F:
-            char_width += 2
-        else:
-            char_width += 1
-    return max(80, char_width * 10 + 30)
+    """列名の文字幅からAgGrid列幅を推定（widgets.pyへの委譲ラッパー）"""
+    from services.dashboard.widgets import estimate_column_width
+    return estimate_column_width(col_name)
 
 
 # ====================================================================

@@ -73,6 +73,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
     - `services/parse/file_parse.py` : FileParse/ObsidianFileParse（レガシー）
     - `services/parse/connectors/abaqus/` : Abaqus INP読み込み、メッシュ統計、差分比較
     - `services/parse/connectors/obsidian/` : Obsidianエクスポート、daily連携
+  - `services/dashboard/widgets.py` : 共有UIヘルパー（AgGrid等、コネクタからも利用）
   - `services/export/connectors/` : 外部ツールへのエクスポート（Neo4jConnector等）
   - `services/api/` : REST APIサーバー（FastAPI、jj serve）
   - `services/run/` : スクリプトラッパー（jj r）
@@ -90,6 +91,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-12 / status-077: コネクタ固有config分離・プラグイン化分析。DashboardConfig.material_curve_columnsをconnector_configs辞書方式に移行（後方互換あり）。DashboardPageConnectorにconnector_key属性追加。AgGridヘルパーをwidgets.pyに切り出しコネクタ→app.pyの逆依存を解消。Abaqusコネクタを完全分離するための3フェーズ計画（SDK定義/キャッシュIF抽象化/動的発見）を分析・文書化。48テスト全パス（12件追加）。([status-077](docs/status/status-077.md))
 - 2026-02-12 / status-076: ダッシュボードAbaqus依存コネクター分離。物性一覧ページとデータプロバイダーメソッド3つをservices/dashboard/connectors/abaqus.pyに分離。DashboardPageConnector基底クラス（__init_subclass__自動登録）で動的ページ追加を実現。汎用ページ（テーブル/カード/プロット等）はapp.py/data_provider.pyに保持。27テスト全パス。([status-076](docs/status/status-076.md))
 - 2026-02-12 / status-074: CSVパース配列取り込み・ダッシュボード配列プロット・物性一覧。CsvArrayParser追加（has_output関係CSVのトークン差分でプレフィックス決定、配列データをRF.time/RF.RF3形式でGOノードに格納）。配列プロットページ（グリッド比較+個別ノード重ね書き）。物性一覧ページ（abaqus_materialテーブル+plastic/elastic等のラインプロット）。22テスト追加。([status-074](docs/status/status-074.md))
 - 2026-02-12 / status-073: ギャラリーgroupby・float指数表示・vocab順カラム・default-config拡充。ギャラリーに条件/キーによるグループ表示機能追加（`daily:日付:キー`→キー正規化対応）。float値の指数表示（|x|>=1e4 or |x|<1e-2で小数2桁指数表示）をダッシュボード・CLIに適用。テーブル列・プロット軸・プロパティキーをvocab定義順でソート。AgGrid列幅を列名文字幅から自動設定。default-config.yamlを全設定のコメント・使用例付きに拡充、init時にコメント保持コピー。25テスト追加。([status-073](docs/status/status-073.md))

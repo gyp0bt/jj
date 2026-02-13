@@ -198,6 +198,44 @@ def get_curve_plot_axes(
 # ====================================================================
 
 
+def _parse_material_curve_columns(
+    raw_mcc: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """material-curve-columns設定を正規化
+
+    config.yamlのconnectors.abaqus.material-curve-columnsセクションを
+    {property_key: {columns: [...], x: int, y: int}} 形式に正規化する。
+
+    Args:
+        raw_mcc: 生の設定辞書
+
+    Returns:
+        正規化された設定辞書
+    """
+    result: dict[str, dict[str, Any]] = {}
+    if not isinstance(raw_mcc, dict):
+        return result
+    for key, val in raw_mcc.items():
+        if isinstance(val, dict):
+            entry: dict[str, Any] = {}
+            cols = val.get("columns", [])
+            if isinstance(cols, list):
+                entry["columns"] = [str(c) for c in cols]
+            else:
+                entry["columns"] = []
+            if "x" in val:
+                entry["x"] = int(val["x"])
+            if "y" in val:
+                entry["y"] = int(val["y"])
+            result[str(key)] = entry
+        elif isinstance(val, list):
+            # 簡略形式: property_key: [col1, col2]
+            result[str(key)] = {
+                "columns": [str(c) for c in val],
+            }
+    return result
+
+
 def _render_material_page(
     provider: "DashboardDataProvider",
     dashboard_config: Any = None,
@@ -206,7 +244,17 @@ def _render_material_page(
     import streamlit as st
 
     st.header("物性一覧")
-    mcc = getattr(dashboard_config, "material_curve_columns", None) or {}
+    # コネクタ固有configからmaterial-curve-columns取得
+    raw_mcc: dict[str, Any] = {}
+    if dashboard_config is not None:
+        get_fn = getattr(dashboard_config, "get_connector_config", None)
+        if get_fn is not None:
+            abq_cfg = get_fn("abaqus")
+            raw_mcc = abq_cfg.get("material-curve-columns", {})
+        else:
+            # 後方互換: 旧形式(material_curve_columns属性)
+            raw_mcc = getattr(dashboard_config, "material_curve_columns", None) or {}
+    mcc = _parse_material_curve_columns(raw_mcc)
 
     mat_rows = get_material_table(provider)
     if not mat_rows:
@@ -231,11 +279,11 @@ def _render_material_page(
         display_rows.append(row)
 
     df = pd.DataFrame(display_rows)
-    # AgGridを試行（app.pyのヘルパーを使用）
+    # AgGridを試行（共有ウィジェット使用）
     try:
-        from services.dashboard.app import _try_render_aggrid
+        from services.dashboard.widgets import try_render_aggrid
 
-        if not _try_render_aggrid(df):
+        if not try_render_aggrid(df):
             st.dataframe(df, use_container_width=True, hide_index=True)
     except ImportError:
         st.dataframe(df, use_container_width=True, hide_index=True)
@@ -326,6 +374,7 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
     """
 
     page_label = "物性一覧"
+    connector_key = "abaqus"
 
     def is_available(self, provider: "DashboardDataProvider") -> bool:
         """abaqus_materialノードが1つ以上存在するか判定"""

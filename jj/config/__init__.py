@@ -641,7 +641,7 @@ class SavedViewConfig:
 
 @dataclass(frozen=True)
 class DashboardConfig:
-    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・物性カーブ列名"""
+    """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・コネクタ固有設定"""
     table_columns: list[str] | None  # テーブルビュー表示カラム（globパターン対応、優先順位順）
     default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
     plot_x: str | None  # プロットデフォルトX軸
@@ -649,7 +649,18 @@ class DashboardConfig:
     gallery_columns: int  # ギャラリーグリッド列数
     gallery_rows: int  # ギャラリーグリッド行数
     saved_views: list[SavedViewConfig]  # 保存済みビュー（表示順）
-    material_curve_columns: dict[str, dict[str, Any]]  # 物性カーブ列名設定
+    connector_configs: dict[str, dict[str, Any]]  # コネクタ固有設定（キー: コネクタ名）
+
+    def get_connector_config(self, connector_key: str) -> dict[str, Any]:
+        """コネクタ固有設定を取得
+
+        Args:
+            connector_key: コネクタ名（例: "abaqus"）
+
+        Returns:
+            コネクタ固有設定の辞書。未設定の場合は空辞書。
+        """
+        return dict(self.connector_configs.get(connector_key, {}))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DashboardConfig":
@@ -662,7 +673,7 @@ class DashboardConfig:
                 gallery_columns=5,
                 gallery_rows=4,
                 saved_views=[],
-                material_curve_columns={},
+                connector_configs={},
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -687,29 +698,19 @@ class DashboardConfig:
         for v in raw_views:
             if isinstance(v, dict):
                 saved_views.append(SavedViewConfig.from_dict(v))
-        # 物性カーブ列名設定の読み込み
-        raw_mcc = data.get("material-curve-columns", {})
-        if not isinstance(raw_mcc, dict):
-            raise ValueError("dashboard.material-curve-columns must be dict")
-        material_curve_columns: dict[str, dict[str, Any]] = {}
-        for key, val in raw_mcc.items():
-            if isinstance(val, dict):
-                entry: dict[str, Any] = {}
-                cols = val.get("columns", [])
-                if isinstance(cols, list):
-                    entry["columns"] = [str(c) for c in cols]
-                else:
-                    entry["columns"] = []
-                if "x" in val:
-                    entry["x"] = int(val["x"])
-                if "y" in val:
-                    entry["y"] = int(val["y"])
-                material_curve_columns[str(key)] = entry
-            elif isinstance(val, list):
-                # 簡略形式: property_key: [col1, col2]
-                material_curve_columns[str(key)] = {
-                    "columns": [str(c) for c in val],
-                }
+        # コネクタ固有設定の読み込み
+        raw_connectors = data.get("connectors", {})
+        if not isinstance(raw_connectors, dict):
+            raise ValueError("dashboard.connectors must be dict")
+        connector_configs: dict[str, dict[str, Any]] = {}
+        for ckey, cval in raw_connectors.items():
+            if isinstance(cval, dict):
+                connector_configs[str(ckey)] = dict(cval)
+        # 後方互換: material-curve-columnsがトップレベルにある場合はabaqusコネクタに移行
+        if "material-curve-columns" in data and "abaqus" not in connector_configs:
+            raw_mcc = data["material-curve-columns"]
+            if isinstance(raw_mcc, dict):
+                connector_configs["abaqus"] = {"material-curve-columns": raw_mcc}
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             default_filters=default_filters,
@@ -718,7 +719,7 @@ class DashboardConfig:
             gallery_columns=gallery_columns,
             gallery_rows=gallery_rows,
             saved_views=saved_views,
-            material_curve_columns=material_curve_columns,
+            connector_configs=connector_configs,
         )
 
 

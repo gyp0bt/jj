@@ -27,10 +27,12 @@ class DashboardPageConnector:
 
     Attributes:
         page_label: サイドバーに表示するページ名
+        connector_key: コネクタ固有config取得用キー（例: "abaqus"）
         _registry: 登録済みコネクターの辞書 {page_label: connector_class}
     """
 
     page_label: str = ""
+    connector_key: str = ""
     _registry: dict[str, type["DashboardPageConnector"]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -50,6 +52,22 @@ class DashboardPageConnector:
             利用可能な場合True
         """
         return True
+
+    def get_connector_config(self, dashboard_config: Any) -> dict[str, Any]:
+        """DashboardConfigからコネクタ固有設定を取得
+
+        Args:
+            dashboard_config: DashboardConfig
+
+        Returns:
+            コネクタ固有設定の辞書
+        """
+        if not self.connector_key:
+            return {}
+        get_fn = getattr(dashboard_config, "get_connector_config", None)
+        if get_fn is not None:
+            return get_fn(self.connector_key)
+        return {}
 
     def render_page(
         self,
