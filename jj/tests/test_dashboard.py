@@ -2632,7 +2632,7 @@ class TestRestApiPropFilter:
 
     def test_parse_prop_filters(self):
         """プロパティフィルターのパース"""
-        from services.api.routes import _parse_prop_filters
+        from services.query import parse_prop_filters
 
         params = {
             "type": "go",
@@ -2640,14 +2640,14 @@ class TestRestApiPropFilter:
             "props.temperature.le": "400",
             "limit": "100",
         }
-        filters = _parse_prop_filters(params)
+        filters = parse_prop_filters(params)
         assert len(filters) == 2
         assert ("RF3", "gt", 5.0) in filters
         assert ("temperature", "le", 400.0) in filters
 
     def test_apply_prop_filters(self):
         """プロパティフィルターの適用"""
-        from services.api.routes import _apply_prop_filters
+        from services.query import apply_prop_filters, node_prop_getter
         from jj_types import Node
 
         nodes = [
@@ -2660,12 +2660,12 @@ class TestRestApiPropFilter:
         ]
 
         # RF3 > 5
-        result = _apply_prop_filters(nodes, [("RF3", "gt", 5.0)])
+        result = apply_prop_filters(nodes, [("RF3", "gt", 5.0)], prop_getter=node_prop_getter)
         assert len(result) == 1
         assert result[0].name == "b"
 
         # RF3 >= 5
-        result = _apply_prop_filters(nodes, [("RF3", "ge", 5.0)])
+        result = apply_prop_filters(nodes, [("RF3", "ge", 5.0)], prop_getter=node_prop_getter)
         assert len(result) == 2
         names = {n.name for n in result}
         assert "b" in names
@@ -2673,7 +2673,7 @@ class TestRestApiPropFilter:
 
     def test_apply_prop_filters_combined(self):
         """複合プロパティフィルター"""
-        from services.api.routes import _apply_prop_filters
+        from services.query import apply_prop_filters, node_prop_getter
         from jj_types import Node
 
         nodes = [
@@ -2686,10 +2686,10 @@ class TestRestApiPropFilter:
         ]
 
         # RF3 > 4 AND temperature < 400
-        result = _apply_prop_filters(nodes, [
+        result = apply_prop_filters(nodes, [
             ("RF3", "gt", 4.0),
             ("temperature", "lt", 400.0),
-        ])
+        ], prop_getter=node_prop_getter)
         assert len(result) == 1
         assert result[0].name == "b"
 
