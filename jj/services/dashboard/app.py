@@ -499,6 +499,42 @@ def _render_table_page(
     if not _try_render_aggrid(df):
         st.dataframe(df, use_container_width=True, hide_index=True)
 
+    # Excelダウンロードボタン
+    _render_excel_download(df, "go_table")
+
+
+# ====================================================================
+# Excelダウンロード
+# ====================================================================
+
+
+def _render_excel_download(df: "pd.DataFrame", filename_prefix: str = "data") -> None:
+    """DataFrameをExcelファイルとしてダウンロードするボタンを表示
+
+    openpyxlが利用可能な場合のみ表示する。
+
+    Args:
+        df: ダウンロード対象のDataFrame
+        filename_prefix: ファイル名の接頭辞
+    """
+    try:
+        import io
+        import openpyxl  # noqa: F401
+
+        buffer = io.BytesIO()
+        with __import__("pandas").ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="data")
+        buffer.seek(0)
+
+        st.download_button(
+            label="Excelダウンロード",
+            data=buffer,
+            file_name=f"{filename_prefix}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except ImportError:
+        pass
+
 
 # ====================================================================
 # カードビュー（全プロパティ表示）
@@ -1366,6 +1402,9 @@ def _render_saved_table(
         df = df[[c for c in selected_cols if c in df.columns]]
 
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # Excelダウンロードボタン
+    _render_excel_download(df, f"saved_view_{view.name}")
 
 
 def _render_saved_plot(

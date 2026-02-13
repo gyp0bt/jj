@@ -3,29 +3,110 @@
 jj serveで起動されるREST APIのエンドポイントを定義する。
 
 エンドポイント一覧:
-  GET /api/v1/graph           - グラフ全体
-  GET /api/v1/nodes           - ノード一覧（フィルター対応）
-  GET /api/v1/nodes/{id}      - ノード詳細
-  GET /api/v1/nodes/{id}/related - 関連ノード
-  GET /api/v1/relations       - リレーション一覧
-  GET /api/v1/properties/keys - プロパティキー一覧
-  GET /api/v1/summary         - サマリー統計
-  GET /api/v1/status          - 実行ステータス
+  GET  /api/v1/graph           - グラフ全体
+  GET  /api/v1/nodes           - ノード一覧（フィルター対応・プロパティ比較フィルター）
+  GET  /api/v1/nodes/{id}      - ノード詳細
+  GET  /api/v1/nodes/{id}/related - 関連ノード
+  GET  /api/v1/relations       - リレーション一覧
+  GET  /api/v1/properties/keys - プロパティキー一覧
+  GET  /api/v1/summary         - サマリー統計
+  GET  /api/v1/status          - 実行ステータス
+  POST /api/v1/parse           - プロジェクト再パース実行
+  POST /api/v1/reload          - グラフ再読み込み
+
+プロパティ比較フィルター:
+  GET /api/v1/nodes?props.RF3.gt=5&props.temperature.lt=400
+  対応オペレータ: eq, ne, gt, ge, lt, le
 
 [READMEへ戻る](../../../README.md)
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from jj_types import GraphModel
+from jj_types import GraphModel, Node
 from services.dashboard.data_provider import DashboardDataProvider
 from services.graph import GraphService
+
+
+# プロパティフィルターのパターン: props.KEY.OPERATOR
+_PROP_FILTER_PATTERN = re.compile(r"^props\.(.+)\.(eq|ne|gt|ge|lt|le)$")
+
+# 比較オペレータの実装
+_OPERATORS: dict[str, Any] = {
+    "eq": lambda a, b: a == b,
+    "ne": lambda a, b: a != b,
+    "gt": lambda a, b: a > b,
+    "ge": lambda a, b: a >= b,
+    "lt": lambda a, b: a < b,
+    "le": lambda a, b: a <= b,
+}
+
+
+def _parse_prop_filters(query_params: dict[str, str]) -> list[tuple[str, str, float]]:
+    """クエリパラメータからプロパティフィルターを抽出する
+
+    Args:
+        query_params: リクエストのクエリパラメータ辞書
+
+    Returns:
+        [(プロパティキー, オペレータ, 比較値), ...] のリスト
+    """
+    filters: list[tuple[str, str, float]] = []
+    for key, value in query_params.items():
+        match = _PROP_FILTER_PATTERN.match(key)
+        if match:
+            prop_key = match.group(1)
+            operator = match.group(2)
+            try:
+                num_value = float(value)
+                filters.append((prop_key, operator, num_value))
+            except (ValueError, TypeError):
+                continue
+    return filters
+
+
+def _apply_prop_filters(
+    nodes: list[Node], filters: list[tuple[str, str, float]]
+) -> list[Node]:
+    """プロパティ比較フィルターを適用する
+
+    Args:
+        nodes: フィルタ対象のノードリスト
+        filters: [(プロパティキー, オペレータ, 比較値), ...]
+
+    Returns:
+        フィルタ通過したノードリスト
+    """
+    if not filters:
+        return nodes
+
+    result: list[Node] = []
+    for node in nodes:
+        passed = True
+        for prop_key, operator, compare_value in filters:
+            prop_value = node.properties.get(prop_key)
+            if prop_value is None:
+                passed = False
+                break
+            try:
+                num_prop = float(prop_value)
+            except (ValueError, TypeError):
+                passed = False
+                break
+            op_func = _OPERATORS.get(operator)
+            if op_func is None or not op_func(num_prop, compare_value):
+                passed = False
+                break
+        if passed:
+            result.append(node)
+    return result
 
 
 def create_app(project_root: Path) -> FastAPI:
@@ -101,13 +182,20 @@ def create_app(project_root: Path) -> FastAPI:
     # ------------------------------------------
     @app.get("/api/v1/nodes")
     def get_nodes(
+        request: Request,
         type: Optional[str] = Query(None, description="ノードタイプでフィルタ"),
         active: Optional[bool] = Query(None, description="activeフラグでフィルタ"),
         name: Optional[str] = Query(None, description="名前の部分一致フィルタ"),
         limit: int = Query(1000, description="取得件数上限", ge=1, le=10000),
         offset: int = Query(0, description="オフセット", ge=0),
     ) -> dict[str, Any]:
-        """ノード一覧を返す（フィルター対応）"""
+        """ノード一覧を返す（フィルター対応）
+
+        プロパティ比較フィルター:
+            ?props.RF3.gt=5 → RF3 > 5 のノードのみ
+            ?props.temperature.le=400 → temperature <= 400 のノードのみ
+            対応オペレータ: eq, ne, gt, ge, lt, le
+        """
         graph = _get_graph()
         nodes = list(graph.nodes)
 
@@ -120,6 +208,11 @@ def create_app(project_root: Path) -> FastAPI:
         if name is not None:
             name_lower = name.lower()
             nodes = [n for n in nodes if name_lower in n.name.lower()]
+
+        # プロパティ比較フィルター
+        prop_filters = _parse_prop_filters(dict(request.query_params))
+        if prop_filters:
+            nodes = _apply_prop_filters(nodes, prop_filters)
 
         total = len(nodes)
         nodes = nodes[offset : offset + limit]
@@ -219,6 +312,35 @@ def create_app(project_root: Path) -> FastAPI:
         """実行ステータスを返す"""
         provider = _get_provider()
         return provider.get_status_summary()
+
+    # ------------------------------------------
+    # POST /api/v1/parse
+    # ------------------------------------------
+    @app.post("/api/v1/parse")
+    def parse_project(
+        full: bool = Query(False, description="--fullモードで実行"),
+    ) -> dict[str, Any]:
+        """プロジェクトを再パースしてグラフデータを更新する
+
+        Args:
+            full: Trueの場合、重い処理（メッシュ統計等）も実行する
+
+        Returns:
+            パース結果のサマリー
+        """
+        svc = GraphService(project_root=state["project_root"])
+        graph, save_path = svc.parse_and_save(full_mode=full)
+
+        # キャッシュをリセットして新しいグラフをロード
+        state["graph"] = graph
+        state["provider"] = None
+
+        summary = svc.summary(graph)
+        return {
+            "status": "parsed",
+            "save_path": str(save_path),
+            **summary,
+        }
 
     # ------------------------------------------
     # POST /api/v1/reload

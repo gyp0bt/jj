@@ -213,7 +213,11 @@ class OutputRelationParser(AbstractFileParser):
 
     入力ファイルのbasenameを接頭辞として持つ出力ファイルを検出し、
     has_output関係でリンクする。
-    例: go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv (has_output)
+
+    2種類のマッチングをサポート:
+    1. basename接頭辞マッチ: go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv
+    2. サブディレクトリマッチ: go_idx1_w5_t20.inp → go_idx1_w5_t20/history_RF3.csv
+       出力ファイルの親ディレクトリ名が入力ノードのbasenameと一致する場合
     """
 
     priority = 32
@@ -233,6 +237,13 @@ class OutputRelationParser(AbstractFileParser):
             elif ext_lower in OUTPUT_EXTENSIONS or ext_lower in result_extensions:
                 output_candidates.append(node)
 
+        # 入力ノード名 → ノードの逆引きマップ（サブディレクトリマッチ用）
+        input_by_name: dict[str, list[Node]] = defaultdict(list)
+        for inp_node in input_nodes:
+            input_by_name[inp_node.name].append(inp_node)
+
+        linked: set[tuple[int, int]] = set()
+
         for inp_node in input_nodes:
             inp_basename = inp_node.name
             inp_index = graph.get_node_index(inp_node)
@@ -242,14 +253,33 @@ class OutputRelationParser(AbstractFileParser):
                 if out_node.name == inp_basename:
                     continue
 
-                # basename接頭辞マッチ
-                if not out_node.name.startswith(inp_basename + "_"):
+                matched = False
+
+                # パターン1: basename接頭辞マッチ
+                if out_node.name.startswith(inp_basename + "_"):
+                    matched = True
+
+                # パターン2: サブディレクトリマッチ
+                # 出力ファイルの親ディレクトリ名が入力ノードのbasenameと一致
+                if not matched:
+                    out_path = out_node.properties.get("path", "")
+                    if out_path:
+                        parent_dir = Path(out_path).parent.name
+                        if parent_dir == inp_basename:
+                            matched = True
+
+                if not matched:
                     continue
 
                 # 同じindexか確認
                 out_index = graph.get_node_index(out_node)
                 if inp_index and out_index and inp_index != out_index:
                     continue
+
+                pair = (inp_node.id, out_node.id)
+                if pair in linked:
+                    continue
+                linked.add(pair)
 
                 graph.add_relation(
                     Relation(
