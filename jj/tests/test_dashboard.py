@@ -728,53 +728,53 @@ class TestGraphChangeDetection:
 
     def test_find_graph_path_yaml(self, tmp_path):
         """graph.yamlが存在する場合にパスを返す"""
-        from services.dashboard.app import _find_graph_path
+        from services.dashboard.query import find_graph_path
 
         storage_dir = tmp_path / ".jj" / "storage"
         storage_dir.mkdir(parents=True)
         graph_file = storage_dir / "graph.yaml"
         graph_file.write_text("nodes: []\nrelations: []\n")
 
-        result = _find_graph_path(tmp_path)
+        result = find_graph_path(tmp_path)
         assert result is not None
         assert result.name == "graph.yaml"
 
     def test_find_graph_path_json(self, tmp_path):
         """graph.jsonが存在する場合にパスを返す"""
-        from services.dashboard.app import _find_graph_path
+        from services.dashboard.query import find_graph_path
 
         storage_dir = tmp_path / ".jj" / "storage"
         storage_dir.mkdir(parents=True)
         (storage_dir / "graph.json").write_text("{}")
 
-        result = _find_graph_path(tmp_path)
+        result = find_graph_path(tmp_path)
         assert result is not None
         assert result.name == "graph.json"
 
     def test_find_graph_path_none(self, tmp_path):
         """グラフファイルが存在しない場合にNoneを返す"""
-        from services.dashboard.app import _find_graph_path
+        from services.dashboard.query import find_graph_path
 
-        result = _find_graph_path(tmp_path)
+        result = find_graph_path(tmp_path)
         assert result is None
 
     def test_get_graph_mtime_returns_float(self, tmp_path):
         """mtimeがfloatで返される"""
-        from services.dashboard.app import _get_graph_mtime
+        from services.dashboard.query import get_graph_mtime
 
         storage_dir = tmp_path / ".jj" / "storage"
         storage_dir.mkdir(parents=True)
         (storage_dir / "graph.yaml").write_text("nodes: []\n")
 
-        mtime = _get_graph_mtime(tmp_path)
+        mtime = get_graph_mtime(tmp_path)
         assert isinstance(mtime, float)
         assert mtime > 0
 
     def test_get_graph_mtime_no_file(self, tmp_path):
         """ファイルがない場合は0.0"""
-        from services.dashboard.app import _get_graph_mtime
+        from services.dashboard.query import get_graph_mtime
 
-        mtime = _get_graph_mtime(tmp_path)
+        mtime = get_graph_mtime(tmp_path)
         assert mtime == 0.0
 
 
@@ -1088,61 +1088,45 @@ class TestGetPropertyImages:
 
 
 class TestSelectTableColumns:
-    """_select_table_columns のテスト"""
+    """select_table_columns のテスト"""
 
     def test_none_returns_all(self):
         """table_columnsがNoneの場合は全カラム返却"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _select_table_columns
+        from services.dashboard.query import select_table_columns
 
         cols = ["name", "type", "format", "index", "RF3"]
-        assert _select_table_columns(cols, None) == cols
+        assert select_table_columns(cols, None) == cols
 
     def test_filters_and_orders(self):
         """指定パターンに基づくフィルタと順序付け"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _select_table_columns
+        from services.dashboard.query import select_table_columns
 
         all_cols = ["name", "type", "format", "index", "RF3", "temperature", "active"]
         table_columns = ["RF3", "index"]
-        result = _select_table_columns(all_cols, table_columns)
+        result = select_table_columns(all_cols, table_columns)
         # 固定カラム(name, type, format) + 指定カラム(RF3, index)
         assert result == ["name", "type", "format", "RF3", "index"]
 
     def test_glob_pattern(self):
         """globパターンによるカラムマッチ"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _select_table_columns
+        from services.dashboard.query import select_table_columns
 
         all_cols = [
             "name", "type", "format", "stress_center", "stress_edge", "RF3"
         ]
         table_columns = ["stress*", "RF3"]
-        result = _select_table_columns(all_cols, table_columns)
+        result = select_table_columns(all_cols, table_columns)
         assert result == [
             "name", "type", "format", "stress_center", "stress_edge", "RF3"
         ]
 
     def test_no_match(self):
         """マッチしないパターンの場合は固定カラムのみ"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _select_table_columns
+        from services.dashboard.query import select_table_columns
 
         all_cols = ["name", "type", "format", "index"]
         table_columns = ["nonexistent"]
-        result = _select_table_columns(all_cols, table_columns)
+        result = select_table_columns(all_cols, table_columns)
         assert result == ["name", "type", "format"]
 
 
@@ -1152,60 +1136,40 @@ class TestSelectTableColumns:
 
 
 class TestIsTruthy:
-    """_is_truthy のテスト"""
+    """is_truthy のテスト"""
 
     def test_bool_true(self):
         """Python bool Trueを正しく判定"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _is_truthy
+        from services.dashboard.query import is_truthy
 
-        assert _is_truthy(True) is True
+        assert is_truthy(True) is True
 
     def test_bool_false(self):
         """Python bool Falseを正しく判定"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _is_truthy
+        from services.dashboard.query import is_truthy
 
-        assert _is_truthy(False) is False
+        assert is_truthy(False) is False
 
     def test_string_true(self):
         """文字列 'true' を正しく判定"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _is_truthy
+        from services.dashboard.query import is_truthy
 
-        assert _is_truthy("true") is True
-        assert _is_truthy("True") is True
-        assert _is_truthy("TRUE") is True
+        assert is_truthy("true") is True
+        assert is_truthy("True") is True
+        assert is_truthy("TRUE") is True
 
     def test_string_false(self):
         """文字列 'false' を正しく判定"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _is_truthy
+        from services.dashboard.query import is_truthy
 
-        assert _is_truthy("false") is False
-        assert _is_truthy("False") is False
+        assert is_truthy("false") is False
+        assert is_truthy("False") is False
 
     def test_none(self):
         """Noneはfalse"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _is_truthy
+        from services.dashboard.query import is_truthy
 
-        assert _is_truthy(None) is False
+        assert is_truthy(None) is False
 
 
 # ====================================================================
@@ -1529,37 +1493,25 @@ class TestFormatFloatValue:
 
 
 class TestNormalizeGroupKey:
-    """_normalize_group_key のテスト"""
+    """normalize_group_key のテスト"""
 
     def test_daily_key_normalized(self):
         """daily:日付:キー → キーに正規化"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _normalize_group_key
+        from services.dashboard.query import normalize_group_key
 
-        assert _normalize_group_key("daily:2026-01-15:screenshot") == "screenshot"
+        assert normalize_group_key("daily:2026-01-15:screenshot") == "screenshot"
 
     def test_non_daily_key_unchanged(self):
         """dailyでないキーはそのまま"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _normalize_group_key
+        from services.dashboard.query import normalize_group_key
 
-        assert _normalize_group_key("screenshot") == "screenshot"
+        assert normalize_group_key("screenshot") == "screenshot"
 
     def test_daily_two_parts(self):
         """daily:xxのみ（2パート）はそのまま"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _normalize_group_key
+        from services.dashboard.query import normalize_group_key
 
-        assert _normalize_group_key("daily:only") == "daily:only"
+        assert normalize_group_key("daily:only") == "daily:only"
 
 
 # ====================================================================
@@ -1623,45 +1575,33 @@ class TestEstimateColumnWidth:
 
 
 class TestSortColumnsByVocab:
-    """_sort_columns_by_vocab のテスト"""
+    """sort_columns_by_vocab のテスト"""
 
     def test_vocab_order_first(self):
         """vocab定義順が優先される"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _sort_columns_by_vocab
+        from services.dashboard.query import sort_columns_by_vocab
 
         vocab = {"idx": "条件", "ver": "バージョン"}
         cols = ["RF3", "バージョン", "条件", "temperature"]
-        result = _sort_columns_by_vocab(cols, vocab)
+        result = sort_columns_by_vocab(cols, vocab)
         # vocab順: 条件(idx=0位), バージョン(ver=1位) → 残り: RF3, temperature
         assert result == ["条件", "バージョン", "RF3", "temperature"]
 
     def test_no_vocab_alphabetical(self):
         """vocabが空の場合は文字列昇順"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _sort_columns_by_vocab
+        from services.dashboard.query import sort_columns_by_vocab
 
         cols = ["RF3", "temperature", "active"]
-        result = _sort_columns_by_vocab(cols, {})
+        result = sort_columns_by_vocab(cols, {})
         assert result == ["RF3", "active", "temperature"]
 
     def test_mixed_vocab_non_vocab(self):
         """vocabに含まれるものと含まれないものの混合"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _sort_columns_by_vocab
+        from services.dashboard.query import sort_columns_by_vocab
 
         vocab = {"idx": "条件"}
         cols = ["RF3", "条件", "active"]
-        result = _sort_columns_by_vocab(cols, vocab)
+        result = sort_columns_by_vocab(cols, vocab)
         assert result == ["条件", "RF3", "active"]
 
 
@@ -3289,7 +3229,7 @@ class TestHtmlExport:
     def test_generate_table_html(self):
         """テーブルビューのHTML生成"""
         from config import SavedViewConfig, DashboardConfig
-        from services.dashboard.app import _generate_table_html
+        from services.dashboard.html_export import generate_table_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
@@ -3298,7 +3238,7 @@ class TestHtmlExport:
             "name": "test_table",
             "type": "table",
         })
-        html = _generate_table_html(provider, dashboard_config, view)
+        html = generate_table_html(provider, dashboard_config, view)
         assert "go_test1" in html
         assert "go_test2" in html
         assert "<table" in html
@@ -3306,7 +3246,7 @@ class TestHtmlExport:
     def test_generate_table_html_with_filter(self):
         """フィルタ付きテーブルビューのHTML生成"""
         from config import SavedViewConfig, DashboardConfig
-        from services.dashboard.app import _generate_table_html
+        from services.dashboard.html_export import generate_table_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
@@ -3316,18 +3256,18 @@ class TestHtmlExport:
             "type": "table",
             "filters": {"analysis_status": "completed"},
         })
-        html = _generate_table_html(provider, dashboard_config, view)
+        html = generate_table_html(provider, dashboard_config, view)
         assert "go_test1" in html
         assert "go_test2" not in html
         assert "1 / 2 件" in html
 
     def test_generate_status_html(self):
         """ステータスビューのHTML生成"""
-        from services.dashboard.app import _generate_status_html
+        from services.dashboard.html_export import generate_status_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
-        html = _generate_status_html(provider)
+        html = generate_status_html(provider)
         assert "合計" in html
         assert "2" in html
 
@@ -3339,7 +3279,7 @@ class TestHtmlExport:
             pytest.skip("plotly not installed")
 
         from config import SavedViewConfig, DashboardConfig
-        from services.dashboard.app import _generate_plot_html
+        from services.dashboard.html_export import generate_plot_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
@@ -3349,13 +3289,13 @@ class TestHtmlExport:
             "type": "plot",
             "plot": {"x": "RF3", "y": "temperature"},
         })
-        html = _generate_plot_html(provider, view, dashboard_config)
+        html = generate_plot_html(provider, view, dashboard_config)
         assert "plotly-graph" in html or "データ点数" in html
 
     def test_generate_card_html(self):
         """カードビューのHTML生成"""
         from config import SavedViewConfig
-        from services.dashboard.app import _generate_card_html
+        from services.dashboard.html_export import generate_card_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
@@ -3363,14 +3303,14 @@ class TestHtmlExport:
             "name": "test_card",
             "type": "card",
         })
-        html = _generate_card_html(provider, view)
+        html = generate_card_html(provider, view)
         assert "go_test1" in html
 
     def test_full_html_generation(self):
         """全体HTMLの生成"""
         from pathlib import Path
         from config import SavedViewConfig, DashboardConfig
-        from services.dashboard.app import _generate_saved_views_html
+        from services.dashboard.html_export import generate_saved_views_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
@@ -3379,7 +3319,7 @@ class TestHtmlExport:
             SavedViewConfig.from_dict({"name": "テスト一覧", "type": "table"}),
             SavedViewConfig.from_dict({"name": "ステータス", "type": "status"}),
         ]
-        html = _generate_saved_views_html(
+        html = generate_saved_views_html(
             provider, Path("/tmp"), dashboard_config, views
         )
         assert "<!DOCTYPE html>" in html
