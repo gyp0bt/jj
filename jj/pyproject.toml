@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jj"
+version = "0.1.0"
+description = "CAEプロジェクトグラフデータ構築ツール"
+readme = "docs/README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "networkx>=3.0",
+]
+
+[project.optional-dependencies]
+# Abaqusプラグイン依存
+abaqus = [
+    "chardet>=5.0.0",
+    "ftfy>=6.0.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scipy>=1.10.0",
+]
+# Obsidianプラグイン依存
+obsidian = [
+    "pyyaml>=6.0",
+]
+# ダッシュボード（jj dashboard）
+dashboard = [
+    "streamlit>=1.30.0",
+    "streamlit-aggrid>=1.0.0",
+    "plotly>=5.0.0",
+]
+# REST API（jj serve）
+api = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.25.0",
+]
+# Neo4jコネクター
+neo4j = [
+    "neo4j>=5.0.0",
+]
+# SSH操作
+ssh = [
+    "paramiko>=3.0.0",
+]
+# 開発・テスト
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+# 全依存（便宜上）
+all = [
+    "jj[abaqus,obsidian,dashboard,api,neo4j,ssh,dev]",
+]
+
+# --------------------------------------------------
+# entry_points: プラグイン登録
+# --------------------------------------------------
+# jj.plugins グループ: プラグインパッケージ全体のエントリ
+# 各entry_pointの値はregister()関数を公開するモジュール
+[project.entry-points."jj.plugins"]
+abaqus = "services.plugins.abaqus:register"
+obsidian = "services.plugins.obsidian:register"
+
+# jj.parsers グループ: 個別パーサーの登録（外部プラグイン用の拡張点）
+# 内蔵プラグインはjj.plugins経由でまとめて登録されるため、ここは空でもよい
+# [project.entry-points."jj.parsers"]
+
+# jj.exporters グループ: 個別エクスポーターの登録
+# [project.entry-points."jj.exporters"]
+
+# jj.dashboard_connectors グループ: 個別ダッシュボードコネクターの登録
+# [project.entry-points."jj.dashboard_connectors"]
+
+[project.scripts]
+jj = "main:main"
+
+[tool.setuptools.packages.find]
+include = [
+    "services*",
+    "jj_types*",
+    "config*",
+    "modules*",
+    "cli*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

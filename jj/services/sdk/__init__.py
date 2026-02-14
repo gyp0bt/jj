@@ -50,6 +50,15 @@ from services.dashboard.connectors import DashboardPageConnector
 # --------------------------------------------------
 from services.sdk.cache import CacheProvider
 
+# --------------------------------------------------
+# プラグインレジストリ
+# --------------------------------------------------
+from services.sdk.plugin_registry import (
+    load_all_plugins,
+    discover_entry_point_plugins,
+    reset_plugins,
+)
+
 __all__ = [
     # 型
     "Node",
@@ -67,4 +76,8 @@ __all__ = [
     "DashboardPageConnector",
     # キャッシュ
     "CacheProvider",
+    # プラグインレジストリ
+    "load_all_plugins",
+    "discover_entry_point_plugins",
+    "reset_plugins",
 ]

@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Union
 
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
 
 from services.graph.storage import GraphStorage
+from services.sdk.cache import CacheProvider
 from services.parse.base import parse as run_parser_pipeline
 from services.parse.file_parse import (
     DEFAULT_EXTENSIONS,
@@ -32,13 +33,12 @@ from services.parse.file_parse import (
 )
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
 
-# パーサーサブクラスのimport（自動登録用）
+# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
 import services.parse.parsers  # noqa: F401
-import services.parse.connectors.abaqus.inp_parser  # noqa: F401
-import services.parse.connectors.abaqus.result_parser  # noqa: F401
-import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
-import services.parse.connectors.abaqus.diff_parser  # noqa: F401
-import services.parse.connectors.obsidian.daily_parser  # noqa: F401
+
+# プラグインの動的発見を実行（Abaqus/Obsidian等のコネクタを登録）
+from services.sdk.plugin_registry import load_all_plugins as _load_all_plugins
+_load_all_plugins()
 
 
 class GraphService:
@@ -50,16 +50,21 @@ class GraphService:
     - ファイルスキャンとNode生成
     - パーサーパイプラインの実行
     - グラフデータの保存・読み込み
+
+    CacheProvider DI:
+        storageパラメータはCacheProviderプロトコルを受け入れます。
+        デフォルトはGraphStorage()（ファイルベースのYAML/JSON永続化）。
+        テストやプラグインでは独自のCacheProvider実装を注入できます。
     """
 
     def __init__(
         self,
         project_root: Path | str | None = None,
-        storage: GraphStorage | None = None,
+        storage: Union[CacheProvider, GraphStorage, None] = None,
         config: GraphConfig | None = None,
     ) -> None:
         self.project_root = Path(project_root or Path.cwd()).resolve()
-        self.storage = storage or GraphStorage()
+        self.storage: CacheProvider = storage or GraphStorage()
         self.config = config or GraphConfig.load(self.project_root)
         self._node_id_counter = 0
         self._relation_id_counter = 0

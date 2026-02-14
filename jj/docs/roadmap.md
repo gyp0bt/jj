@@ -609,7 +609,11 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 - [x] プラグイン化可能性分析・要件整理 (status-077)
 - [x] Phase P1: jj-sdkパッケージ定義（services/sdk/ に公開API集約） (status-085)
 - [x] Phase P2: GraphStorage→CacheProviderプロトコル抽象化（Protocol定義＋GraphStorage準拠確認） (status-085)
-- [ ] Phase P3: entry_points動的発見によるコネクタ登録（pyproject.tomlベース）
+- [x] Phase P3: entry_points動的発見によるコネクタ登録（pyproject.tomlベース） (status-086)
+- [x] Phase P3.1: CacheProvider DI注入（GraphServiceコンストラクタ経由） (status-086)
+- [x] Phase P3.2: Abaqusプラグインパッケージ分離（services/plugins/abaqus/） (status-086)
+- [x] Phase P3.3: Obsidianプラグインパッケージ分離（services/plugins/obsidian/） (status-086)
+- [x] Phase P3.4: pyproject.toml定義（entry_points + optional-dependencies） (status-086)
 - [ ] 外部パッケージとしてのparseコネクター追加（jj-abaqus-connector等）
 - [ ] コネクターのバージョン管理
 - [ ] コネクター間の連携（例: AbaqusからFluentへのデータ転送）
