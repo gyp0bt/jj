@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Python (jj)
+  # ─────────────────────────────────────────────
+  python-lint:
+    name: "Python: ruff lint + format"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jj
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  python-test:
+    name: "Python: pytest"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jj
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest --tb=short -q
+
+  # ─────────────────────────────────────────────
+  # TypeScript (jjrv)
+  # ─────────────────────────────────────────────
+  ts-lint:
+    name: "TypeScript: biome lint + format"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jjrv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: jjrv/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  ts-typecheck:
+    name: "TypeScript: tsc"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jjrv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: jjrv/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+
+  ts-build:
+    name: "TypeScript: next build"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jjrv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: jjrv/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
