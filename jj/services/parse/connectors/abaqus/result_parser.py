@@ -62,7 +62,16 @@ def _deduplicate_messages(messages: list[str]) -> list[str]:
 
 
 def parse_sta_file(sta_path: Path) -> dict[str, Any]:
-    """Abaqus .sta ファイルを解析"""
+    """Abaqus .sta ファイルを解析
+
+    TODO(v0.2): カットバック・インクリメント収束情報の収集
+    - Abaqus Standard: "1U", "2U" 等の表記でカットバック回数を検出。
+      各表示行が1回のカットバック（ニュートンラフソン収束失敗→時間増分削減→再トライ）。
+      インクリメント数・収束イテレーション数も収集する。
+    - Abaqus Explicit: 別形式のstaファイル。サンプル入手後に対応。
+    - 出力: cutback_count, increment_count, convergence_history 等をpropsに追加。
+    - サンプルファイルが必要。後日対応。
+    """
     result: dict[str, Any] = {
         "analysis_status": "unknown",
         "errors": [],
