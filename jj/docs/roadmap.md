@@ -710,12 +710,27 @@ Phase Rで確立した抽象パーサーパターンにより、旧来の「ア�
 
 ---
 
+## v0.1.0 区切り（2026-02-14）
+
+上記 Phase 0 〜 Phase P（status-001〜089）がv0.1.0の範囲。以下のマイルストーンが達成済み:
+
+- ✅ M1（基盤完成）: コアデータモデル・設定管理・runコマンド
+- ✅ M1.5（Abaqusグラフ完成）: Abaqusコネクター主要機能・Obsidian/Neo4jエクスポート
+- ✅ MR（構造改革完了）: AbstractFileParser/ProjectGraph/パーサー分散
+- ✅ M2.5（ダッシュボード基盤完成）: Streamlit/REST API/DashboardDataProvider
+- ✅ Phase P（プラグイン化）: SDK/CacheProvider/entry_points/Abaqus・Obsidian分離
+
+v0.2.0のロードマップ案は [v0.1.0レビュー・v0.2.0ロードマップ案](../../docs/review/review-v0.1.0.md) を参照。
+
+---
+
 ## 参考資料
 
 - [機能ドメイン別仕様書](./specs/README.md)
 - [実装詳細](./detail.md)
 - [ダッシュボード仕様書](./specs/09-dashboard.md)
 - [DB統合設計書](./specs/10-db-integration.md)
-- [最新ステータス](./status/status-085.md)
+- [最新ステータス](./status/status-090.md)
+- [v0.1.0レビュー](../../docs/review/review-v0.1.0.md)
 - [services/README](../services/README.md)
 - [プロジェクトREADME](../README.md)

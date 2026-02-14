@@ -182,6 +182,7 @@ pytest
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-14 / **status-090 (v0.1.0区切り)**: v0.1.0レビュー・v0.2.0ロードマップ案策定。全statusファイル（jj: 001〜089、jjrv: 001〜060）を遡り開発フェーズの変遷を整理。開発運用の考察、CAE業務観点での機能評価、次フェーズ優先機能(F1〜F12)、v0.2.0ロードマップ案(M1〜M5)を策定。([status-090](docs/status/status-090.md))([レビュー文書](../docs/review/review-v0.1.0.md))
 - 2026-02-14 / status-089: Abaqusコネクター作り込み（v0.1.0完成準備）。材料テーブル表示改善（タグ非表示・特性値フォーマット）。Elsetノード生成をメッシュごとに分離（mesh_sourceプロパティ追加）。ダッシュボードにメッシュ/Elset品質サマリー、ジョブサマリーページ追加。AbaqusKeywordParser追加（*キーワードNode化＋uses_keyword relation）。STAカットバック・インクリメント収集TODO追加。1002テストパス。([status-089](docs/status/status-089.md))
 - 2026-02-14 / status-088: Abaqus固有ロジック分離・CacheProvider汎用化・requirements.txt廃止。CacheProviderを`load/save_plugin_data(namespace)`に汎用化。GraphStorageの`abq_cache`→`plugin_cache/{namespace}/`に変更。GraphServiceから`_read_inp_parameter_props`除去→AbaqusParameterParser（priority=15）として再実装。MeshInheritParser・submit.pyをAbaqusプラグインに移動。parse層からAbaqus固有エクスポート除去。1003テストパス。([status-088](docs/status/status-088.md))
 - 2026-02-14 / status-087: パッケージセットアップ修正。エントリポイントを`main:main`→`services.cli:main`に変更（main.pyがpackages.findに含まれず解決不能だった）。chardet/ftfy/numpyをコア依存に移動（Abaqusプラグイン自動ロードでモジュールレベルimportされるため必須）。sharedパッケージをpackages.findに追加。756テストパス。([status-087](docs/status/status-087.md))
