@@ -2,7 +2,7 @@
 
 **日付**: 2026-02-08
 **前回**: [status-059](status-059.md)
-**ブランチ**: `claude/plan-jj-db-integration-ZaYij`
+**ブランチ**: `claude/plan-jjrv-integration-ZaYij`
 
 [README](../../README.md)
 
@@ -10,8 +10,8 @@
 
 ## 概要
 
-mat-db → jj-db へのリネームに伴い、jjプロジェクト（Python CLI）との統合ロードマップを策定。
-jj-dbはjjが構造化したグラフデータをNeo4j経由で参照し、レポジトリダッシュボードとして可視化する役割を担う。
+mat-db → jjrv へのリネームに伴い、jjプロジェクト（Python CLI）との統合ロードマップを策定。
+jjrvはjjが構造化したグラフデータをNeo4j経由で参照し、レポジトリダッシュボードとして可視化する役割を担う。
 
 ---
 
@@ -63,7 +63,7 @@ jj (gyp0bt/jj) は以下の機能を持つPython CLIツール:
 ### データフロー
 
 ```
-jj parse → .jj/storage/ → jj export --target neo4j → Neo4j → jj-db
+jj parse → .jj/storage/ → jj export --target neo4j → Neo4j → jjrv
 ```
 
 ### データソース戦略
@@ -83,8 +83,8 @@ jj parse → .jj/storage/ → jj export --target neo4j → Neo4j → jj-db
 ## 設計上の懸念・確認事項
 
 1. **jj側のNeo4jエクスポート形式**: jjの `jj export --target neo4j` が出力するCypherスキーマの確定が必要。現時点では想定スキーマで設計
-2. **ID体系の統一**: jjは `int` ID、jj-dbは `string` ID。Neo4j経由での変換ルールを決定する必要あり
-3. **リアルタイム性**: jj parseの実行頻度と、jj-db側のキャッシュ戦略の検討が必要
+2. **ID体系の統一**: jjは `int` ID、jjrvは `string` ID。Neo4j経由での変換ルールを決定する必要あり
+3. **リアルタイム性**: jj parseの実行頻度と、jjrv側のキャッシュ戦略の検討が必要
 4. **段階的実装**: まずはSQLiteベースでダッシュボードUIを実装し、Neo4j接続は並行して進めるのが現実的
 
 ---

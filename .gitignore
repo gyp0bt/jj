@@ -1,49 +1,49 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-jj-db/node_modules
-jj-db/.pnp
-jj-db/.pnp.*
-jj-db/.yarn/*
-!jj-db/.yarn/patches
-!jj-db/.yarn/plugins
-!jj-db/.yarn/releases
-!jj-db/.yarn/versions
+jjrv/node_modules
+jjrv/.pnp
+jjrv/.pnp.*
+jjrv/.yarn/*
+!jjrv/.yarn/patches
+!jjrv/.yarn/plugins
+!jjrv/.yarn/releases
+!jjrv/.yarn/versions
 
 # testing
-jj-db/coverage
+jjrv/coverage
 
 # next.js
-jj-db/.next/
-jj-db/out/
+jjrv/.next/
+jjrv/out/
 
 # production
-jj-db/build
+jjrv/build
 
 # misc
-jj-db/.DS_Store
+jjrv/.DS_Store
 *.pem
 
 # debug
-jj-db/npm-debug.log*
-jj-db/yarn-debug.log*
-jj-db/yarn-error.log*
-jj-db/.pnpm-debug.log*
+jjrv/npm-debug.log*
+jjrv/yarn-debug.log*
+jjrv/yarn-error.log*
+jjrv/.pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-jj-db/.env*
+jjrv/.env*
 
 # vercel
-jj-db/.vercel
+jjrv/.vercel
 
 # typescript
 *.tsbuildinfo
-jj-db/next-env.d.ts
+jjrv/next-env.d.ts
 
 *storybook.log
 
 # SQLite database
-jj-db/data/
+jjrv/data/
 
 # Python-generated files
 __pycache__/

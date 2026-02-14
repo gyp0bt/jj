@@ -106,7 +106,7 @@ Phase 2.5のダッシュボードTODO3件を実装。テーブルビューをAgG
 - [ ] ダッシュボード: Excelダウンロード機能（openpyxl利用）
 - [ ] ダッシュボード: NG領域塗りつぶし（Baskinカーブ等のconfig定義対応）
 - [ ] ダッシュボード: グループ結線（同一条件のデータ点を灰色点線で結線）
-- [ ] jj-db統合: jj serve → jj-db fetch連携
+- [ ] jjrv統合: jj serve → jjrv fetch連携
 
 ---
 

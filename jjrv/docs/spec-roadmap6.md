@@ -8,12 +8,12 @@
 
 ### プロジェクト統合の経緯
 
-mat-db を jj-db にリネームし、jj プロジェクトと統合する。
+mat-db を jjrv にリネームし、jj プロジェクトと統合する。
 
 | プロジェクト | 役割 | 技術 |
 |-------------|------|------|
 | **jj** (Python CLI) | ローカルプロジェクトのフォルダ/ファイルを解析しグラフデータ化。Obsidian/Neo4j/CSV/JSONにエクスポート | Python, NetworkX, Pydantic, Streamlit |
-| **jj-db** (Next.js Web) | jjで構造化したグラフデータをNeo4j経由で参照し、レポジトリダッシュボードとして可視化 | Next.js 15, React 19, TypeScript, Tailwind CSS v4 |
+| **jjrv** (Next.js Web) | jjで構造化したグラフデータをNeo4j経由で参照し、レポジトリダッシュボードとして可視化 | Next.js 15, React 19, TypeScript, Tailwind CSS v4 |
 
 ### 統合後のアーキテクチャ
 
@@ -30,7 +30,7 @@ mat-db を jj-db にリネームし、jj プロジェクトと統合する。
 [Neo4j Database] ◄─── グラフデータの永続化層（真実のソース）
     │
     ▼
-[jj-db] ─── Neo4j経由でグラフデータを参照・可視化
+[jjrv] ─── Neo4j経由でグラフデータを参照・可視化
     │
     ├── レポジトリダッシュボード（新機能）
     ├── 検索・フィルタリング（既存機能を維持）
@@ -40,7 +40,7 @@ mat-db を jj-db にリネームし、jj プロジェクトと統合する。
 ### 設計原則
 
 1. **jjがデータの生成者**: グラフデータの構築・更新はjj CLI側の責務
-2. **Neo4jが真実のソース**: jj-dbはNeo4jを読み取り専用（＋メタデータ書き込み）で使用
+2. **Neo4jが真実のソース**: jjrvはNeo4jを読み取り専用（＋メタデータ書き込み）で使用
 3. **既存機能の維持**: 検索・可視化ロジックはそのまま。データソースをSQLite→Neo4jに段階的に移行
 4. **ダッシュボードの追加**: レポジトリ単位の俯瞰ビューを新たに実装
 
@@ -48,9 +48,9 @@ mat-db を jj-db にリネームし、jj プロジェクトと統合する。
 
 ## データモデルの対応関係
 
-### jj → Neo4j → jj-db のマッピング
+### jj → Neo4j → jjrv のマッピング
 
-| jj (Python) | Neo4j | jj-db (TypeScript) |
+| jj (Python) | Neo4j | jjrv (TypeScript) |
 |-------------|-------|---------------------|
 | `Node(id, type, name, format, properties)` | `(:Entity {id, type, name, format, ...props})` | `StringEntity` |
 | `Relation(id, label, node1_id, node2_id)` | `-[:LABEL {id}]->` | `Relation` |
@@ -59,7 +59,7 @@ mat-db を jj-db にリネームし、jj プロジェクトと統合する。
 
 ### jj のファイル解析で生成されるノード種別
 
-| jjのtype | jj-dbでの対応 | 説明 |
+| jjのtype | jjrvでの対応 | 説明 |
 |----------|-------------|------|
 | `project` | `sysTags: ["repository"]` | jj parseの対象プロジェクト |
 | `directory` | `sysTags: ["directory"]` | ディレクトリ |
@@ -67,9 +67,9 @@ mat-db を jj-db にリネームし、jj プロジェクトと統合する。
 | `tag` | `sysTags: ["tag-definition"]` | タグノード |
 | `keyword` | `sysTags: ["keyword"]` (新規) | CAEキーワード |
 
-### jj のRelationラベル → jj-db のRelationラベル
+### jj のRelationラベル → jjrv のRelationラベル
 
-| jjのlabel | jj-dbでの対応 | 説明 |
+| jjのlabel | jjrvでの対応 | 説明 |
 |-----------|-------------|------|
 | `child` | `child` | 親子関係（ディレクトリ構造） |
 | `contains` | `contains` | 包含関係 |
@@ -83,7 +83,7 @@ mat-db を jj-db にリネームし、jj プロジェクトと統合する。
 
 ### Phase 6-N: Neo4jデータソース接続
 
-> jj側で `jj export --target neo4j` によりエクスポート済みのデータをjj-dbから参照する基盤
+> jj側で `jj export --target neo4j` によりエクスポート済みのデータをjjrvから参照する基盤
 
 | # | 要件 | 概要 | 優先度 |
 |---|------|------|--------|
@@ -134,7 +134,7 @@ DATA_SOURCE=neo4j  // "neo4j" | "sqlite"
 
 ### Phase 6-D: レポジトリダッシュボード
 
-> jj-dbの新たな中核機能。レポジトリ単位でプロジェクトの全体像を俯瞰するダッシュボード
+> jjrvの新たな中核機能。レポジトリ単位でプロジェクトの全体像を俯瞰するダッシュボード
 
 | # | 要件 | 概要 | 優先度 |
 |---|------|------|--------|
@@ -152,7 +152,7 @@ DATA_SOURCE=neo4j  // "neo4j" | "sqlite"
 ```
 /repos (レポジトリ一覧)
 ┌─────────────────────────────────────────────────┐
-│  TopNav [jj-db]  [Search] [Repos]  [User ▼]    │
+│  TopNav [jjrv]  [Search] [Repos]  [User ▼]    │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
@@ -167,7 +167,7 @@ DATA_SOURCE=neo4j  // "neo4j" | "sqlite"
 
 /repos/[id] (レポジトリ詳細)
 ┌─────────────────────────────────────────────────┐
-│  TopNav [jj-db]  user / Repo A                  │
+│  TopNav [jjrv]  user / Repo A                  │
 ├──────────────┬──────────────────────────────────┤
 │  Code  Graph │  README.md                       │
 │  Activity    │  ┌────────────────────────────┐  │
@@ -200,13 +200,13 @@ DATA_SOURCE=neo4j  // "neo4j" | "sqlite"
 
 ### Phase 6-J: jj CLIとの連携強化
 
-> jj CLI側の更新をjj-dbにリアルタイム反映するための仕組み
+> jj CLI側の更新をjjrvにリアルタイム反映するための仕組み
 
 | # | 要件 | 概要 | 優先度 |
 |---|------|------|--------|
-| 6-J-01 | Webhook/ポーリング | `jj export` 完了時にjj-dbのキャッシュを無効化 | P2 |
+| 6-J-01 | Webhook/ポーリング | `jj export` 完了時にjjrvのキャッシュを無効化 | P2 |
 | 6-J-02 | 差分同期 | 前回エクスポートからの差分のみを検出・更新 | P2 |
-| 6-J-03 | jj-db→jj フィードバック | jj-db上でのタグ付け・メモをjjのローカルストレージに反映 | P3 |
+| 6-J-03 | jjrv→jj フィードバック | jjrv上でのタグ付け・メモをjjのローカルストレージに反映 | P3 |
 
 ---
 
@@ -286,7 +286,7 @@ M5: jj連携              (6-J-01 〜 6-J-03)
 | ダイアグラムビュー | `EntityDiagram` | そのまま維持 |
 | サイドバーツリー | `SidebarTreeNav` | そのまま維持（ダッシュボード内にも配置） |
 | 階層制約 | `hierarchy-validator.ts` | Neo4j側のCypher制約に移行 |
-| お気に入り/統計 | SQLiteテーブル | jj-db固有データとしてSQLiteに残す |
+| お気に入り/統計 | SQLiteテーブル | jjrv固有データとしてSQLiteに残す |
 
 ### 新規ページ
 
@@ -353,9 +353,9 @@ CREATE (file)-[:TAGGED {id: 3}]->(tag)
 - **アプリケーション固有データ**: SQLite（ユーザー認証、お気に入り、検索履歴、ダウンロード統計）
 - **移行期間**: データソース抽象化層により、API層は変更なしで切替可能
 
-### jj-dbのNode ID体系
+### jjrvのNode ID体系
 
-- jjは `int` ID、jj-dbは `string` ID
+- jjは `int` ID、jjrvは `string` ID
 - Neo4j経由で受け取る際にstring変換 (`"jj-{id}"` プレフィックス案)
 - または jj側でUUID対応を検討
 

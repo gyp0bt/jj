@@ -47,8 +47,8 @@ services/
 - `config/`: `.jj/config` と `.pyssh.yaml` を読み込む設定ローダー
 - `tests/`: テストコード
 - `assets/`: テストデータ/サンプル
-- `shared/`: jj-dbとの共有パッケージ（Neo4jスキーマ契約、型定義）
-- `shared/tests/test_asset1/`: jj/jj-db共通テストアセット（Abaqusプロジェクト）
+- `shared/`: jjrvとの共有パッケージ（Neo4jスキーマ契約、型定義）
+- `shared/tests/test_asset1/`: jj/jjrv共通テストアセット（Abaqusプロジェクト）
 - `docs/status/`: 実装状況と実装メモ
 
 ## グラフデータモデル

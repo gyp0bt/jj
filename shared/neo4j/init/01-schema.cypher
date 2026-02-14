@@ -1,5 +1,5 @@
 // Neo4jスキーマ初期化スクリプト
-// jjとjj-dbの共有スキーマ（制約・インデックス）
+// jjとjjrvの共有スキーマ（制約・インデックス）
 //
 // このファイルはNeo4jコンテナの初回起動時に自動実行される。
 // 手動実行: cat neo4j/init/01-schema.cypher | cypher-shell -u neo4j -p password
@@ -22,7 +22,7 @@ FOR (n:JJRun) REQUIRE (n.project, n.jj_id) IS UNIQUE;
 CREATE CONSTRAINT jjtag_unique IF NOT EXISTS
 FOR (n:JJTag) REQUIRE (n.project, n.jj_id) IS UNIQUE;
 
-// JJDBMaterial: jj-db内部IDが一意
+// JJDBMaterial: jjrv内部IDが一意
 CREATE CONSTRAINT jjdbmaterial_unique IF NOT EXISTS
 FOR (n:JJDBMaterial) REQUIRE n.jjdb_id IS UNIQUE;
 

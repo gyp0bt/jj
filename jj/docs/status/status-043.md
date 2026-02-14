@@ -134,4 +134,4 @@ Phase R（services構造リファクタリング）の全フェーズが完了:
 
 - [ ] Phase 2: グラフ機能の仕上げ（roadmap参照）
 - [ ] Phase 2.5: ダッシュボード・API基盤
-- [ ] jj-db側のTODO（status-060参照）
+- [ ] jjrv側のTODO（status-060参照）

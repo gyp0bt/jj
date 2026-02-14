@@ -1,13 +1,13 @@
 [READMEへ戻る](../../README.md)
 
-# jj-db統合設計書（jj × jj-db × Neo4j）
+# jjrv統合設計書（jj × jjrv × Neo4j）
 
 ## 1. 背景と目的
 
 ### 1.1 現状
 
 - **jj**: CAE業務データをグラフ化するPython CLIツール。ローカルのYAMLファイル（`.jj/storage/graph.yaml`）にグラフデータを保存。
-- **jj-db**（旧jj-db）: 材料・解析データの組織横断DBを管理するNext.jsアプリケーション。別リポジトリ（`gyp0bt/jj-db`）で運用。
+- **jjrv**（旧jjrv）: 材料・解析データの組織横断DBを管理するNext.jsアプリケーション。別リポジトリ（`gyp0bt/jjrv`）で運用。
   - **技術スタック**: Next.js 15 / React 19 / TypeScript / Tailwind CSS v4
   - **現行DB**: SQLite（sql.js）
   - **パッケージ管理**: pnpm
@@ -16,8 +16,8 @@
 
 ### 1.2 統合の目的
 
-1. jjが生成したグラフデータをNeo4jに投入し、jj-dbから参照可能にする
-2. jj-dbの材料データをjjから参照可能にする（Neo4j経由）
+1. jjが生成したグラフデータをNeo4jに投入し、jjrvから参照可能にする
+2. jjrvの材料データをjjから参照可能にする（Neo4j経由）
 3. データ型やconfig概念を両者で共通化し、不整合を防ぐ
 4. 将来的にはsubmodule分離を前提としつつ、開発効率を確保する
 
@@ -27,7 +27,7 @@
 
 ```
 ┌────────────────────┐         ┌─────────┐         ┌─────────────────────────┐
-│   jj (Python CLI)  │ ──W/R──▶│  Neo4j  │◀──W/R── │  jj-db (Next.js 15)     │
+│   jj (Python CLI)  │ ──W/R──▶│  Neo4j  │◀──W/R── │  jjrv (Next.js 15)     │
 │                    │         │  (共有)  │         │                         │
 │ ・graph.yaml生成   │         │         │         │ ・材料DB管理(SQLite現行) │
 │ ・parse/export     │         │         │         │ ・テーブル/カード        │
@@ -39,7 +39,7 @@
                     （Neo4jスキーマ契約のみ共有）
 ```
 
-### jj-dbの現行技術スタック
+### jjrvの現行技術スタック
 
 | 項目 | 値 |
 |------|------|
@@ -50,24 +50,24 @@
 | コンポーネント | Storybook |
 | リンター | Biome |
 
-**注意**: jj-dbは現在SQLiteを使用しており、Neo4j統合にあたっては以下の選択肢がある:
+**注意**: jjrvは現在SQLiteを使用しており、Neo4j統合にあたっては以下の選択肢がある:
 
 | 方式 | 説明 | メリット | デメリット |
 |------|------|---------|-----------|
 | **SQLite + Neo4j併用** | 既存SQLiteは維持、グラフ関係のみNeo4jに投入 | 既存機能への影響なし | 2つのDB管理が必要 |
-| **Neo4jへ移行** | SQLiteを廃止しNeo4jに一本化 | 管理が統一 | 移行コスト大、jj-dbの大幅改修が必要 |
+| **Neo4jへ移行** | SQLiteを廃止しNeo4jに一本化 | 管理が統一 | 移行コスト大、jjrvの大幅改修が必要 |
 | **SQLite→Neo4j同期** | SQLiteをマスタとし、Neo4jへ定期同期 | 既存コード最小変更 | 同期ロジックの実装が必要 |
 
-**推奨**: SQLite + Neo4j併用（Phase N3）。jj-db側はSQLiteで既存機能を維持しつつ、jjとの通信にのみNeo4jを使用する。
+**推奨**: SQLite + Neo4j併用（Phase N3）。jjrv側はSQLiteで既存機能を維持しつつ、jjとの通信にのみNeo4jを使用する。
 
 ### 設計原則
 
 | 原則 | 説明 |
 |------|------|
-| **Neo4j Only** | jjとjj-dbは互いのコード・APIを直接呼び出さない。Neo4jを唯一の通信手段とする |
+| **Neo4j Only** | jjとjjrvは互いのコード・APIを直接呼び出さない。Neo4jを唯一の通信手段とする |
 | **スキーマ契約** | Neo4jのノードラベル・リレーションシップタイプ・プロパティキーを共通仕様として定義 |
 | **共有型定義** | データ型（Node/Relation等）とconfig構造を`shared/`パッケージで共通化 |
-| **独立デプロイ** | jjとjj-dbはそれぞれ単独で動作可能。Neo4jがなくても既存機能は使える |
+| **独立デプロイ** | jjとjjrvはそれぞれ単独で動作可能。Neo4jがなくても既存機能は使える |
 | **分離準備** | 将来のsubmodule化を前提に、依存方向を制限する |
 
 ---
@@ -76,9 +76,9 @@
 
 ### 3.1 判断結果: 一時的なモノレポ方式
 
-**理由**: jj-dbはパブリック化されたが、この開発環境のGitプロキシがjjリポジトリのみを認可しており、jj-dbへのgit clone/pushが不可（`repository not authorized`）。
+**理由**: jjrvはパブリック化されたが、この開発環境のGitプロキシがjjリポジトリのみを認可しており、jjrvへのgit clone/pushが不可（`repository not authorized`）。
 submoduleの追加・クローン・プッシュができないため、開発フェーズでは同一リポジトリ内に配置する。
-WebFetch経由でのリポジトリ閲覧は可能なため、jj-dbのコード構造は把握済み。
+WebFetch経由でのリポジトリ閲覧は可能なため、jjrvのコード構造は把握済み。
 
 ### 3.2 ディレクトリ構成
 
@@ -101,12 +101,12 @@ jj/                              # リポジトリルート
 │   ├── types.py                 # 共有データ型（jj_typesから昇格する型）
 │   └── config.py                # 共有config定義
 │
-├── jj_db/                      # ★ jj-dbモジュール（新規、将来submodule化）
+├── jjrv/                      # ★ jjrvモジュール（新規、将来submodule化）
 │   ├── README.md
 │   ├── __init__.py
-│   ├── package.json             # Next.js依存（jj-dbフロントエンド）
+│   ├── package.json             # Next.js依存（jjrvフロントエンド）
 │   ├── neo4j_client.py          # Neo4jアクセス層（Python）
-│   └── ...                      # jj-db既存コード
+│   └── ...                      # jjrv既存コード
 │
 └── neo4j/                       # ★ Neo4j関連設定（新規）
     ├── docker-compose.yml       # Neo4j起動設定
@@ -120,26 +120,26 @@ jj/                              # リポジトリルート
 | ルール | 詳細 |
 |--------|------|
 | `services/` → `shared/` | 参照OK（共有型・スキーマを使用） |
-| `jj_db/` → `shared/` | 参照OK（共有型・スキーマを使用） |
-| `services/` → `jj_db/` | **禁止**（Neo4j経由でのみ通信） |
-| `jj_db/` → `services/` | **禁止**（Neo4j経由でのみ通信） |
+| `jjrv/` → `shared/` | 参照OK（共有型・スキーマを使用） |
+| `services/` → `jjrv/` | **禁止**（Neo4j経由でのみ通信） |
+| `jjrv/` → `services/` | **禁止**（Neo4j経由でのみ通信） |
 | `shared/` → `services/` | **禁止**（逆依存禁止） |
-| `shared/` → `jj_db/` | **禁止**（逆依存禁止） |
+| `shared/` → `jjrv/` | **禁止**（逆依存禁止） |
 
 ### 3.4 submodule移行計画
 
-将来、jj-dbリポジトリへのアクセスが可能になった時点で以下を実施:
+将来、jjrvリポジトリへのアクセスが可能になった時点で以下を実施:
 
-1. `jj_db/` を別リポジトリに切り出す
-2. `.gitmodules` に `jj_db` を追加
+1. `jjrv/` を別リポジトリに切り出す
+2. `.gitmodules` に `jjrv` を追加
 3. `shared/` は独立パッケージ（pip installable）化するか、両リポジトリにコピーを持つ
    - 推奨: `shared/` も独立リポジトリ化 → 両者がsubmoduleとして参照
 
 ```
 # 将来の.gitmodules
-[submodule "jj_db"]
-    path = jj_db
-    url = <jj-db-repo-url>
+[submodule "jjrv"]
+    path = jjrv
+    url = <jjrv-repo-url>
 [submodule "shared"]
     path = shared
     url = <shared-repo-url>
@@ -151,7 +151,7 @@ jj/                              # リポジトリルート
 
 ### 4.1 ノードラベル
 
-jjとjj-dbが共有するNeo4jノードラベル定義。
+jjとjjrvが共有するNeo4jノードラベル定義。
 
 ```cypher
 // --- jj由来のノード ---
@@ -182,9 +182,9 @@ jjとjj-dbが共有するNeo4jノードラベル定義。
     project: STRING,
 })
 
-// --- jj-db由来のノード ---
+// --- jjrv由来のノード ---
 (:JJDBMaterial {
-    jjdb_id: INTEGER,         // jj-db内部ID
+    jjdb_id: INTEGER,         // jjrv内部ID
     name: STRING,
     category: STRING,        // "metal", "polymer", "ceramic", ...
     // 物性値プロパティ
@@ -211,7 +211,7 @@ jjとjj-dbが共有するNeo4jノードラベル定義。
 (:JJFile)-[:EXECUTED_BY]->(:JJRun)         // run relation
 (:JJFile)-[:GENERATED]->(:JJFile)          // generated (by run)
 
-// jj-jj-db間のクロスリレーション
+// jj-jjrv間のクロスリレーション
 (:JJMaterial)-[:MATCHES]->(:JJDBMaterial)   // 材料名の紐付け
 (:JJFile)-[:REFERENCES]->(:JJDBTest)        // 試験データへの参照
 ```
@@ -242,7 +242,7 @@ CREATE INDEX jjfile_project IF NOT EXISTS FOR (n:JJFile) ON (n.project);
 ### 5.1 `shared/neo4j_schema.py`
 
 ```python
-"""Neo4jスキーマ定義 - jjとjj-dbの共有契約"""
+"""Neo4jスキーマ定義 - jjとjjrvの共有契約"""
 
 # ノードラベル
 class NodeLabel:
@@ -327,7 +327,7 @@ class Neo4jConfig(BaseModel):
     database: str = "neo4j"
 
 class SharedConfig(BaseModel):
-    """jjとjj-dbの共有設定"""
+    """jjとjjrvの共有設定"""
     neo4j: Neo4jConfig = Neo4jConfig()
     project_name: str = ""                    # jjプロジェクト識別子
 ```
@@ -355,7 +355,7 @@ class Neo4jConnector:
         """差分のみ更新"""
 
     def read_materials(self) -> list[dict]:
-        """jj-dbが投入した材料データを読み取り"""
+        """jjrvが投入した材料データを読み取り"""
 ```
 
 ### 6.2 CLIコマンド追加
@@ -374,11 +374,11 @@ neo4j>=5.0                         # Neo4j Pythonドライバ
 
 ---
 
-## 7. jj-db側の実装計画
+## 7. jjrv側の実装計画
 
 ### 7.1 Neo4jクライアント（TypeScript / Next.js API Route）
 
-jj-dbはNext.js 15 / TypeScriptで構築されているため、Neo4jクライアントもTypeScriptで実装する。
+jjrvはNext.js 15 / TypeScriptで構築されているため、Neo4jクライアントもTypeScriptで実装する。
 
 ```typescript
 // src/lib/neo4j-client.ts
@@ -414,14 +414,14 @@ export async function GET(request: Request) {
 }
 ```
 
-### 7.2 jj-dbの現行アーキテクチャとの統合
+### 7.2 jjrvの現行アーキテクチャとの統合
 
-jj-dbは現在SQLite（sql.js）をDBとして使用しているため:
+jjrvは現在SQLite（sql.js）をDBとして使用しているため:
 
 - **SQLiteは維持**: 既存の材料・プロジェクト管理機能はSQLiteのまま運用
 - **Neo4jは追加**: jjとのグラフ連携にのみNeo4jを使用
-- **同期方向**: SQLiteの材料データ → Neo4jに投入、Neo4jのjjデータ → jj-dbフロントで表示
-- **パッケージ追加**: `neo4j-driver`（npm）をjj-dbに追加
+- **同期方向**: SQLiteの材料データ → Neo4jに投入、Neo4jのjjデータ → jjrvフロントで表示
+- **パッケージ追加**: `neo4j-driver`（npm）をjjrvに追加
 
 ---
 
@@ -429,26 +429,26 @@ jj-dbは現在SQLite（sql.js）をDBとして使用しているため:
 
 ### 8.1 問題認識
 
-モノレポ化すると、AIアシスタント（Codex/Claude Code）のコンテキストウィンドウにjjとjj-db両方のコードが入り、肥大化する恐れがある。
+モノレポ化すると、AIアシスタント（Codex/Claude Code）のコンテキストウィンドウにjjとjjrv両方のコードが入り、肥大化する恐れがある。
 
 ### 8.2 対策
 
 | 対策 | 詳細 |
 |------|------|
-| **ディレクトリ分離** | `jj_db/` を独立ディレクトリに配置。jj作業時は `jj_db/` を意識しなくてよい |
-| **独立したREADME** | `jj_db/README.md` にjj-db固有の情報を集約。jjのREADMEとは分離 |
+| **ディレクトリ分離** | `jjrv/` を独立ディレクトリに配置。jj作業時は `jjrv/` を意識しなくてよい |
+| **独立したREADME** | `jjrv/README.md` にjjrv固有の情報を集約。jjのREADMEとは分離 |
 | **共有層を最小化** | `shared/` は型定義とスキーマ定義のみ。ビジネスロジックを入れない |
-| **テスト分離** | `tests/` と `jj_db/tests/` を分離。CIも独立実行 |
+| **テスト分離** | `tests/` と `jjrv/tests/` を分離。CIも独立実行 |
 | **.gitignore活用** | 一方の作業時に他方のキャッシュ等が影響しないようにする |
-| **早期submodule化** | jj-dbリポジトリへのアクセスが可能になり次第、即座にsubmodule化する |
+| **早期submodule化** | jjrvリポジトリへのアクセスが可能になり次第、即座にsubmodule化する |
 | **statusファイルで作業範囲明示** | statusに「今回の作業はjj側のみ」等を明記し、AIが不要なコードを読まないようにする |
 
 ### 8.3 段階的移行
 
 ```
-Phase 1（現在）: jj_db/ を jj リポジトリ内に配置
+Phase 1（現在）: jjrv/ を jj リポジトリ内に配置
     ↓ アクセス復旧後
-Phase 2: jj_db/ を別リポジトリに切り出し、submodule化
+Phase 2: jjrv/ を別リポジトリに切り出し、submodule化
     ↓ 安定後
 Phase 3: shared/ も独立パッケージ化（pip install jj-shared）
 ```
@@ -457,18 +457,18 @@ Phase 3: shared/ も独立パッケージ化（pip install jj-shared）
 
 ## 9. 通信フロー
 
-### 9.1 jj → Neo4j → jj-db（解析データの共有）
+### 9.1 jj → Neo4j → jjrv（解析データの共有）
 
 ```
 1. ユーザーが `jj parse` でグラフ生成
 2. ユーザーが `jj export --target neo4j` でNeo4jに投入
-3. jj-dbがNeo4jを参照し、jjプロジェクトデータを表示
+3. jjrvがNeo4jを参照し、jjプロジェクトデータを表示
 ```
 
-### 9.2 jj-db → Neo4j → jj（材料データの参照）
+### 9.2 jjrv → Neo4j → jj（材料データの参照）
 
 ```
-1. jj-dbで材料データを登録 → Neo4jに投入
+1. jjrvで材料データを登録 → Neo4jに投入
 2. ユーザーが `jj import --source neo4j` で材料データを取得
 3. jjのGraphModelに材料ノードを追加
 4. 材料名の一致で自動リンク（MATCHES関係）
@@ -478,7 +478,7 @@ Phase 3: shared/ も独立パッケージ化（pip install jj-shared）
 
 ```
 1. jj parse → jj export neo4j （定期的）
-2. jj-db → Neo4j write materials （材料登録時）
+2. jjrv → Neo4j write materials （材料登録時）
 3. Neo4jのMATCHESクエリで自動マッチング
 ```
 
@@ -525,10 +525,10 @@ volumes:
 - [x] upsert（既存データの更新）対応（UNWIND + MERGE）
 - [x] テスト（71件: 69パス + 2スキップ）
 
-### Phase N3: jj-db Neo4jクライアント
+### Phase N3: jjrv Neo4jクライアント
 
-- [ ] `jj_db/` ディレクトリ構築
-- [ ] `jj_db/neo4j_client.py` 実装
+- [ ] `jjrv/` ディレクトリ構築
+- [ ] `jjrv/neo4j_client.py` 実装
 - [ ] 材料データのNeo4j投入
 - [ ] jjデータの読み取りインターフェース
 
@@ -536,11 +536,11 @@ volumes:
 
 - [ ] 材料名マッチングロジック（MATCHES関係の自動生成）
 - [ ] `jj import --source neo4j` 実装
-- [ ] jj-db側のjjプロジェクトビュー
+- [ ] jjrv側のjjプロジェクトビュー
 
 ### Phase N5: submodule移行（アクセス復旧後）
 
-- [ ] jj_db/ を別リポジトリに切り出し
+- [ ] jjrv/ を別リポジトリに切り出し
 - [ ] .gitmodules設定
 - [ ] shared/ の独立パッケージ化検討
 - [ ] CI/CD分離
@@ -552,19 +552,19 @@ volumes:
 | 既存Phase | DB統合との関係 |
 |-----------|---------------|
 | Phase 2.5 D3 (jj serve) | Neo4jエクスポーターの前段。REST APIとNeo4j書き込みは共存可能 |
-| Phase 2.5 D4 (jj-db統合) | 本設計書がD4の詳細化。Neo4j経由の統合がD4の具体策 |
+| Phase 2.5 D4 (jjrv統合) | 本設計書がD4の詳細化。Neo4j経由の統合がD4の具体策 |
 | Phase 4-12 (出力層基盤) | Neo4jExporterは出力層の一部として実装 |
 
 ---
 
 ## 13. 設計上の懸念・確認事項
 
-- [ ] jj-dbの既存データモデル（Node/Edge型）との詳細マッピング: jj-dbのコードベースへのアクセスが復旧してから具体化
+- [ ] jjrvの既存データモデル（Node/Edge型）との詳細マッピング: jjrvのコードベースへのアクセスが復旧してから具体化
 - [ ] Neo4jのバージョン: Community Edition 5.x を想定。APOC プラグインの要否
-- [ ] jj-dbのバックエンドAPI: Python（FastAPI）か Node.js か → jj-dbの既存構成に依存
+- [ ] jjrvのバックエンドAPI: Python（FastAPI）か Node.js か → jjrvの既存構成に依存
 - [ ] 材料名マッチングの精度: 完全一致 or ファジーマッチ（将来的にはLLMベースのマッチング？）
 - [ ] Neo4jの認証管理: ローカル開発時はデフォルトパスワード、本番はSecret管理
-- [ ] jj-dbリポジトリへのアクセス復旧時期の確認
+- [ ] jjrvリポジトリへのアクセス復旧時期の確認
 
 ---
 

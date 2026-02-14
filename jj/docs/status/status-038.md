@@ -1,12 +1,12 @@
 [READMEへ戻る](../../README.md)
 
-# status-038: parse exportバグ修正 + jj-db統合ロードマップ整備
+# status-038: parse exportバグ修正 + jjrv統合ロードマップ整備
 
 **日付**: 2026-02-09
 
 ## 概要
 
-parse exportの4点修正と、jj-db統合に向けたドキュメント・ロードマップの整備を実施した。
+parse exportの4点修正と、jjrv統合に向けたドキュメント・ロードマップの整備を実施した。
 
 ## 実装内容
 
@@ -53,18 +53,18 @@ Obsidianエクスポートのincludes（.baseファイルリンク）をファ�
 | 命名規則合致（go_idx1_v1/等） | `tags`に`root.directory`を追加 |
 | 汎用ディレクトリ（reports/等） | `tags: ["root.directory"]`を追加（従来はpropertyなし） |
 
-### 5. jj-db統合ロードマップ整備
+### 5. jjrv統合ロードマップ整備
 
-jj-db統合に向けた方針をロードマップ（Phase 2.N）に追記。
+jjrv統合に向けた方針をロードマップ（Phase 2.N）に追記。
 
 **統合原則**:
 - データ構造はjjの`Node`, `Relation`, `Abaqusインプット`等を優先
-- レポジトリ概念はjj-dbを保持
+- レポジトリ概念はjjrvを保持
 - `shared/neo4j_schema.py`をスキーマの正とする
-- `services/`と`jj_db/`は直接通信禁止、Neo4j契約のみ共有
+- `services/`と`jjrv/`は直接通信禁止、Neo4j契約のみ共有
 
 **確認が必要な事項（次回以降に段階的解決）**:
-- ID体系の統一（jj int vs jj-db string）
+- ID体系の統一（jj int vs jjrv string）
 - ノードタイプマッピングの正規化
 - リレーションラベルの不整合解消（spec-roadmap6 vs 10-db-integration）
 - 全文検索戦略
@@ -92,10 +92,10 @@ jj-db統合に向けた方針をロードマップ（Phase 2.N）に追記。
 
 ## TODO / 次のステップ
 
-- [ ] jj-db統合: ID体系の統一方針決定
-- [ ] jj-db統合: ノードタイプマッピング表の作成
-- [ ] jj-db統合: リレーションラベルの正規化
-- [ ] Phase N3: jj-db Neo4jクライアント実装
+- [ ] jjrv統合: ID体系の統一方針決定
+- [ ] jjrv統合: ノードタイプマッピング表の作成
+- [ ] jjrv統合: リレーションラベルの正規化
+- [ ] Phase N3: jjrv Neo4jクライアント実装
 - [ ] Phase N4: 材料名マッチングロジック
 - [ ] `_split_tag()`の追加テスト作成
 - [ ] includes相対パスの追加テスト作成
@@ -103,5 +103,5 @@ jj-db統合に向けた方針をロードマップ（Phase 2.N）に追記。
 ## 確認事項・設計上の懸念
 
 1. **タグ分割の範囲**: 現在は`_`を含むすべてのタグを分割している。特定のタグ（例: `root.directory`）は`.`区切りで分割すべきか？現状は`/`を含むもののみ分割対象外としている
-2. **jj-db統合のスコープ**: spec-roadmap6と10-db-integrationの間にノードタイプ/リレーションラベルの不整合がある。次回以降のセッションで段階的に解決予定
-3. **ID体系**: jjは`int`、jj-dbは`string`。Neo4j内で`jj_id`と`jjdb_id`を別フィールドで保持する方針だが、統一方針の確定が必要
+2. **jjrv統合のスコープ**: spec-roadmap6と10-db-integrationの間にノードタイプ/リレーションラベルの不整合がある。次回以降のセッションで段階的に解決予定
+3. **ID体系**: jjは`int`、jjrvは`string`。Neo4j内で`jj_id`と`jjdb_id`を別フィールドで保持する方針だが、統一方針の確定が必要

@@ -100,7 +100,7 @@ class ProjectGraph:
 
 ### テストデータ
 
-`shared/tests/test_asset1/` にAbaqusプロジェクトのテストアセットを配置。jj/jj-db双方でテストデータとして利用する。
+`shared/tests/test_asset1/` にAbaqusプロジェクトのテストアセットを配置。jj/jjrv双方でテストデータとして利用する。
 
 ---
 
@@ -437,33 +437,33 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] `POST /api/v1/parse`（再パース実行） (status-078)
 - [x] クエリフィルター拡張（props.RF3.gt=5等の条件式） (status-078)
 
-#### D4. jj-db統合
+#### D4. jjrv統合
 
-- [ ] `jj export --target jj-db` の実装（jj-dbアップロード形式）
-- [ ] jj-db側にjjプロジェクトインポート機能追加
-- [ ] API連携（jj serve → jj-db fetch）
-- [ ] jj-db既存ビュー（テーブル/カード/グラフ）でjjデータ表示
+- [ ] `jj export --target jjrv` の実装（jjrvアップロード形式）
+- [ ] jjrv側にjjプロジェクトインポート機能追加
+- [ ] API連携（jj serve → jjrv fetch）
+- [ ] jjrv既存ビュー（テーブル/カード/グラフ）でjjデータ表示
 
 **参照**: [09-dashboard.md](./specs/09-dashboard.md)
 
 ---
 
-## Phase 2.N: DB統合基盤（jj × jj-db × Neo4j）
+## Phase 2.N: DB統合基盤（jj × jjrv × Neo4j）
 
 ### 優先度: 中（Phase 2.5と並行）
 
 ### 統合方針
 
 - **データ構造**: jjの`Node`, `Relation`, `GraphModel`を優先
-- **レポジトリ概念**: jj-dbの`Repository`概念を保持（プロジェクト俯瞰機能として活用）
+- **レポジトリ概念**: jjrvの`Repository`概念を保持（プロジェクト俯瞰機能として活用）
 - **Neo4jスキーマ**: jjの`shared/neo4j_schema.py`を正とする
-- **データフロー**: `jj parse → jj export --target neo4j → Neo4j ← jj-db（参照のみ）`
-- **分離原則**: `services/`と`jj_db/`は直接通信禁止、`shared/`経由のNeo4j契約のみ共有
+- **データフロー**: `jj parse → jj export --target neo4j → Neo4j ← jjrv（参照のみ）`
+- **分離原則**: `services/`と`jjrv/`は直接通信禁止、`shared/`経由のNeo4j契約のみ共有
 
 #### 統合で確認が必要な事項
 
-- [ ] ID体系の統一: jjは`int`、jj-dbは`string` → Neo4j内での変換ルール
-- [ ] ノードタイプマッピング: jj-db側のEntityとjjのNode.typeの対応表
+- [ ] ID体系の統一: jjは`int`、jjrvは`string` → Neo4j内での変換ルール
+- [ ] ノードタイプマッピング: jjrv側のEntityとjjのNode.typeの対応表
 - [ ] リレーションラベルの正規化
 - [ ] レポジトリタイプのNeo4jラベル追加（JJRepository等）
 - [ ] 全文検索戦略: Cypher CONTAINS vs Lucene index
@@ -483,10 +483,10 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] GraphModel → Neo4j Cypherマッピング
 - [x] upsert対応（UNWIND + MERGE）
 
-#### N3. jj-db Neo4jクライアント
+#### N3. jjrv Neo4jクライアント
 
-- [ ] `jj_db/` ディレクトリ構築
-- [ ] `jj_db/neo4j_client.py` 実装
+- [ ] `jjrv/` ディレクトリ構築
+- [ ] `jjrv/neo4j_client.py` 実装
 - [ ] 材料データのNeo4j投入
 - [ ] jjデータの読み取りインターフェース
 
@@ -494,11 +494,11 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 
 - [ ] 材料名マッチングロジック（MATCHES関係の自動生成）
 - [ ] `jj import --source neo4j` 実装
-- [ ] jj-db側のjjプロジェクトビュー
+- [ ] jjrv側のjjプロジェクトビュー
 
 #### N5. submodule移行（アクセス復旧後）
 
-- [ ] jj_db/ を別リポジトリに切り出し
+- [ ] jjrv/ を別リポジトリに切り出し
 - [ ] .gitmodules設定
 - [ ] shared/ の独立パッケージ化検討
 - [ ] CI/CD分離

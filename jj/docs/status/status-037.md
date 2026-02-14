@@ -6,7 +6,7 @@
 
 ## 概要
 
-jj-db統合設計（status-036）に基づき、Neo4jエクスポートの基盤構築（Phase N1）とエクスポーター実装（Phase N2）を完了した。
+jjrv統合設計（status-036）に基づき、Neo4jエクスポートの基盤構築（Phase N1）とエクスポーター実装（Phase N2）を完了した。
 
 ## 実装内容
 
@@ -124,7 +124,7 @@ jj export --target neo4j --neo4j-uri bolt://host:7687 --neo4j-user admin --neo4j
 
 ## TODO / 次のステップ
 
-- [ ] Phase N3: jj-db Neo4jクライアント（TypeScript側、jj-dbリポジトリアクセス復旧後）
+- [ ] Phase N3: jjrv Neo4jクライアント（TypeScript側、jjrvリポジトリアクセス復旧後）
 - [ ] Phase N4: クロスリレーション（材料マッチング、`jj import --source neo4j`）
 - [ ] Phase N5: submodule移行
 - [ ] Neo4j接続設定の`.jj/config/config.yaml`への組み込みドキュメント化

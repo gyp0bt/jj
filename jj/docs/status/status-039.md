@@ -123,8 +123,8 @@ go_*.inpファイル（include先含む）で定義されているelset名をNod
 - [ ] elset Node化のテスト拡充（実際のmeshデータを含むfixtureで検証）
 - [ ] .dat enrichmentの実プロジェクトでの検証
 - [ ] Obsidianエクスポート側でverbose_name由来タグの表示確認
-- [ ] jj-db統合: ID体系の統一方針決定
-- [ ] jj-db統合: ノードタイプマッピング表の作成
+- [ ] jjrv統合: ID体系の統一方針決定
+- [ ] jjrv統合: ノードタイプマッピング表の作成
 - [ ] verbose_name由来タグと既存タグの整理ルール検討
 
 ## 確認事項・設計上の懸念

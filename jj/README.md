@@ -170,8 +170,8 @@ pytest
     - `services/plugins/abaqus/` : Abaqusプラグイン（INP解析・メッシュ統計・差分比較・物性一覧）
     - `services/plugins/obsidian/` : Obsidianプラグイン（Daily Note解析・Obsidianエクスポート）
   - `services/lib/` : 薄いユーティリティ（credentials, file等）
-- `shared/` : jj-dbとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
-- `shared/tests/test_asset1/` : jj/jj-db共通テストアセット（Abaqusプロジェクト）
+- `shared/` : jjrvとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
+- `shared/tests/test_asset1/` : jj/jjrv共通テストアセット（Abaqusプロジェクト）
 - `neo4j/` : Neo4j Docker設定と初期化スクリプト
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
@@ -224,10 +224,10 @@ pytest
 - 2026-02-09 / status-041: services構造改革に伴うロードマップ根本改変。Phase Rを新設（抽象パーサーパターン・ProjectGraph型・graph/__init__.py分解）、完了済みAbaqusグラフ機能をM1.5として整理、旧アダプター層をparseコネクターに再定義。detail.md・README.mdのディレクトリ構成を新構造に更新。([status-041](docs/status/status-041.md))
 - 2026-02-09 / status-040: pymesh移動・jj info強化・材料名ケース保持・credential管理。pymeshをservicesに移動しシステムpymesh競合解消、jj infoメッシュ統計展開表示・Windowsパスparse対応、材料名/elset名の元ケース保持、root directory命名のconfig対応(project-name)、Neo4j認証情報の暗号化保存(`jj credential set/show/delete`)。テスト396件パス+20スキップ、12件追加。([status-040](docs/status/status-040.md))
 - 2026-02-09 / status-039: parseタグ振り・verbose_name改善・Node方針変更。verbose_name由来タグ生成、version/バージョンキー統一、token_key_map verbose_name修正(値のみ)、material.inp材料タグ、elset Node化、.sta/.msg/.dat Node化廃止(情報のみinpに集約)、pymeshインポート修正、root directory Node化。テスト178件パス+18スキップ、20件追加。([status-039](docs/status/status-039.md))
-- 2026-02-09 / status-038: parse export修正（pymesh相対パスインポート、タグ`_`分割、includes相対パス化、directoryノードroot.directoryタグ）+ jj-db統合ロードマップ整備。テスト363件パス+20スキップ、リグレッションなし。([status-038](docs/status/status-038.md))
+- 2026-02-09 / status-038: parse export修正（pymesh相対パスインポート、タグ`_`分割、includes相対パス化、directoryノードroot.directoryタグ）+ jjrv統合ロードマップ整備。テスト363件パス+20スキップ、リグレッションなし。([status-038](docs/status/status-038.md))
 - 2026-02-08 / status-037: Neo4jエクスポート実装（Phase N1+N2）。shared/パッケージ（スキーマ契約・型定義・接続設定）、Neo4j Docker設定、Neo4jConnector（直接書き込み+Cypherファイル出力）、CLI `--target neo4j/cypher`追加。テスト71件追加（69パス+2スキップ）、既存294件リグレッションなし。([status-037](docs/status/status-037.md))
-- 2026-02-08 / status-036: jj-db統合設計。jj-db（旧mat-db）をNeo4j経由で統合する方針策定。submoduleアクセス不可のため一時モノレポ方式採用。shared/パッケージでデータ型共通化、Phase N1-N5の実装計画策定。jj-dbの技術スタック（Next.js 15/SQLite）を確認、SQLite+Neo4j併用を推奨。([status-036](docs/status/status-036.md))
-- 2026-02-08 / status-035: ダッシュボードアーキテクチャ設計。jj側Streamlit（即時一覧）+ jj-db側Next.js（高機能レンダリング）の役割分担決定。Phase 2.5・M2.5追加、仕様書09-dashboard.md作成。([status-035](docs/status/status-035.md))
+- 2026-02-08 / status-036: jjrv統合設計。jjrv（旧mat-db）をNeo4j経由で統合する方針策定。submoduleアクセス不可のため一時モノレポ方式採用。shared/パッケージでデータ型共通化、Phase N1-N5の実装計画策定。jjrvの技術スタック（Next.js 15/SQLite）を確認、SQLite+Neo4j併用を推奨。([status-036](docs/status/status-036.md))
+- 2026-02-08 / status-035: ダッシュボードアーキテクチャ設計。jj側Streamlit（即時一覧）+ jjrv側Next.js（高機能レンダリング）の役割分担決定。Phase 2.5・M2.5追加、仕様書09-dashboard.md作成。([status-035](docs/status/status-035.md))
 - 2026-02-07 / status-034: メッシュキーワード要約。diff/propertyでNode/Element/Nset/Elsetの生データを統計情報（節点数、座標範囲、メッシュ数、メッシュサイズ、ねじれ角、ID数）に自動置換。トップレベルメッシュデータのdiff比較追加。テスト294件パス（+22件）。([status-034](docs/status/status-034.md))
 - 2026-02-07 / status-033: Daily紐付け強化（[[O-file]]:key:value記法）、jj info強化（-id/-v/複数指定/-props）、jj diffコマンド追加、verbose_name登録、CSV/JSONエクスポート、elset/材料名プロパティ追加、Obsidianタグ出力強化。テスト272件パス（+12件）。([status-033](docs/status/status-033.md))
 - 2026-02-06 / status-032: CLIコマンド省略化（jj g→jj）、jj infoコマンド追加、includeファイルproperty伝搬、前バージョンとのキーワードブロック差分、notes/daily日報解析、Obsidianエクスポートwarning/diff表示強化。テスト260件パス（+18件）。([status-032](docs/status/status-032.md))

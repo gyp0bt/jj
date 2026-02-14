@@ -1,7 +1,7 @@
-"""Neo4jスキーマ定義 - jjとjj-dbの共有契約
+"""Neo4jスキーマ定義 - jjとjjrvの共有契約
 
 ノードラベル、リレーションシップタイプ、プロパティキーの定義。
-jjとjj-dbはこの定義に基づいてNeo4jとやり取りする。
+jjとjjrvはこの定義に基づいてNeo4jとやり取りする。
 
 [READMEへ戻る](../README.md)
 """
@@ -16,7 +16,7 @@ class NodeLabel:
     JJ_RUN = "JJRun"
     JJ_TAG = "JJTag"
 
-    # jj-db由来のノード
+    # jjrv由来のノード
     JJDB_MATERIAL = "JJDBMaterial"
     JJDB_TEST = "JJDBTest"
 
@@ -41,7 +41,7 @@ class RelType:
     MENTIONED_IN = "MENTIONED_IN"
     HAS_ELSET = "HAS_ELSET"
 
-    # jj-jj-db間のクロスリレーション
+    # jj-jjrv間のクロスリレーション
     MATCHES = "MATCHES"
     REFERENCES = "REFERENCES"
 

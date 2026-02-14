@@ -5,7 +5,7 @@
 ## 1. 概要
 
 jjが抽出したプロパティとrelationを一覧・可視化するダッシュボード機能の設計仕様。
-jj側は**即時的な一覧性**（ローカルStreamlit）を、jj-db側は**詳細で高機能なレンダリング**（Next.js）を担う。
+jj側は**即時的な一覧性**（ローカルStreamlit）を、jjrv側は**詳細で高機能なレンダリング**（Next.js）を担う。
 
 ### 設計判断の根拠
 
@@ -14,13 +14,13 @@ jj側は**即時的な一覧性**（ローカルStreamlit）を、jj-db側は**�
 | **Streamlit** | インタラクティブ、Pythonネイティブ、ag-grid/plotly統合、実績あり | 外部サーバー不要だがプロセス常駐 | **jj側で採用** |
 | Jinja2 → HTML | 静的生成、依存少ない | フィルター/プロット不可、更新のたびに再生成 | 不採用 |
 | Obsidian | ナレッジグラフに強い | テーブル/プロットに弱い、プログラマブルでない | 既存のエクスポート先として継続 |
-| jj-db (Next.js) | 高機能ビュー一式、ユーザー管理済み | jjとは別プロジェクト | **将来的な統合先** |
+| jjrv (Next.js) | 高機能ビュー一式、ユーザー管理済み | jjとは別プロジェクト | **将来的な統合先** |
 
 ### 役割分担
 
 ```
 ┌─────────────────────────────┐    ┌──────────────────────────────┐
-│  jj dashboard (Streamlit)   │    │  jj-db (Next.js)            │
+│  jj dashboard (Streamlit)   │    │  jjrv (Next.js)            │
 │                             │    │                              │
 │  ・プロジェクトローカル      │    │  ・組織横断のDB              │
 │  ・即時起動・即時フィルター  │    │  ・グラフDB検索/可視化       │
@@ -174,7 +174,7 @@ go_ファイル一覧をag-gridテーブルで表示。プロパティをカラ�
 ノード間の関係をネットワーク図で可視化。
 
 **実装候補**: pyvis（networkx連携）またはstreamlit-agraph
-**優先度**: 低（Obsidianやjj-dbが担う領域）
+**優先度**: 低（Obsidianやjjrvが担う領域）
 
 ### 2.3 データ取得レイヤー
 
@@ -227,7 +227,7 @@ services/
 
 ## 3. jj serve（REST API）
 
-jj-dbとの統合の橋渡しとなるAPIレイヤー。
+jjrvとの統合の橋渡しとなるAPIレイヤー。
 
 ### 3.1 起動コマンド
 
@@ -262,7 +262,7 @@ GET /api/v1/nodes?props.RF3.gt=5&sort=-version
 
 - **フレームワーク**: FastAPI（型安全、OpenAPIドキュメント自動生成）
 - **データソース**: GraphStorage経由でgraph.yaml/json読み込み
-- **認証**: 初期は不要（ローカル専用）、jj-db統合時にAPIキーまたはOAuth
+- **認証**: 初期は不要（ローカル専用）、jjrv統合時にAPIキーまたはOAuth
 
 ```python
 # services/api/__init__.py
@@ -277,12 +277,12 @@ app.include_router(node_router, prefix="/api/v1")
 
 ---
 
-## 4. jj-db統合設計
+## 4. jjrv統合設計
 
 ### 4.1 統合パターン
 
 ```
-jj-db (Next.js)
+jjrv (Next.js)
   │
   ├── /projects          # jjプロジェクト一覧
   │   └── /projects/:id  # プロジェクト詳細
@@ -293,14 +293,14 @@ jj-db (Next.js)
   │       └── detail/:nodeId  # ノード詳細ビュー
   │
   └── API連携
-      ├── jj serve → jj-db fetch  # リアルタイム取得
-      └── jj export → jj-db upload # バッチアップロード
+      ├── jj serve → jjrv fetch  # リアルタイム取得
+      └── jj export → jjrv upload # バッチアップロード
 ```
 
-### 4.2 データ変換: jj GraphModel → jj-db GraphData
+### 4.2 データ変換: jj GraphModel → jjrv GraphData
 
 ```typescript
-// jj-db側の型定義（参考）
+// jjrv側の型定義（参考）
 interface JJNode {
   id: number;
   type: string;      // "go", "mesh", "material", "folder", ...
@@ -322,18 +322,18 @@ interface JJGraph {
 }
 ```
 
-jj-dbの既存GraphData形式へのマッピングルール:
-- `JJNode` → jj-dbの`Node`（typeマッピングが必要）
-- `JJRelation` → jj-dbの`Edge`（labelをedge_typeに変換）
-- `properties` → jj-dbのノードメタデータ
+jjrvの既存GraphData形式へのマッピングルール:
+- `JJNode` → jjrvの`Node`（typeマッピングが必要）
+- `JJRelation` → jjrvの`Edge`（labelをedge_typeに変換）
+- `properties` → jjrvのノードメタデータ
 
 ### 4.3 統合方式の選択肢
 
 | 方式 | 説明 | 適用場面 |
 |------|------|----------|
-| **API連携** | `jj serve` → jj-db がfetch | リアルタイム連携、開発時 |
-| **バッチアップロード** | `jj export --target jj-db` → jj-db API | 定期同期、本番運用 |
-| **共有DB** | jjがjj-dbのDBに直接書き込み | 将来的な完全統合時 |
+| **API連携** | `jj serve` → jjrv がfetch | リアルタイム連携、開発時 |
+| **バッチアップロード** | `jj export --target jjrv` → jjrv API | 定期同期、本番運用 |
+| **共有DB** | jjがjjrvのDBに直接書き込み | 将来的な完全統合時 |
 
 **推奨**: 初期はバッチアップロード、中期以降にAPI連携へ移行。
 
@@ -347,7 +347,7 @@ jj-dbの既存GraphData形式へのマッピングルール:
 
 ```bash
 jj export --target dashboard-json   # ダッシュボード用JSON（プロパティ展開済み）
-jj export --target jj-db           # jj-dbアップロード形式
+jj export --target jjrv           # jjrvアップロード形式
 ```
 
 ### 5.2 dashboard-json形式
@@ -453,12 +453,12 @@ all = ["jj[dashboard,api]"]
 - [ ] /summary, /status エンドポイント
 - [ ] クエリフィルター実装
 
-### Phase D4: jj-db統合
+### Phase D4: jjrv統合
 
-- [ ] `jj export --target jj-db` の実装
-- [ ] jj-db側にjjプロジェクトインポート機能追加
-- [ ] API連携（jj serve → jj-db fetch）
-- [ ] jj-db既存ビュー（テーブル/カード/グラフ）でjjデータを表示
+- [ ] `jj export --target jjrv` の実装
+- [ ] jjrv側にjjプロジェクトインポート機能追加
+- [ ] API連携（jj serve → jjrv fetch）
+- [ ] jjrv既存ビュー（テーブル/カード/グラフ）でjjデータを表示
 
 ---
 
@@ -467,7 +467,7 @@ all = ["jj[dashboard,api]"]
 | ドメイン | 依存関係 | 説明 |
 |---------|---------|------|
 | コアデータモデル層 | → ダッシュボード層 | GraphModelを読み込んでビュー化 |
-| 出力層 | ← ダッシュボード層 | dashboard-json/jj-dbエクスポートを追加 |
+| 出力層 | ← ダッシュボード層 | dashboard-json/jjrvエクスポートを追加 |
 | Abaqusコネクター | → ダッシュボード層 | メッシュ要約・材料プロパティを表示 |
 | runコマンド層 | → ダッシュボード層 | 実行ステータス・ログを表示 |
 
@@ -487,9 +487,9 @@ all = ["jj[dashboard,api]"]
 - `jj parse` 実行後に自動リフレッシュ（Streamlitのrerun）
 - ステータスモニターは定期ポーリング（デフォルト30秒）
 
-### 9.3 jj-db統合時の名前空間
+### 9.3 jjrv統合時の名前空間
 
-- jjプロジェクトごとにjj-db上で名前空間を分離
+- jjプロジェクトごとにjjrv上で名前空間を分離
 - プロジェクト名 + パス で一意識別
 - 同一ファイルの重複登録防止（upsert）
 
