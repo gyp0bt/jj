@@ -380,10 +380,12 @@ class AbaqusMaterialAssignmentParser(AbstractFileParser):
 
 
 class AbaqusElsetParser(AbstractFileParser):
-    """go_*.inpのelset名をNode化
+    """go_*.inpのelset名をNode化（メッシュごとに分離）
 
     go_*.inpファイル（include先含む）で定義されているelset名を
     Node(type="abaqus_elset")として生成する。
+    同一elset名で異なるメッシュ（異なるinclude先.inp）に属する場合、
+    メッシュごとに別のelsetノードを生成する。
     各elsetノードにはelement数と材料割り当て情報もproperty化する。
     材料が割り当てられているelsetは、対応するabaqus_materialノードへの
     uses_material relationを持つ。
@@ -411,47 +413,7 @@ class AbaqusElsetParser(AbstractFileParser):
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
 
-            elset_names: set[str] = set()
-
-            # mesh_elset_summaryを統合（go_*自身 + include先）
-            merged_elset_summary: dict[str, int] = {}
-            # mesh_elset_qualityを統合（go_*自身 + include先）
-            merged_elset_quality: dict[str, dict[str, Any]] = {}
-
-            elset_summary = node.properties.get("mesh_elset_summary", {})
-            if isinstance(elset_summary, dict):
-                elset_names.update(elset_summary.keys())
-                merged_elset_summary.update(elset_summary)
-
-            elset_quality = node.properties.get("mesh_elset_quality", {})
-            if isinstance(elset_quality, dict):
-                merged_elset_quality.update(elset_quality)
-
-            for child_id in includes_map.get(node.id, []):
-                child = graph.get_node_by_id(child_id)
-                if child is None:
-                    continue
-                child_elsets = child.properties.get("mesh_elset_summary", {})
-                if isinstance(child_elsets, dict):
-                    elset_names.update(child_elsets.keys())
-                    for k, v in child_elsets.items():
-                        if k not in merged_elset_summary:
-                            merged_elset_summary[k] = v
-                child_elset_q = child.properties.get("mesh_elset_quality", {})
-                if isinstance(child_elset_q, dict):
-                    for k, v in child_elset_q.items():
-                        if k not in merged_elset_quality:
-                            merged_elset_quality[k] = v
-
             mat_elsets = node.properties.get("material_elsets", {})
-            if isinstance(mat_elsets, dict):
-                for elset_list in mat_elsets.values():
-                    if isinstance(elset_list, list):
-                        elset_names.update(elset_list)
-
-            if not elset_names:
-                continue
-
             # material_elsets を逆引き: elset_name → material_name
             elset_to_material: dict[str, str] = {}
             if isinstance(mat_elsets, dict):
@@ -460,65 +422,261 @@ class AbaqusElsetParser(AbstractFileParser):
                         for es in elset_list:
                             elset_to_material[es] = mat_name
 
+            # メッシュソースごとにelsetを収集
+            # (mesh_source_name, elset_name) → {summary, quality, source_file}
+            # mesh_sourceはinclude先のノード名、go自身は自分のノード名
+            mesh_sources: list[tuple[str, Node]] = []
+
+            # go_*自身のメッシュデータ
+            self_elsets = node.properties.get("mesh_elset_summary", {})
+            if isinstance(self_elsets, dict) and self_elsets:
+                mesh_sources.append((node.name, node))
+
+            # include先のメッシュデータ
+            for child_id in includes_map.get(node.id, []):
+                child = graph.get_node_by_id(child_id)
+                if child is None:
+                    continue
+                child_elsets = child.properties.get("mesh_elset_summary", {})
+                if isinstance(child_elsets, dict) and child_elsets:
+                    mesh_sources.append((child.name, child))
+
+            # material_elsetsにしかないelset名も回収（mesh_sourceはgo自身）
+            all_mesh_elset_names: set[str] = set()
+            for _, src_node in mesh_sources:
+                src_summary = src_node.properties.get("mesh_elset_summary", {})
+                if isinstance(src_summary, dict):
+                    all_mesh_elset_names.update(src_summary.keys())
+
             go_elset_names: list[str] = []
-            for elset_name in sorted(elset_names):
-                elset_tags = [t for t in elset_name.split("_") if t]
+            created_elset_names: set[str] = set()
 
-                elset_props: dict[str, Any] = {
-                    "verbose_name": elset_name,
-                    "tags": elset_tags,
-                    "source_file": node.properties.get("path", ""),
-                }
+            # メッシュソースごとにelsetノードを生成
+            for mesh_name, src_node in mesh_sources:
+                src_summary = src_node.properties.get("mesh_elset_summary", {})
+                if not isinstance(src_summary, dict):
+                    continue
+                src_quality = src_node.properties.get("mesh_elset_quality", {})
+                if not isinstance(src_quality, dict):
+                    src_quality = {}
 
-                # elset別element数
-                if elset_name in merged_elset_summary:
-                    elset_props["element_count"] = merged_elset_summary[elset_name]
+                for elset_name in sorted(src_summary.keys()):
+                    elset_props: dict[str, Any] = {
+                        "verbose_name": elset_name,
+                        "source_file": src_node.properties.get("path", ""),
+                        "mesh_source": mesh_name,
+                    }
 
-                # elset別品質統計
-                if elset_name in merged_elset_quality:
-                    eq = merged_elset_quality[elset_name]
-                    if isinstance(eq, dict) and "quality" in eq:
-                        elset_props["quality"] = eq["quality"]
+                    # elset別element数
+                    elset_props["element_count"] = src_summary[elset_name]
 
-                # 材料割り当て
-                assigned_material_name = elset_to_material.get(elset_name)
-                if assigned_material_name:
-                    elset_props["material"] = assigned_material_name
+                    # elset別品質統計
+                    if elset_name in src_quality:
+                        eq = src_quality[elset_name]
+                        if isinstance(eq, dict) and "quality" in eq:
+                            elset_props["quality"] = eq["quality"]
 
-                elset_node = Node(
-                    id=graph.next_node_id(),
-                    type="abaqus_elset",
-                    name=elset_name,
-                    format="elset",
-                    properties=elset_props,
-                )
-                graph.add_node(elset_node)
-                go_elset_names.append(elset_name)
+                    # 材料割り当て
+                    assigned_material_name = elset_to_material.get(elset_name)
+                    if assigned_material_name:
+                        elset_props["material"] = assigned_material_name
 
-                # has_elset: go_*.inp → elsetノード
-                graph.add_relation(
-                    Relation(
-                        id=graph.next_relation_id(),
-                        label="has_elset",
-                        node1_id=node.id,
-                        node2_id=elset_node.id,
+                    elset_node = Node(
+                        id=graph.next_node_id(),
+                        type="abaqus_elset",
+                        name=elset_name,
+                        format="elset",
+                        properties=elset_props,
                     )
-                )
+                    graph.add_node(elset_node)
+                    if elset_name not in created_elset_names:
+                        go_elset_names.append(elset_name)
+                        created_elset_names.add(elset_name)
 
-                # uses_material: elsetノード → abaqus_materialノード
-                if assigned_material_name:
-                    mat_node = mat_by_name.get(assigned_material_name.lower())
-                    if mat_node:
+                    # has_elset: go_*.inp → elsetノード
+                    graph.add_relation(
+                        Relation(
+                            id=graph.next_relation_id(),
+                            label="has_elset",
+                            node1_id=node.id,
+                            node2_id=elset_node.id,
+                        )
+                    )
+
+                    # uses_material: elsetノード → abaqus_materialノード
+                    if assigned_material_name:
+                        mat_node = mat_by_name.get(assigned_material_name.lower())
+                        if mat_node:
+                            graph.add_relation(
+                                Relation(
+                                    id=graph.next_relation_id(),
+                                    label="uses_material",
+                                    node1_id=elset_node.id,
+                                    node2_id=mat_node.id,
+                                )
+                            )
+
+            # material_elsetsにのみ存在するelset（meshデータなし）も生成
+            if isinstance(mat_elsets, dict):
+                for mat_name, elset_list in mat_elsets.items():
+                    if not isinstance(elset_list, list):
+                        continue
+                    for elset_name in elset_list:
+                        if elset_name in all_mesh_elset_names:
+                            continue
+                        if elset_name in created_elset_names:
+                            continue
+                        elset_props = {
+                            "verbose_name": elset_name,
+                            "source_file": node.properties.get("path", ""),
+                            "material": mat_name,
+                        }
+                        elset_node = Node(
+                            id=graph.next_node_id(),
+                            type="abaqus_elset",
+                            name=elset_name,
+                            format="elset",
+                            properties=elset_props,
+                        )
+                        graph.add_node(elset_node)
+                        go_elset_names.append(elset_name)
+                        created_elset_names.add(elset_name)
+
                         graph.add_relation(
                             Relation(
                                 id=graph.next_relation_id(),
-                                label="uses_material",
-                                node1_id=elset_node.id,
-                                node2_id=mat_node.id,
+                                label="has_elset",
+                                node1_id=node.id,
+                                node2_id=elset_node.id,
                             )
                         )
+                        mat_node = mat_by_name.get(mat_name.lower())
+                        if mat_node:
+                            graph.add_relation(
+                                Relation(
+                                    id=graph.next_relation_id(),
+                                    label="uses_material",
+                                    node1_id=elset_node.id,
+                                    node2_id=mat_node.id,
+                                )
+                            )
 
             if go_elset_names:
-                node.properties["elsets"] = go_elset_names
+                node.properties["elsets"] = sorted(go_elset_names)
+
+        return graph
+
+
+def parse_keyword_blocks(inp_path: Path) -> list[dict[str, Any]]:
+    """Abaqus .inpファイルからキーワードブロックを抽出
+
+    *で始まる行のカンマ前がキーワード名、カンマ後がオプション。
+    **で始まるコメント行は除外。
+
+    Returns:
+        [{"keyword": str, "options": dict[str, str]}, ...]
+        同一キーワードは1回のみ（最初の出現）。
+    """
+    keywords: list[dict[str, Any]] = []
+    seen_keywords: set[str] = set()
+
+    try:
+        with inp_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("**"):
+                    continue
+                if not line.startswith("*"):
+                    continue
+
+                # *KEYWORD, opt1=val1, opt2=val2 の形式
+                tokens = [t.strip() for t in line.split(",") if t.strip()]
+                if not tokens:
+                    continue
+
+                keyword_name = tokens[0].lstrip("*").strip()
+                if not keyword_name:
+                    continue
+
+                keyword_upper = keyword_name.upper()
+                if keyword_upper in seen_keywords:
+                    continue
+                seen_keywords.add(keyword_upper)
+
+                options: dict[str, str] = {}
+                for tok in tokens[1:]:
+                    if "=" in tok:
+                        key, _, val = tok.partition("=")
+                        options[key.strip()] = val.strip()
+                    else:
+                        # 値なしオプション
+                        options[tok.strip()] = ""
+
+                keywords.append({
+                    "keyword": keyword_name,
+                    "options": options,
+                })
+    except (OSError, IOError):
+        pass
+
+    return keywords
+
+
+class AbaqusKeywordParser(AbstractFileParser):
+    """Abaqus .inpファイルのキーワードをNode化
+
+    *で始まるキーワード行を解析し、Node(type="abaqus_keyword")を生成する。
+    キーワード名をnameとし、オプションをプロパティにする。
+    キーワードを使っている.inpファイルとの間にuses_keyword relationを作る。
+    """
+
+    priority = 55
+
+    def apply(self, graph: ProjectGraph) -> ProjectGraph:
+        # キーワードの重複をグローバルで管理
+        keyword_nodes: dict[str, Node] = {}
+
+        for node in list(graph.nodes):
+            ext = f".{node.format}" if node.format else ""
+            if ext.lower() != ".inp":
+                continue
+
+            file_path = graph.project_root / node.properties.get("path", "")
+            if not file_path.exists():
+                continue
+
+            kw_blocks = parse_keyword_blocks(file_path)
+
+            for kw in kw_blocks:
+                kw_name = kw["keyword"]
+                kw_upper = kw_name.upper()
+
+                if kw_upper not in keyword_nodes:
+                    kw_props: dict[str, Any] = {}
+                    for opt_key, opt_val in kw["options"].items():
+                        if opt_val:
+                            kw_props[opt_key] = opt_val
+                        else:
+                            kw_props[opt_key] = True
+
+                    kw_node = Node(
+                        id=graph.next_node_id(),
+                        type="abaqus_keyword",
+                        name=kw_upper,
+                        format="keyword",
+                        properties=kw_props,
+                    )
+                    graph.add_node(kw_node)
+                    keyword_nodes[kw_upper] = kw_node
+
+                # uses_keyword: .inpファイル → キーワードノード
+                graph.add_relation(
+                    Relation(
+                        id=graph.next_relation_id(),
+                        label="uses_keyword",
+                        node1_id=node.id,
+                        node2_id=keyword_nodes[kw_upper].id,
+                    )
+                )
 
         return graph
