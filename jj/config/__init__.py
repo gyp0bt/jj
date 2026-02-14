@@ -774,6 +774,95 @@ class ExportConfig:
 
 
 @dataclass(frozen=True)
+class SolverProfileConfig:
+    """ソルバー別のファイル解釈ルール
+
+    各CAEソルバーのファイル構造の差異を吸収する設定。
+    ソルバーごとに入力/結果ファイルの拡張子、命名パターン、
+    ソース単位（ファイル/ディレクトリ）を定義する。
+
+    参照: docs/specs/multi-solver.md
+    """
+    name: str
+    source_unit: str           # "file" | "directory"
+    filename_pattern: str      # "standard" | "reversed" | "none"
+    input_extensions: tuple[str, ...]
+    result_extensions: tuple[str, ...]
+    result_filenames: tuple[str, ...]      # 拡張子なしの結果ファイル名
+    input_prefixes: tuple[str, ...]        # Flow-3D: prepin等
+    result_prefixes: tuple[str, ...]       # Flow-3D: flsgrf等
+    input_directories: tuple[str, ...]     # OpenFOAM: system等
+    result_directory_pattern: str          # OpenFOAM: 数字ディレクトリの正規表現
+
+    @classmethod
+    def from_dict(cls, name: str, data: dict[str, Any]) -> "SolverProfileConfig":
+        source_unit = str(data.get("source-unit", "file"))
+        if source_unit not in ("file", "directory"):
+            raise ValueError(f"source-unit must be 'file' or 'directory', got '{source_unit}'")
+        filename_pattern = str(data.get("filename-pattern", "standard"))
+        if filename_pattern not in ("standard", "reversed", "none"):
+            raise ValueError(
+                f"filename-pattern must be 'standard', 'reversed', or 'none', got '{filename_pattern}'"
+            )
+        return cls(
+            name=name,
+            source_unit=source_unit,
+            filename_pattern=filename_pattern,
+            input_extensions=tuple(str(x) for x in (data.get("input-extensions") or [])),
+            result_extensions=tuple(str(x) for x in (data.get("result-extensions") or [])),
+            result_filenames=tuple(str(x) for x in (data.get("result-filenames") or [])),
+            input_prefixes=tuple(str(x) for x in (data.get("input-prefixes") or [])),
+            result_prefixes=tuple(str(x) for x in (data.get("result-prefixes") or [])),
+            input_directories=tuple(str(x) for x in (data.get("input-directories") or [])),
+            result_directory_pattern=str(data.get("result-directory-pattern", "")),
+        )
+
+
+# デフォルトのソルバープロファイル（Abaqus互換）
+_DEFAULT_SOLVER_PROFILE = SolverProfileConfig(
+    name="default",
+    source_unit="file",
+    filename_pattern="standard",
+    input_extensions=(".inp",),
+    result_extensions=(".odb", ".sta", ".msg", ".dat"),
+    result_filenames=(),
+    input_prefixes=(),
+    result_prefixes=(),
+    input_directories=(),
+    result_directory_pattern="",
+)
+
+
+@dataclass(frozen=True)
+class SolverDetectionConfig:
+    """ソルバー自動検出設定: パスパターンからソルバープロファイルを特定
+
+    solver-detection:
+      "**/*.k | **/*.key": lsdyna
+      "**/prepin.*": flow3d
+    """
+    rules: list[tuple[list[str], str]]  # (patterns, profile_name)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SolverDetectionConfig":
+        rules: list[tuple[list[str], str]] = []
+        if not data:
+            return cls(rules=[])
+        for pattern_key, profile_name in data.items():
+            patterns = [p.strip() for p in pattern_key.split("|")]
+            rules.append((patterns, str(profile_name)))
+        return cls(rules=rules)
+
+    def detect(self, path: str) -> Optional[str]:
+        """パスからソルバープロファイル名を検出（マッチしない場合はNone）"""
+        for patterns, profile_name in self.rules:
+            for pattern in patterns:
+                if _match_path_pattern(path, pattern):
+                    return profile_name
+        return None
+
+
+@dataclass(frozen=True)
 class GraphConfig:
     """グラフ機能用の統合設定"""
     vocab: dict[str, str]
@@ -791,6 +880,25 @@ class GraphConfig:
     include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
     cache_max_age_days: int  # プラグインキャッシュ保持期間（日数、デフォルト30）
     cache_max_count: int  # プラグインキャッシュ最大保持数（デフォルト100）
+    solver_profiles: dict[str, SolverProfileConfig]  # ソルバー別設定プロファイル
+    solver_detection: SolverDetectionConfig  # ソルバー自動検出ルール
+
+    def detect_solver_profile(self, path: str) -> SolverProfileConfig:
+        """パスからソルバープロファイルを検出
+
+        solver-detectionルールにマッチするパスの場合、対応するプロファイルを返す。
+        マッチしない場合はデフォルト（Abaqus互換）プロファイルを返す。
+
+        Args:
+            path: チェック対象のパス（POSIX形式）
+
+        Returns:
+            該当するSolverProfileConfig
+        """
+        profile_name = self.solver_detection.detect(path)
+        if profile_name and profile_name in self.solver_profiles:
+            return self.solver_profiles[profile_name]
+        return self.solver_profiles.get("default", _DEFAULT_SOLVER_PROFILE)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
@@ -805,6 +913,21 @@ class GraphConfig:
             raise ValueError("include-search-depth must be >= 0")
         cache_max_age = int(data.get("cache-max-age-days", 30))
         cache_max_count = int(data.get("cache-max-count", 100))
+
+        # ソルバープロファイルの読み込み
+        raw_profiles = data.get("solver-profiles", {})
+        solver_profiles: dict[str, SolverProfileConfig] = {}
+        if isinstance(raw_profiles, dict):
+            for pname, pdata in raw_profiles.items():
+                if isinstance(pdata, dict):
+                    solver_profiles[str(pname)] = SolverProfileConfig.from_dict(str(pname), pdata)
+        # デフォルトプロファイルが未定義の場合は追加
+        if "default" not in solver_profiles:
+            solver_profiles["default"] = _DEFAULT_SOLVER_PROFILE
+
+        # ソルバー検出ルールの読み込み
+        solver_detection = SolverDetectionConfig.from_dict(data.get("solver-detection", {}))
+
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -821,6 +944,8 @@ class GraphConfig:
             include_search_depth=include_depth,
             cache_max_age_days=cache_max_age,
             cache_max_count=cache_max_count,
+            solver_profiles=solver_profiles,
+            solver_detection=solver_detection,
         )
 
     @classmethod
