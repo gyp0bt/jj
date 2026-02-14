@@ -98,6 +98,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-14 / status-088: Abaqus固有ロジック分離・CacheProvider汎用化・requirements.txt廃止。CacheProviderを`load/save_plugin_data(namespace)`に汎用化。GraphStorageの`abq_cache`→`plugin_cache/{namespace}/`に変更。GraphServiceから`_read_inp_parameter_props`除去→AbaqusParameterParser（priority=15）として再実装。MeshInheritParser・submit.pyをAbaqusプラグインに移動。parse層からAbaqus固有エクスポート除去。1003テストパス。([status-088](docs/status/status-088.md))
 - 2026-02-14 / status-087: パッケージセットアップ修正。エントリポイントを`main:main`→`services.cli:main`に変更（main.pyがpackages.findに含まれず解決不能だった）。chardet/ftfy/numpyをコア依存に移動（Abaqusプラグイン自動ロードでモジュールレベルimportされるため必須）。sharedパッケージをpackages.findに追加。756テストパス。([status-087](docs/status/status-087.md))
 - 2026-02-14 / status-086: SDK外部化・プラグインレジストリ・Abaqus/Obsidianプラグイン分離。CacheProvider DI注入（GraphServiceコンストラクタ経由）。entry_points動的発見メカニズム実装（plugin_registry.py）。Abaqus/Obsidianロジックをservices/plugins/に集約しプラグインパッケージ化。pyproject.toml定義（entry_points + optional-dependencies）。コアからのハードコードimport除去。回帰なし。([status-086](docs/status/status-086.md))
 - 2026-02-13 / status-085: API層リファクタリング・プラグイン化・CLI/Dashboard分離。ApiServiceクラス新設でAPI層のservices.service完全依存化。jj-sdkパッケージ新設（プラグイン化Phase 1）。CacheProviderプロトコル定義（Phase 2）。dashboard/serveランチャー分離。29テスト新規。([status-085](docs/status/status-085.md))

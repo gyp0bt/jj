@@ -1,13 +1,4 @@
 from .base import AbstractFileParser, FileNameParser, parse
-from .connectors.abaqus import (
-    ABQData,
-    BlockDiff,
-    diff_abq_blocks,
-    format_diff_blocks_markdown,
-    format_diff_summary_table,
-    generate_diff_props,
-    read_inp,
-)
 from .file_parse import (
     TARGET_EXTENSIONS,
     FileGroup,
@@ -32,11 +23,12 @@ import services.parse.parsers  # noqa: F401
 # services.plugins.abaqus / services.plugins.obsidian が自動インポートされ、
 # 各パーサーの__init_subclass__による自動登録が発動する。
 # 後方互換: GraphServiceのimport時に load_all_plugins() が呼ばれる。
+#
+# Abaqus固有エクスポート（ABQData, read_inp, diff_abq_blocks等）はstatus-088で除去。
+# Abaqus固有APIは services.parse.connectors.abaqus から直接importすること。
 
 __all__ = [
-    "ABQData",
     "AbstractFileParser",
-    "BlockDiff",
     "FileGroup",
     "FileNameParser",
     "FileParse",
@@ -44,10 +36,6 @@ __all__ = [
     "ObsidianFileParse",
     "ObsidianMap",
     "TARGET_EXTENSIONS",
-    "diff_abq_blocks",
-    "format_diff_blocks_markdown",
-    "format_diff_summary_table",
-    "generate_diff_props",
     "get_basename",
     "get_basename_with_ext",
     "get_group_name",
@@ -55,6 +43,5 @@ __all__ = [
     "get_index_and_version_legacy",
     "normalize_extension_to_inp",
     "parse",
-    "read_inp",
     "safe_relative_path",
 ]

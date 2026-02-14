@@ -75,8 +75,8 @@ class TestCacheProviderProtocol:
             "save",
             "load_timestamps",
             "save_timestamps",
-            "load_abq_data",
-            "save_abq_data",
+            "load_plugin_data",
+            "save_plugin_data",
         ]
         for method_name in required_methods:
             assert hasattr(CacheProvider, method_name), f"{method_name} not in CacheProvider"
@@ -103,11 +103,11 @@ class TestCacheProviderProtocol:
             def save_timestamps(self, project_root, timestamps):
                 return project_root / "ts.json"
 
-            def load_abq_data(self, project_root, file_path, expected_mtime):
+            def load_plugin_data(self, project_root, namespace, file_path, expected_mtime):
                 return None
 
-            def save_abq_data(self, project_root, file_path, abq_data, mtime):
-                return project_root / "abq.pickle"
+            def save_plugin_data(self, project_root, namespace, file_path, data, mtime):
+                return project_root / "cache.pickle"
 
         mock = MockCacheProvider()
         assert isinstance(mock, CacheProvider)

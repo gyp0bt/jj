@@ -789,8 +789,8 @@ class GraphConfig:
     dashboard: DashboardConfig
     directory_max_depth: Optional[int]  # None=無制限（最終階層まで）
     include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
-    cache_max_age_days: int  # ABQDataキャッシュ保持期間（日数、デフォルト30）
-    cache_max_count: int  # ABQDataキャッシュ最大保持数（デフォルト100）
+    cache_max_age_days: int  # プラグインキャッシュ保持期間（日数、デフォルト30）
+    cache_max_count: int  # プラグインキャッシュ最大保持数（デフォルト100）
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":

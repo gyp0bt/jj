@@ -1671,7 +1671,11 @@ class TestActiveAttribute:
 
 
 class TestInpParameterProps:
-    """*PARAMETER/**propsブロックからプロパティを読み取るテスト"""
+    """*PARAMETER/**propsブロックからプロパティを読み取るテスト
+
+    status-088でGraphService._read_inp_parameter_propsからAbaqusParameterParserに移動。
+    パーサー経由でテストする。
+    """
 
     @pytest.fixture
     def config(self):
@@ -1689,41 +1693,78 @@ class TestInpParameterProps:
 
     def test_read_parameter_props(self, tmp_path, config):
         """*PARAMETER/**propsブロックのkey=valueが読み取られる"""
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+
         inp = tmp_path / "go_idx1.inp"
         inp.write_text("*HEADING\ntest\n*PARAMETER\n**props\nw=5\nt=20\n*STEP\n")
 
         gs = GraphService(project_root=tmp_path, config=config)
         node = gs.file_to_node(inp)
+
+        # AbaqusParameterParser経由でプロパティを付与
+        from services.graph.project_graph import ProjectGraph
+        pg = ProjectGraph(
+            nodes=[node], relations=[], project_root=tmp_path, config=config
+        )
+        AbaqusParameterParser().apply(pg)
+
         # vocabマッピングが適用される
         assert node.properties.get("width") == "5"
         assert node.properties.get("thickness") == "20"
 
     def test_no_parameter_block(self, tmp_path, config):
         """*PARAMETERブロックがない場合は何も追加されない"""
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+
         inp = tmp_path / "go_idx1.inp"
         inp.write_text("*HEADING\ntest\n*STEP\n*STATIC\n")
 
         gs = GraphService(project_root=tmp_path, config=config)
         node = gs.file_to_node(inp)
+
+        from services.graph.project_graph import ProjectGraph
+        pg = ProjectGraph(
+            nodes=[node], relations=[], project_root=tmp_path, config=config
+        )
+        AbaqusParameterParser().apply(pg)
+
         assert "width" not in node.properties
         assert "thickness" not in node.properties
 
     def test_parameter_without_props_comment(self, tmp_path, config):
         """*PARAMETERの後に**propsがない場合はスキップ"""
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+
         inp = tmp_path / "go_idx1.inp"
         inp.write_text("*PARAMETER\n** something else\nw=5\n*STEP\n")
 
         gs = GraphService(project_root=tmp_path, config=config)
         node = gs.file_to_node(inp)
+
+        from services.graph.project_graph import ProjectGraph
+        pg = ProjectGraph(
+            nodes=[node], relations=[], project_root=tmp_path, config=config
+        )
+        AbaqusParameterParser().apply(pg)
+
         assert "width" not in node.properties
 
     def test_non_inp_file_skipped(self, tmp_path, config):
         """INP以外のファイルはパラメータ読み取りをスキップ"""
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+
         csv = tmp_path / "go_idx1.csv"
         csv.write_text("a,b,c\n1,2,3\n")
 
         gs = GraphService(project_root=tmp_path, config=config)
         node = gs.file_to_node(csv)
+
+        from services.graph.project_graph import ProjectGraph
+        pg = ProjectGraph(
+            nodes=[node], relations=[], project_root=tmp_path, config=config
+        )
+        AbaqusParameterParser().apply(pg)
+
         assert "width" not in node.properties
 
 
@@ -1875,10 +1916,16 @@ class TestTokenKeyMap:
 
 
 class TestVocabValueTranslation:
-    """vocab値変換のテスト（キーだけでなく値も変換）"""
+    """vocab値変換のテスト（キーだけでなく値も変換）
+
+    status-088でAbaqusParameterParser経由でテストする形式に変更。
+    """
 
     def test_vocab_translates_prop_values(self, tmp_path):
         """vocabがプロパティ値も変換する"""
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+        from services.graph.project_graph import ProjectGraph
+
         config = GraphConfig.from_dict(
             {
                 "vocab": {"static": "静的"},
@@ -1890,6 +1937,13 @@ class TestVocabValueTranslation:
         inp.write_text("*PARAMETER\n**props\nmethod=static\n", encoding="utf-8")
 
         node = svc.file_to_node(inp)
+
+        # AbaqusParameterParser経由でプロパティを付与
+        pg = ProjectGraph(
+            nodes=[node], relations=[], project_root=tmp_path, config=config
+        )
+        AbaqusParameterParser().apply(pg)
+
         # *PARAMETER/**propsの値がvocabで変換される
         assert node.properties.get("method") == "静的"
 
