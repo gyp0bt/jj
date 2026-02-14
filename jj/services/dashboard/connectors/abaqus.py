@@ -25,6 +25,9 @@ from services.dashboard.connectors.abaqus_query import (
     get_curve_plot_axes,
     parse_material_curve_columns,
     get_material_usage,
+    get_mesh_quality_summary,
+    get_elset_quality_summary,
+    get_job_summary,
 )
 
 if False:  # TYPE_CHECKING
@@ -163,6 +166,14 @@ def _render_material_page(
     # 物性使用関係セクション
     st.markdown("---")
     _render_material_usage(provider)
+
+    # メッシュ品質サマリーセクション
+    st.markdown("---")
+    _render_mesh_quality_summary(provider)
+
+    # Elset品質サマリーセクション
+    st.markdown("---")
+    _render_elset_quality_summary(provider)
 
 
 def _render_material_comparison(
@@ -326,6 +337,175 @@ def _render_material_usage(
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
+def _format_quality_dict(quality: dict[str, Any]) -> dict[str, str]:
+    """品質辞書をフラットな表示用に変換"""
+    result: dict[str, str] = {}
+    for metric, stats in quality.items():
+        if isinstance(stats, dict):
+            min_v = stats.get("min", "")
+            max_v = stats.get("max", "")
+            mean_v = stats.get("mean", "")
+            result[f"{metric}_min"] = f"{min_v:.4g}" if isinstance(min_v, (int, float)) else str(min_v)
+            result[f"{metric}_max"] = f"{max_v:.4g}" if isinstance(max_v, (int, float)) else str(max_v)
+            result[f"{metric}_mean"] = f"{mean_v:.4g}" if isinstance(mean_v, (int, float)) else str(mean_v)
+    return result
+
+
+def _render_mesh_quality_summary(
+    provider: "DashboardDataProvider",
+) -> None:
+    """メッシュ品質サマリーテーブルを表示"""
+    import streamlit as st
+
+    st.subheader("メッシュ品質サマリー")
+
+    mesh_rows = get_mesh_quality_summary(provider)
+    if not mesh_rows:
+        st.info("メッシュ品質データがありません。")
+        return
+
+    import pandas as pd
+
+    display_rows = []
+    for r in mesh_rows:
+        row: dict[str, Any] = {
+            "GOノード": r["go_name"],
+            "節点数": r["node_count"],
+            "要素数": r["element_count"],
+        }
+        # 要素タイプを文字列化
+        etypes = r.get("element_types", {})
+        if isinstance(etypes, dict) and etypes:
+            row["要素タイプ"] = ", ".join(f"{k}:{v}" for k, v in etypes.items())
+        # 品質メトリクスを展開
+        quality = r.get("quality", {})
+        if isinstance(quality, dict):
+            row.update(_format_quality_dict(quality))
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+def _render_elset_quality_summary(
+    provider: "DashboardDataProvider",
+) -> None:
+    """Elset品質サマリーテーブルを表示"""
+    import streamlit as st
+
+    st.subheader("Elset品質サマリー")
+
+    elset_rows = get_elset_quality_summary(provider)
+    if not elset_rows:
+        st.info("Elset品質データがありません。")
+        return
+
+    import pandas as pd
+
+    display_rows = []
+    for r in elset_rows:
+        row: dict[str, Any] = {
+            "Elset名": r["elset_name"],
+            "メッシュソース": r.get("mesh_source", ""),
+            "要素数": r["element_count"],
+            "材料": r.get("material", ""),
+        }
+        quality = r.get("quality", {})
+        if isinstance(quality, dict):
+            row.update(_format_quality_dict(quality))
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+def _render_job_summary_page(
+    provider: "DashboardDataProvider",
+) -> None:
+    """Abaqusジョブサマリーページを表示"""
+    import streamlit as st
+
+    st.header("Abaqusジョブサマリー")
+
+    job_rows = get_job_summary(provider)
+    if not job_rows:
+        st.info("ジョブサマリーデータがありません。")
+        return
+
+    import pandas as pd
+
+    display_rows = []
+    for r in job_rows:
+        row: dict[str, Any] = {
+            "GOノード": r["go_name"],
+            "解析ステータス": r["analysis_status"],
+        }
+        if "cpu_time" in r:
+            row["CPU時間(sec)"] = r["cpu_time"]
+        if "wallclock_time" in r:
+            row["経過時間(sec)"] = r["wallclock_time"]
+        # エラー・警告を集約
+        errors: list[str] = []
+        warnings: list[str] = []
+        for key in ("sta_errors", "msg_errors", "dat_errors"):
+            src = key.split("_")[0]
+            for e in r.get(key, []):
+                errors.append(f"[{src}] {e}")
+        for key in ("sta_warnings", "msg_warnings", "dat_warnings"):
+            src = key.split("_")[0]
+            for w in r.get(key, []):
+                warnings.append(f"[{src}] {w}")
+        if errors:
+            row["エラー数"] = len(errors)
+        if warnings:
+            row["警告数"] = len(warnings)
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+
+    try:
+        from services.dashboard.widgets import try_render_aggrid
+        if not try_render_aggrid(df):
+            st.dataframe(df, use_container_width=True, hide_index=True)
+    except ImportError:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.caption(f"ジョブ数: {len(job_rows)}")
+
+    # 個別ジョブのエラー・警告詳細
+    st.markdown("---")
+    st.subheader("エラー・警告詳細")
+    job_names = [r["go_name"] for r in job_rows]
+    selected_job = st.selectbox("ジョブ選択", job_names, key="_job_detail_select")
+    if selected_job:
+        job = next((r for r in job_rows if r["go_name"] == selected_job), None)
+        if job:
+            all_errors: list[str] = []
+            all_warnings: list[str] = []
+            for key in ("sta_errors", "msg_errors", "dat_errors"):
+                src = key.split("_")[0]
+                for e in job.get(key, []):
+                    all_errors.append(f"[{src}] {e}")
+            for key in ("sta_warnings", "msg_warnings", "dat_warnings"):
+                src = key.split("_")[0]
+                for w in job.get(key, []):
+                    all_warnings.append(f"[{src}] {w}")
+
+            if all_errors:
+                st.error(f"エラー ({len(all_errors)}件)")
+                for e in all_errors:
+                    st.text(e)
+            else:
+                st.success("エラーなし")
+
+            if all_warnings:
+                st.warning(f"警告 ({len(all_warnings)}件)")
+                for w in all_warnings:
+                    st.text(w)
+            else:
+                st.info("警告なし")
+
+
 # ====================================================================
 # コネクター登録
 # ====================================================================
@@ -351,3 +531,35 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
     ) -> None:
         """物性一覧ページをレンダリング"""
         _render_material_page(provider, dashboard_config)
+
+
+class AbaqusJobSummaryPageConnector(DashboardPageConnector):
+    """Abaqusジョブサマリーページコネクター
+
+    go_ノードにジョブ関連データ（analysis_status等）が存在する場合に
+    「ジョブサマリー」ページを提供する。
+    """
+
+    page_label = "ジョブサマリー"
+    connector_key = "abaqus"
+
+    def is_available(self, provider: "DashboardDataProvider") -> bool:
+        """ジョブ関連データが1つ以上存在するか判定"""
+        for n in provider.graph.nodes:
+            name_lower = n.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+            if any(
+                k in n.properties
+                for k in ("analysis_status", "cpu_time", "wallclock_time")
+            ):
+                return True
+        return False
+
+    def render_page(
+        self,
+        provider: "DashboardDataProvider",
+        dashboard_config: Any,
+    ) -> None:
+        """ジョブサマリーページをレンダリング"""
+        _render_job_summary_page(provider)
