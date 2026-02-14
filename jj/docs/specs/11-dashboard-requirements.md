@@ -130,7 +130,7 @@ CSV/graph.yaml
 - FastAPI endpoints
 - 09-dashboard.md仕様に準拠
 
-### Phase D4: jj-db統合
+### Phase D4: jjrv統合
 - 10-db-integration.md仕様に準拠
 
 ## 5. 依存ライブラリ

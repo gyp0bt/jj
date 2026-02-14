@@ -1166,12 +1166,12 @@ class TestParserCache:
         assert graph.get_cache("key1") == {"data": 42}
 
     def test_abq_cache_set_and_get(self, config: GraphConfig, tmp_path: Path):
-        """set_cached_abq_data/get_cached_abq_dataでABQDataを保存・取得できる"""
+        """set_cached_plugin_data/get_cached_plugin_dataでプラグインデータを保存・取得できる"""
         graph = _make_graph([], config=config, project_root=tmp_path)
-        assert graph.get_cached_abq_data("/path/to/file.inp") is None
+        assert graph.get_cached_plugin_data("abaqus", "/path/to/file.inp") is None
         sentinel = object()
-        graph.set_cached_abq_data("/path/to/file.inp", sentinel)
-        assert graph.get_cached_abq_data("/path/to/file.inp") is sentinel
+        graph.set_cached_plugin_data("abaqus", "/path/to/file.inp", sentinel)
+        assert graph.get_cached_plugin_data("abaqus", "/path/to/file.inp") is sentinel
 
     def test_diff_parser_uses_cache(self, tmp_path: Path, config: GraphConfig):
         """AbaqusDiffParserがキャッシュを使い、同一ファイルの再パースを避ける"""
@@ -1264,13 +1264,13 @@ class TestParserCache:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
 
         # 実行前はキャッシュ空
-        assert graph.get_cached_abq_data(str(tmp_path / "go_idx1_v1.inp")) is None
+        assert graph.get_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp")) is None
 
         AbaqusDiffParser().apply(graph)
 
         # 実行後はキャッシュに入っている
-        cached_v1 = graph.get_cached_abq_data(str(tmp_path / "go_idx1_v1.inp"))
-        cached_v2 = graph.get_cached_abq_data(str(tmp_path / "go_idx1_v2.inp"))
+        cached_v1 = graph.get_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp"))
+        cached_v2 = graph.get_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v2.inp"))
         assert cached_v1 is not None
         assert cached_v2 is not None
 
@@ -1279,7 +1279,7 @@ class TestABQDataDiskCache:
     """ABQData永続化キャッシュのテスト"""
 
     def test_save_and_load_abq_cache(self, tmp_path: Path):
-        """ABQDataをディスクに保存し、再読み込みできる"""
+        """プラグインデータをディスクに保存し、再読み込みできる"""
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
@@ -1287,10 +1287,10 @@ class TestABQDataDiskCache:
         file_path = "/project/go_idx1_v1.inp"
         mtime = 1234567890.0
 
-        storage.save_abq_data(tmp_path, file_path, fake_abq, mtime)
+        storage.save_plugin_data(tmp_path, "abaqus", file_path, fake_abq, mtime)
 
         # 同じmtimeで再読み込み → ヒット
-        loaded = storage.load_abq_data(tmp_path, file_path, mtime)
+        loaded = storage.load_plugin_data(tmp_path, "abaqus", file_path, mtime)
         assert loaded is not None
         assert loaded == fake_abq
 
@@ -1302,10 +1302,10 @@ class TestABQDataDiskCache:
         fake_abq = {"nodes": {}}
         file_path = "/project/go_idx1_v1.inp"
 
-        storage.save_abq_data(tmp_path, file_path, fake_abq, mtime=1000.0)
+        storage.save_plugin_data(tmp_path, "abaqus", file_path, fake_abq, mtime=1000.0)
 
         # 異なるmtimeで読み込み → 不一致でNone
-        loaded = storage.load_abq_data(tmp_path, file_path, expected_mtime=2000.0)
+        loaded = storage.load_plugin_data(tmp_path, "abaqus", file_path, expected_mtime=2000.0)
         assert loaded is None
 
     def test_load_abq_cache_nonexistent(self, tmp_path: Path):
@@ -1313,24 +1313,24 @@ class TestABQDataDiskCache:
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
-        loaded = storage.load_abq_data(
-            tmp_path, "/nonexistent.inp", expected_mtime=1000.0
+        loaded = storage.load_plugin_data(
+            tmp_path, "abaqus", "/nonexistent.inp", expected_mtime=1000.0
         )
         assert loaded is None
 
     def test_clear_abq_cache(self, tmp_path: Path):
-        """ABQDataキャッシュの全削除"""
+        """プラグインキャッシュの全削除"""
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
-        storage.save_abq_data(tmp_path, "/a.inp", {}, 1.0)
-        storage.save_abq_data(tmp_path, "/b.inp", {}, 2.0)
+        storage.save_plugin_data(tmp_path, "abaqus", "/a.inp", {}, 1.0)
+        storage.save_plugin_data(tmp_path, "abaqus", "/b.inp", {}, 2.0)
 
-        count = storage.clear_abq_cache(tmp_path)
+        count = storage.clear_plugin_cache(tmp_path, "abaqus")
         assert count == 2
 
         # 削除後は読み込めない
-        assert storage.load_abq_data(tmp_path, "/a.inp", 1.0) is None
+        assert storage.load_plugin_data(tmp_path, "abaqus", "/a.inp", 1.0) is None
 
 
 class TestIncludeSearchDepthConfig:
@@ -1975,7 +1975,7 @@ class TestMeshParserCache:
         # 先にキャッシュを投入
         from services.parse.connectors.abaqus import read_inp as abq_read_inp
         abq_data = abq_read_inp(str(tmp_path / "go_idx1_v1.inp"), verbose=False)
-        graph.set_cached_abq_data(str(tmp_path / "go_idx1_v1.inp"), abq_data)
+        graph.set_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp"), abq_data)
 
         # read_inp呼び出しをカウント
         call_count = 0
@@ -2307,8 +2307,8 @@ class TestABQCacheCleanup:
 
         storage = GraphStorage()
         project_root = tmp_path
-        (project_root / ".jj" / "storage" / "abq_cache").mkdir(parents=True)
-        cache_dir = project_root / ".jj" / "storage" / "abq_cache"
+        cache_dir = project_root / ".jj" / "storage" / "plugin_cache" / "abaqus"
+        cache_dir.mkdir(parents=True)
 
         # 古いキャッシュファイルを作成（mtimeを31日前に設定）
         old_file = cache_dir / "old_cache.pickle"
@@ -2321,7 +2321,7 @@ class TestABQCacheCleanup:
         new_file = cache_dir / "new_cache.pickle"
         new_file.write_bytes(b"new")
 
-        deleted = storage.cleanup_abq_cache(project_root, max_age_days=30)
+        deleted = storage.cleanup_plugin_cache(project_root, "abaqus", max_age_days=30)
         assert deleted == 1
         assert not old_file.exists()
         assert new_file.exists()
@@ -2333,7 +2333,7 @@ class TestABQCacheCleanup:
 
         storage = GraphStorage()
         project_root = tmp_path
-        cache_dir = project_root / ".jj" / "storage" / "abq_cache"
+        cache_dir = project_root / ".jj" / "storage" / "plugin_cache" / "abaqus"
         cache_dir.mkdir(parents=True)
 
         # 5つのキャッシュファイルを作成（異なるmtimeで）
@@ -2345,7 +2345,7 @@ class TestABQCacheCleanup:
             os.utime(f, (now - (5 - i) * 100, now - (5 - i) * 100))
 
         # max_count=3に制限
-        deleted = storage.cleanup_abq_cache(project_root, max_age_days=365, max_count=3)
+        deleted = storage.cleanup_plugin_cache(project_root, "abaqus", max_age_days=365, max_count=3)
         assert deleted == 2  # 古い2つが削除される
         remaining = list(cache_dir.glob("*.pickle"))
         assert len(remaining) == 3
@@ -2355,11 +2355,11 @@ class TestABQCacheCleanup:
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
-        deleted = storage.cleanup_abq_cache(tmp_path, max_age_days=30)
+        deleted = storage.cleanup_plugin_cache(tmp_path, max_age_days=30)
         assert deleted == 0
 
     def test_cleanup_called_after_parse_and_save(self):
-        """parse_and_save後にcleanup_abq_cacheが呼ばれること"""
+        """parse_and_save後にcleanup_plugin_cacheが呼ばれること"""
         from unittest.mock import MagicMock, patch
 
         from services.graph import GraphService
@@ -2371,11 +2371,11 @@ class TestABQCacheCleanup:
                 mock_save.return_value = Path("/tmp/test.yaml")
 
                 service = GraphService(project_root=Path("/tmp/test_project"))
-                # cleanup_abq_cacheをモック
-                service.storage.cleanup_abq_cache = MagicMock(return_value=0)
+                # cleanup_plugin_cacheをモック
+                service.storage.cleanup_plugin_cache = MagicMock(return_value=0)
                 service.parse_and_save()
 
-                service.storage.cleanup_abq_cache.assert_called_once()
+                service.storage.cleanup_plugin_cache.assert_called_once()
 
 
 # =========================================================================

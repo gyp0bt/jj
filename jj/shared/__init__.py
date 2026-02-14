@@ -1,14 +1,14 @@
-"""shared パッケージ: jjとjj-dbの共有契約
+"""shared パッケージ: jjとjjrvの共有契約
 
 Neo4jスキーマ定義、共有データ型、接続設定を提供する。
-jjとjj-dbは直接のコード依存を持たず、このパッケージで定義された
+jjとjjrvは直接のコード依存を持たず、このパッケージで定義された
 スキーマ契約のみを共有する。
 
 依存方向:
   services/ → shared/  (OK)
-  jj_db/   → shared/  (OK)
+  jjrv/   → shared/  (OK)
   shared/  → services/ (禁止)
-  shared/  → jj_db/   (禁止)
+  shared/  → jjrv/   (禁止)
 
 [READMEへ戻る](../README.md)
 """

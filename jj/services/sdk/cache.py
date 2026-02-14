@@ -28,8 +28,8 @@ class CacheProvider(Protocol):
         save: グラフデータの保存
         load_timestamps: タイムスタンプキャッシュの読み込み
         save_timestamps: タイムスタンプキャッシュの保存
-        load_abq_data: ABQDataキャッシュの読み込み
-        save_abq_data: ABQDataキャッシュの保存
+        load_plugin_data: プラグインキャッシュの読み込み（namespace指定）
+        save_plugin_data: プラグインキャッシュの保存（namespace指定）
     """
 
     def load(self, project_root: Path, filename: str | None = None) -> GraphModel:
@@ -84,31 +84,33 @@ class CacheProvider(Protocol):
         """
         ...
 
-    def load_abq_data(
-        self, project_root: Path, file_path: str, expected_mtime: float
+    def load_plugin_data(
+        self, project_root: Path, namespace: str, file_path: str, expected_mtime: float
     ) -> Any:
-        """永続化されたABQDataキャッシュを読み込む
+        """プラグインキャッシュデータを読み込む
 
         Args:
             project_root: プロジェクトルート
-            file_path: 元のINPファイルパス
+            namespace: プラグイン名前空間（例: "abaqus"）
+            file_path: 元のファイルパス
             expected_mtime: 期待するファイルのmtime
 
         Returns:
-            キャッシュされたABQData（無効時None）
+            キャッシュされたデータ（無効時None）
         """
         ...
 
-    def save_abq_data(
-        self, project_root: Path, file_path: str, abq_data: Any, mtime: float
+    def save_plugin_data(
+        self, project_root: Path, namespace: str, file_path: str, data: Any, mtime: float
     ) -> Path:
-        """ABQDataをディスクに永続化する
+        """プラグインキャッシュデータを永続化する
 
         Args:
             project_root: プロジェクトルート
-            file_path: 元のINPファイルパス
-            abq_data: 保存するABQData
-            mtime: INPファイルのmtime
+            namespace: プラグイン名前空間（例: "abaqus"）
+            file_path: 元のファイルパス
+            data: 保存するデータ
+            mtime: ファイルのmtime
 
         Returns:
             保存先パス

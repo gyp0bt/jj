@@ -9,7 +9,7 @@
 
 ## 概要
 
-Phase 2.5のD2（Streamlitダッシュボード）とD3（REST API）を実装。`jj dashboard`でStreamlitアプリを起動し、テーブル/カード/プロット/ステータスの4ビューでグラフデータを可視化できる。`jj serve`でFastAPI REST APIサーバーを起動し、外部ツール（jj-db等）からのデータ取得を可能にする。
+Phase 2.5のD2（Streamlitダッシュボード）とD3（REST API）を実装。`jj dashboard`でStreamlitアプリを起動し、テーブル/カード/プロット/ステータスの4ビューでグラフデータを可視化できる。`jj serve`でFastAPI REST APIサーバーを起動し、外部ツール（jjrv等）からのデータ取得を可能にする。
 
 ---
 
@@ -160,7 +160,7 @@ jj serve
 - [ ] ダッシュボード: graph.yaml変更検知による自動リフレッシュ
 - [ ] REST API: POST /api/v1/parse（再パース実行）
 - [ ] REST API: クエリフィルター拡張（props.RF3.gt=5等）
-- [ ] jj-db統合: jj serve → jj-db fetch連携
+- [ ] jjrv統合: jj serve → jjrv fetch連携
 
 ---
 

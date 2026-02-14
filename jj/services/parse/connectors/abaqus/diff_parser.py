@@ -37,7 +37,7 @@ class AbaqusDiffParser(AbstractFileParser):
 
         キャッシュ探索順序:
         1. インメモリキャッシュ（_parser_cache）
-        2. ディスク永続化キャッシュ（.jj/storage/abq_cache/）
+        2. ディスク永続化キャッシュ（.jj/storage/plugin_cache/abaqus/）
         3. キャッシュなし → read_inp()で新規パースし、両方に保存
         """
         import logging
@@ -49,7 +49,7 @@ class AbaqusDiffParser(AbstractFileParser):
         _logger = logging.getLogger(__name__)
 
         # 1. インメモリキャッシュ
-        cached = graph.get_cached_abq_data(file_path)
+        cached = graph.get_cached_plugin_data("abaqus", file_path)
         if cached is not None:
             return cached
 
@@ -57,10 +57,10 @@ class AbaqusDiffParser(AbstractFileParser):
         try:
             mtime = Path(file_path).stat().st_mtime
             storage = GraphStorage()
-            disk_cached = storage.load_abq_data(graph.project_root, file_path, mtime)
+            disk_cached = storage.load_plugin_data(graph.project_root, "abaqus", file_path, mtime)
             if disk_cached is not None:
                 _logger.debug(f"ABQData disk cache hit: {file_path}")
-                graph.set_cached_abq_data(file_path, disk_cached)
+                graph.set_cached_plugin_data("abaqus", file_path, disk_cached)
                 return disk_cached
         except OSError:
             mtime = 0.0
@@ -69,12 +69,12 @@ class AbaqusDiffParser(AbstractFileParser):
         # モジュール属性経由で呼び出し（テストのmonkeypatch対応）
         include_depth = graph.config.include_search_depth
         abq = abaqus_mod.read_inp(file_path, verbose=False, include_max_depth=include_depth)
-        graph.set_cached_abq_data(file_path, abq)
+        graph.set_cached_plugin_data("abaqus", file_path, abq)
 
         # ディスクにも永続化
         try:
             storage = GraphStorage()
-            storage.save_abq_data(graph.project_root, file_path, abq, mtime)
+            storage.save_plugin_data(graph.project_root, "abaqus", file_path, abq, mtime)
         except Exception:
             pass
 

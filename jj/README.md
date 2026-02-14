@@ -44,6 +44,90 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `Node(type=タグ, name=sample)`
 - `Relation(label=tagged, node1_id=1, node2_id=2)`
 
+## インストール
+
+### 前提条件
+- Python >= 3.10
+
+### コアのみ（最小構成）
+
+```bash
+# 開発用（ソースを直接参照）
+pip install -e .
+
+# 通常インストール
+pip install .
+```
+
+コア依存: pydantic, pyyaml, networkx, chardet, ftfy, numpy
+
+`jj --help` / `jj init` / `jj parse` / `jj show` / `jj info` / `jj diff` / `jj export --target csv/json/obsidian/cypher` が使用可能。
+
+### 個別オプション
+
+用途に応じて必要なグループのみ追加インストールできる。
+
+```bash
+# Abaqusプラグイン拡張（メッシュ品質解析 pymesh / データ分析）
+pip install -e '.[abaqus]'      # +pandas, scipy
+
+# ダッシュボード（jj dashboard）
+pip install -e '.[dashboard]'   # +streamlit, streamlit-aggrid, plotly
+
+# REST API（jj serve）
+pip install -e '.[api]'         # +fastapi, uvicorn
+
+# Neo4jエクスポート（jj export --target neo4j）
+pip install -e '.[neo4j]'       # +neo4j
+
+# SSH操作（リモートジョブ投入）
+pip install -e '.[ssh]'         # +paramiko
+
+# 開発・テスト
+pip install -e '.[dev]'         # +pytest, pytest-cov, httpx
+```
+
+### 複数グループの同時指定
+
+```bash
+# Abaqus + ダッシュボード
+pip install -e '.[abaqus,dashboard]'
+
+# Abaqus + API + SSH（解析ワークフロー一式）
+pip install -e '.[abaqus,api,ssh]'
+```
+
+### フルインストール（全依存）
+
+```bash
+pip install -e '.[all]'
+```
+
+### テスト実行
+
+```bash
+pip install -e '.[dev]'         # dev依存が必要
+pytest                          # jj/ディレクトリ内で実行
+
+# API / ダッシュボードのテストも含める場合
+pip install -e '.[all]'
+pytest
+```
+
+### 依存グループ一覧
+
+| グループ | 追加パッケージ | 用途 |
+|----------|----------------|------|
+| (コア) | pydantic, pyyaml, networkx, chardet, ftfy, numpy | 基本CLI・グラフ構築 |
+| `abaqus` | pandas, scipy | メッシュ品質解析・データ分析 |
+| `obsidian` | (pyyamlはコアに含む) | Obsidianプラグイン |
+| `dashboard` | streamlit, streamlit-aggrid, plotly | Streamlitダッシュボード |
+| `api` | fastapi, uvicorn | REST APIサーバー |
+| `neo4j` | neo4j | Neo4jデータベース連携 |
+| `ssh` | paramiko | SSHリモート操作 |
+| `dev` | pytest, pytest-cov, httpx | テスト・開発 |
+| `all` | 上記全て | フルインストール |
+
 ## 入力データの扱い
 - 対象はバイナリ、テキスト、フォルダなど多様です。
 - ソフト固有フォーマットの拡張を見据え、**アダプター**の概念を導入し、機能を独立させます。
@@ -86,8 +170,8 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
     - `services/plugins/abaqus/` : Abaqusプラグイン（INP解析・メッシュ統計・差分比較・物性一覧）
     - `services/plugins/obsidian/` : Obsidianプラグイン（Daily Note解析・Obsidianエクスポート）
   - `services/lib/` : 薄いユーティリティ（credentials, file等）
-- `shared/` : jj-dbとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
-- `shared/tests/test_asset1/` : jj/jj-db共通テストアセット（Abaqusプロジェクト）
+- `shared/` : jjrvとの共有パッケージ（Neo4jスキーマ契約、型定義、接続設定）
+- `shared/tests/test_asset1/` : jj/jjrv共通テストアセット（Abaqusプロジェクト）
 - `neo4j/` : Neo4j Docker設定と初期化スクリプト
 - `jj_types/` : Pydanticモデル
 - `tests/` : pytestテスト
@@ -98,6 +182,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 実装状況は`docs/status/status-{index}.md`に詳細を記載し、常に最新のindexを参照します。
 
 ## 最新ステータス
+- 2026-02-14 / status-088: Abaqus固有ロジック分離・CacheProvider汎用化・requirements.txt廃止。CacheProviderを`load/save_plugin_data(namespace)`に汎用化。GraphStorageの`abq_cache`→`plugin_cache/{namespace}/`に変更。GraphServiceから`_read_inp_parameter_props`除去→AbaqusParameterParser（priority=15）として再実装。MeshInheritParser・submit.pyをAbaqusプラグインに移動。parse層からAbaqus固有エクスポート除去。1003テストパス。([status-088](docs/status/status-088.md))
 - 2026-02-14 / status-087: パッケージセットアップ修正。エントリポイントを`main:main`→`services.cli:main`に変更（main.pyがpackages.findに含まれず解決不能だった）。chardet/ftfy/numpyをコア依存に移動（Abaqusプラグイン自動ロードでモジュールレベルimportされるため必須）。sharedパッケージをpackages.findに追加。756テストパス。([status-087](docs/status/status-087.md))
 - 2026-02-14 / status-086: SDK外部化・プラグインレジストリ・Abaqus/Obsidianプラグイン分離。CacheProvider DI注入（GraphServiceコンストラクタ経由）。entry_points動的発見メカニズム実装（plugin_registry.py）。Abaqus/Obsidianロジックをservices/plugins/に集約しプラグインパッケージ化。pyproject.toml定義（entry_points + optional-dependencies）。コアからのハードコードimport除去。回帰なし。([status-086](docs/status/status-086.md))
 - 2026-02-13 / status-085: API層リファクタリング・プラグイン化・CLI/Dashboard分離。ApiServiceクラス新設でAPI層のservices.service完全依存化。jj-sdkパッケージ新設（プラグイン化Phase 1）。CacheProviderプロトコル定義（Phase 2）。dashboard/serveランチャー分離。29テスト新規。([status-085](docs/status/status-085.md))
@@ -139,10 +224,10 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - 2026-02-09 / status-041: services構造改革に伴うロードマップ根本改変。Phase Rを新設（抽象パーサーパターン・ProjectGraph型・graph/__init__.py分解）、完了済みAbaqusグラフ機能をM1.5として整理、旧アダプター層をparseコネクターに再定義。detail.md・README.mdのディレクトリ構成を新構造に更新。([status-041](docs/status/status-041.md))
 - 2026-02-09 / status-040: pymesh移動・jj info強化・材料名ケース保持・credential管理。pymeshをservicesに移動しシステムpymesh競合解消、jj infoメッシュ統計展開表示・Windowsパスparse対応、材料名/elset名の元ケース保持、root directory命名のconfig対応(project-name)、Neo4j認証情報の暗号化保存(`jj credential set/show/delete`)。テスト396件パス+20スキップ、12件追加。([status-040](docs/status/status-040.md))
 - 2026-02-09 / status-039: parseタグ振り・verbose_name改善・Node方針変更。verbose_name由来タグ生成、version/バージョンキー統一、token_key_map verbose_name修正(値のみ)、material.inp材料タグ、elset Node化、.sta/.msg/.dat Node化廃止(情報のみinpに集約)、pymeshインポート修正、root directory Node化。テスト178件パス+18スキップ、20件追加。([status-039](docs/status/status-039.md))
-- 2026-02-09 / status-038: parse export修正（pymesh相対パスインポート、タグ`_`分割、includes相対パス化、directoryノードroot.directoryタグ）+ jj-db統合ロードマップ整備。テスト363件パス+20スキップ、リグレッションなし。([status-038](docs/status/status-038.md))
+- 2026-02-09 / status-038: parse export修正（pymesh相対パスインポート、タグ`_`分割、includes相対パス化、directoryノードroot.directoryタグ）+ jjrv統合ロードマップ整備。テスト363件パス+20スキップ、リグレッションなし。([status-038](docs/status/status-038.md))
 - 2026-02-08 / status-037: Neo4jエクスポート実装（Phase N1+N2）。shared/パッケージ（スキーマ契約・型定義・接続設定）、Neo4j Docker設定、Neo4jConnector（直接書き込み+Cypherファイル出力）、CLI `--target neo4j/cypher`追加。テスト71件追加（69パス+2スキップ）、既存294件リグレッションなし。([status-037](docs/status/status-037.md))
-- 2026-02-08 / status-036: jj-db統合設計。jj-db（旧mat-db）をNeo4j経由で統合する方針策定。submoduleアクセス不可のため一時モノレポ方式採用。shared/パッケージでデータ型共通化、Phase N1-N5の実装計画策定。jj-dbの技術スタック（Next.js 15/SQLite）を確認、SQLite+Neo4j併用を推奨。([status-036](docs/status/status-036.md))
-- 2026-02-08 / status-035: ダッシュボードアーキテクチャ設計。jj側Streamlit（即時一覧）+ jj-db側Next.js（高機能レンダリング）の役割分担決定。Phase 2.5・M2.5追加、仕様書09-dashboard.md作成。([status-035](docs/status/status-035.md))
+- 2026-02-08 / status-036: jjrv統合設計。jjrv（旧mat-db）をNeo4j経由で統合する方針策定。submoduleアクセス不可のため一時モノレポ方式採用。shared/パッケージでデータ型共通化、Phase N1-N5の実装計画策定。jjrvの技術スタック（Next.js 15/SQLite）を確認、SQLite+Neo4j併用を推奨。([status-036](docs/status/status-036.md))
+- 2026-02-08 / status-035: ダッシュボードアーキテクチャ設計。jj側Streamlit（即時一覧）+ jjrv側Next.js（高機能レンダリング）の役割分担決定。Phase 2.5・M2.5追加、仕様書09-dashboard.md作成。([status-035](docs/status/status-035.md))
 - 2026-02-07 / status-034: メッシュキーワード要約。diff/propertyでNode/Element/Nset/Elsetの生データを統計情報（節点数、座標範囲、メッシュ数、メッシュサイズ、ねじれ角、ID数）に自動置換。トップレベルメッシュデータのdiff比較追加。テスト294件パス（+22件）。([status-034](docs/status/status-034.md))
 - 2026-02-07 / status-033: Daily紐付け強化（[[O-file]]:key:value記法）、jj info強化（-id/-v/複数指定/-props）、jj diffコマンド追加、verbose_name登録、CSV/JSONエクスポート、elset/材料名プロパティ追加、Obsidianタグ出力強化。テスト272件パス（+12件）。([status-033](docs/status/status-033.md))
 - 2026-02-06 / status-032: CLIコマンド省略化（jj g→jj）、jj infoコマンド追加、includeファイルproperty伝搬、前バージョンとのキーワードブロック差分、notes/daily日報解析、Obsidianエクスポートwarning/diff表示強化。テスト260件パス（+18件）。([status-032](docs/status/status-032.md))

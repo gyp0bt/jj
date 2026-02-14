@@ -1,19 +1,19 @@
-"""Abaqusプラグイン: INP解析・結果ファイル解析・メッシュ統計・差分比較
+"""Abaqusプラグイン: INP解析・結果ファイル解析・メッシュ統計・差分比較・ジョブ投入
 
-Abaqus固有のパーサー・ダッシュボードコネクターを集約するプラグインパッケージ。
+Abaqus固有のパーサー・ダッシュボードコネクター・ジョブ投入サービスを集約するプラグインパッケージ。
 このモジュールをインポートすると、以下のコンポーネントが自動登録される:
 
 ## 登録されるパーサー（AbstractFileParserサブクラス）
 
 | パーサー | priority | 説明 |
 |----------|----------|------|
+| AbaqusParameterParser | 15 | *PARAMETER/**propsプロパティ抽出 |
 | AbaqusInpParser | 60 | material.inp解析、材料ノード生成 |
-| AbaqusJsonPropertyParser | 60 | JSON key-value割り当て |
-| AbaqusIncludesParser | 40 | *INCLUDE関係の解析 |
-| AbaqusPropertyPropagationParser | 85 | プロパティ伝搬 |
 | AbaqusResultParser | 70 | .sta/.msg/.dat解析 |
-| AbaqusAnalysisStatusParser | 86 | 解析ステータス判定 |
 | AbaqusMeshParser | 80 | pymeshメッシュ品質統計（requires_full） |
+| MeshInheritParser | 81 | includeプロパティ継承 |
+| AbaqusMaterialAssignmentParser | 85 | 材料割り当て |
+| AbaqusIncludePropertyParser | 86 | includeプロパティ伝搬 |
 | AbaqusDiffParser | 90 | バージョン間diff |
 | AbaqusElsetParser | 98 | elsetノード化 |
 
@@ -22,6 +22,10 @@ Abaqus固有のパーサー・ダッシュボードコネクターを集約す�
 | コネクター | page_label | 説明 |
 |------------|------------|------|
 | AbaqusMaterialPageConnector | 物性一覧 | 材料テーブル・プロパティカーブ表示 |
+
+## サービス
+
+- SubmitService: Abaqusジョブ投入・ターゲット解決・ファイル操作
 
 ## コアモジュール（services.parse.connectors.abaqus）
 
@@ -54,9 +58,11 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
+    import services.parse.connectors.abaqus.parameter_parser  # noqa: F401
     import services.parse.connectors.abaqus.inp_parser  # noqa: F401
     import services.parse.connectors.abaqus.result_parser  # noqa: F401
     import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
+    import services.parse.connectors.abaqus.mesh_inherit_parser  # noqa: F401
     import services.parse.connectors.abaqus.diff_parser  # noqa: F401
 
     # ダッシュボードコネクターのインポート（自動登録が発動）

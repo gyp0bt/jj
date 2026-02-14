@@ -149,19 +149,20 @@ class GraphStorage:
         return path
 
     # =========================================================
-    # ABQData永続化キャッシュ（pickle）
+    # プラグインデータ永続化キャッシュ（pickle）
+    # namespace単位でキャッシュを分離する汎用メカニズム
     # =========================================================
 
-    _ABQ_CACHE_DIRNAME = "abq_cache"
+    _PLUGIN_CACHE_DIRNAME = "plugin_cache"
 
-    def _abq_cache_dir(self, project_root: Path) -> Path:
-        """ABQDataキャッシュ用ディレクトリを取得"""
-        cache_dir = self._storage_dir(project_root) / self._ABQ_CACHE_DIRNAME
+    def _plugin_cache_dir(self, project_root: Path, namespace: str) -> Path:
+        """プラグインキャッシュ用ディレクトリを取得（namespace単位で分離）"""
+        cache_dir = self._storage_dir(project_root) / self._PLUGIN_CACHE_DIRNAME / namespace
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir
 
     @staticmethod
-    def _abq_cache_key(file_path: str) -> str:
+    def _plugin_cache_key(file_path: str) -> str:
         """ファイルパスからキャッシュキー（ファイル名）を生成
 
         パスのハッシュを使用してファイル名の衝突を回避する。
@@ -169,24 +170,25 @@ class GraphStorage:
         digest = hashlib.sha256(file_path.encode("utf-8")).hexdigest()[:16]
         return f"{digest}.pickle"
 
-    def load_abq_data(
-        self, project_root: Path, file_path: str, expected_mtime: float
+    def load_plugin_data(
+        self, project_root: Path, namespace: str, file_path: str, expected_mtime: float
     ) -> Any:
-        """永続化されたABQDataキャッシュを読み込む
+        """プラグインキャッシュデータを読み込む
 
         キャッシュファイルが存在し、かつmtimeが一致する場合のみロードする。
         mtime不一致（ファイル変更）時はNoneを返す。
 
         Args:
             project_root: プロジェクトルート
-            file_path: 元のINPファイルパス
+            namespace: プラグイン名前空間（例: "abaqus"）
+            file_path: 元のファイルパス
             expected_mtime: 期待するファイルのmtime
 
         Returns:
-            キャッシュされたABQData。キャッシュなしまたは無効の場合はNone。
+            キャッシュされたデータ。キャッシュなしまたは無効の場合はNone。
         """
-        cache_dir = self._abq_cache_dir(project_root)
-        cache_key = self._abq_cache_key(file_path)
+        cache_dir = self._plugin_cache_dir(project_root, namespace)
+        cache_key = self._plugin_cache_key(file_path)
         cache_path = cache_dir / cache_key
 
         if not cache_path.exists():
@@ -199,71 +201,92 @@ class GraphStorage:
                 return None
             if cached.get("mtime") != expected_mtime:
                 logger.debug(
-                    f"ABQData cache mtime mismatch for {file_path}: "
+                    f"Plugin cache mtime mismatch ({namespace}) for {file_path}: "
                     f"cached={cached.get('mtime')}, expected={expected_mtime}"
                 )
                 return None
             if cached.get("source_path") != file_path:
                 return None
-            return cached.get("abq_data")
+            return cached.get("data")
         except (pickle.UnpicklingError, OSError, EOFError, KeyError) as e:
-            logger.debug(f"ABQData cache load failed for {file_path}: {e}")
+            logger.debug(f"Plugin cache load failed ({namespace}) for {file_path}: {e}")
             return None
 
-    def save_abq_data(
-        self, project_root: Path, file_path: str, abq_data: Any, mtime: float
+    def save_plugin_data(
+        self, project_root: Path, namespace: str, file_path: str, data: Any, mtime: float
     ) -> Path:
-        """ABQDataをpickleでディスクに永続化
+        """プラグインキャッシュデータをpickleでディスクに永続化
 
         Args:
             project_root: プロジェクトルート
-            file_path: 元のINPファイルパス
-            abq_data: 保存するABQData
-            mtime: INPファイルのmtime（検証用）
+            namespace: プラグイン名前空間（例: "abaqus"）
+            file_path: 元のファイルパス
+            data: 保存するデータ
+            mtime: ファイルのmtime（検証用）
 
         Returns:
             保存先パス
         """
-        cache_dir = self._abq_cache_dir(project_root)
-        cache_key = self._abq_cache_key(file_path)
+        cache_dir = self._plugin_cache_dir(project_root, namespace)
+        cache_key = self._plugin_cache_key(file_path)
         cache_path = cache_dir / cache_key
 
         cached = {
             "source_path": file_path,
             "mtime": mtime,
-            "abq_data": abq_data,
+            "data": data,
         }
         try:
             with cache_path.open("wb") as f:
                 pickle.dump(cached, f, protocol=pickle.HIGHEST_PROTOCOL)
         except (OSError, pickle.PicklingError) as e:
-            logger.warning(f"ABQData cache save failed for {file_path}: {e}")
+            logger.warning(f"Plugin cache save failed ({namespace}) for {file_path}: {e}")
         return cache_path
 
-    def clear_abq_cache(self, project_root: Path) -> int:
-        """ABQDataキャッシュを全て削除
+    def clear_plugin_cache(self, project_root: Path, namespace: str | None = None) -> int:
+        """プラグインキャッシュを削除
+
+        Args:
+            namespace: 指定時はそのnamespaceのみ。Noneで全namespace。
 
         Returns:
             削除したファイル数
         """
-        cache_dir = self._abq_cache_dir(project_root)
+        storage_dir = self._storage_dir(project_root)
+        plugin_cache_root = storage_dir / self._PLUGIN_CACHE_DIRNAME
+        if not plugin_cache_root.exists():
+            return 0
+
         count = 0
-        for f in cache_dir.glob("*.pickle"):
-            try:
-                f.unlink()
-                count += 1
-            except OSError:
-                pass
+        if namespace:
+            ns_dir = plugin_cache_root / namespace
+            if ns_dir.exists():
+                for f in ns_dir.glob("*.pickle"):
+                    try:
+                        f.unlink()
+                        count += 1
+                    except OSError:
+                        pass
+        else:
+            for ns_dir in plugin_cache_root.iterdir():
+                if ns_dir.is_dir():
+                    for f in ns_dir.glob("*.pickle"):
+                        try:
+                            f.unlink()
+                            count += 1
+                        except OSError:
+                            pass
         return count
 
-    def cleanup_abq_cache(
+    def cleanup_plugin_cache(
         self,
         project_root: Path,
+        namespace: str | None = None,
         *,
         max_age_days: int = 30,
         max_count: int = 100,
     ) -> int:
-        """古いABQDataキャッシュを自動クリーンアップ
+        """古いプラグインキャッシュを自動クリーンアップ
 
         以下のポリシーで不要なキャッシュを削除する:
         1. max_age_days日以上前のキャッシュを削除
@@ -271,6 +294,7 @@ class GraphStorage:
 
         Args:
             project_root: プロジェクトルート
+            namespace: 指定時はそのnamespaceのみ。Noneで全namespace。
             max_age_days: キャッシュ保持期間（日数、デフォルト30日）
             max_count: キャッシュファイルの最大保持数（デフォルト100）
 
@@ -279,17 +303,29 @@ class GraphStorage:
         """
         import time
 
-        cache_dir = self._abq_cache_dir(project_root)
-        cache_files = list(cache_dir.glob("*.pickle"))
+        storage_dir = self._storage_dir(project_root)
+        plugin_cache_root = storage_dir / self._PLUGIN_CACHE_DIRNAME
+        if not plugin_cache_root.exists():
+            return 0
+
+        # 対象ディレクトリを収集
+        if namespace:
+            ns_dirs = [plugin_cache_root / namespace]
+        else:
+            ns_dirs = [d for d in plugin_cache_root.iterdir() if d.is_dir()]
+
+        cache_files: list[Path] = []
+        for ns_dir in ns_dirs:
+            if ns_dir.exists():
+                cache_files.extend(ns_dir.glob("*.pickle"))
 
         if not cache_files:
             return 0
 
         now = time.time()
-        max_age_seconds = max_age_days * 86400  # 1日 = 86400秒
+        max_age_seconds = max_age_days * 86400
         deleted = 0
 
-        # 1. 古いキャッシュを削除
         remaining: list[tuple[Path, float]] = []
         for f in cache_files:
             try:
@@ -297,25 +333,24 @@ class GraphStorage:
                 if (now - mtime) > max_age_seconds:
                     f.unlink()
                     deleted += 1
-                    logger.debug(f"ABQData cache expired: {f.name}")
+                    logger.debug(f"Plugin cache expired: {f.name}")
                 else:
                     remaining.append((f, mtime))
             except OSError:
                 pass
 
-        # 2. 残数制限: 古い順にソートして超過分を削除
         if len(remaining) > max_count:
-            remaining.sort(key=lambda x: x[1])  # mtimeの古い順
+            remaining.sort(key=lambda x: x[1])
             excess = remaining[: len(remaining) - max_count]
             for f, _ in excess:
                 try:
                     f.unlink()
                     deleted += 1
-                    logger.debug(f"ABQData cache evicted (over max_count): {f.name}")
+                    logger.debug(f"Plugin cache evicted (over max_count): {f.name}")
                 except OSError:
                     pass
 
         if deleted > 0:
-            logger.info(f"ABQData cache cleanup: {deleted} files removed")
+            logger.info(f"Plugin cache cleanup: {deleted} files removed")
 
         return deleted

@@ -208,25 +208,27 @@ class ProjectGraph:
         """
         self._parser_cache[key] = value
 
-    def get_cached_abq_data(self, file_path: str) -> Any:
-        """read_inp()結果のキャッシュを取得
+    def get_cached_plugin_data(self, namespace: str, file_path: str) -> Any:
+        """プラグインキャッシュから値を取得
 
         Args:
-            file_path: .inpファイルのパス文字列
+            namespace: プラグイン名前空間（例: "abaqus"）
+            file_path: ファイルパス文字列
 
         Returns:
-            キャッシュされたABQData。存在しない場合はNone。
+            キャッシュされたデータ。存在しない場合はNone。
         """
-        return self._parser_cache.get(f"abq:{file_path}")
+        return self._parser_cache.get(f"{namespace}:{file_path}")
 
-    def set_cached_abq_data(self, file_path: str, abq_data: Any) -> None:
-        """read_inp()結果をキャッシュに保存
+    def set_cached_plugin_data(self, namespace: str, file_path: str, data: Any) -> None:
+        """プラグインキャッシュに値を保存
 
         Args:
-            file_path: .inpファイルのパス文字列
-            abq_data: キャッシュするABQData
+            namespace: プラグイン名前空間（例: "abaqus"）
+            file_path: ファイルパス文字列
+            data: キャッシュするデータ
         """
-        self._parser_cache[f"abq:{file_path}"] = abq_data
+        self._parser_cache[f"{namespace}:{file_path}"] = data
 
     # =========================================================
     # タイムスタンプ差分キャッシュ

@@ -1,5 +1,5 @@
 # Neo4j Docker Compose設定
-# jjとjj-dbの共有グラフデータベース
+# jjとjjrvの共有グラフデータベース
 #
 # 起動: docker compose -f neo4j/docker-compose.yml up -d
 # 停止: docker compose -f neo4j/docker-compose.yml down

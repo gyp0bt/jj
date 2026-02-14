@@ -207,11 +207,6 @@ class GraphService:
         if date_formatted:
             properties["date"] = date_formatted
 
-        # Abaqusインプット向け: *PARAMETER/**propsブロックからプロパティを読み取る
-        inp_param_props = self._read_inp_parameter_props(file_path)
-        if inp_param_props:
-            properties.update(inp_param_props)
-
         # verbose_name: config vocabで変換した後の表示名を生成
         # token_key_map適用キーはverbose_nameで値のみ採用（キー名を含めない）
         raw_name = parser.get_basename()
@@ -298,65 +293,6 @@ class GraphService:
             parts.append(translated_tag)
 
         return "_".join(parts)
-
-    def _read_inp_parameter_props(self, file_path: Path) -> dict[str, str]:
-        """INPファイルの*PARAMETER/**propsブロックからプロパティを読み取る
-
-        *PARAMETER キーワードの直後に **props コメントがある場合、
-        そのブロック内のkey=value形式のパラメータをプロパティとして抽出する。
-        vocabマッピングを適用してキーと値を変換する。
-
-        Args:
-            file_path: INPファイルのパス
-
-        Returns:
-            抽出されたプロパティの辞書
-        """
-        # INPファイルのみ対象
-        if not str(file_path).lower().endswith(".inp"):
-            return {}
-        if not file_path.exists():
-            return {}
-
-        props: dict[str, str] = {}
-        try:
-            with file_path.open(encoding="utf-8", errors="ignore") as f:
-                while True:
-                    line = f.readline()
-                    if not line:
-                        break
-                    s = line.strip()
-                    s_l = s.lower().replace(" ", "")
-                    if s_l.startswith("*parameter"):
-                        header = f.readline()
-                        if not header:
-                            break
-                        header_s = header.strip().lower().replace(" ", "")
-                        if not header_s.startswith("**props"):
-                            continue
-                        while True:
-                            line2 = f.readline()
-                            if not line2:
-                                break
-                            t = line2.strip()
-                            if not t:
-                                continue
-                            if t.startswith("**"):
-                                continue
-                            if t.lstrip().startswith("*"):
-                                break
-                            u = t.replace(" ", "")
-                            if "=" not in u:
-                                continue
-                            k, v = u.split("=", 1)
-                            if k:
-                                k = self.config.vocab.get(k, k)
-                                v = self.config.vocab.get(v, v)
-                                props[k] = v
-                        return props
-        except (OSError, IOError):
-            pass
-        return props
 
     def _safe_relative_path(self, file_path: Path) -> str:
         """Windowsでも安全に相対パスを生成
@@ -519,9 +455,9 @@ class GraphService:
         graph = self.parse_project(extensions=extensions, exclude_dirs=exclude_dirs, full_mode=full_mode, debug=debug)
         path = self.save(graph, filename)
 
-        # ABQDataキャッシュの自動クリーンアップ（古いキャッシュの削除）
+        # プラグインキャッシュの自動クリーンアップ（古いキャッシュの削除）
         try:
-            self.storage.cleanup_abq_cache(
+            self.storage.cleanup_plugin_cache(
                 self.project_root,
                 max_age_days=self.config.cache_max_age_days,
                 max_count=self.config.cache_max_count,
