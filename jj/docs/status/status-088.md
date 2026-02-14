@@ -112,6 +112,8 @@ CacheProvider・GraphStorage・GraphService・parse層からAbaqus固有ロジ�
 - `services/plugins/abaqus/submit.py`
 
 ### 変更
+- `pyproject.toml` — dev依存にhttpx追加
+- `README.md` — インストール手順セクション追加
 - `config/__init__.py` — docstring更新
 - `services/sdk/cache.py` — CacheProviderプロトコル汎用化
 - `services/graph/storage/__init__.py` — plugin_cache実装
@@ -130,14 +132,28 @@ CacheProvider・GraphStorage・GraphService・parse層からAbaqus固有ロジ�
 - `tests/test_parser_units.py` — キャッシュAPI・ディレクトリパス更新
 - `tests/test_graph_feature.py` — AbaqusParameterParser経由テストに変更
 
+### 12. pyproject.toml: dev依存にhttpx追加
+
+- `httpx>=0.25.0` を `[project.optional-dependencies].dev` に追加
+- FastAPI TestClient（starlette.testclient）がhttpxを必要とするため
+- REST APIテスト17件がhttpx未インストールで全滅していた問題を解消
+
+### 13. README.md: インストール手順セクション追加
+
+- コアのみ / 個別オプション / 複数グループ同時指定 / フルインストールの手順
+- テスト実行手順
+- 依存グループ一覧表
+
 ## テスト結果
 
-- **1003テスト通過**、59スキップ
-- 残存失敗8件（全て既存・今回の変更とは無関係）:
+### フルインストール (`pip install -e '.[all]'`)
+- **1045テスト通過**、21スキップ
+- 残存失敗4件（全て既存・今回の変更とは無関係）:
   - TestParseMaterialCurveColumns (4件): `_parse_material_curve_columns` 未定義
-  - TestMaterialComparisonCsv (1件): pandas未インストール
-  - TestPymeshImport (1件): pymeshインポート失敗
-  - TestPymeshWithModules (2件): pandas未インストール
+
+### コアのみインストール (`pip install -e .`)
+- **1003テスト通過**、59スキップ
+- 残存失敗4件: 上記と同じ（pandas未インストールによるskip増加のみ）
 
 ## 後方互換性
 

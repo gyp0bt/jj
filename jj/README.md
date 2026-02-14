@@ -44,6 +44,90 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 - `Node(type=タグ, name=sample)`
 - `Relation(label=tagged, node1_id=1, node2_id=2)`
 
+## インストール
+
+### 前提条件
+- Python >= 3.10
+
+### コアのみ（最小構成）
+
+```bash
+# 開発用（ソースを直接参照）
+pip install -e .
+
+# 通常インストール
+pip install .
+```
+
+コア依存: pydantic, pyyaml, networkx, chardet, ftfy, numpy
+
+`jj --help` / `jj init` / `jj parse` / `jj show` / `jj info` / `jj diff` / `jj export --target csv/json/obsidian/cypher` が使用可能。
+
+### 個別オプション
+
+用途に応じて必要なグループのみ追加インストールできる。
+
+```bash
+# Abaqusプラグイン拡張（メッシュ品質解析 pymesh / データ分析）
+pip install -e '.[abaqus]'      # +pandas, scipy
+
+# ダッシュボード（jj dashboard）
+pip install -e '.[dashboard]'   # +streamlit, streamlit-aggrid, plotly
+
+# REST API（jj serve）
+pip install -e '.[api]'         # +fastapi, uvicorn
+
+# Neo4jエクスポート（jj export --target neo4j）
+pip install -e '.[neo4j]'       # +neo4j
+
+# SSH操作（リモートジョブ投入）
+pip install -e '.[ssh]'         # +paramiko
+
+# 開発・テスト
+pip install -e '.[dev]'         # +pytest, pytest-cov, httpx
+```
+
+### 複数グループの同時指定
+
+```bash
+# Abaqus + ダッシュボード
+pip install -e '.[abaqus,dashboard]'
+
+# Abaqus + API + SSH（解析ワークフロー一式）
+pip install -e '.[abaqus,api,ssh]'
+```
+
+### フルインストール（全依存）
+
+```bash
+pip install -e '.[all]'
+```
+
+### テスト実行
+
+```bash
+pip install -e '.[dev]'         # dev依存が必要
+pytest                          # jj/ディレクトリ内で実行
+
+# API / ダッシュボードのテストも含める場合
+pip install -e '.[all]'
+pytest
+```
+
+### 依存グループ一覧
+
+| グループ | 追加パッケージ | 用途 |
+|----------|----------------|------|
+| (コア) | pydantic, pyyaml, networkx, chardet, ftfy, numpy | 基本CLI・グラフ構築 |
+| `abaqus` | pandas, scipy | メッシュ品質解析・データ分析 |
+| `obsidian` | (pyyamlはコアに含む) | Obsidianプラグイン |
+| `dashboard` | streamlit, streamlit-aggrid, plotly | Streamlitダッシュボード |
+| `api` | fastapi, uvicorn | REST APIサーバー |
+| `neo4j` | neo4j | Neo4jデータベース連携 |
+| `ssh` | paramiko | SSHリモート操作 |
+| `dev` | pytest, pytest-cov, httpx | テスト・開発 |
+| `all` | 上記全て | フルインストール |
+
 ## 入力データの扱い
 - 対象はバイナリ、テキスト、フォルダなど多様です。
 - ソフト固有フォーマットの拡張を見据え、**アダプター**の概念を導入し、機能を独立させます。

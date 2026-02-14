@@ -51,6 +51,7 @@ ssh = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "httpx>=0.25.0",
 ]
 # 全依存（便宜上）
 all = [
