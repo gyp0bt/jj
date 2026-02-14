@@ -145,9 +145,10 @@ Phase Rで導入したAbstractFileParser自動登録パターンは、以降の�
 
 **問題**: jjrvはRM6（jj統合）の設計が完了したが、実装は完全に未着手。2026-02-08のstatus-060以降、jjrv側のコミットがない。jj側のStreamlitダッシュボードと機能的に重複する部分（テーブル/グラフ/検索）が出始めている。
 
-**改善案**:
-- jj Streamlitダッシュボードとjjrvの役割分担を再定義
-- Streamlitはローカル即時確認（CAEエンジニア向け）、jjrvはチーム共有/Neo4j俯瞰（管理者向け）と明確化
+**整理（決定事項）**:
+- **jj dashboard（Streamlit）はjjrvのレポジトリビューの先駆け軽量検証**という位置づけ。単一プロジェクト内の即時確認に特化し、プロトタイプとしての役割を果たした
+- **jjrvがダッシュボードの本番実装**。Streamlitで検証した可視化パターン（配列プロット/物性一覧/ジョブサマリー等）をjjrvに洗練移植し、さらにレポジトリ・ノード・リレーションの横断視認性を付加する
+- Streamlitは開発期のクイック確認ツールとして残すが、機能追加のメインストリームはjjrvに移行する
 
 #### (e) テストの環境依存性
 
@@ -243,13 +244,13 @@ CAE業務の典型ワークフロー「条件設定→計算実行→結果確�
 |---|------|------|--------|------|
 | F1 | **プロジェクト横断検索基盤** | jj+jjrv | P0 | 「過去の類似案件を探す」はCAE業務の最頻思考。現状は単一プロジェクトに閉じている |
 | F2 | **jj → Neo4j → jjrv パイプラインの実装** | 全体 | P0 | jjrv統合ロードマップ（RM6）の実装。F1の前提条件 |
-| F3 | **2つ目のコネクタ実装（Fluent or LS-DYNA）** | jj | P0 | プラグインアーキテクチャの実証。1つ目だけでは汎用性が証明されない |
+| F3 | **Fluentコネクタ実装（pyansys経由）** | jj | P0 | プラグインアーキテクチャの実証。pyansysライセンス認証が制約（深入り禁止、トライ＆フォールバック方針） |
 | F4 | **CI/CD構築** | 全体 | P0 | 1,002テストをローカル手動実行のみは持続不可能 |
 | F5 | **ドキュメント構造の整理** | 全体 | P0 | status アーカイブ、ルートREADME強化、5分把握の実現 |
 | F6 | **runコマンドのジョブ型実装** | jj | P1 | Abaqusジョブ投入→監視→結果取得のワークフロー自動化 |
 | F7 | **fileコマンドの基本実装** | jj | P1 | テンプレート生成、リネーム、ファイル操作。計算準備の自動化 |
 | F8 | **STAパース拡張（カットバック/インクリメント）** | jj | P1 | 収束情報はCAE業務で頻繁に確認する |
-| F9 | **Streamlitダッシュボードのマルチプロジェクト対応** | jj | P1 | 複数プロジェクトのjj parseデータを統合表示 |
+| F9 | **jjrvダッシュボード洗練（Streamlit検証パターンの移植）** | jjrv | P1 | Streamlitで検証済みの配列プロット/物性一覧/ジョブサマリーをjjrvに移植・洗練 |
 | F10 | **config.yaml拡張（配列スライス/材料タイプ定義）** | jj | P2 | iso/aniso/orthoの材料特性カラム定義。専門性が高い |
 | F11 | **ODB連携** | jj | P2 | Abaqus結果ファイルの直接読み込み。Python 3.10対応が前提 |
 | F12 | **3Dレンダラー** | jjrv | P2 | review-00の評価通り、デモ価値は高いが実務への寄与は限定的 |
@@ -268,17 +269,17 @@ v0.1.0が「1つのCAEプロジェクトのグラフ化と可視化」を実現�
 M1: 基盤整備（F4, F5）
  │  CI/CD構築、ドキュメント再編、statusアーカイブ
  │
-M2: 2つ目のコネクタ（F3）
- │  プラグインアーキテクチャの実証
- │  Fluent or LS-DYNA のparse connector + dashboard connector
+M2: Fluentコネクタ（F3）
+ │  プラグインアーキテクチャの実証（pyansys経由、ライセンス認証は深入り禁止）
+ │  Fluent parse connector + dashboard connector
  │
 M3: Neo4j統合パイプライン（F2）
  │  jj export --target neo4j → Neo4j → jjrv参照 の実稼働
  │  データソース抽象化層（SQLite/Neo4j両対応）
  │
-M4: プロジェクト横断検索（F1, F9）
- │  jjrvレポジトリダッシュボード実装
- │  Streamlitマルチプロジェクト対応
+M4: jjrv横断ダッシュボード（F1, F9）
+ │  jjrvレポジトリダッシュボード実装（Streamlit検証パターンの洗練移植）
+ │  レポジトリ・ノード・リレーションの横断視認性
  │
 M5: ワークフロー自動化（F6, F7）
     runジョブ型実装、fileコマンド基本実装
@@ -296,13 +297,22 @@ M5: ワークフロー自動化（F6, F7）
 | jj status-index導入 | jj側にstatus-index.mdを新設 | `jj/docs/status/status-index.md` |
 | ブランチ命名規約 | CONTRIBUTING.mdにブランチ命名規約を記載 | `CONTRIBUTING.md` |
 
-#### M2: 2つ目のコネクタ
+#### M2: Fluentコネクタ
+
+**対象**: Fluent (.cas.h5/.dat) — pyansys経由
+
+**pyansysライセンス制約**:
+- pyansys（PyFluent/PyMAPDL等）はAnsysライセンスサーバーへの認証が必要
+- ライセンス認証ロジックは複雑で環境依存性が高いため、**深入りしない方針**
+- 方針: トライ→認証失敗時はgraceful fallback（テキストベースの.datパース等に切り替え）
+- テスト環境ではpyansys非依存のテキストパーサーのみをCIで実行
 
 | タスク | 内容 | 成果物 |
 |--------|------|--------|
-| 対象ソルバー選定 | Fluent (.cas/.dat) or LS-DYNA (.k/.key) のどちらかを選定 | 設計文書 |
-| parse connector実装 | `services/plugins/{solver}/` にパーサー群を実装 | パーサークラス群 |
-| dashboard connector実装 | `services/dashboard/connectors/{solver}.py` にダッシュボードページを追加 | ダッシュボードコネクタ |
+| Fluent設計文書 | .cas.h5/.datの構造調査、pyansysのReader API調査、フォールバック設計 | `jj/docs/specs/12-fluent-connector.md` |
+| parse connector実装 | `services/plugins/fluent/` にパーサー群を実装（pyansys版 + テキストフォールバック版） | パーサークラス群 |
+| dashboard connector実装 | `services/dashboard/connectors/fluent.py` にダッシュボードページを追加 | ダッシュボードコネクタ |
+| pyproject.toml拡張 | `[project.optional-dependencies]` に `fluent = ["ansys-fluent-core"]` を追加 | pyproject.toml |
 | コア層の暗黙的Abaqus前提の除去 | 2つ目のコネクタ実装で発覚する問題の修正 | コア層修正 |
 
 #### M3: Neo4j統合パイプライン
@@ -314,14 +324,17 @@ M5: ワークフロー自動化（F6, F7）
 | jjrv Neo4jクライアント | `neo4j-driver` パッケージ導入、IEntityRepository実装 | `src/lib/datasource/neo4j-*.ts` |
 | データソース切替 | 環境変数/UIでSQLite↔Neo4j切替 | 設定UI + factory |
 
-#### M4: プロジェクト横断検索
+#### M4: jjrv横断ダッシュボード
+
+**位置づけ**: jj dashboard（Streamlit）で軽量検証した可視化パターンをjjrvに洗練移植し、レポジトリ・ノード・リレーションの横断視認性を実現する。
 
 | タスク | 内容 | 成果物 |
 |--------|------|--------|
 | jjrvレポジトリ一覧 | `/repos` ページ（カード形式一覧） | Reactコンポーネント |
 | レポジトリ詳細 | ファイルブラウザ、README表示 | ページコンポーネント |
+| Streamlit検証パターンの移植 | 配列プロット/物性一覧/ジョブサマリーをjjrvに洗練移植 | ダッシュボードページ群 |
+| ノード・リレーション横断ビュー | 複数レポジトリ間でノード/リレーションを横断検索・比較 | 検索UI + Cypherクエリ |
 | グラフトラバーサル検索 | N親等以内のノード近傍検索 | Cypherクエリ |
-| Streamlitマルチプロジェクト | 複数.jj/storage/のグラフを統合表示 | ダッシュボード拡張 |
 
 #### M5: ワークフロー自動化
 
@@ -345,13 +358,20 @@ M1は他の全てに先行する。M2とM3は並行可能（jjとjjrvの片方�
 
 ---
 
-## 付録: 確認事項・設計上の懸念
+## 付録: 決定事項と残課題
 
-1. **2つ目のコネクタの対象ソルバー**: Fluent / LS-DYNA / ANSYS のどれを優先するか。実際のプロジェクトデータの有無に依存。
-2. **jjrv開発の継続方針**: Streamlitダッシュボードとjjrvの機能重複をどう整理するか。jjrvのSQLiteベース機能はNeo4j移行で不要になる可能性がある。
-3. **statusアーカイブのタイミング**: v0.1.0タグ付与後に即アーカイブするか、移行期間を設けるか。
-4. **CI環境**: GitHub Actions / GitLab CI のどちらを使用するか。neo4j/docker-compose.ymlのCI統合方法。
-5. **マルチプロジェクトStreamlit**: 複数プロジェクトのグラフを結合する際のID衝突回避策。
+### 決定事項（2026-02-14）
+
+1. **2つ目のコネクタ → Fluent**: pyansys経由。ライセンス認証は深入りせず、トライ＆フォールバック方針
+2. **jjrv = ダッシュボードの本番実装**: jj dashboard（Streamlit）は先駆け軽量検証。jjrvがダッシュボードを洗練し、レポジトリ・ノード・リレーションの横断視認性を付加する
+3. **Streamlitは開発期クイック確認ツールとして残存**: 機能追加のメインストリームはjjrvに移行
+
+### 残課題
+
+1. **statusアーカイブのタイミング**: v0.1.0タグ付与後に即アーカイブするか、移行期間を設けるか
+2. **CI環境**: GitHub Actions / GitLab CI のどちらを使用するか。neo4j/docker-compose.ymlのCI統合方法
+3. **pyansysの利用可能範囲**: ライセンスなし環境でどこまでのデータ読み出しが可能か（.cas.h5のテキスト部分のみ？）
+4. **Neo4j ID体系**: jj(int) → jjrv(string) の変換ルール確定
 
 ---
 
