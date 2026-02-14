@@ -1950,14 +1950,18 @@ class TestGetMaterialTable:
         assert "Aluminum_6061" in names
 
     def test_table_data_summarized(self):
-        """テーブル型データはサマリ表示"""
+        """テーブル型データはフォーマット表示"""
         from services.dashboard.connectors.abaqus import get_material_table
 
         provider = DashboardDataProvider(self._make_material_graph())
         rows = get_material_table(provider)
         steel = next(r for r in rows if r["name"] == "Steel_S235")
-        assert steel["plastic"] == "[2行]"
-        assert steel["elastic"] == "[1行]"
+        # 2行以上 → "配列"
+        assert steel["plastic"] == "配列"
+        # 1行2要素 → "val0(val1)"
+        assert steel["elastic"] == "210000.0(0.3)"
+        # 1行1要素 → そのまま
+        assert steel["density"] == "7.85e-09"
 
     def test_excludes_go_nodes(self):
         """go_ノードは含まれない"""
@@ -2062,7 +2066,8 @@ class TestGetMaterialTableKeys:
         )
         provider = DashboardDataProvider(graph)
         keys = get_material_table_keys(provider, 1)
-        assert "elastic" in keys
+        # elastic は1行のみなので配列プロット対象外
+        assert "elastic" not in keys
         assert "plastic" in keys
         assert "keywords" not in keys  # list[str]はテーブル型でない
         assert "verbose_name" not in keys
@@ -2384,7 +2389,7 @@ class TestParseMaterialCurveColumns:
 
     def test_dict_format(self):
         """辞書形式の正規化"""
-        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
 
         raw = {
             "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
@@ -2399,7 +2404,7 @@ class TestParseMaterialCurveColumns:
 
     def test_list_shorthand(self):
         """簡略形式（リスト）の正規化"""
-        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
 
         raw = {"density": ["density"]}
         result = _parse_material_curve_columns(raw)
@@ -2407,13 +2412,13 @@ class TestParseMaterialCurveColumns:
 
     def test_empty_dict(self):
         """空辞書"""
-        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
 
         assert _parse_material_curve_columns({}) == {}
 
     def test_non_dict_input(self):
         """辞書でない入力は空辞書"""
-        from services.dashboard.connectors.abaqus import _parse_material_curve_columns
+        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
 
         assert _parse_material_curve_columns("invalid") == {}
         assert _parse_material_curve_columns(None) == {}
@@ -2962,7 +2967,8 @@ class TestMaterialComparison:
 
         keys = get_material_table_keys(provider, 10)
         assert "plastic" in keys
-        assert "elastic" in keys
+        # elastic は1行のみなので配列プロット対象外
+        assert "elastic" not in keys
 
     def test_get_material_table_data(self):
         """テーブル型プロパティデータの取得"""
@@ -3826,9 +3832,10 @@ class TestAbaqusQueryModule:
 
         rows = get_material_table(material_provider)
         steel = [r for r in rows if r["name"] == "Steel"][0]
-        # テーブル型データ（list[list]）はサマリ表示
-        assert steel["plastic"] == "[3行]"
-        assert steel["elastic"] == "[1行]"
+        # 2行以上のテーブル型データ → "配列"
+        assert steel["plastic"] == "配列"
+        # 1行2要素 → "val0(val1)"
+        assert steel["elastic"] == "210000.0(0.3)"
         # スカラ値はそのまま
         assert steel["density"] == 7.85e-9
 
@@ -3873,7 +3880,8 @@ class TestAbaqusQueryModule:
         from services.dashboard.connectors.abaqus_query import get_material_table_keys
 
         keys = get_material_table_keys(material_provider, 2)
-        assert "elastic" in keys
+        # elastic は1行のみなので配列プロット対象外
+        assert "elastic" not in keys
         assert "plastic" in keys
         assert "density" not in keys
         assert keys == sorted(keys)
@@ -3882,7 +3890,8 @@ class TestAbaqusQueryModule:
         from services.dashboard.connectors.abaqus_query import get_material_table_keys
 
         keys = get_material_table_keys(material_provider, 3)
-        assert "elastic" in keys
+        # Aluminum: elastic 1行のみ → 配列プロット対象外
+        assert "elastic" not in keys
         assert "plastic" not in keys
 
     def test_get_material_table_keys_wrong_node(self, material_provider):
