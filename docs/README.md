@@ -13,15 +13,18 @@ v0.2.0から、プロジェクト横断のドキュメントはここに配置�
 
 | ドキュメント | 説明 |
 |-------------|------|
-| [最新status](status/status-001.md) | v0.2.0 実装状況の最新記録 |
+| [v0.2.0 ロードマップ](roadmap.md) | マイルストーン・仕様書リンク集 |
+| [statusインデックス](status/status-index.md) | v0.2.0 statusファイル索引 |
+| [最新status](status/status-003.md) | v0.2.0 実装状況の最新記録 |
 | [v0.1.0 statusインデックス](status/status-index-v0.1.0.md) | v0.1.0全statusファイルの索引（151件） |
 | [v0.1.0レビュー](review/review-v0.1.0.md) | 開発フェーズ総括・v0.2.0ロードマップ案 |
+| [マルチソルバー仕様書](specs/multi-solver.md) | ソルバー別ファイル構造の差異分析とconfig対応設計 |
 
 ### jj固有ドキュメント
 
 | ドキュメント | 説明 |
 |-------------|------|
-| [ロードマップ](../jj/docs/roadmap.md) | jj開発ロードマップ（Phase 0〜P、v0.1.0完了） |
+| [jj v0.1.0 ロードマップ](../jj/docs/roadmap.md) | jj開発ロードマップ（Phase 0〜P、v0.1.0完了・アーカイブ） |
 | [実装詳細](../jj/docs/detail.md) | 実装方針・技術詳細 |
 | [仕様書一覧](../jj/docs/specs/README.md) | 機能ドメイン別仕様書（01〜11） |
 
