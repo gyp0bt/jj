@@ -25,12 +25,42 @@ if TYPE_CHECKING:
 # ====================================================================
 
 
+def _format_material_property_value(
+    key: str,
+    value: Any,
+) -> str | None:
+    """材料特性値を表示用にフォーマット
+
+    - 1行1要素: そのまま表示
+    - 1行2要素: "0要素目(1要素目)"
+    - 1行3要素以上: カンマ区切り + "(KEY)"
+    - 2行以上: "配列"（配列プロットに回す）
+    - テーブル型でなければNone（スキップ）
+    """
+    if not isinstance(value, list) or not value:
+        return None
+    if not isinstance(value[0], list):
+        return None
+    rows = value
+    if len(rows) == 1:
+        row = rows[0]
+        if len(row) == 1:
+            return str(row[0])
+        elif len(row) == 2:
+            return f"{row[0]}({row[1]})"
+        else:
+            vals = ", ".join(str(v) for v in row)
+            return f"{vals} ({key})"
+    # 2行以上
+    return "配列"
+
+
 def get_material_table(provider: "DashboardDataProvider") -> list[dict[str, Any]]:
     """abaqus_materialノードの物性テーブルデータ
 
     全abaqus_materialノードの非テーブル型プロパティを
-    フラットなテーブル行として返す。テーブル型データ（list[list]）は
-    列名だけを表示用に含める。
+    フラットなテーブル行として返す。
+    タグは非表示。材料特性値は行数・要素数に応じてフォーマットする。
 
     Args:
         provider: DashboardDataProvider
@@ -40,25 +70,46 @@ def get_material_table(provider: "DashboardDataProvider") -> list[dict[str, Any]
     """
     rows: list[dict[str, Any]] = []
 
+    # vocab取得
+    vocab = provider.vocab or {}
+
     for node in provider.graph.nodes:
         if node.type != "abaqus_material":
             continue
 
+        # verbose_name = vocab変換された材料名
+        verbose_name = node.properties.get("verbose_name", "")
+        # assigned_elsets = 割り当てelset名リスト（vocab変換）
+        raw_elsets = node.properties.get("assigned_elsets", [])
+        if isinstance(raw_elsets, str):
+            raw_elsets = [raw_elsets]
+        assigned_elsets_str = ", ".join(
+            vocab.get(e, e) for e in raw_elsets
+        ) if raw_elsets else ""
+
         row: dict[str, Any] = {
             "id": node.id,
             "name": node.name,
+            "verbose_name": verbose_name,
+            "assigned_elsets": assigned_elsets_str,
         }
 
         for key, value in node.properties.items():
-            if key in ("path", "include_properties", "source_file"):
+            # 除外キー: 内部情報・タグ・既出
+            if key in (
+                "path", "include_properties", "source_file",
+                "tags", "verbose_name", "assigned_elsets", "keywords",
+            ):
                 continue
-            # テーブル型データ（list[list]）はサマリのみ
-            if isinstance(value, list) and value and isinstance(value[0], list):
-                row[key] = f"[{len(value)}行]"
-            elif isinstance(value, (dict, list)):
-                row[key] = str(value)
-            else:
-                row[key] = value
+            # テーブル型データ（list[list]）はフォーマット
+            formatted = _format_material_property_value(key, value)
+            if formatted is not None:
+                row[key] = formatted
+                continue
+            # dict/listはスキップ（内部データ）
+            if isinstance(value, (dict, list)):
+                continue
+            row[key] = value
 
         rows.append(row)
 
@@ -114,6 +165,9 @@ def get_material_table_keys(
 ) -> list[str]:
     """materialノードのテーブル型プロパティキーを返す
 
+    2行以上のテーブル型データのみ返す（1行のプロパティは
+    物性テーブルにインライン表示されるため配列プロットでは不要）。
+
     Args:
         provider: DashboardDataProvider
         node_id: materialノードID
@@ -128,7 +182,9 @@ def get_material_table_keys(
     keys: list[str] = []
     for key, value in node.properties.items():
         if isinstance(value, list) and value and isinstance(value[0], list):
-            keys.append(key)
+            # 1行しかないプロパティは配列プロットでは表示しない
+            if len(value) >= 2:
+                keys.append(key)
     return sorted(keys)
 
 
@@ -276,3 +332,128 @@ def get_material_usage(
         })
 
     return results
+
+
+# ====================================================================
+# メッシュ/Elset 要素品質サマリー
+# ====================================================================
+
+
+def get_mesh_quality_summary(
+    provider: "DashboardDataProvider",
+) -> list[dict[str, Any]]:
+    """go_ノードごとのメッシュ品質サマリーを返す
+
+    Returns:
+        [{"go_name": str, "node_count": int, "element_count": int,
+          "element_types": dict, "quality": dict}, ...]
+    """
+    rows: list[dict[str, Any]] = []
+
+    for node in provider.graph.nodes:
+        name_lower = node.name.lower()
+        if not (name_lower.startswith("go_") or name_lower == "go"):
+            continue
+
+        props = node.properties
+        quality = props.get("mesh_quality")
+        if not quality and not props.get("mesh_element_count"):
+            continue
+
+        row: dict[str, Any] = {
+            "go_name": node.name,
+            "node_count": props.get("mesh_node_count", 0),
+            "element_count": props.get("mesh_element_count", 0),
+            "element_types": props.get("mesh_element_types", {}),
+        }
+        if quality and isinstance(quality, dict):
+            row["quality"] = quality
+        rows.append(row)
+
+    return rows
+
+
+def get_elset_quality_summary(
+    provider: "DashboardDataProvider",
+) -> list[dict[str, Any]]:
+    """elsetノードごとの品質サマリーを返す
+
+    Returns:
+        [{"elset_name": str, "mesh_source": str, "element_count": int,
+          "material": str, "quality": dict}, ...]
+    """
+    rows: list[dict[str, Any]] = []
+
+    for node in provider.graph.nodes:
+        if node.type != "abaqus_elset":
+            continue
+
+        props = node.properties
+        row: dict[str, Any] = {
+            "elset_name": node.name,
+            "mesh_source": props.get("mesh_source", ""),
+            "element_count": props.get("element_count", 0),
+            "material": props.get("material", ""),
+        }
+        quality = props.get("quality")
+        if quality and isinstance(quality, dict):
+            row["quality"] = quality
+        rows.append(row)
+
+    return rows
+
+
+# ====================================================================
+# Abaqus ジョブサマリー
+# ====================================================================
+
+
+def get_job_summary(
+    provider: "DashboardDataProvider",
+) -> list[dict[str, Any]]:
+    """go_ノードのジョブサマリーデータを返す
+
+    .sta/.msg/.datから抽出されたステータス・エラー・警告・計算時間を集約。
+
+    Returns:
+        [{"go_name": str, "analysis_status": str, "cpu_time": float|None,
+          "wallclock_time": float|None, "sta_errors": list, "sta_warnings": list,
+          "msg_errors": list, "msg_warnings": list,
+          "dat_errors": list, "dat_warnings": list}, ...]
+    """
+    rows: list[dict[str, Any]] = []
+
+    for node in provider.graph.nodes:
+        name_lower = node.name.lower()
+        if not (name_lower.startswith("go_") or name_lower == "go"):
+            continue
+
+        props = node.properties
+        # ジョブ関連プロパティが1つでもあればサマリーに含める
+        has_job_data = any(
+            k in props
+            for k in (
+                "analysis_status", "cpu_time", "wallclock_time",
+                "sta_errors", "sta_warnings",
+                "msg_errors", "msg_warnings",
+                "dat_errors", "dat_warnings",
+            )
+        )
+        if not has_job_data:
+            continue
+
+        row: dict[str, Any] = {
+            "go_name": node.name,
+            "analysis_status": props.get("analysis_status", "unknown"),
+        }
+        if "cpu_time" in props:
+            row["cpu_time"] = props["cpu_time"]
+        if "wallclock_time" in props:
+            row["wallclock_time"] = props["wallclock_time"]
+        for key in ("sta_errors", "sta_warnings", "msg_errors",
+                     "msg_warnings", "dat_errors", "dat_warnings"):
+            if key in props:
+                row[key] = props[key]
+        rows.append(row)
+
+    return rows
