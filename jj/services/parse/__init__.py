@@ -24,13 +24,14 @@ from .file_parse import (
     safe_relative_path,
 )
 
-# パーサーサブクラスをimportして自動登録
+# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
 import services.parse.parsers  # noqa: F401
-import services.parse.connectors.abaqus.inp_parser  # noqa: F401
-import services.parse.connectors.abaqus.result_parser  # noqa: F401
-import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
-import services.parse.connectors.abaqus.diff_parser  # noqa: F401
-import services.parse.connectors.obsidian.daily_parser  # noqa: F401
+
+# Abaqus/Obsidian等のコネクターはプラグインレジストリ経由で動的に登録される。
+# services.sdk.plugin_registry.load_all_plugins() を呼び出し済みであれば
+# services.plugins.abaqus / services.plugins.obsidian が自動インポートされ、
+# 各パーサーの__init_subclass__による自動登録が発動する。
+# 後方互換: GraphServiceのimport時に load_all_plugins() が呼ばれる。
 
 __all__ = [
     "ABQData",
