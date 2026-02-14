@@ -59,35 +59,20 @@ pnpm dev                     # 開発サーバー起動 (http://localhost:3000)
 
 詳細は各モジュールのREADMEを参照: [jj/README.md](jj/README.md) / [jjrv/README.md](jjrv/README.md)
 
+### ドキュメント
+
+| ドキュメント | 説明 |
+|-------------|------|
+| [docs/roadmap.md](docs/roadmap.md) | **v0.2.0 統合ロードマップ**（マイルストーン・仕様書リンク） |
+| [docs/status/status-index.md](docs/status/status-index.md) | v0.2.0 statusインデックス |
+| [docs/README.md](docs/README.md) | 共有ドキュメント一覧 |
+| [CLAUDE.md](CLAUDE.md) | コーディング規約・技術リファレンス |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 開発参加ガイド |
+| [jj/docs/specs/](jj/docs/specs/) | jj機能ドメイン別仕様書（01〜11） |
+| [jjrv/docs/](jjrv/docs/) | jjrv RM1-6仕様書 |
+
 ### v0.1.0 サマリー（2026-02-14）
 
 - **jj**: テスト1,002件、パーサー16+クラス、エクスポーター6種、Abaqusプラグイン完全分離、Streamlitダッシュボード稼働
 - **jjrv**: RM1〜5完了（検索/閲覧/操作性/本番運用）、RM6（jj統合）設計済み・実装未着手
-- **レビュー**: [v0.1.0 レビュー・v0.2.0 ロードマップ案](docs/review/review-v0.1.0.md)
-
-### ドキュメント構成
-
-v0.2.0からdocsは3層構成（ルート共有 + jj固有 + jjrv固有）。
-
-| ドキュメント | 説明 |
-|-------------|------|
-| [docs/README.md](docs/README.md) | 共有ドキュメント一覧（status/review/全リンク集） |
-| [最新status](docs/status/status-002.md) | v0.2.0 実装状況の最新記録 |
-| [v0.1.0 statusインデックス](docs/status/status-index-v0.1.0.md) | v0.1.0全statusファイルの索引（151件） |
-| [v0.1.0レビュー](docs/review/review-v0.1.0.md) | 開発フェーズ総括・v0.2.0ロードマップ案 |
-| [CLAUDE.md](CLAUDE.md) | プロジェクト規約・コーディングガイドライン |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 開発参加ガイド・ブランチ命名規約 |
-| [jj/docs/](jj/docs/) | jj固有ドキュメント（ロードマップ・仕様書） |
-| [jjrv/docs/](jjrv/docs/) | jjrv固有ドキュメント（RM1-6仕様書） |
-
-## 全体規約
-
-詳細は [CLAUDE.md](CLAUDE.md) を参照。
-
-- 実装作業はjjとjjrvの片方ずつで実施
-- 各モジュールはNeo4j契約のみ共有し、直接通信しない
-- Codex/Claude Code 2交代制 — 常に引き継ぎを意識
-- statusファイルは `docs/status/status-{index}.md` に記録（最大indexが最新）
-- すべてのmarkdown文書にREADME.mdへのバックリンクを貼る
-- 作業完了時: README/status/roadmapを更新、TODOはstatusに記入
-- 確認事項・設計上の懸念はstatusファイルに書き出す
+- **レビュー**: [v0.1.0 レビュー](docs/review/review-v0.1.0.md)
