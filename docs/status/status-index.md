@@ -27,6 +27,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [002](status-002.md) | 2026-02-14 | M1 | CLAUDE.md作成、Getting Started、CONTRIBUTING.md、旧status削除 | claude/setup-project-docs |
 | [003](status-003.md) | 2026-02-14 | M1.5 | ドキュメント再構成: roadmap分離、CLAUDE.md/README.mdスリム化、マルチソルバー仕様書 | claude/docs-reorganization-BRtfN |
 | [004](status-004.md) | 2026-02-15 | M1.5/M2 | M1.5完了: プラグイン雛形6ソルバー作成、HFSS/Fluent追加、default-config更新 | claude/add-hfss-fluent-plugins-w2HvU |
+| [005](status-005.md) | 2026-02-15 | M2 | SolverProfileConfigテスト34件追加、パーサー5種のソルバープロファイル拡張子マージ対応 | claude/execute-status-todos-DSXAo |
 
 ---
 
