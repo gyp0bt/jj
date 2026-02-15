@@ -125,6 +125,66 @@ path-property-map:
 # path-tag-map:
 
 # ========================================================================
+# ソルバープロファイル（solver-profiles）
+# ========================================================================
+# ソルバー別のファイル解釈ルール。各CAEソルバーの入力/結果ファイルの拡張子、
+# 命名パターン、ソース単位（ファイル/ディレクトリ）を定義する。
+# 未設定の場合はAbaqus互換のデフォルトプロファイルが使用される。
+# 参照: docs/specs/multi-solver.md
+# 使用例:
+#   solver-profiles:
+#     default:
+#       source-unit: file
+#       filename-pattern: standard
+#       input-extensions: [".inp"]
+#       result-extensions: [".odb", ".sta", ".msg", ".dat"]
+#     lsdyna:
+#       source-unit: directory
+#       filename-pattern: standard
+#       input-extensions: [".k", ".key", ".dat"]
+#       result-filenames: ["d3plot", "d3hsp", "glstat", "matsum", "messag"]
+#     flow3d:
+#       source-unit: directory
+#       filename-pattern: reversed
+#       input-prefixes: ["prepin"]
+#       result-prefixes: ["flsgrf", "flsprt", "prpgrf", "report", "hdtout"]
+#     openfoam:
+#       source-unit: directory
+#       filename-pattern: none
+#       input-directories: ["system", "constant", "0"]
+#       result-directory-pattern: "^\\d+$"
+#     calculix:
+#       source-unit: file
+#       filename-pattern: standard
+#       input-extensions: [".inp"]
+#       result-extensions: [".frd", ".sta", ".dat", ".cvg"]
+#     fluent:
+#       source-unit: file
+#       filename-pattern: standard
+#       input-extensions: [".cas.h5"]
+#       result-extensions: [".dat.h5", ".out", ".xy"]
+#     hfss:
+#       source-unit: file
+#       filename-pattern: standard
+#       input-extensions: [".aedt"]
+#       result-extensions: [".csv", ".s2p"]
+# solver-profiles:
+
+# ========================================================================
+# ソルバー自動検出（solver-detection）
+# ========================================================================
+# パスパターンからソルバープロファイルを自動選択する。
+# パスがパターンにマッチした場合、対応するソルバープロファイルが適用される。
+# 使用例:
+#   solver-detection:
+#     "**/*.k | **/*.key": lsdyna
+#     "**/prepin.*": flow3d
+#     "**/system/controlDict": openfoam
+#     "**/*.cas.h5": fluent
+#     "**/*.aedt": hfss
+# solver-detection:
+
+# ========================================================================
 # 除外パターン（ignore）
 # ========================================================================
 # マッチしたパスはパース対象から除外されます（.gitignore相当）。

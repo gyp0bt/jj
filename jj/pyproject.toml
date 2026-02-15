@@ -43,6 +43,20 @@ api = [
 neo4j = [
     "neo4j>=5.0.0",
 ]
+# LS-DYNAプラグイン依存（将来: d3plot解析等）
+# lsdyna = []
+# Flow-3Dプラグイン依存（将来: 結果ファイル解析等）
+# flow3d = []
+# OpenFOAMプラグイン依存（将来: メッシュ解析等）
+# openfoam = []
+# CalculiXプラグイン依存（将来: .frd解析等）
+# calculix = []
+# Fluentプラグイン依存（HDF5ファイル解析用）
+fluent = [
+    "h5py>=3.0.0",
+]
+# HFSSプラグイン依存（現時点で追加依存なし）
+# hfss = []
 # SSH操作
 ssh = [
     "paramiko>=3.0.0",
@@ -55,7 +69,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[abaqus,obsidian,dashboard,api,neo4j,ssh,dev]",
+    "jj[abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,dev]",
 ]
 
 # --------------------------------------------------
@@ -66,6 +80,12 @@ all = [
 [project.entry-points."jj.plugins"]
 abaqus = "services.plugins.abaqus:register"
 obsidian = "services.plugins.obsidian:register"
+lsdyna = "services.plugins.lsdyna:register"
+flow3d = "services.plugins.flow3d:register"
+openfoam = "services.plugins.openfoam:register"
+calculix = "services.plugins.calculix:register"
+fluent = "services.plugins.fluent:register"
+hfss = "services.plugins.hfss:register"
 
 # jj.parsers グループ: 個別パーサーの登録（外部プラグイン用の拡張点）
 # 内蔵プラグインはjj.plugins経由でまとめて登録されるため、ここは空でもよい

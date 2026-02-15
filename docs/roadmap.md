@@ -13,8 +13,8 @@ v0.1.0が「1つのCAEプロジェクトのグラフ化と可視化」を実現�
 ```
 M1: 基盤整備（完了）
  │
- ├──→ M1.5: ドキュメント再構成（進行中）
- │     └── マルチソルバー仕様書作成 + コアconfig柔軟性向上
+ ├──→ M1.5: ドキュメント再構成（完了）
+ │     └── マルチソルバー仕様書作成 + コアconfig柔軟性向上 + プラグイン雛形
  │
  └──→ M3: Neo4j統合パイプライン
        │
@@ -40,7 +40,7 @@ M2: マルチソルバー検証（検証環境確保後に実施）
 
 ---
 
-## M1.5: ドキュメント再構成 — 進行中
+## M1.5: ドキュメント再構成 — 完了
 
 | タスク | 成果物 | 状態 |
 |--------|--------|------|
@@ -50,6 +50,8 @@ M2: マルチソルバー検証（検証環境確保後に実施）
 | status-index.md 作成 | `docs/status/status-index.md` | 完了 |
 | マルチソルバー仕様書 | `docs/specs/multi-solver.md` | 完了 |
 | コアconfig柔軟性向上 | `SolverProfile` config拡張 | 完了 |
+| default-config.yaml | solver-profiles/solver-detectionコメント付き使用例 | 完了 |
+| プラグイン雛形作成 | 6ソルバー（LS-DYNA, Flow-3D, OpenFOAM, CalculiX, Fluent, HFSS） | 完了 |
 
 ### 関連仕様書
 - [マルチソルバー対応仕様書](specs/multi-solver.md) — ソルバー別ファイル構造の差異分析とconfig対応設計
@@ -58,11 +60,12 @@ M2: マルチソルバー検証（検証環境確保後に実施）
 
 ## M2: マルチソルバー検証 — 検証環境確保後
 
-各ソルバーの検証環境が利用可能になった段階で、プラグインとして個別実装する。
+プラグイン雛形（スケルトン）はM1.5で作成済み。各ソルバーの検証環境が利用可能になった段階で、本実装とテストアセット作成を行う。
 
 | ソルバー | 対応方式 | 主な課題 | 仕様書 |
 |---------|---------|---------|--------|
-| Fluent | `services/plugins/fluent/` | pyansysライセンス認証、.cas.h5パース | [マルチソルバー仕様書 §Fluent](specs/multi-solver.md#fluent) |
+| Fluent | `services/plugins/fluent/` | .cas.h5/.dat.h5バイナリ、.jouジャーナル解析 | [マルチソルバー仕様書 §Fluent](specs/multi-solver.md#fluent) |
+| HFSS | `services/plugins/hfss/` | .aedtバイナリ（部分テキスト）、.aedt.batchinfoログ | [マルチソルバー仕様書 §HFSS](specs/multi-solver.md#hfss) |
 | LS-DYNA | `services/plugins/lsdyna/` | .k/.key/.datインプット、フォルダ=1計算 | [マルチソルバー仕様書 §LS-DYNA](specs/multi-solver.md#ls-dyna) |
 | Flow-3D | `services/plugins/flow3d/` | 出力種類.ジョブ名形式のファイル名 | [マルチソルバー仕様書 §Flow-3D](specs/multi-solver.md#flow-3d) |
 | OpenFOAM | `services/plugins/openfoam/` | ディレクトリ=1計算、タイムステップディレクトリ | [マルチソルバー仕様書 §OpenFOAM](specs/multi-solver.md#openfoam) |

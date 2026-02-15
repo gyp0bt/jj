@@ -111,6 +111,44 @@ project/
 - **入出力判定**: `.inp`が入力、`.frd`/`.sta`/`.dat`が結果
 - **固有課題**: `.dat`がAbaqusと同様に結果ファイル（LS-DYNAとは逆）
 
+#### Fluent {#fluent}
+```
+project/
+├── go_idx1_v1.cas.h5       # ケースファイル（バイナリ、HDF5形式）
+├── go_idx1_v1.dat.h5       # 結果データ（バイナリ、HDF5形式）
+├── go_idx1_v1.jou          # ジャーナルファイル（バッチ実行用、独自記法）
+├── go_idx1_v1.out          # テーブル形式リザルトデータ
+├── go_idx1_v1.xy           # テーブル形式リザルトデータ（XYプロット）
+├── mesh_idx1.msh           # メッシュファイル
+└── reports/
+    └── report.csv          # GUI上で出力したレポート
+```
+- **命名**: `{jobname}.{ext}`（Abaqusと同様のstandard形式）
+- **ソース**: ファイル単位
+- **入出力判定**: `.cas.h5`が入力（バイナリ）、`.dat.h5`/`.out`/`.xy`が結果
+- **固有課題**: `.cas.h5`/`.dat.h5`はHDF5形式でバイナリ、テキストパースは不可。`.jou`は独自記法のスクリプトだがテキスト読取可能。`.out`/`.xy`はテーブル形式テキスト
+
+#### HFSS (Ansys Electronics Desktop) {#hfss}
+```
+project/
+├── design1.aedt             # プロジェクトファイル（バイナリ、部分的にテキスト埋め込み）
+├── design1.aedt.batchinfo/  # 計算実行ログディレクトリ
+│   ├── log1.txt
+│   └── ...
+├── design1.aedtresults/     # 結果ディレクトリ
+│   ├── result1.asol
+│   └── ...
+├── output/
+│   ├── S-parameters.csv     # GUI上でエクスポートしたCSVデータ
+│   └── S-parameters.s2p     # Touchstoneフォーマット（Sパラメータ等）
+└── reports/
+    └── report.csv           # GUI上でエクスポートしたレポート
+```
+- **命名**: `{designname}.{ext}`（standard形式）
+- **ソース**: ファイル単位（`.aedt`が主インプット）
+- **入出力判定**: `.aedt`が入力（バイナリ、部分テキスト埋込）、`.aedtresults/`が結果ディレクトリ、`.csv`/`.s2p`がエクスポートデータ
+- **固有課題**: `.aedt`は基本バイナリだが部分的にテキストが読める箇所がある（設計パラメータ等）。結果は`.aedtresults/`ディレクトリに格納。波形データはGUI操作でCSV/Touchstone形式にエクスポートして保存する運用が一般的。`.aedt.batchinfo/`は計算実行ログ
+
 ---
 
 ## 2. 設計方針
@@ -139,7 +177,9 @@ project/
   ├── services/plugins/lsdyna/
   ├── services/plugins/flow3d/
   ├── services/plugins/openfoam/
-  └── services/plugins/calculix/
+  ├── services/plugins/calculix/
+  ├── services/plugins/fluent/
+  └── services/plugins/hfss/
 ```
 
 ---
@@ -186,11 +226,28 @@ solver-profiles:
     input-extensions: [".inp"]
     result-extensions: [".frd", ".sta", ".dat", ".cvg"]
 
+  fluent:
+    source-unit: file
+    filename-pattern: standard
+    input-extensions: [".cas.h5"]
+    result-extensions: [".dat.h5", ".out", ".xy"]
+    # .jouはジャーナルファイル（バッチ実行スクリプト）、解析対象としてはアセット扱い
+
+  hfss:
+    source-unit: file
+    filename-pattern: standard
+    input-extensions: [".aedt"]
+    result-extensions: [".csv", ".s2p"]
+    # .aedtresults/ディレクトリは結果格納先だが内部はバイナリ
+    # .aedt.batchinfo/ディレクトリは計算実行ログ
+
 # パスパターンでソルバープロファイルを自動選択
 solver-detection:
   "**/*.k | **/*.key":    lsdyna
   "**/prepin.*":          flow3d
   "**/system/controlDict": openfoam
+  "**/*.cas.h5":          fluent
+  "**/*.aedt":            hfss
 ```
 
 ### 3.2 SolverProfileConfig データクラス
@@ -356,6 +413,33 @@ services/plugins/calculix/
 - `.frd` 結果ファイルのメタデータ抽出
 - `.cvg` 収束情報の解析
 
+### 5.5 Fluent プラグイン
+
+```
+services/plugins/fluent/
+├── __init__.py          # register() 関数
+└── journal_parser.py    # .jouジャーナルファイル解析
+```
+
+**主な機能**:
+- `.jou` ジャーナルファイルのテキスト解析（バッチ実行パラメータ抽出）
+- `.out`/`.xy` テーブル形式結果データのサマリー抽出
+- `.cas.h5`/`.dat.h5` はHDF5バイナリのためメタデータ抽出にはh5py依存が必要（将来対応）
+
+### 5.6 HFSS プラグイン
+
+```
+services/plugins/hfss/
+├── __init__.py          # register() 関数
+└── aedt_parser.py       # .aedtファイルの部分テキスト解析
+```
+
+**主な機能**:
+- `.aedt` ファイルの部分テキスト領域からの設計パラメータ抽出（バイナリ内にテキストブロックが散在）
+- `.aedt.batchinfo/` ディレクトリ内の計算実行ログ解析
+- `.csv`/`.s2p`（Touchstone）エクスポートデータの認識
+- `.aedtresults/` ディレクトリの結果ファイル検出
+
 ---
 
 ## 6. 実装計画
@@ -381,10 +465,11 @@ services/plugins/calculix/
 
 ### M2（検証環境確保後）で実施
 
-1. 各ソルバーのテストアセット作成（`shared/tests/test_asset_{solver}/`）
-2. プラグインパッケージ実装
-3. コアパーサーの修正（ResultRelationParser, DirectoryRelationParser）
-4. E2Eテスト
+1. プラグイン雛形作成（6ソルバー: LS-DYNA, Flow-3D, OpenFOAM, CalculiX, Fluent, HFSS）
+2. 各ソルバーのテストアセット作成（`shared/tests/test_asset_{solver}/`）
+3. プラグインパッケージの本実装（検証環境確保後に順次）
+4. コアパーサーの修正（ResultRelationParser, DirectoryRelationParser）
+5. E2Eテスト
 
 ---
 
