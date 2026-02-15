@@ -42,13 +42,21 @@ class ResultRelationParser(AbstractFileParser):
 
     同じbasenameを持つファイルのうち、入力ファイル（.inp）と
     結果ファイル（.odb, .sta等）の間にresult_of関係を作成する。
+
+    ソルバープロファイルが設定されている場合、各プロファイルの
+    input_extensions/result_extensions/result_filenamesも考慮する。
     """
 
     priority = 30
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        input_extensions = graph.config.file_relations.input_extensions
-        result_extensions = graph.config.file_relations.result_extensions
+        input_extensions = set(graph.config.file_relations.input_extensions)
+        result_extensions = set(graph.config.file_relations.result_extensions)
+
+        # ソルバープロファイルの拡張子をマージ
+        for profile in graph.config.solver_profiles.values():
+            input_extensions.update(profile.input_extensions)
+            result_extensions.update(profile.result_extensions)
 
         by_basename: dict[str, list[Node]] = defaultdict(list)
         for node in graph.nodes:
@@ -93,8 +101,12 @@ class AssetRelationParser(AbstractFileParser):
     priority = 31
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        input_extensions = graph.config.file_relations.input_extensions
-        asset_extensions = graph.config.file_relations.asset_extensions
+        input_extensions = set(graph.config.file_relations.input_extensions)
+        asset_extensions = set(graph.config.file_relations.asset_extensions)
+
+        # ソルバープロファイルの拡張子をマージ
+        for profile in graph.config.solver_profiles.values():
+            input_extensions.update(profile.input_extensions)
 
         by_basename: dict[str, list[Node]] = defaultdict(list)
         for node in graph.nodes:
@@ -159,7 +171,10 @@ class IncludesRelationParser(AbstractFileParser):
         return includes
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        input_extensions = graph.config.file_relations.input_extensions
+        input_extensions = set(graph.config.file_relations.input_extensions)
+        # ソルバープロファイルの入力拡張子をマージ
+        for profile in graph.config.solver_profiles.values():
+            input_extensions.update(profile.input_extensions)
 
         for node in list(graph.nodes):
             ext = f".{node.format}" if node.format else ""
@@ -223,8 +238,13 @@ class OutputRelationParser(AbstractFileParser):
     priority = 32
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        input_extensions = graph.config.file_relations.input_extensions
-        result_extensions = graph.config.file_relations.result_extensions
+        input_extensions = set(graph.config.file_relations.input_extensions)
+        result_extensions = set(graph.config.file_relations.result_extensions)
+
+        # ソルバープロファイルの拡張子をマージ
+        for profile in graph.config.solver_profiles.values():
+            input_extensions.update(profile.input_extensions)
+            result_extensions.update(profile.result_extensions)
 
         input_nodes: list[Node] = []
         output_candidates: list[Node] = []
