@@ -50,7 +50,10 @@ class DirectoryRelationParser(AbstractFileParser):
     priority = 50
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        input_extensions = graph.config.file_relations.input_extensions
+        input_extensions = set(graph.config.file_relations.input_extensions)
+        # ソルバープロファイルの入力拡張子をマージ
+        for profile in graph.config.solver_profiles.values():
+            input_extensions.update(profile.input_extensions)
         max_depth = graph.config.directory_max_depth  # None = 無制限
         handled_dir_paths: set[str] = set()
 
