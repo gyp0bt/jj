@@ -19,9 +19,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# pymesh（メッシュ操作・解析モジュール）
+pymesh = [
+    "pandas>=2.0.0",
+    "chardet>=5.0.0",
+    "ftfy>=6.0.0",
+]
 # Abaqusプラグイン追加依存（メッシュ品質解析・データ分析用）
 abaqus = [
-    "pandas>=2.0.0",
+    "jj[pymesh]",
     "scipy>=1.10.0",
 ]
 # Obsidianプラグイン依存
@@ -69,7 +75,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,dev]",
+    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,dev]",
 ]
 
 # --------------------------------------------------
