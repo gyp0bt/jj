@@ -46,16 +46,14 @@ def generate_saved_views_html(
     sections: list[str] = []
 
     for view in views:
-        section_html = generate_view_html(
-            provider, project_root, dashboard_config, view, vocab
-        )
+        section_html = generate_view_html(provider, project_root, dashboard_config, view, vocab)
         if section_html:
             sections.append(
                 f'<div class="view-section">'
-                f'<h2>{view.name}</h2>'
+                f"<h2>{view.name}</h2>"
                 f'<p class="view-type">タイプ: {view.view_type}</p>'
-                f'{section_html}'
-                f'</div>'
+                f"{section_html}"
+                f"</div>"
             )
 
     body = "\n<hr>\n".join(sections)
@@ -90,7 +88,7 @@ hr {{ border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }}
 </head>
 <body>
 <h1>jj Dashboard - {project_name}</h1>
-<p class="caption">生成日時: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+<p class="caption">生成日時: {__import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")}</p>
 {body}
 </body>
 </html>"""
@@ -156,9 +154,7 @@ def generate_table_html(
 
     df = pd.DataFrame(display_rows)
     table_columns = getattr(dashboard_config, "table_columns", None)
-    selected_cols = select_table_columns(
-        list(df.columns), table_columns, vocab=vocab or {}
-    )
+    selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
 
@@ -271,12 +267,14 @@ def generate_array_plot_html(
                         if ver_str:
                             label += f",v{ver_str}"
                         label += ")"
-                    fig.add_trace(go.Scatter(
-                        x=item["x_values"],
-                        y=item["y_values"],
-                        mode="lines+markers",
-                        name=label,
-                    ))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=item["x_values"],
+                            y=item["y_values"],
+                            mode="lines+markers",
+                            name=label,
+                        )
+                    )
                 if ng_regions:
                     _add_ng_regions_to_fig(fig, ng_regions)
                 fig.update_layout(
@@ -291,16 +289,20 @@ def generate_array_plot_html(
             else:
                 # グリッド比較: 条件ごとに個別グラフ
                 cols_per_row = getattr(dashboard_config, "gallery_columns", 4) if dashboard_config else 4
-                parts.append(f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">')
+                parts.append(
+                    f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">'
+                )
 
                 for item in grid_data:
                     fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=item["x_values"],
-                        y=item["y_values"],
-                        mode="lines+markers",
-                        name=y_key,
-                    ))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=item["x_values"],
+                            y=item["y_values"],
+                            mode="lines+markers",
+                            name=y_key,
+                        )
+                    )
                     if ng_regions:
                         _add_ng_regions_to_fig(fig, ng_regions)
                     title = item["name"]
@@ -337,11 +339,11 @@ def generate_status_html(
     status = provider.get_status_summary()
     metrics = (
         f'<div style="display:flex;gap:24px;margin:12px 0;">'
-        f'<div><strong>合計</strong>: {status["total"]}</div>'
-        f'<div><strong>完了</strong>: {status["completed"]}</div>'
-        f'<div><strong>失敗</strong>: {status["failed"]}</div>'
-        f'<div><strong>不明</strong>: {status["unknown"]}</div>'
-        f'</div>'
+        f"<div><strong>合計</strong>: {status['total']}</div>"
+        f"<div><strong>完了</strong>: {status['completed']}</div>"
+        f"<div><strong>失敗</strong>: {status['failed']}</div>"
+        f"<div><strong>不明</strong>: {status['unknown']}</div>"
+        f"</div>"
     )
     items = status["items"]
     if items:
@@ -374,10 +376,7 @@ def generate_card_html(
     if card is None:
         return ""
 
-    props = {
-        k: v for k, v in card["properties"].items()
-        if k not in ("path", "include_properties")
-    }
+    props = {k: v for k, v in card["properties"].items() if k not in ("path", "include_properties")}
     props_flat = {}
     for k, v in props.items():
         if isinstance(v, (dict, list)):
@@ -405,21 +404,28 @@ def _create_plot_figure(
     y_key: str,
     color: str | None,
     chart_type: str,
+    hover_name_col: str = "name",
 ) -> Any:
-    """plotlyのFigureオブジェクトを作成"""
+    """plotlyのFigureオブジェクトを作成
+
+    Args:
+        hover_name_col: ホバー時に表示する列名（デフォルト: "name"）
+    """
+    # hover_name列がdfに存在しなければ"name"にフォールバック
+    hn = hover_name_col if hover_name_col in df.columns else "name"
     if chart_type == "散布図":
         return px.scatter(
             df,
             x=x_key,
             y=y_key,
             color=color,
-            hover_name="name",
+            hover_name=hn if hn in df.columns else None,
             title=f"{y_key} vs {x_key}",
         )
     elif chart_type == "棒グラフ":
         return px.bar(
             df,
-            x="name",
+            x=hn if hn in df.columns else "name",
             y=y_key,
             color=color,
             title=f"{y_key} by name",
@@ -430,7 +436,7 @@ def _create_plot_figure(
             x=x_key,
             y=y_key,
             color=color,
-            hover_name="name",
+            hover_name=hn if hn in df.columns else None,
             title=f"{y_key} vs {x_key}",
             markers=True,
         )
@@ -458,31 +464,40 @@ def _add_ng_regions_to_fig(fig: Any, ng_regions: list[dict[str, Any]]) -> None:
             x_pts = [p[0] for p in points]
             y_pts = [p[1] for p in points]
             fill_dir = region.get("fill", "above")
-            fig.add_trace(go.Scatter(
-                x=x_pts, y=y_pts,
-                mode="lines",
-                line=dict(color=color.replace("0.1", "0.6") if "rgba" in color else color, dash="dash"),
-                name=label,
-                showlegend=True,
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=x_pts,
+                    y=y_pts,
+                    mode="lines",
+                    line=dict(color=color.replace("0.1", "0.6") if "rgba" in color else color, dash="dash"),
+                    name=label,
+                    showlegend=True,
+                )
+            )
             if fill_dir == "above":
-                fig.add_trace(go.Scatter(
-                    x=x_pts, y=y_pts,
-                    fill="tonexty" if len(fig.data) > 1 else "tozeroy",
-                    fillcolor=color,
-                    line=dict(width=0),
-                    showlegend=False,
-                    hoverinfo="skip",
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_pts,
+                        y=y_pts,
+                        fill="tonexty" if len(fig.data) > 1 else "tozeroy",
+                        fillcolor=color,
+                        line=dict(width=0),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
             elif fill_dir == "below":
-                fig.add_trace(go.Scatter(
-                    x=x_pts, y=y_pts,
-                    fill="tozeroy",
-                    fillcolor=color,
-                    line=dict(width=0),
-                    showlegend=False,
-                    hoverinfo="skip",
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_pts,
+                        y=y_pts,
+                        fill="tozeroy",
+                        fillcolor=color,
+                        line=dict(width=0),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
         else:
             x0 = region.get("x_min")
             x1 = region.get("x_max")
@@ -490,14 +505,18 @@ def _add_ng_regions_to_fig(fig: Any, ng_regions: list[dict[str, Any]]) -> None:
             y1 = region.get("y_max")
             fig.add_shape(
                 type="rect",
-                x0=x0, x1=x1, y0=y0, y1=y1,
+                x0=x0,
+                x1=x1,
+                y0=y0,
+                y1=y1,
                 fillcolor=color,
                 line=dict(width=0),
                 layer="below",
             )
             if label and x1 is not None and y1 is not None:
                 fig.add_annotation(
-                    x=x1, y=y1,
+                    x=x1,
+                    y=y1,
                     text=label,
                     showarrow=False,
                     font=dict(size=10, color="red"),
@@ -520,11 +539,13 @@ def _add_group_lines_to_fig(
         if len(group_df) < 2:
             continue
         sorted_df = group_df.sort_values(x_key)
-        fig.add_trace(go.Scatter(
-            x=sorted_df[x_key].tolist(),
-            y=sorted_df[y_key].tolist(),
-            mode="lines",
-            line=dict(color="gray", width=1, dash="dot"),
-            showlegend=False,
-            hoverinfo="skip",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=sorted_df[x_key].tolist(),
+                y=sorted_df[y_key].tolist(),
+                mode="lines",
+                line=dict(color="gray", width=1, dash="dot"),
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
