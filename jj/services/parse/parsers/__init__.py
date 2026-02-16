@@ -23,6 +23,7 @@ from services.parse.parsers.output_parser import (
     OutputRelationParser,
     ResultRelationParser,
 )
+from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
 from services.parse.parsers.version_parser import VersionRelationParser
 from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
@@ -38,6 +39,7 @@ __all__ = [
     "JsonPropertyParser",
     "OutputRelationParser",
     "ResultRelationParser",
+    "ResultsMetadataParser",
     "RootDirectoryParser",
     "VersionRelationParser",
     "VocabFinalizer",
