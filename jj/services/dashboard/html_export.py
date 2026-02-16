@@ -13,7 +13,7 @@ Streamlit非依存の純粋関数群。描画層（app.py）から分離して
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from services.dashboard.query import (
     apply_saved_view_filters,
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 def generate_saved_views_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
     views: list[Any],
@@ -96,7 +96,7 @@ hr {{ border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }}
 
 
 def generate_view_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
     view: Any,
@@ -128,7 +128,7 @@ def generate_view_html(
 
 
 def generate_table_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     dashboard_config: Any,
     view: Any,
     vocab: dict[str, str] | None = None,
@@ -163,7 +163,7 @@ def generate_table_html(
 
 
 def generate_plot_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     view: Any,
     dashboard_config: Any = None,
 ) -> str:
@@ -208,7 +208,7 @@ def generate_plot_html(
 
 
 def generate_array_plot_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     dashboard_config: Any,
     view: Any,
 ) -> str:
@@ -331,7 +331,7 @@ def generate_array_plot_html(
 
 
 def generate_status_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> str:
     """ステータスビューのHTML断片"""
     import pandas as pd
@@ -353,7 +353,7 @@ def generate_status_html(
 
 
 def generate_card_html(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     view: Any,
 ) -> str:
     """カードビューのHTML断片"""
@@ -535,7 +535,7 @@ def _add_group_lines_to_fig(
     """同一グループのデータ点を灰色点線で結線"""
     import plotly.graph_objects as go
 
-    for group_val, group_df in df.groupby(group_key):
+    for _group_val, group_df in df.groupby(group_key):
         if len(group_df) < 2:
             continue
         sorted_df = group_df.sort_values(x_key)

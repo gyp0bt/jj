@@ -10,35 +10,35 @@ AbstractFileParserのサブクラスとして、ファイル名解析・バー�
 """
 
 # 全パーサーをimportして自動登録させる
-from services.parse.parsers.version_parser import VersionRelationParser
-from services.parse.parsers.output_parser import (
-    AssetRelationParser,
-    IncludesRelationParser,
-    OutputRelationParser,
-    ResultRelationParser,
-)
+from services.parse.parsers.csv_array_parser import CsvArrayParser
 from services.parse.parsers.directory_parser import (
     DirectoryRelationParser,
     RootDirectoryParser,
 )
 from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 from services.parse.parsers.json_property_parser import JsonPropertyParser
+from services.parse.parsers.output_parser import (
+    AssetRelationParser,
+    IncludesRelationParser,
+    OutputRelationParser,
+    ResultRelationParser,
+)
+from services.parse.parsers.version_parser import VersionRelationParser
 from services.parse.parsers.vocab_finalizer import VocabFinalizer
-from services.parse.parsers.csv_array_parser import CsvArrayParser
 
 # MeshInheritParserはstatus-088でAbaqusプラグインに移動。
 # services.plugins.abaqus.register() 経由で自動登録される。
 
 __all__ = [
-    "VersionRelationParser",
-    "ResultRelationParser",
     "AssetRelationParser",
-    "IncludesRelationParser",
-    "OutputRelationParser",
-    "DirectoryRelationParser",
-    "RootDirectoryParser",
-    "EnrichmentOnlyFilter",
-    "JsonPropertyParser",
-    "VocabFinalizer",
     "CsvArrayParser",
+    "DirectoryRelationParser",
+    "EnrichmentOnlyFilter",
+    "IncludesRelationParser",
+    "JsonPropertyParser",
+    "OutputRelationParser",
+    "ResultRelationParser",
+    "RootDirectoryParser",
+    "VersionRelationParser",
+    "VocabFinalizer",
 ]

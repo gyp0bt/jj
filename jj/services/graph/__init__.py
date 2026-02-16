@@ -15,26 +15,25 @@ AbstractFileParserサブクラス群に分散されました。
 
 from __future__ import annotations
 
+import contextlib
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Any
 
+# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
+import services.parse.parsers  # noqa: F401
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
-
 from services.graph.storage import GraphStorage
-from services.sdk.cache import CacheProvider
 from services.parse.base import parse as run_parser_pipeline
 from services.parse.file_parse import (
     DEFAULT_EXTENSIONS,
     NO_NODE_EXTENSIONS,
     FileParse,
-    FileType,
 )
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
-
-# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
-import services.parse.parsers  # noqa: F401
+from services.sdk.cache import CacheProvider
 
 # プラグインの動的発見を実行（Abaqus/Obsidian等のコネクタを登録）
 from services.sdk.plugin_registry import load_all_plugins as _load_all_plugins
@@ -61,7 +60,7 @@ class GraphService:
     def __init__(
         self,
         project_root: Path | str | None = None,
-        storage: Union[CacheProvider, GraphStorage, None] = None,
+        storage: CacheProvider | GraphStorage | None = None,
         config: GraphConfig | None = None,
     ) -> None:
         self.project_root = Path(project_root or Path.cwd()).resolve()
@@ -480,11 +479,11 @@ class GraphService:
 
         return project_graph.to_graph_model()
 
-    def load(self, filename: Optional[str] = None) -> GraphModel:
+    def load(self, filename: str | None = None) -> GraphModel:
         """グラフデータを読み込み"""
         return self.storage.load(self.project_root, filename)
 
-    def save(self, graph: GraphModel, filename: Optional[str] = None) -> Path:
+    def save(self, graph: GraphModel, filename: str | None = None) -> Path:
         """グラフデータを保存"""
         return self.storage.save(self.project_root, graph, filename)
 
@@ -492,7 +491,7 @@ class GraphService:
         self,
         extensions: Iterable[str] | None = None,
         exclude_dirs: Iterable[str] | None = None,
-        filename: Optional[str] = None,
+        filename: str | None = None,
         full_mode: bool = False,
         debug: bool = False,
     ) -> tuple[GraphModel, Path]:
@@ -505,14 +504,12 @@ class GraphService:
         path = self.save(graph, filename)
 
         # プラグインキャッシュの自動クリーンアップ（古いキャッシュの削除）
-        try:
+        with contextlib.suppress(Exception):
             self.storage.cleanup_plugin_cache(
                 self.project_root,
                 max_age_days=self.config.cache_max_age_days,
                 max_count=self.config.cache_max_count,
             )
-        except Exception:
-            pass  # クリーンアップ失敗はパース結果に影響しない
 
         return graph, path
 
@@ -520,7 +517,7 @@ class GraphService:
         """タイプでノードをフィルタリング"""
         return [n for n in graph.nodes if n.type == node_type]
 
-    def get_node_by_id(self, graph: GraphModel, node_id: int) -> Optional[Node]:
+    def get_node_by_id(self, graph: GraphModel, node_id: int) -> Node | None:
         """IDでノードを取得"""
         for node in graph.nodes:
             if node.id == node_id:

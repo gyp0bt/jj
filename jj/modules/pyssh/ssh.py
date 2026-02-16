@@ -6,9 +6,10 @@ import json
 import os
 import stat
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
-from typing import IO, Any, Iterator, Optional
+from typing import IO, Any
 
 import paramiko
 
@@ -23,15 +24,15 @@ def print_stdout(stdout):
 
 @dataclass
 class SSH_SETTING:
-    host: Optional[str] = None
-    port: Optional[str] = None
-    user: Optional[str] = None
-    password: Optional[str] = None
-    windows_local_basedirpath: Optional[str] = None
-    linux_local_basedirpath: Optional[str] = None
-    remote_basedirpath: Optional[str] = None
+    host: str | None = None
+    port: str | None = None
+    user: str | None = None
+    password: str | None = None
+    windows_local_basedirpath: str | None = None
+    linux_local_basedirpath: str | None = None
+    remote_basedirpath: str | None = None
 
-    _hostname: Optional[str] = None
+    _hostname: str | None = None
 
     def __post_init__(self):
         config = load_ssh_config(hostname=self._hostname)
@@ -49,11 +50,7 @@ class SSH_SETTING:
             if getattr(self, f.name) is None:
                 none_list.append(f.name)
         if none_list:
-            msg = (
-                "'"
-                + ", ".join(none_list)
-                + "' がNoneです。.pyssh.yaml定義を確認ください。"
-            )
+            msg = "'" + ", ".join(none_list) + "' がNoneです。.pyssh.yaml定義を確認ください。"
             raise ValueError(msg)
 
 
@@ -64,9 +61,7 @@ def get_local_filepath_from_remote_filepath(remote_filepath: str) -> str:
             f"remote_basedirpath:{setting.remote_basedirpath}, windows_local_basedirpath:{setting.windows_local_basedirpath}"
         )
 
-    local_filepath = remote_filepath.replace(
-        setting.remote_basedirpath, setting.windows_local_basedirpath
-    )
+    local_filepath = remote_filepath.replace(setting.remote_basedirpath, setting.windows_local_basedirpath)
     return local_filepath
 
 
@@ -88,9 +83,7 @@ def get_remote_filepath(local_filepath: str) -> str:
 
     if "\\" in local_filepath:
         local_filepath = get_local_linux_filepath(local_filepath)
-    remote_filepath = local_filepath.replace(
-        setting.linux_local_basedirpath, setting.remote_basedirpath
-    )
+    remote_filepath = local_filepath.replace(setting.linux_local_basedirpath, setting.remote_basedirpath)
     return remote_filepath
 
 
@@ -102,16 +95,14 @@ class SSHClient:
     def __init__(
         self,
         local_filepath_list: list[str],
-        remote_filepath_list: Optional[list[str]] = None,
+        remote_filepath_list: list[str] | None = None,
         setting: SSH_SETTING = SSH_SETTING(),
     ):
         self.setting = setting
 
         if isinstance(local_filepath_list, str):
             local_filepath_list = [local_filepath_list]
-        if remote_filepath_list is not None and len(local_filepath_list) != len(
-            remote_filepath_list
-        ):
+        if remote_filepath_list is not None and len(local_filepath_list) != len(remote_filepath_list):
             raise ValueError(
                 f"filepath_list size must be all same ({len(remote_filepath_list)} != {len(local_filepath_list)})"
             )
@@ -121,19 +112,12 @@ class SSHClient:
             if "*" in i:
                 if "/" not in i and "\\" not in i:
                     i = "./" + i
-                local_dirpath_i = get_remote_filepath(
-                    os.path.abspath(os.path.dirname(i))
-                )
+                local_dirpath_i = get_remote_filepath(os.path.abspath(os.path.dirname(i)))
                 remote_filepath_list_i = self.remote_ls(remote_dirpath=local_dirpath_i)
                 remote_filepath_list_i = [
-                    j
-                    for j in remote_filepath_list_i
-                    if os.path.basename(i).replace("*", "") in j
+                    j for j in remote_filepath_list_i if os.path.basename(i).replace("*", "") in j
                 ]
-                local_filepath_list_i = [
-                    get_local_filepath_from_remote_filepath(j)
-                    for j in remote_filepath_list_i
-                ]
+                local_filepath_list_i = [get_local_filepath_from_remote_filepath(j) for j in remote_filepath_list_i]
                 new_local_filepath_list += local_filepath_list_i
             else:
                 new_local_filepath_list.append(i)
@@ -151,10 +135,7 @@ class SSHClient:
         return str(self)
 
     def iterate_filepath(self) -> Iterator[tuple[str, str]]:
-        for local_filepath, remote_filepath in zip(
-            self.local_filepath_list, self.remote_filepath_list
-        ):
-            yield local_filepath, remote_filepath
+        yield from zip(self.local_filepath_list, self.remote_filepath_list, strict=False)
 
     @property
     def local_filepath_list(self) -> list[str]:
@@ -183,9 +164,7 @@ class SSHClient:
             for local_filepath, remote_filepath in self.iterate_filepath():
                 try:
                     if os.path.isdir(local_filepath):
-                        execute_command(
-                            f"mkdir -p {remote_filepath}", setting=self.setting
-                        )
+                        execute_command(f"mkdir -p {remote_filepath}", setting=self.setting)
                         time.sleep(0.1)
                         client = SSHClient(
                             local_filepath_list=glob.glob(local_filepath + "/*"),
@@ -201,7 +180,7 @@ class SSHClient:
                     print(f"Faild to put {local_filepath} ({e})")
                     raise e
 
-    def get(self, done: Optional[set] = None):
+    def get(self, done: set | None = None):
         if done is None:
             done = set()
         with get_sftp_connection(setting=self.setting) as sftp:
@@ -217,9 +196,7 @@ class SSHClient:
                         # print(self.remote_glob(local_filepath, return_local_filepath=True))
                         client = SSHClient(
                             # local_filepath_list=glob.glob(local_filepath + "/*"),
-                            local_filepath_list=self.remote_glob(
-                                local_filepath, return_local_filepath=True
-                            ),
+                            local_filepath_list=self.remote_glob(local_filepath, return_local_filepath=True),
                             setting=self.setting,
                         )
                         client.get(done)
@@ -248,9 +225,7 @@ class SSHClient:
             setting=self.setting,
         )
 
-    def execute_local_script_on_remote(
-        self, script_dict: dict[str, str], remote_dirpath: Optional[str] = None
-    ):
+    def execute_local_script_on_remote(self, script_dict: dict[str, str], remote_dirpath: str | None = None):
         org_local_filepath_list = self._local_filepath_list
         org_remote_filepath_list = self._remote_filepath_list
         local_filepath_list = list(script_dict.keys())
@@ -258,9 +233,7 @@ class SSHClient:
         self.put()
         remote_filepath_list = self.remote_filepath_list
 
-        for remote_filepath_i, command_i in zip(
-            remote_filepath_list, script_dict.values()
-        ):
+        for remote_filepath_i, command_i in zip(remote_filepath_list, script_dict.values(), strict=False):
             self.execute_command(
                 f"chmod +x {remote_filepath_i} && {command_i} && rm {remote_filepath_i}",
                 remote_dirpath=remote_dirpath,
@@ -270,7 +243,7 @@ class SSHClient:
         self._local_filepath_list = org_local_filepath_list
         self._remote_filepath_list = org_remote_filepath_list
 
-    def remote_ls(self, remote_dirpath: Optional[str] = None) -> list[str]:
+    def remote_ls(self, remote_dirpath: str | None = None) -> list[str]:
         if remote_dirpath is None:
             local_dirpath = os.getcwd()
             remote_dirpath = get_remote_filepath(local_dirpath)
@@ -286,9 +259,7 @@ class SSHClient:
         remote_dirpath = get_remote_filepath(local_dirpath)
         remote_filepath_list = self.remote_ls(remote_dirpath + "/")
         if return_local_filepath:
-            local_filepath_list = [
-                get_local_filepath_from_remote_filepath(i) for i in remote_filepath_list
-            ]
+            local_filepath_list = [get_local_filepath_from_remote_filepath(i) for i in remote_filepath_list]
             return local_filepath_list
         else:
             return remote_filepath_list
@@ -371,7 +342,7 @@ def execute_command(
     return stdout
 
 
-def remote_ls(remote_dirpath: Optional[str] = None) -> list[str]:
+def remote_ls(remote_dirpath: str | None = None) -> list[str]:
     if remote_dirpath is None:
         local_dirpath = os.getcwd()
         remote_dirpath = get_remote_filepath(local_dirpath) + "/"
@@ -382,9 +353,7 @@ def remote_ls(remote_dirpath: Optional[str] = None) -> list[str]:
     return filepath_list
 
 
-def execute_local_script_on_remote(
-    script_dict: dict[str, str], remote_dirpath: Optional[str] = None
-):
+def execute_local_script_on_remote(script_dict: dict[str, str], remote_dirpath: str | None = None):
     local_filepath_list = list(script_dict.keys())
     client = SSHClient(
         local_filepath_list=local_filepath_list,
@@ -392,7 +361,7 @@ def execute_local_script_on_remote(
     client.put()
     remote_filepath_list = client.remote_filepath_list
 
-    for remote_filepath_i, command_i in zip(remote_filepath_list, script_dict.values()):
+    for remote_filepath_i, command_i in zip(remote_filepath_list, script_dict.values(), strict=False):
         execute_command(
             f"chmod +x {remote_filepath_i} && {command_i} && rm {remote_filepath_i}",
             remote_dirpath=remote_dirpath,
@@ -466,8 +435,8 @@ class SSHTarget(Target):
                         if isinstance(content, bytes):
                             content = content.decode("utf-8")
                         yield to_stringio(content)
-                except Exception:
-                    raise FileNotFoundError(self.filepath)
+                except Exception as err:
+                    raise FileNotFoundError(self.filepath) from err
 
 
 def to_stringio(initial: str | bytearray | memoryview) -> io.StringIO:

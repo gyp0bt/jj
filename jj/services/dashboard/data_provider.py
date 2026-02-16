@@ -11,7 +11,6 @@ float値は桁数が大きい場合に指数表示（小数2桁）でフォー�
 
 from __future__ import annotations
 
-import json
 import math
 from datetime import datetime, timezone
 from typing import Any

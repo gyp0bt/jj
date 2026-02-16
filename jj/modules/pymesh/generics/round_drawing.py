@@ -1,8 +1,9 @@
 import os
+
 import numpy as np
-from typing import Optional
-from ..mesh import Nodes, Elements, Nset, Elset, Mesher
+
 from ..etypes import ElementType
+from ..mesh import Mesher
 from ..utils.extrude import ExtrudeLine
 
 
@@ -10,8 +11,8 @@ def create_wire(
     D0: float,
     num_div_x: int,
     wire_length0: float,
-    mesh: Optional[Mesher] = None,
-    num_div_y: Optional[int] = None,
+    mesh: Mesher | None = None,
+    num_div_y: int | None = None,
 ) -> Mesher:
     if mesh is None:
         mesh = Mesher()
@@ -19,16 +20,10 @@ def create_wire(
     init_label = mesh.get_max_labels()
     init_node_label, init_element_label = init_label.node, init_label.elem
 
-    node_data = [
-        [i + 1 + init_node_label, i / num_div_x * D0 / 2.0, 0.0, 0.0]
-        for i in range(num_div_x + 1)
-    ]
+    node_data = [[i + 1 + init_node_label, i / num_div_x * D0 / 2.0, 0.0, 0.0] for i in range(num_div_x + 1)]
     mesh.add_nodes("global", np.array(node_data))
 
-    elem_data = [
-        [i + 1 + init_element_label, node_data[i][0], node_data[i + 1][0]]
-        for i in range(len(node_data) - 1)
-    ]
+    elem_data = [[i + 1 + init_element_label, node_data[i][0], node_data[i + 1][0]] for i in range(len(node_data) - 1)]
     mesh.add_elements("__ptmp", arr=np.array(elem_data), type=ElementType.B31.name)
 
     if num_div_y is None:
@@ -74,9 +69,9 @@ def create_wire(
     ].tolist()
     mesh.add_elset("gcenter", gcenter)
 
-    mesh.elements_data.get_parent_with_elset(
-        elset_name="pwire", type=ElementType.S4.name
-    ).options = dict(elset="pwire", type=ElementType.CAX4R.name)
+    mesh.elements_data.get_parent_with_elset(elset_name="pwire", type=ElementType.S4.name).options = dict(
+        elset="pwire", type=ElementType.CAX4R.name
+    )
 
     return mesh
 
@@ -87,7 +82,7 @@ def create_die(
     A0: float,
     R0: float,
     BL0: float,
-    mesh: Optional[Mesher] = None,
+    mesh: Mesher | None = None,
     num_div: int = 100,
     se: bool = False,
     elset_name: str = "pjig",
@@ -128,11 +123,7 @@ def create_die(
             xi = die_inlet_d - yi * tan_a
 
         elif yi < a_reduction_length + r_reduction_length:
-            xi = (
-                -np.sqrt(R0**2 - (yi - (a_reduction_length + r_reduction_length)) ** 2)
-                + R0
-                + D1 / 2.0
-            )
+            xi = -np.sqrt(R0**2 - (yi - (a_reduction_length + r_reduction_length)) ** 2) + R0 + D1 / 2.0
 
         elif yi < total_die_length - BL0 * 0.2:
             xi = D1 / 2.0
@@ -152,12 +143,7 @@ def create_die(
     mesh.add_elements(
         "__ptmp",
         type=ElementType.B31.name,
-        arr=np.array(
-            [
-                [i + 1 + init_element_label, data[i][0], data[i + 1][0]]
-                for i in range(len(data) - 1)
-            ]
-        ),
+        arr=np.array([[i + 1 + init_element_label, data[i][0], data[i + 1][0]] for i in range(len(data) - 1)]),
     )
 
     to_x = max([die_inlet_d * 1.1, D1 / 2.0 + BL0 * 0.2])
@@ -175,16 +161,14 @@ def create_die(
         x=to_x,
     )
 
-    mesh.elements_data.get_parent_with_elset(
-        elset_name=elset_name, type=ElementType.S4.name
-    ).options = dict(elset=elset_name, type=ElementType.CAX4R.name)
+    mesh.elements_data.get_parent_with_elset(elset_name=elset_name, type=ElementType.S4.name).options = dict(
+        elset=elset_name, type=ElementType.CAX4R.name
+    )
 
     if add_refnode:
         max_label = mesh.get_max_labels()
         max_node_label = max_label.node
-        mesh.add_nodes(
-            f"ref{elset_name[1:]}", arr=np.array([[max_node_label + 1, 0.0, 0.0, 0.0]])
-        )
+        mesh.add_nodes(f"ref{elset_name[1:]}", arr=np.array([[max_node_label + 1, 0.0, 0.0, 0.0]]))
 
     return mesh
 
@@ -201,11 +185,11 @@ def write_input(
     inp_filepath: str,
     material_inp_filepath: str,
     material_name: str,
-    wire_length0: Optional[float] = None,
+    wire_length0: float | None = None,
     se: bool = False,
     add: bool = False,
     is_explicit: bool = True,
-    mass_scale: Optional[float] = 1.0e-6,
+    mass_scale: float | None = 1.0e-6,
 ):
     m = Mesher()
 
@@ -251,13 +235,12 @@ def write_input(
 
     # init_node_label, _ = m.get_max_labels()
     init_label = m.get_max_labels()
-    init_node_label, init_element_label = init_label.node, init_label.elem
+    init_node_label, _init_element_label = init_label.node, init_label.elem
 
     working_directory = os.path.dirname(inp_filepath) + "/"
     os.system(f"cp {material_inp_filepath} {working_directory}")
 
     with open(inp_filepath, "a") as f:
-
         text = f"""\
 *********************************************************
 *********************************************************
@@ -277,7 +260,7 @@ def write_input(
 *solid section, elset=pjig, material={material_name}
 **
 *node, nset=refjig
- {int(init_node_label+1)}, 0., 0., 0.
+ {int(init_node_label + 1)}, 0., 0., 0.
 *rigid body, refnode=refjig, elset=Pjig
 *********************************************************
 *********************************************************
@@ -292,7 +275,7 @@ def write_input(
 *surface, type=element, name=Sback
  Gback
 *node, nset=reffront
- {int(init_node_label+2)}, 0., 0., 0.
+ {int(init_node_label + 2)}, 0., 0., 0.
 *equation
  2
  gymax, 2, 1, reffront, 2, -1
@@ -304,7 +287,7 @@ def write_input(
 *friction
  <F0>
 *surface behavior, pressure-overclosure=exponential
- 0.0001, 1. 
+ 0.0001, 1.
 *surface interaction, name=frict010
 *friction
  0.1

@@ -13,30 +13,29 @@ Neo4jサーバーが必要なテスト:
 """
 
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from jj_types import Node, Relation, GraphModel
+import pytest
+
+from jj_types import GraphModel, Node, Relation
+from services.export.connectors.neo4j import (
+    Neo4jConnector,
+    _build_node_properties,
+    _escape_cypher_string,
+    _format_cypher_value,
+    _is_homogeneous_list,
+    _sanitize_property_value,
+)
+from shared.config import Neo4jConfig
 from shared.neo4j_schema import (
-    NodeLabel,
-    RelType,
     LABEL_TO_RELTYPE,
     TYPE_TO_LABEL,
+    NodeLabel,
+    RelType,
     get_neo4j_label,
     get_neo4j_reltype,
 )
 from shared.types import Neo4jNodeData, Neo4jRelationData
-from shared.config import Neo4jConfig
-from services.export.connectors.neo4j import (
-    Neo4jConnector,
-    _sanitize_property_value,
-    _is_homogeneous_list,
-    _build_node_properties,
-    _escape_cypher_string,
-    _format_cypher_value,
-)
-
 
 # ===== テストデータ =====
 
@@ -138,10 +137,20 @@ class TestLabelToReltype:
     def test_all_jj_labels_mapped(self):
         """jjで使用される全ラベルがマッピングされている"""
         expected_labels = [
-            "next_version", "same_index_group", "includes", "has_output",
-            "derived_from", "result_of", "contains", "tagged",
-            "uses_material", "executed_by", "generated",
-            "defined_in", "assigned_to", "mentioned_in",
+            "next_version",
+            "same_index_group",
+            "includes",
+            "has_output",
+            "derived_from",
+            "result_of",
+            "contains",
+            "tagged",
+            "uses_material",
+            "executed_by",
+            "generated",
+            "defined_in",
+            "assigned_to",
+            "mentioned_in",
         ]
         for label in expected_labels:
             assert label in LABEL_TO_RELTYPE, f"{label} がLABEL_TO_RELTYPEに未定義"
@@ -157,8 +166,15 @@ class TestTypeToLabel:
 
     def test_file_types_map_to_jjfile(self):
         file_types = [
-            "calculation_input", "mesh", "material", "step",
-            "result", "asset", "folder", "output", "other",
+            "calculation_input",
+            "mesh",
+            "material",
+            "step",
+            "result",
+            "asset",
+            "folder",
+            "output",
+            "other",
         ]
         for t in file_types:
             assert TYPE_TO_LABEL[t] == NodeLabel.JJ_FILE
@@ -254,12 +270,14 @@ class TestNeo4jConfig:
         assert config.database == "neo4j"
 
     def test_from_dict(self):
-        config = Neo4jConfig.from_dict({
-            "uri": "bolt://db.example.com:7687",
-            "user": "admin",
-            "password": "secret",
-            "database": "mydb",
-        })
+        config = Neo4jConfig.from_dict(
+            {
+                "uri": "bolt://db.example.com:7687",
+                "user": "admin",
+                "password": "secret",
+                "database": "mydb",
+            }
+        )
         assert config.uri == "bolt://db.example.com:7687"
         assert config.user == "admin"
         assert config.password == "secret"
@@ -400,7 +418,10 @@ class TestBuildNodeProperties:
     def test_hyphen_key_converted(self):
         """ハイフン含みキーはアンダースコアに変換"""
         node = Node(
-            id=1, type="other", name="test", format="",
+            id=1,
+            type="other",
+            name="test",
+            format="",
             properties={"some-key": "value"},
         )
         props = _build_node_properties(node, "proj")
@@ -614,7 +635,7 @@ class TestNeo4jConnectorWithMock:
 
         connector._driver = mock_driver
 
-        stats = connector.export_graph(graph)
+        connector.export_graph(graph)
 
         # セッションが開かれたことを確認
         mock_driver.session.assert_called()
@@ -700,6 +721,7 @@ class TestExportCLIArgs:
         subparsers = parser.add_subparsers()
 
         from cli.graph import add_top_level_graph_commands
+
         add_top_level_graph_commands(subparsers)
 
         # neo4j
@@ -718,15 +740,23 @@ class TestExportCLIArgs:
         subparsers = parser.add_subparsers()
 
         from cli.graph import add_top_level_graph_commands
+
         add_top_level_graph_commands(subparsers)
 
-        args = parser.parse_args([
-            "export", "--target", "neo4j",
-            "--clear",
-            "--neo4j-uri", "bolt://custom:7687",
-            "--neo4j-user", "admin",
-            "--neo4j-password", "secret",
-        ])
+        args = parser.parse_args(
+            [
+                "export",
+                "--target",
+                "neo4j",
+                "--clear",
+                "--neo4j-uri",
+                "bolt://custom:7687",
+                "--neo4j-user",
+                "admin",
+                "--neo4j-password",
+                "secret",
+            ]
+        )
         assert args.target == "neo4j"
         assert args.clear is True
         assert args.neo4j_uri == "bolt://custom:7687"
@@ -750,8 +780,8 @@ class TestEndToEndCypherExport:
         content = output.read_text(encoding="utf-8")
 
         # 各ラベルのMERGE文が存在する
-        assert "MERGE (n:JJFile" in content       # calculation_input, mesh, folder
-        assert "MERGE (n:JJMaterial" in content    # abaqus_material
+        assert "MERGE (n:JJFile" in content  # calculation_input, mesh, folder
+        assert "MERGE (n:JJMaterial" in content  # abaqus_material
 
     def test_all_relation_labels_mapped(self, tmp_path):
         """全リレーションラベルがNeo4jタイプにマッピングされる"""
@@ -795,10 +825,7 @@ class TestEndToEndCypherExport:
             )
             for i in range(1, 101)
         ]
-        relations = [
-            Relation(id=i, label="next_version", node1_id=i, node2_id=i + 1)
-            for i in range(1, 100)
-        ]
+        relations = [Relation(id=i, label="next_version", node1_id=i, node2_id=i + 1) for i in range(1, 100)]
         graph = GraphModel(nodes=nodes, relations=relations)
 
         connector = Neo4jConnector(project_root=tmp_path)

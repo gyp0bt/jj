@@ -1,12 +1,9 @@
-import numpy as np
-from ...mesh import Nodes, Elements, Nset, Elset, Mesher
+from ...mesh import Mesher
 
 
 def create_beam(L: float, n: int, initial_labels: tuple[int, int] = (1, 1)) -> Mesher:
     mesh = Mesher()
-    node_array = [
-        [int(initial_labels[0] + i), 0.0, 0.0, L * i / (n - 1)] for i in range(n)
-    ]
+    node_array = [[int(initial_labels[0] + i), 0.0, 0.0, L * i / (n - 1)] for i in range(n)]
     mesh.add_nodes(nset="global", arr=node_array)
 
     element_array = [

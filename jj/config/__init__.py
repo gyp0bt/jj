@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import fnmatch
-import importlib.resources
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -31,7 +30,7 @@ DEFAULT_PREFIXES = {
 }
 
 
-def get_config_dir(base_dir: Optional[Path] = None) -> Path:
+def get_config_dir(base_dir: Path | None = None) -> Path:
     if base_dir is None:
         base_dir = Path.cwd()
     return base_dir / CONFIG_DIRNAME
@@ -47,7 +46,7 @@ def read_yaml(filepath: Path) -> dict[str, Any]:
     return data
 
 
-def find_ssh_config_path(base_dir: Optional[Path] = None) -> Optional[Path]:
+def find_ssh_config_path(base_dir: Path | None = None) -> Path | None:
     config_dir = get_config_dir(base_dir)
     candidates = [
         config_dir / SSH_CONFIG_FILENAME,
@@ -60,11 +59,11 @@ def find_ssh_config_path(base_dir: Optional[Path] = None) -> Optional[Path]:
     return None
 
 
-def throw_yaml_nonexistent_error(msg: Optional[str] = None) -> ValueError:
+def throw_yaml_nonexistent_error(msg: str | None = None) -> ValueError:
     config_dir = get_config_dir()
     text = (
         f"'{config_dir / SSH_CONFIG_FILENAME}'か'./{SSH_CONFIG_FILENAME}'"
-        f"または'{str(Path.home() / SSH_CONFIG_FILENAME)}'を設定してください。"
+        f"または'{Path.home() / SSH_CONFIG_FILENAME!s}'を設定してください。"
     )
     if msg is not None:
         text += f"({msg})"
@@ -77,7 +76,7 @@ class VocabConfig:
     categories: dict[str, list[str]]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "VocabConfig":
+    def from_dict(cls, data: dict[str, Any]) -> VocabConfig:
         mapping = data.get("mapping") or {}
         categories = data.get("categories") or {}
 
@@ -99,19 +98,19 @@ class VocabConfig:
 
 @dataclass
 class SSHConfig:
-    host: Optional[str] = None
-    port: Optional[str] = None
-    user: Optional[str] = None
-    password: Optional[str] = None
-    windows_local_basedirpath: Optional[str] = None
-    linux_local_basedirpath: Optional[str] = None
-    remote_basedirpath: Optional[str] = None
-    remote_abq_path: Optional[str] = None
+    host: str | None = None
+    port: str | None = None
+    user: str | None = None
+    password: str | None = None
+    windows_local_basedirpath: str | None = None
+    linux_local_basedirpath: str | None = None
+    remote_basedirpath: str | None = None
+    remote_abq_path: str | None = None
 
-    _hostname: Optional[str] = None
+    _hostname: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], hostname: Optional[str] = None) -> "SSHConfig":
+    def from_dict(cls, data: dict[str, Any], hostname: str | None = None) -> SSHConfig:
         hostkey = "HOST"
         passwordkey = "PASSWORD"
         if hostname:
@@ -150,7 +149,7 @@ class AppConfig:
     prefixes: PrefixesConfig
 
     @classmethod
-    def load(cls, base_dir: Optional[Path] = None, hostname: Optional[str] = None) -> "AppConfig":
+    def load(cls, base_dir: Path | None = None, hostname: str | None = None) -> AppConfig:
         ssh_config = load_ssh_config(base_dir=base_dir, hostname=hostname)
         vocab = load_vocab_config(base_dir=base_dir)
         extensions = load_extensions_config(base_dir=base_dir)
@@ -163,7 +162,7 @@ class AppConfig:
         )
 
 
-def load_vocab_config(base_dir: Optional[Path] = None) -> VocabConfig:
+def load_vocab_config(base_dir: Path | None = None) -> VocabConfig:
     config_dir = get_config_dir(base_dir)
     path = config_dir / VOCAB_CONFIG_FILENAME
     if not path.exists():
@@ -172,7 +171,7 @@ def load_vocab_config(base_dir: Optional[Path] = None) -> VocabConfig:
     return VocabConfig.from_dict(data)
 
 
-def load_ssh_config(base_dir: Optional[Path] = None, hostname: Optional[str] = None) -> SSHConfig:
+def load_ssh_config(base_dir: Path | None = None, hostname: str | None = None) -> SSHConfig:
     path = find_ssh_config_path(base_dir)
     if path is None:
         raise throw_yaml_nonexistent_error("yaml定義が空です")
@@ -187,7 +186,7 @@ class ExtensionsConfig:
     multi_dot: list[str]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExtensionsConfig":
+    def from_dict(cls, data: dict[str, Any]) -> ExtensionsConfig:
         calculation_input = data.get("calculation_input") or []
         mesh = data.get("mesh") or []
         multi_dot = data.get("multi_dot") or []
@@ -211,7 +210,7 @@ class PrefixesConfig:
     prefixes: dict[str, str]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PrefixesConfig":
+    def from_dict(cls, data: dict[str, Any]) -> PrefixesConfig:
         prefixes = data.get("prefixes") or {}
 
         if not isinstance(prefixes, dict) or not all(
@@ -222,7 +221,7 @@ class PrefixesConfig:
         return cls(prefixes=prefixes)
 
 
-def load_extensions_config(base_dir: Optional[Path] = None) -> ExtensionsConfig:
+def load_extensions_config(base_dir: Path | None = None) -> ExtensionsConfig:
     config_dir = get_config_dir(base_dir)
     path = config_dir / EXTENSIONS_CONFIG_FILENAME
     if not path.exists():
@@ -231,7 +230,7 @@ def load_extensions_config(base_dir: Optional[Path] = None) -> ExtensionsConfig:
     return ExtensionsConfig.from_dict(data)
 
 
-def load_prefixes_config(base_dir: Optional[Path] = None) -> PrefixesConfig:
+def load_prefixes_config(base_dir: Path | None = None) -> PrefixesConfig:
     config_dir = get_config_dir(base_dir)
     path = config_dir / PREFIXES_CONFIG_FILENAME
     if not path.exists():
@@ -240,7 +239,7 @@ def load_prefixes_config(base_dir: Optional[Path] = None) -> PrefixesConfig:
     return PrefixesConfig.from_dict(data)
 
 
-def init_config_dir(base_dir: Optional[Path] = None) -> None:
+def init_config_dir(base_dir: Path | None = None) -> None:
     """
     .jj/config/ ディレクトリを初期化します。
     フォルダが既に存在する場合は、初期化処理をスキップします。
@@ -302,7 +301,7 @@ def load_default_config() -> dict[str, Any]:
     return {}
 
 
-def load_project_config(base_dir: Optional[Path] = None) -> dict[str, Any]:
+def load_project_config(base_dir: Path | None = None) -> dict[str, Any]:
     """プロジェクト固有の設定を読み込む（デフォルトとマージ）"""
     config_dir = get_config_dir(base_dir)
     config_path = config_dir / CONFIG_FILENAME
@@ -359,7 +358,7 @@ class PathTypeMapConfig:
     rules: list[tuple[list[str], dict[str, str]]]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PathTypeMapConfig":
+    def from_dict(cls, data: dict[str, Any]) -> PathTypeMapConfig:
         rules: list[tuple[list[str], dict[str, str]]] = []
         if not data:
             return cls(rules=[])
@@ -379,7 +378,7 @@ class PathTypeMapConfig:
         rules.sort(key=rule_specificity, reverse=True)
         return cls(rules=rules)
 
-    def get_type(self, path: str, filename: str) -> Optional[str]:
+    def get_type(self, path: str, filename: str) -> str | None:
         """パスとファイル名からタイプを取得（マッチしない場合はNone）
 
         より具体的なパターンが先に評価されるため、最初にマッチしたものが返されます。
@@ -405,7 +404,7 @@ class PathPropertyMapConfig:
     rules: list[tuple[list[str], dict[str, Any]]]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PathPropertyMapConfig":
+    def from_dict(cls, data: dict[str, Any]) -> PathPropertyMapConfig:
         rules: list[tuple[list[str], dict[str, Any]]] = []
         if not data:
             return cls(rules=[])
@@ -434,7 +433,7 @@ class PathTagMapConfig:
     rules: list[tuple[list[str], str]]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PathTagMapConfig":
+    def from_dict(cls, data: dict[str, Any]) -> PathTagMapConfig:
         rules: list[tuple[list[str], str]] = []
         if not data:
             return cls(rules=[])
@@ -477,7 +476,7 @@ class TokenKeyMapConfig:
     rules: dict[str, list[str]]  # key → list of token values
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TokenKeyMapConfig":
+    def from_dict(cls, data: dict[str, Any]) -> TokenKeyMapConfig:
         if not data:
             return cls(rules={})
         rules: dict[str, list[str]] = {}
@@ -488,7 +487,7 @@ class TokenKeyMapConfig:
                 rules[str(key)] = [str(tokens)]
         return cls(rules=rules)
 
-    def get_key(self, token: str) -> Optional[str]:
+    def get_key(self, token: str) -> str | None:
         """トークンに対応するキーを返す（マッチしない場合はNone）"""
         for key, tokens in self.rules.items():
             if token in tokens:
@@ -503,7 +502,7 @@ class IgnoreConfig:
     patterns: list[str]
 
     @classmethod
-    def from_list(cls, data: list[str] | None) -> "IgnoreConfig":
+    def from_list(cls, data: list[str] | None) -> IgnoreConfig:
         if not data:
             return cls(patterns=[])
         return cls(patterns=[str(p) for p in data])
@@ -530,7 +529,7 @@ class FileRelationsConfig:
     asset_extensions: frozenset[str]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FileRelationsConfig":
+    def from_dict(cls, data: dict[str, Any]) -> FileRelationsConfig:
         return cls(
             input_extensions=frozenset(data.get("input-extensions", [".inp", ".cas.h5", ".k", ".key", ".dat"])),
             result_extensions=frozenset(data.get("result-extensions", [".odb", ".sta", ".msg", ".csv", ".json"])),
@@ -547,7 +546,7 @@ class ObsidianVaultConfig:
     core_plugins: dict[str, bool]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ObsidianVaultConfig":
+    def from_dict(cls, data: dict[str, Any]) -> ObsidianVaultConfig:
         return cls(
             app=data.get(
                 "app",
@@ -596,7 +595,7 @@ class ObsidianExportConfig:
     vault: ObsidianVaultConfig
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ObsidianExportConfig":
+    def from_dict(cls, data: dict[str, Any]) -> ObsidianExportConfig:
         return cls(
             notes_dir=data.get("notes-dir", "notes/props"),
             bases_dir=data.get("bases-dir", "notes/bases"),
@@ -622,7 +621,7 @@ class SavedViewConfig:
     array_plot: dict[str, Any]  # 配列プロット条件 {"prefix": ..., "x": ..., "y": [...], "mode": ...}
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SavedViewConfig":
+    def from_dict(cls, data: dict[str, Any]) -> SavedViewConfig:
         name = data.get("name", "")
         if not name:
             raise ValueError("saved-views[].name is required")
@@ -680,7 +679,7 @@ class DashboardConfig:
         return dict(self.connector_configs.get(connector_key, {}))
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DashboardConfig":
+    def from_dict(cls, data: dict[str, Any]) -> DashboardConfig:
         if not data:
             return cls(
                 table_columns=None,
@@ -765,7 +764,7 @@ class ExportConfig:
     csv_unit_format: str  # "header" or "row"
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExportConfig":
+    def from_dict(cls, data: dict[str, Any]) -> ExportConfig:
         if not data:
             return cls(csv_columns=None, units={}, csv_unit_format="header")
         csv_columns = data.get("csv-columns")
@@ -807,7 +806,7 @@ class SolverProfileConfig:
     result_directory_pattern: str  # OpenFOAM: 数字ディレクトリの正規表現
 
     @classmethod
-    def from_dict(cls, name: str, data: dict[str, Any]) -> "SolverProfileConfig":
+    def from_dict(cls, name: str, data: dict[str, Any]) -> SolverProfileConfig:
         source_unit = str(data.get("source-unit", "file"))
         if source_unit not in ("file", "directory"):
             raise ValueError(f"source-unit must be 'file' or 'directory', got '{source_unit}'")
@@ -855,7 +854,7 @@ class SolverDetectionConfig:
     rules: list[tuple[list[str], str]]  # (patterns, profile_name)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SolverDetectionConfig":
+    def from_dict(cls, data: dict[str, Any]) -> SolverDetectionConfig:
         rules: list[tuple[list[str], str]] = []
         if not data:
             return cls(rules=[])
@@ -864,7 +863,7 @@ class SolverDetectionConfig:
             rules.append((patterns, str(profile_name)))
         return cls(rules=rules)
 
-    def detect(self, path: str) -> Optional[str]:
+    def detect(self, path: str) -> str | None:
         """パスからソルバープロファイル名を検出（マッチしない場合はNone）"""
         for patterns, profile_name in self.rules:
             for pattern in patterns:
@@ -888,11 +887,11 @@ class GraphConfig:
     project_name: str
     export: ExportConfig
     dashboard: DashboardConfig
-    directory_max_depth: Optional[int]  # None=無制限（最終階層まで）
+    directory_max_depth: int | None  # None=無制限（最終階層まで）
     include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
     cache_max_age_days: int  # プラグインキャッシュ保持期間（日数、デフォルト30）
     cache_max_count: int  # プラグインキャッシュ最大保持数（デフォルト100）
-    verbose_name_format: Optional[str]  # verbose_nameのフォーマットテンプレート（例: "条件{idx}(高さ{t},荷重{F})"）
+    verbose_name_format: str | None  # verbose_nameのフォーマットテンプレート（例: "条件{idx}(高さ{t},荷重{F})"）
     solver_profiles: dict[str, SolverProfileConfig]  # ソルバー別設定プロファイル
     solver_detection: SolverDetectionConfig  # ソルバー自動検出ルール
 
@@ -914,7 +913,7 @@ class GraphConfig:
         return self.solver_profiles.get("default", _DEFAULT_SOLVER_PROFILE)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GraphConfig":
+    def from_dict(cls, data: dict[str, Any]) -> GraphConfig:
         raw_depth = data.get("directory-max-depth")
         if raw_depth is not None:
             raw_depth = int(raw_depth)
@@ -967,7 +966,7 @@ class GraphConfig:
         )
 
     @classmethod
-    def load(cls, base_dir: Optional[Path] = None) -> "GraphConfig":
+    def load(cls, base_dir: Path | None = None) -> GraphConfig:
         """プロジェクト設定を読み込んでGraphConfigを生成
 
         config.yamlのvocabセクションとvocab.yamlのmappingをマージする。
@@ -1055,7 +1054,7 @@ def _match_path_pattern(path: str, pattern: str) -> bool:
     return fnmatch.fnmatch(normalized_path, normalized_pattern)
 
 
-def init_graph_config(base_dir: Optional[Path] = None, overwrite: bool = False) -> Path:
+def init_graph_config(base_dir: Path | None = None, overwrite: bool = False) -> Path:
     """グラフ設定ファイルを初期化（default-config.yamlをコメント付きでコピー）
 
     コメントや使用例を保持するため、yaml.safe_dumpではなく

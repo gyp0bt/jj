@@ -1,9 +1,10 @@
 import os
 import random
 import re
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import ClassVar
 
 import chardet
 import numpy as np
@@ -12,9 +13,7 @@ from numpy.typing import NDArray
 from .misc.data import create_custom_meta
 
 read_component_list = []
-ReadComponentMeta = create_custom_meta(
-    subclasses_list=read_component_list, name_list=[]
-)
+ReadComponentMeta = create_custom_meta(subclasses_list=read_component_list, name_list=[])
 
 
 class ReadComponent(metaclass=ReadComponentMeta):
@@ -96,7 +95,7 @@ class ReadComponent(metaclass=ReadComponentMeta):
 
 
 class ReadNode(ReadComponent):
-    dtype = [
+    dtype: ClassVar[list] = [
         ("label", "int32"),
         ("x", "float32"),
         ("y", "float32"),
@@ -109,9 +108,7 @@ class ReadNode(ReadComponent):
     def read_line(self, line: str):
         values = line.split(",")
         try:
-            self.data.append(
-                (int(values[0]), float(values[1]), float(values[2]), float(values[3]))
-            )
+            self.data.append((int(values[0]), float(values[1]), float(values[2]), float(values[3])))
         except Exception:
             self.data.append((int(values[0]), None, None, None))
 
@@ -140,7 +137,7 @@ class ReadNset(ReadComponent):
 
     @staticmethod
     def _read_line(instance, line: str):
-        if "generate" not in instance.options.keys():
+        if "generate" not in instance.options:
             instance.data += [str(i) for i in line.split(",")]
         else:
             start, stop, step = (int(i) for i in line.split(","))
@@ -233,17 +230,13 @@ def read_inp(inp_filepath: list[str] | str) -> MeshData:
                         if os.path.exists(include_file):
                             yield from get_lines(include_file)
                         else:
-                            print(
-                                UserWarning(
-                                    f"FileNotFoundWarning: {include_file} does not exists. ({inp_filepath})"
-                                )
-                            )
+                            print(UserWarning(f"FileNotFoundWarning: {include_file} does not exists. ({inp_filepath})"))
                     else:
                         yield line.lower()
 
         success = False
         encoding = detect_file_encoding(inp_filepath, n=100)
-        encoding_list = ["utf-8"] + [encoding] + ["shift_jis", "ascii", "cp932"]
+        encoding_list = ["utf-8", encoding, "shift_jis", "ascii", "cp932"]
         encoding_list = list(dict.fromkeys(encoding_list))
         # print(encoding_list)
         for encoding_i in encoding_list:
@@ -254,22 +247,18 @@ def read_inp(inp_filepath: list[str] | str) -> MeshData:
                 success = True
                 break
             except Exception:
-                print(
-                    f"Failed to open {inp_filepath} with encoding '{encoding_i}'. Retrying to open with the others"
-                )
+                print(f"Failed to open {inp_filepath} with encoding '{encoding_i}'. Retrying to open with the others")
         if not isinstance(lines, list):
             raise ValueError
         if success:
             yield from lines
         else:
             # print(f"Failed to open {inp_filepath} with encoding '{encoding_i}'.")
-            raise RuntimeError(
-                f"Failed to open {inp_filepath} with encoding '{encoding_i}'."
-            )
+            raise RuntimeError(f"Failed to open {inp_filepath} with encoding '{encoding_i}'.")
 
     lines = []
-    for inp_filepath in inp_filepath:
-        lines += list(get_lines(inp_filepath))
+    for single_filepath in inp_filepath:
+        lines += list(get_lines(single_filepath))
 
     # for i in lines:
     # print(i)
@@ -295,17 +284,11 @@ def read_inp(inp_filepath: list[str] | str) -> MeshData:
                 current_component.read_line(line=line)
             except Exception as e:
                 print(line)
-                raise RuntimeError(
-                    f"Error: Failed to read inp file, line:{i + 1}"
-                ) from e
+                raise RuntimeError(f"Error: Failed to read inp file, line:{i + 1}") from e
 
     return MeshData(
         nodes={i.options["nset"]: i for i in all_components if i.key == "node"},
-        elements={
-            f"{i.options['elset']},type={i.options['type']}": i
-            for i in all_components
-            if i.key == "element"
-        },
+        elements={f"{i.options['elset']},type={i.options['type']}": i for i in all_components if i.key == "element"},
         nsets={i.options["nset"]: i for i in all_components if i.key == "nset"},
         elsets={i.options["elset"]: i for i in all_components if i.key == "elset"},
         surfaces={i.options["name"]: i for i in all_components if i.key == "surface"},
@@ -343,9 +326,7 @@ def normalize_file(
     filepath.write_text(newline.join(non_blank_lines), encoding="utf-8")
 
 
-def merge_included_inp_files(
-    inp_filepath: str, output_filepath: Optional[str] = None
-) -> str:
+def merge_included_inp_files(inp_filepath: str, output_filepath: str | None = None) -> str:
     def get_lines(inp_filepath: str, _n: int = 100) -> Generator[str, None, None]:
         def _read(encoding: str) -> Generator[str, None, None]:
             with open(inp_filepath, encoding=encoding) as f:
@@ -363,17 +344,13 @@ def merge_included_inp_files(
                         if os.path.exists(include_file):
                             yield from get_lines(include_file)
                         else:
-                            print(
-                                UserWarning(
-                                    f"FileNotFoundWarning: {include_file} does not exists."
-                                )
-                            )
+                            print(UserWarning(f"FileNotFoundWarning: {include_file} does not exists."))
                     else:
                         yield line.lower()
 
         success = False
         encoding = detect_file_encoding(inp_filepath, n=100)
-        encoding_list = ["utf-8"] + [encoding] + ["shift_jis", "ascii", "cp932"]
+        encoding_list = ["utf-8", encoding, "shift_jis", "ascii", "cp932"]
         encoding_list = list(dict.fromkeys(encoding_list))
         # print(encoding_list)
         for encoding_i in encoding_list:
@@ -384,18 +361,14 @@ def merge_included_inp_files(
                 success = True
                 break
             except Exception:
-                print(
-                    f"Failed to open {inp_filepath} with encoding '{encoding_i}'. Retrying to open with the others"
-                )
+                print(f"Failed to open {inp_filepath} with encoding '{encoding_i}'. Retrying to open with the others")
         if not isinstance(lines, list):
             raise ValueError
         if success:
             yield from lines
         else:
             # print(f"Failed to open {inp_filepath} with encoding '{encoding_i}'.")
-            raise RuntimeError(
-                f"Failed to open {inp_filepath} with encoding '{encoding_i}'."
-            )
+            raise RuntimeError(f"Failed to open {inp_filepath} with encoding '{encoding_i}'.")
 
     lines = list(get_lines(inp_filepath))
     # 元は text = lines[0] + "\n".join(lines[0:]) になっているが、
@@ -478,7 +451,7 @@ def parse_inp_structure_from_text(text: str) -> InpStructure:
     boundaries: list[BoundaryConditionSpec] = []
     loads: list[LoadConditionSpec] = []
 
-    current_material_name: Optional[str] = None
+    current_material_name: str | None = None
     expect_elastic: bool = False
     in_boundary: bool = False
     in_load: bool = False
@@ -520,9 +493,7 @@ def parse_inp_structure_from_text(text: str) -> InpStructure:
                 mat = opts.get("material")
                 elset = opts.get("elset")
                 if mat and elset:
-                    solid_sections.append(
-                        SolidSectionAssignment(elset=elset, material=mat)
-                    )
+                    solid_sections.append(SolidSectionAssignment(elset=elset, material=mat))
 
             elif key == "boundary":
                 in_boundary = True
@@ -662,9 +633,7 @@ def get_global_linear_material_from_inp(inp_filepath: str) -> tuple[float, float
         mat_props.add((mat.young, mat.poisson))
 
     if len(mat_props) != 1:
-        raise RuntimeError(
-            f"solid section に複数種類の (E, nu) が割り当てられています: {mat_props}"
-        )
+        raise RuntimeError(f"solid section に複数種類の (E, nu) が割り当てられています: {mat_props}")
 
     ((E, nu),) = mat_props  # 1 要素のタプルを unpack
     return E, nu
@@ -712,9 +681,7 @@ def get_boundary_and_load_condition_from_inp(
                 labels = [int(load.set_name)]
             except Exception:
                 labels = [i for i in mesh.get_node_labels(name=load.set_name)]
-                labels += [
-                    i for i in mesh.get_node_labels_with_nset(name=load.set_name)
-                ]
+                labels += [i for i in mesh.get_node_labels_with_nset(name=load.set_name)]
             for label_i in labels:
                 f1, f2 = node_label_load_mapping.get(label_i, (0.0, 0.0))
                 if load.dof == 1:

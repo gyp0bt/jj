@@ -9,10 +9,9 @@ CLI層はargparse解析と出力整形のみに責務を限定する。
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Optional
+from typing import Any
 
 from jj_types import GraphModel, Node, Relation
-from config import GraphConfig
 from services.graph import GraphService
 
 
@@ -32,9 +31,7 @@ class InfoService:
         """グラフデータをロード"""
         return self.service.load(filename=filename)
 
-    def parse_and_save(
-        self, filename: str | None = None
-    ) -> tuple[GraphModel, Path]:
+    def parse_and_save(self, filename: str | None = None) -> tuple[GraphModel, Path]:
         """プロジェクトをパースして保存"""
         return self.service.parse_and_save(filename=filename)
 
@@ -90,13 +87,12 @@ class InfoService:
                         node_path = node.properties.get("path", "").replace("\\", "/")
                         node_file = PurePosixPath(node_path).name if node_path else ""
                         if (
-                            node.name == basename
-                            or node_file == basename
+                            node_file in (basename, filename)
+                            or node.name == basename
                             or node_path == normalized
                             or basename in node.name
                             or normalized in node_path
                             or node.name == filename
-                            or node_file == filename
                             or filename in node.name
                         ):
                             matched_nodes.append(node)
@@ -108,8 +104,7 @@ class InfoService:
                     if node in matched_nodes:
                         continue
                     node_index = str(
-                        node.properties.get("index", "")
-                        or (node.properties.get(idx_key, "") if idx_key else "")
+                        node.properties.get("index", "") or (node.properties.get(idx_key, "") if idx_key else "")
                     )
                     if node_index and node_index in index_filters:
                         matched_nodes.append(node)
@@ -126,11 +121,7 @@ class InfoService:
 
                 if filenames or index_filters is not None:
                     # 既存のマッチ結果から絞り込み
-                    matched_nodes = [
-                        n
-                        for n in matched_nodes
-                        if _get_version(n) in version_filters
-                    ]
+                    matched_nodes = [n for n in matched_nodes if _get_version(n) in version_filters]
                 else:
                     # バージョンのみ指定の場合は全ノードから検索
                     for node in graph.nodes:
@@ -144,16 +135,11 @@ class InfoService:
 
         # active フィルタ: active == "true" のノードのみ
         if active_only:
-            matched_nodes = [
-                n for n in matched_nodes
-                if str(n.properties.get("active", "")).lower() == "true"
-            ]
+            matched_nodes = [n for n in matched_nodes if str(n.properties.get("active", "")).lower() == "true"]
 
         return matched_nodes
 
-    def get_relations_for_node(
-        self, graph: GraphModel, node_id: int
-    ) -> list[Relation]:
+    def get_relations_for_node(self, graph: GraphModel, node_id: int) -> list[Relation]:
         """ノードに関連するリレーションを取得"""
         return self.service.get_relations_for_node(graph, node_id)
 
@@ -237,9 +223,7 @@ class InfoService:
         return None
 
 
-
 # 後方互換: 旧コードから参照されている場合のために関数をre-export
 from services.export.connectors.csv_json import (  # noqa: F401, E402
     flatten_properties as _flatten_properties,
-    match_unit as _match_unit,
 )

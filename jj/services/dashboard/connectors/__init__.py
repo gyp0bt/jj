@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
@@ -33,14 +33,14 @@ class DashboardPageConnector:
 
     page_label: str = ""
     connector_key: str = ""
-    _registry: dict[str, type["DashboardPageConnector"]] = {}
+    _registry: ClassVar[dict[str, type[DashboardPageConnector]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if cls.page_label:
             cls._registry[cls.page_label] = cls
 
-    def is_available(self, provider: "DashboardDataProvider") -> bool:
+    def is_available(self, provider: DashboardDataProvider) -> bool:
         """このコネクターのページが利用可能か判定
 
         グラフデータに対応するノードタイプが存在するかで判定する。
@@ -71,7 +71,7 @@ class DashboardPageConnector:
 
     def render_page(
         self,
-        provider: "DashboardDataProvider",
+        provider: DashboardDataProvider,
         dashboard_config: Any,
     ) -> None:
         """ページをレンダリング
@@ -84,7 +84,7 @@ class DashboardPageConnector:
 
 
 def get_connector_pages(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> list[str]:
     """利用可能なコネクターページのラベル一覧を返す
 
@@ -104,7 +104,7 @@ def get_connector_pages(
 
 def render_connector_page(
     page_label: str,
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     dashboard_config: Any,
 ) -> bool:
     """コネクターページをレンダリング

@@ -71,10 +71,20 @@ class TestVersionRelationParser:
         from services.parse.parsers.version_parser import VersionRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = VersionRelationParser().apply(graph)
@@ -89,12 +99,27 @@ class TestVersionRelationParser:
         from services.parse.parsers.version_parser import VersionRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
-            Node(id=3, type="go", name="go_idx1_v3", format="inp",
-                 properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
+            Node(
+                id=3,
+                type="go",
+                name="go_idx1_v3",
+                format="inp",
+                properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"},
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = VersionRelationParser().apply(graph)
@@ -115,8 +140,13 @@ class TestVersionRelationParser:
         from services.parse.parsers.version_parser import VersionRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = VersionRelationParser().apply(graph)
@@ -126,10 +156,20 @@ class TestVersionRelationParser:
         from services.parse.parsers.version_parser import VersionRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_v1", format="inp",
-                 properties={"path": "go_v1.inp", "index": "", "version": "1"}),
-            Node(id=2, type="go", name="go_v2", format="inp",
-                 properties={"path": "go_v2.inp", "index": "", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_v1",
+                format="inp",
+                properties={"path": "go_v1.inp", "index": "", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_v2",
+                format="inp",
+                properties={"path": "go_v2.inp", "index": "", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = VersionRelationParser().apply(graph)
@@ -139,10 +179,20 @@ class TestVersionRelationParser:
         from services.parse.parsers.version_parser import VersionRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="mesh", name="mesh_idx1_v1", format="inp",
-                 properties={"path": "mesh_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_idx1_v1",
+                format="inp",
+                properties={"path": "mesh_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = VersionRelationParser().apply(graph)
@@ -161,10 +211,8 @@ class TestResultRelationParser:
         from services.parse.parsers.output_parser import ResultRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="go", name="go_idx1", format="odb",
-                 properties={"path": "go_idx1.odb", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="go", name="go_idx1", format="odb", properties={"path": "go_idx1.odb", "index": "1"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = ResultRelationParser().apply(graph)
@@ -178,10 +226,8 @@ class TestResultRelationParser:
         from services.parse.parsers.output_parser import ResultRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="go", name="go_idx2", format="odb",
-                 properties={"path": "go_idx2.odb", "index": "2"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="go", name="go_idx2", format="odb", properties={"path": "go_idx2.odb", "index": "2"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = ResultRelationParser().apply(graph)
@@ -200,10 +246,8 @@ class TestAssetRelationParser:
         from services.parse.parsers.output_parser import AssetRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="mesh", name="go_idx1", format="cdb",
-                 properties={"path": "go_idx1.cdb", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="mesh", name="go_idx1", format="cdb", properties={"path": "go_idx1.cdb", "index": "1"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = AssetRelationParser().apply(graph)
@@ -226,10 +270,14 @@ class TestOutputRelationParser:
         from services.parse.parsers.output_parser import OutputRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="unknown", name="go_idx1_RF", format="csv",
-                 properties={"path": "go_idx1_RF.csv", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_RF",
+                format="csv",
+                properties={"path": "go_idx1_RF.csv", "index": "1"},
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = OutputRelationParser().apply(graph)
@@ -243,10 +291,8 @@ class TestOutputRelationParser:
         from services.parse.parsers.output_parser import OutputRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="go", name="go_idx1", format="csv",
-                 properties={"path": "go_idx1.csv", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="go", name="go_idx1", format="csv", properties={"path": "go_idx1.csv", "index": "1"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = OutputRelationParser().apply(graph)
@@ -266,16 +312,11 @@ class TestEnrichmentOnlyFilter:
         from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp"}),
-            Node(id=2, type="go", name="go_idx1", format="sta",
-                 properties={"path": "go_idx1.sta"}),
-            Node(id=3, type="go", name="go_idx1", format="msg",
-                 properties={"path": "go_idx1.msg"}),
-            Node(id=4, type="go", name="go_idx1", format="dat",
-                 properties={"path": "go_idx1.dat"}),
-            Node(id=5, type="go", name="go_idx1", format="odb",
-                 properties={"path": "go_idx1.odb"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+            Node(id=2, type="go", name="go_idx1", format="sta", properties={"path": "go_idx1.sta"}),
+            Node(id=3, type="go", name="go_idx1", format="msg", properties={"path": "go_idx1.msg"}),
+            Node(id=4, type="go", name="go_idx1", format="dat", properties={"path": "go_idx1.dat"}),
+            Node(id=5, type="go", name="go_idx1", format="odb", properties={"path": "go_idx1.odb"}),
         ]
         rels = [
             Relation(id=1, label="result_of", node1_id=2, node2_id=1),
@@ -297,10 +338,8 @@ class TestEnrichmentOnlyFilter:
         from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp"}),
-            Node(id=2, type="go", name="go_idx1", format="odb",
-                 properties={"path": "go_idx1.odb"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+            Node(id=2, type="go", name="go_idx1", format="odb", properties={"path": "go_idx1.odb"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = EnrichmentOnlyFilter().apply(graph)
@@ -319,8 +358,7 @@ class TestRootDirectoryParser:
         from services.parse.parsers.directory_parser import RootDirectoryParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = RootDirectoryParser().apply(graph)
@@ -334,10 +372,8 @@ class TestRootDirectoryParser:
         from services.parse.parsers.directory_parser import RootDirectoryParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp"}),
-            Node(id=2, type="go", name="go_idx2", format="inp",
-                 properties={"path": "go_idx2.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+            Node(id=2, type="go", name="go_idx2", format="inp", properties={"path": "go_idx2.inp"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = RootDirectoryParser().apply(graph)
@@ -349,8 +385,7 @@ class TestRootDirectoryParser:
         from services.parse.parsers.directory_parser import RootDirectoryParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "subdir/go_idx1.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "subdir/go_idx1.inp"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = RootDirectoryParser().apply(graph)
@@ -362,10 +397,8 @@ class TestRootDirectoryParser:
         from services.parse.parsers.directory_parser import RootDirectoryParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp"}),
-            Node(id=2, type="directory", name="subdir", format="directory",
-                 properties={"path": "subdir"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+            Node(id=2, type="directory", name="subdir", format="directory", properties={"path": "subdir"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = RootDirectoryParser().apply(graph)
@@ -390,10 +423,8 @@ class TestDirectoryRelationParser:
         from services.parse.parsers.directory_parser import DirectoryRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "old/go_idx1.inp"}),
-            Node(id=2, type="go", name="go_idx2", format="inp",
-                 properties={"path": "old/go_idx2.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "old/go_idx1.inp"}),
+            Node(id=2, type="go", name="go_idx2", format="inp", properties={"path": "old/go_idx2.inp"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = DirectoryRelationParser().apply(graph)
@@ -410,8 +441,7 @@ class TestDirectoryRelationParser:
         from services.parse.parsers.directory_parser import DirectoryRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "a/b/c/go_idx1.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "a/b/c/go_idx1.inp"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = DirectoryRelationParser().apply(graph)
@@ -428,8 +458,7 @@ class TestDirectoryRelationParser:
         from services.parse.parsers.directory_parser import DirectoryRelationParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "a/b/c/go_idx1.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "a/b/c/go_idx1.inp"}),
         ]
         graph = _make_graph(nodes, config=config)
         result = DirectoryRelationParser().apply(graph)
@@ -441,19 +470,17 @@ class TestDirectoryRelationParser:
 
         # a → a/b のcontains関係
         a_to_ab = [
-            r for r in result.relations
-            if r.label == "contains"
-            and r.node1_id == dir_by_path["a"].id
-            and r.node2_id == dir_by_path["a/b"].id
+            r
+            for r in result.relations
+            if r.label == "contains" and r.node1_id == dir_by_path["a"].id and r.node2_id == dir_by_path["a/b"].id
         ]
         assert len(a_to_ab) == 1
 
         # a/b → a/b/c のcontains関係
         ab_to_abc = [
-            r for r in result.relations
-            if r.label == "contains"
-            and r.node1_id == dir_by_path["a/b"].id
-            and r.node2_id == dir_by_path["a/b/c"].id
+            r
+            for r in result.relations
+            if r.label == "contains" and r.node1_id == dir_by_path["a/b"].id and r.node2_id == dir_by_path["a/b/c"].id
         ]
         assert len(ab_to_abc) == 1
 
@@ -470,8 +497,7 @@ class TestDirectoryRelationParser:
         )
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "a/b/c/go_idx1.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "a/b/c/go_idx1.inp"}),
         ]
         graph = _make_graph(nodes, config=config_with_depth)
         result = DirectoryRelationParser().apply(graph)
@@ -496,8 +522,7 @@ class TestDirectoryRelationParser:
         )
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "a/b/c/go_idx1.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "a/b/c/go_idx1.inp"}),
         ]
         graph = _make_graph(nodes, config=config_with_depth)
         result = DirectoryRelationParser().apply(graph)
@@ -523,16 +548,28 @@ class TestMeshInheritParser:
         from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
-                 properties={
-                     "path": "mesh_t50_v1.inp", "index": "1", "version": "1",
-                     "t": "50",
-                     "mesh_node_count": 1000,
-                     "mesh_element_count": 500,
-                     "mesh_quality": {"volume": {"min": 0.1, "max": 1.0, "mean": 0.5}},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_t50_v1",
+                format="inp",
+                properties={
+                    "path": "mesh_t50_v1.inp",
+                    "index": "1",
+                    "version": "1",
+                    "t": "50",
+                    "mesh_node_count": 1000,
+                    "mesh_element_count": 500,
+                    "mesh_quality": {"volume": {"min": 0.1, "max": 1.0, "mean": 0.5}},
+                },
+            ),
         ]
         rels = [
             Relation(id=1, label="includes", node1_id=1, node2_id=2),
@@ -556,12 +593,20 @@ class TestMeshInheritParser:
         from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1", "version": "1",
-                              "t": "100"}),  # go_*が持つ値を優先
-            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
-                 properties={"path": "mesh_t50_v1.inp", "index": "1", "version": "1",
-                              "t": "50"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "index": "1", "version": "1", "t": "100"},
+            ),  # go_*が持つ値を優先
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_t50_v1",
+                format="inp",
+                properties={"path": "mesh_t50_v1.inp", "index": "1", "version": "1", "t": "50"},
+            ),
         ]
         rels = [
             Relation(id=1, label="includes", node1_id=1, node2_id=2),
@@ -577,14 +622,27 @@ class TestMeshInheritParser:
         from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
-                 properties={"path": "mesh_t50_v1.inp", "index": "1", "version": "1",
-                              "mesh_node_count": 500}),
-            Node(id=3, type="step", name="step_stress_v1", format="inp",
-                 properties={"path": "step_stress_v1.inp", "index": "1", "version": "1",
-                              "step_type": "static"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_t50_v1",
+                format="inp",
+                properties={"path": "mesh_t50_v1.inp", "index": "1", "version": "1", "mesh_node_count": 500},
+            ),
+            Node(
+                id=3,
+                type="step",
+                name="step_stress_v1",
+                format="inp",
+                properties={"path": "step_stress_v1.inp", "index": "1", "version": "1", "step_type": "static"},
+            ),
         ]
         rels = [
             Relation(id=1, label="includes", node1_id=1, node2_id=2),
@@ -604,15 +662,27 @@ class TestMeshInheritParser:
         from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1", "version": "1",
-                              "active": "true"}),
-            Node(id=2, type="mesh", name="mesh_t50_v1", format="inp",
-                 properties={
-                     "path": "mesh_t50_v1.inp", "index": "1", "version": "1",
-                     "active": "false", "verbose_name": "メッシュ",
-                     "custom_key": "value",
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "index": "1", "version": "1", "active": "true"},
+            ),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_t50_v1",
+                format="inp",
+                properties={
+                    "path": "mesh_t50_v1.inp",
+                    "index": "1",
+                    "version": "1",
+                    "active": "false",
+                    "verbose_name": "メッシュ",
+                    "custom_key": "value",
+                },
+            ),
         ]
         rels = [
             Relation(id=1, label="includes", node1_id=1, node2_id=2),
@@ -664,19 +734,22 @@ class TestJsonPropertyParser:
         """フラットなJSONのキーがそのままプロパティキーになる
         go_idx1_result1.json: {"key1": "value1"} → key1: "value1"
         """
-        from services.parse.parsers.json_property_parser import JsonPropertyParser
-
         # JSONファイル作成
         import json
-        (tmp_path / "go_idx1_result1.json").write_text(
-            json.dumps({"key1": "value1"})
-        )
+
+        from services.parse.parsers.json_property_parser import JsonPropertyParser
+
+        (tmp_path / "go_idx1_result1.json").write_text(json.dumps({"key1": "value1"}))
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="unknown", name="go_idx1_result1", format="json",
-                 properties={"path": "go_idx1_result1.json", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_result1",
+                format="json",
+                properties={"path": "go_idx1_result1.json", "index": "1"},
+            ),
         ]
         graph = _make_graph(nodes, project_root=tmp_path)
         result = JsonPropertyParser().apply(graph)
@@ -694,18 +767,21 @@ class TestJsonPropertyParser:
         go_idx1_result2.json: {"key1": {"key2": "v1"}, "key3": "v2"}
         → key1.key2: "v1", key3: "v2"
         """
+        import json
+
         from services.parse.parsers.json_property_parser import JsonPropertyParser
 
-        import json
-        (tmp_path / "go_idx1_result2.json").write_text(
-            json.dumps({"key1": {"key2": "v1"}, "key3": "v2"})
-        )
+        (tmp_path / "go_idx1_result2.json").write_text(json.dumps({"key1": {"key2": "v1"}, "key3": "v2"}))
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="unknown", name="go_idx1_result2", format="json",
-                 properties={"path": "go_idx1_result2.json", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_result2",
+                format="json",
+                properties={"path": "go_idx1_result2.json", "index": "1"},
+            ),
         ]
         graph = _make_graph(nodes, project_root=tmp_path)
         result = JsonPropertyParser().apply(graph)
@@ -723,23 +799,29 @@ class TestJsonPropertyParser:
 
     def test_multiple_json_files_merge_keys(self, tmp_path: Path):
         """複数のJSONファイルからキーがマージされる"""
+        import json
+
         from services.parse.parsers.json_property_parser import JsonPropertyParser
 
-        import json
-        (tmp_path / "go_idx1_stress.json").write_text(
-            json.dumps({"center": 0.25, "edge": 1.0})
-        )
-        (tmp_path / "go_idx1_strain.json").write_text(
-            json.dumps({"max_strain": 0.001})
-        )
+        (tmp_path / "go_idx1_stress.json").write_text(json.dumps({"center": 0.25, "edge": 1.0}))
+        (tmp_path / "go_idx1_strain.json").write_text(json.dumps({"max_strain": 0.001}))
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="unknown", name="go_idx1_stress", format="json",
-                 properties={"path": "go_idx1_stress.json", "index": "1"}),
-            Node(id=3, type="unknown", name="go_idx1_strain", format="json",
-                 properties={"path": "go_idx1_strain.json", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_stress",
+                format="json",
+                properties={"path": "go_idx1_stress.json", "index": "1"},
+            ),
+            Node(
+                id=3,
+                type="unknown",
+                name="go_idx1_strain",
+                format="json",
+                properties={"path": "go_idx1_strain.json", "index": "1"},
+            ),
         ]
         graph = _make_graph(nodes, project_root=tmp_path)
         result = JsonPropertyParser().apply(graph)
@@ -759,10 +841,14 @@ class TestJsonPropertyParser:
         )
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="unknown", name="go_idx1_data", format="json",
-                 properties={"path": "go_idx1_data.json", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_data",
+                format="json",
+                properties={"path": "go_idx1_data.json", "index": "1"},
+            ),
         ]
         graph = _make_graph(nodes, project_root=tmp_path)
         result = JsonPropertyParser().apply(graph)
@@ -775,19 +861,22 @@ class TestJsonPropertyParser:
 
     def test_odb_json_excluded(self, tmp_path: Path):
         """.odb.jsonファイルは除外される"""
+        import json
+
         from services.parse.parsers.json_property_parser import JsonPropertyParser
 
-        import json
-        (tmp_path / "go_idx1_result.odb.json").write_text(
-            json.dumps({"should_not_appear": True})
-        )
+        (tmp_path / "go_idx1_result.odb.json").write_text(json.dumps({"should_not_appear": True}))
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
             # .odb.json: nameが"go_idx1_result.odb"でformatが"json"
-            Node(id=2, type="unknown", name="go_idx1_result.odb", format="json",
-                 properties={"path": "go_idx1_result.odb.json", "index": "1"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_result.odb",
+                format="json",
+                properties={"path": "go_idx1_result.odb.json", "index": "1"},
+            ),
         ]
         graph = _make_graph(nodes, project_root=tmp_path)
         result = JsonPropertyParser().apply(graph)
@@ -809,11 +898,17 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -828,11 +923,17 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -846,12 +947,18 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "mesh_elset_summary": {"BODY": 100},
-                     "material_elsets": {"Steel_S235": ["BODY"]},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "mesh_elset_summary": {"BODY": 100},
+                    "material_elsets": {"Steel_S235": ["BODY"]},
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -864,13 +971,17 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="mesh", name="mesh_t50", format="inp",
-                 properties={
-                     "path": "mesh_t50.inp",
-                     "mesh_elset_summary": {"PART_A": 200, "PART_B": 300},
-                 }),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_t50",
+                format="inp",
+                properties={
+                    "path": "mesh_t50.inp",
+                    "mesh_elset_summary": {"PART_A": 200, "PART_B": 300},
+                },
+            ),
         ]
         rels = [
             Relation(id=1, label="includes", node1_id=1, node2_id=2),
@@ -888,11 +999,17 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "mesh_elset_summary": {"EALL": 10},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "mesh_elset_summary": {"EALL": 10},
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -906,11 +1023,17 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -924,11 +1047,17 @@ class TestAbaqusElsetParser:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "material_elsets": {"Aluminum": ["WING"]},
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "material_elsets": {"Aluminum": ["WING"]},
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -979,10 +1108,20 @@ class TestAbaqusDiffParser:
         (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
@@ -1010,25 +1149,26 @@ class TestAbaqusDiffParser:
         """diffノードのdiff_detailsにノード数変更が反映される"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
-        content_v1 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-        )
-        content_v2 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-            "3, 2.0, 0.0, 0.0\n"
-        )
+        content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n"
+        content_v2 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n3, 2.0, 0.0, 0.0\n"
         (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
         (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
@@ -1068,10 +1208,20 @@ class TestAbaqusDiffParser:
         (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
@@ -1086,15 +1236,7 @@ class TestAbaqusDiffParser:
         """diffノードのdiff_detailsにnset/elsetの変更が含まれる"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
-        content_v1 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-            "*NSET, NSET=FIX\n"
-            "1\n"
-            "*ELSET, ELSET=BODY\n"
-            "1\n"
-        )
+        content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*NSET, NSET=FIX\n1\n*ELSET, ELSET=BODY\n1\n"
         content_v2 = (
             "*NODE, NSET=ALL\n"
             "1, 0.0, 0.0, 0.0\n"
@@ -1110,10 +1252,20 @@ class TestAbaqusDiffParser:
         (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
@@ -1131,22 +1283,26 @@ class TestAbaqusDiffParser:
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
         content = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-            "*STEP, NAME=Step-1\n"
-            "*STATIC\n"
-            "1., 1.\n"
-            "*END STEP\n"
+            "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
         )
         (tmp_path / "go_idx1_v1.inp").write_text(content, encoding="utf-8")
         (tmp_path / "go_idx1_v2.inp").write_text(content, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = AbaqusDiffParser().apply(graph)
@@ -1180,43 +1336,40 @@ class TestParserCache:
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
         content_v1 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-            "*STEP, NAME=Step-1\n"
-            "*STATIC\n"
-            "1., 1.\n"
-            "*END STEP\n"
+            "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
         )
         content_v2 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 2.0, 0.0, 0.0\n"
-            "*STEP, NAME=Step-1\n"
-            "*STATIC\n"
-            "1., 1.\n"
-            "*END STEP\n"
+            "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 2.0, 0.0, 0.0\n*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
         )
         content_v3 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 3.0, 0.0, 0.0\n"
-            "*STEP, NAME=Step-1\n"
-            "*STATIC\n"
-            "1., 1.\n"
-            "*END STEP\n"
+            "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 3.0, 0.0, 0.0\n*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
         )
         (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
         (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
         (tmp_path / "go_idx1_v3.inp").write_text(content_v3, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
-            Node(id=3, type="go", name="go_idx1_v3", format="inp",
-                 properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
+            Node(
+                id=3,
+                type="go",
+                name="go_idx1_v3",
+                format="inp",
+                properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
 
@@ -1230,6 +1383,7 @@ class TestParserCache:
             return original_read_inp(path, verbose=verbose, include_max_depth=include_max_depth)
 
         from services.parse.connectors import abaqus
+
         original_read_inp = abaqus.read_inp
 
         with patch.object(abaqus, "read_inp", side_effect=counting_read_inp):
@@ -1243,23 +1397,26 @@ class TestParserCache:
         """AbaqusDiffParser実行後にキャッシュが populated される"""
         from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
 
-        content_v1 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-        )
-        content_v2 = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-        )
+        content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n"
+        content_v2 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n"
         (tmp_path / "go_idx1_v1.inp").write_text(content_v1, encoding="utf-8")
         (tmp_path / "go_idx1_v2.inp").write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
 
@@ -1313,9 +1470,7 @@ class TestABQDataDiskCache:
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
-        loaded = storage.load_plugin_data(
-            tmp_path, "abaqus", "/nonexistent.inp", expected_mtime=1000.0
-        )
+        loaded = storage.load_plugin_data(tmp_path, "abaqus", "/nonexistent.inp", expected_mtime=1000.0)
         assert loaded is None
 
     def test_clear_abq_cache(self, tmp_path: Path):
@@ -1343,24 +1498,18 @@ class TestIncludeSearchDepthConfig:
 
     def test_custom_include_search_depth(self):
         """config.yamlからinclude-search-depthを設定できる"""
-        config = GraphConfig.from_dict(
-            {"vocab": {}, "include-search-depth": 10}
-        )
+        config = GraphConfig.from_dict({"vocab": {}, "include-search-depth": 10})
         assert config.include_search_depth == 10
 
     def test_include_search_depth_zero(self):
         """include-search-depth=0（探索しない）も有効"""
-        config = GraphConfig.from_dict(
-            {"vocab": {}, "include-search-depth": 0}
-        )
+        config = GraphConfig.from_dict({"vocab": {}, "include-search-depth": 0})
         assert config.include_search_depth == 0
 
     def test_include_search_depth_negative_raises(self):
         """include-search-depth < 0はエラー"""
         with pytest.raises(ValueError, match="include-search-depth"):
-            GraphConfig.from_dict(
-                {"vocab": {}, "include-search-depth": -1}
-            )
+            GraphConfig.from_dict({"vocab": {}, "include-search-depth": -1})
 
 
 class TestElsetQualityStats:
@@ -1371,25 +1520,31 @@ class TestElsetQualityStats:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={
-                     "path": "go_idx1.inp", "index": "1",
-                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
-                     "mesh_elset_quality": {
-                         "BODY": {
-                             "element_count": 100,
-                             "quality": {
-                                 "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
-                             },
-                         },
-                         "SKIN": {
-                             "element_count": 50,
-                             "quality": {
-                                 "volume": {"min": 0.2, "max": 0.8, "mean": 0.4},
-                             },
-                         },
-                     },
-                 }),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "index": "1",
+                    "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
+                    "mesh_elset_quality": {
+                        "BODY": {
+                            "element_count": 100,
+                            "quality": {
+                                "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
+                            },
+                        },
+                        "SKIN": {
+                            "element_count": 50,
+                            "quality": {
+                                "volume": {"min": 0.2, "max": 0.8, "mean": 0.4},
+                            },
+                        },
+                    },
+                },
+            ),
         ]
         graph = _make_graph(nodes, config=config)
         result = AbaqusElsetParser().apply(graph)
@@ -1405,21 +1560,25 @@ class TestElsetQualityStats:
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="mesh", name="mesh_t50", format="inp",
-                 properties={
-                     "path": "mesh_t50.inp",
-                     "mesh_elset_summary": {"PART_A": 200},
-                     "mesh_elset_quality": {
-                         "PART_A": {
-                             "element_count": 200,
-                             "quality": {
-                                 "aspect_ratio": {"min": 1.0, "max": 3.0, "mean": 1.5},
-                             },
-                         },
-                     },
-                 }),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_t50",
+                format="inp",
+                properties={
+                    "path": "mesh_t50.inp",
+                    "mesh_elset_summary": {"PART_A": 200},
+                    "mesh_elset_quality": {
+                        "PART_A": {
+                            "element_count": 200,
+                            "quality": {
+                                "aspect_ratio": {"min": 1.0, "max": 3.0, "mean": 1.5},
+                            },
+                        },
+                    },
+                },
+            ),
         ]
         rels = [
             Relation(id=1, label="includes", node1_id=1, node2_id=2),
@@ -1439,19 +1598,13 @@ class TestIncludesParserCache:
         """IncludesRelationParserがキャッシュにincludeパスを保存する"""
         from services.parse.parsers.output_parser import IncludesRelationParser
 
-        content = (
-            "*INCLUDE, INPUT=mesh_t50.inp\n"
-            "*STEP, NAME=Step-1\n"
-            "*END STEP\n"
-        )
+        content = "*INCLUDE, INPUT=mesh_t50.inp\n*STEP, NAME=Step-1\n*END STEP\n"
         (tmp_path / "go_idx1.inp").write_text(content, encoding="utf-8")
         (tmp_path / "mesh_t50.inp").write_text("*NODE\n1, 0, 0, 0\n", encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"path": "go_idx1.inp", "index": "1"}),
-            Node(id=2, type="mesh", name="mesh_t50", format="inp",
-                 properties={"path": "mesh_t50.inp"}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
+            Node(id=2, type="mesh", name="mesh_t50", format="inp", properties={"path": "mesh_t50.inp"}),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         result = IncludesRelationParser().apply(graph)
@@ -1476,6 +1629,7 @@ class GraphService_stub:
 
     def __init__(self, project_root: Path, config: GraphConfig):
         from services.graph import GraphService
+
         self._svc = GraphService(project_root=project_root, config=config)
 
     def scan_and_create_nodes(self) -> list[Node]:
@@ -1534,11 +1688,7 @@ class TestVersionRelationParserRealData:
         v1 = next((n for n in result.nodes if n.name == "go_idx3.v1"), None)
         v2 = next((n for n in result.nodes if n.name == "go_idx3.v2"), None)
         assert v1 is not None and v2 is not None
-        nv = [
-            r for r in result.relations
-            if r.label == "next_version"
-            and r.node1_id == v1.id and r.node2_id == v2.id
-        ]
+        nv = [r for r in result.relations if r.label == "next_version" and r.node1_id == v1.id and r.node2_id == v2.id]
         assert len(nv) == 1
 
     def test_go_idx2_cross_directory_version(self, real_graph: ProjectGraph):
@@ -1553,17 +1703,13 @@ class TestVersionRelationParserRealData:
         result = VersionRelationParser().apply(real_graph)
 
         v2_inp = next(
-            (n for n in result.nodes
-             if n.name == "go_idx2.v2" and n.format == "inp"),
+            (n for n in result.nodes if n.name == "go_idx2.v2" and n.format == "inp"),
             None,
         )
         assert v2_inp is not None
 
         # v2.inp から始まる next_version がある（先は v3.dat かもしれない）
-        nv = [
-            r for r in result.relations
-            if r.label == "next_version" and r.node1_id == v2_inp.id
-        ]
+        nv = [r for r in result.relations if r.label == "next_version" and r.node1_id == v2_inp.id]
         assert len(nv) == 1
         next_node = result.get_node_by_id(nv[0].node2_id)
         assert next_node.properties.get("version") == "3"
@@ -1675,15 +1821,11 @@ class TestIncludesRelationParserRealData:
 
         result = IncludesRelationParser().apply(real_graph)
         go = next(
-            (n for n in result.nodes
-             if n.name == "go_idx1.v3" and n.format == "inp"),
+            (n for n in result.nodes if n.name == "go_idx1.v3" and n.format == "inp"),
             None,
         )
         assert go is not None
-        includes = [
-            r for r in result.relations
-            if r.label == "includes" and r.node1_id == go.id
-        ]
+        includes = [r for r in result.relations if r.label == "includes" and r.node1_id == go.id]
         target_names = set()
         for r in includes:
             target = result.get_node_by_id(r.node2_id)
@@ -1697,15 +1839,11 @@ class TestIncludesRelationParserRealData:
 
         result = IncludesRelationParser().apply(real_graph)
         go = next(
-            (n for n in result.nodes
-             if n.name == "go_idx0.v29" and n.format == "inp"),
+            (n for n in result.nodes if n.name == "go_idx0.v29" and n.format == "inp"),
             None,
         )
         assert go is not None
-        includes = [
-            r for r in result.relations
-            if r.label == "includes" and r.node1_id == go.id
-        ]
+        includes = [r for r in result.relations if r.label == "includes" and r.node1_id == go.id]
         target_names = set()
         for r in includes:
             target = result.get_node_by_id(r.node2_id)
@@ -1720,16 +1858,15 @@ class TestIncludesRelationParserRealData:
 
         result = IncludesRelationParser().apply(real_graph)
         go = next(
-            (n for n in result.nodes
-             if n.name == "go_idx2.v2" and n.format == "inp"
-             and "old/" in n.properties.get("path", "")),
+            (
+                n
+                for n in result.nodes
+                if n.name == "go_idx2.v2" and n.format == "inp" and "old/" in n.properties.get("path", "")
+            ),
             None,
         )
         assert go is not None
-        includes = [
-            r for r in result.relations
-            if r.label == "includes" and r.node1_id == go.id
-        ]
+        includes = [r for r in result.relations if r.label == "includes" and r.node1_id == go.id]
         assert len(includes) >= 1
         target_names = set()
         for r in includes:
@@ -1762,15 +1899,11 @@ class TestDirectoryRelationParserRealData:
 
         result = DirectoryRelationParser().apply(real_graph)
         old_dir = next(
-            (n for n in result.nodes
-             if n.name == "old" and n.format == "directory"),
+            (n for n in result.nodes if n.name == "old" and n.format == "directory"),
             None,
         )
         assert old_dir is not None
-        contains = [
-            r for r in result.relations
-            if r.label == "contains" and r.node1_id == old_dir.id
-        ]
+        contains = [r for r in result.relations if r.label == "contains" and r.node1_id == old_dir.id]
         # old/ has go_idx2.v2, go_idx3.v1, go_idx3.v2, mesh_*... (>15 files)
         assert len(contains) >= 15
 
@@ -1789,15 +1922,15 @@ class TestJsonPropertyParserRealData:
     """
 
     def test_json_properties_propagated_to_go_node(
-        self, real_graph: ProjectGraph,
+        self,
+        real_graph: ProjectGraph,
     ):
         """results/のJSONキーがgo_*.inpノードに伝搬される"""
         from services.parse.parsers.json_property_parser import JsonPropertyParser
 
         result = JsonPropertyParser().apply(real_graph)
         go_idx1 = next(
-            (n for n in result.nodes
-             if n.name == "go_idx1.v3" and n.format == "inp"),
+            (n for n in result.nodes if n.name == "go_idx1.v3" and n.format == "inp"),
             None,
         )
         assert go_idx1 is not None
@@ -1812,8 +1945,7 @@ class TestJsonPropertyParserRealData:
 
         result = JsonPropertyParser().apply(real_graph)
         go_idx0 = next(
-            (n for n in result.nodes
-             if n.name == "go_idx0.v29" and n.format == "inp"),
+            (n for n in result.nodes if n.name == "go_idx0.v29" and n.format == "inp"),
             None,
         )
         assert go_idx0 is not None
@@ -1823,7 +1955,8 @@ class TestJsonPropertyParserRealData:
         assert go_idx0.properties["2(edge)"] is None  # NaN → None
 
     def test_all_three_go_nodes_get_json_props(
-        self, real_graph: ProjectGraph,
+        self,
+        real_graph: ProjectGraph,
     ):
         """go_idx0, go_idx1, go_idx2 の3ノードにJSON情報が伝搬"""
         from services.parse.parsers.json_property_parser import JsonPropertyParser
@@ -1831,14 +1964,11 @@ class TestJsonPropertyParserRealData:
         result = JsonPropertyParser().apply(real_graph)
         for name in ["go_idx0.v29", "go_idx1.v3", "go_idx2.v3"]:
             go = next(
-                (n for n in result.nodes
-                 if n.name == name and n.format == "inp"),
+                (n for n in result.nodes if n.name == name and n.format == "inp"),
                 None,
             )
             assert go is not None, f"{name} not found"
-            assert "0(center)" in go.properties, (
-                f"{name} missing JSON property '0(center)'"
-            )
+            assert "0(center)" in go.properties, f"{name} missing JSON property '0(center)'"
 
 
 # ====================================================================
@@ -1873,9 +2003,7 @@ class TestEnrichmentOnlyFilterRealData:
 
         result = EnrichmentOnlyFilter().apply(real_graph)
         results_nodes = [
-            n for n in result.nodes
-            if n.properties.get("path", "").startswith("results/")
-            and n.format != "directory"
+            n for n in result.nodes if n.properties.get("path", "").startswith("results/") and n.format != "directory"
         ]
         assert len(results_nodes) == 0
 
@@ -1967,13 +2095,19 @@ class TestMeshParserCache:
         (tmp_path / "go_idx1_v1.inp").write_text(content, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
 
         # 先にキャッシュを投入
         from services.parse.connectors.abaqus import read_inp as abq_read_inp
+
         abq_data = abq_read_inp(str(tmp_path / "go_idx1_v1.inp"), verbose=False)
         graph.set_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp"), abq_data)
 
@@ -1987,6 +2121,7 @@ class TestMeshParserCache:
             return original_read_inp(path, verbose=verbose, include_max_depth=include_max_depth)
 
         from services.parse.connectors import abaqus
+
         original_read_inp = abaqus.read_inp
 
         with patch.object(abaqus, "read_inp", side_effect=counting_read_inp):
@@ -1999,17 +2134,13 @@ class TestMeshParserCache:
         """タイムスタンプが変わっていないファイルをスキップ"""
         from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
 
-        content = (
-            "*NODE, NSET=ALL\n"
-            "1, 0.0, 0.0, 0.0\n"
-        )
+        content = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n"
         f = tmp_path / "go_idx1_v1.inp"
         f.write_text(content, encoding="utf-8")
         mtime = f.stat().st_mtime
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp"}),
+            Node(id=1, type="go", name="go_idx1_v1", format="inp", properties={"path": "go_idx1_v1.inp"}),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         graph._prev_timestamps = {str(f): mtime}
@@ -2036,10 +2167,20 @@ class TestDiffParserTimestamp:
         f2.write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         # 両方を「未変更」に設定
@@ -2088,10 +2229,20 @@ class TestDiffParserTimestamp:
         f2.write_text(content_v2, encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                 properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-            Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                 properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="go",
+                name="go_idx1_v2",
+                format="inp",
+                properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+            ),
         ]
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
         # v1は未変更、v2は変更済み
@@ -2130,6 +2281,7 @@ class TestPymeshWithModules:
 
         # cached_abq_dataを渡してmesher生成
         from modules.pymesh.mesh import mesher
+
         mesh = mesher(str(inp_file), verbose=False, cached_abq_data=abq_data)
 
         assert mesh.get_number_of_nodes() == 4
@@ -2151,6 +2303,7 @@ class TestPymeshWithModules:
         inp_file.write_text(content, encoding="utf-8")
 
         from modules.pymesh.read_inp import read_inp
+
         abq_data = read_inp(str(inp_file), verbose=False)
 
         stats = extract_mesh_stats(inp_file, verbose=False, cached_abq_data=abq_data)
@@ -2173,7 +2326,6 @@ class TestAbstractExporter:
     def test_exporter_registry_contains_csv_json(self):
         """CSV/JSONエクスポーターがレジストリに登録されていること"""
         from services.export import get_exporter_registry
-        from services.export.connectors.csv_json import CsvExporter, JsonExporter
 
         registry = get_exporter_registry()
         cls_names = [cls.__name__ for cls in registry]
@@ -2254,7 +2406,10 @@ class TestElsetCsvExport:
 
         nodes = [
             Node(
-                id=1, type="abaqus_elset", name="ELSET1", format="",
+                id=1,
+                type="abaqus_elset",
+                name="ELSET1",
+                format="",
                 properties={
                     "element_count": 100,
                     "material": "Steel",
@@ -2303,6 +2458,7 @@ class TestABQCacheCleanup:
     def test_cleanup_removes_old_cache(self, tmp_path: Path):
         """max_age_daysを超えたキャッシュファイルが削除されること"""
         import time
+
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
@@ -2315,6 +2471,7 @@ class TestABQCacheCleanup:
         old_file.write_bytes(b"old")
         old_mtime = time.time() - (31 * 86400)
         import os
+
         os.utime(old_file, (old_mtime, old_mtime))
 
         # 新しいキャッシュファイルを作成
@@ -2329,6 +2486,7 @@ class TestABQCacheCleanup:
     def test_cleanup_respects_max_count(self, tmp_path: Path):
         """max_countを超えたキャッシュが古い順に削除されること"""
         import time
+
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
@@ -2342,6 +2500,7 @@ class TestABQCacheCleanup:
             f = cache_dir / f"cache_{i}.pickle"
             f.write_bytes(f"data_{i}".encode())
             import os
+
             os.utime(f, (now - (5 - i) * 100, now - (5 - i) * 100))
 
         # max_count=3に制限
@@ -2364,18 +2523,17 @@ class TestABQCacheCleanup:
 
         from services.graph import GraphService
 
-        with patch.object(GraphService, "parse_project") as mock_parse:
-            with patch.object(GraphService, "save") as mock_save:
-                mock_graph = MagicMock()
-                mock_parse.return_value = mock_graph
-                mock_save.return_value = Path("/tmp/test.yaml")
+        with patch.object(GraphService, "parse_project") as mock_parse, patch.object(GraphService, "save") as mock_save:
+            mock_graph = MagicMock()
+            mock_parse.return_value = mock_graph
+            mock_save.return_value = Path("/tmp/test.yaml")
 
-                service = GraphService(project_root=Path("/tmp/test_project"))
-                # cleanup_plugin_cacheをモック
-                service.storage.cleanup_plugin_cache = MagicMock(return_value=0)
-                service.parse_and_save()
+            service = GraphService(project_root=Path("/tmp/test_project"))
+            # cleanup_plugin_cacheをモック
+            service.storage.cleanup_plugin_cache = MagicMock(return_value=0)
+            service.parse_and_save()
 
-                service.storage.cleanup_plugin_cache.assert_called_once()
+            service.storage.cleanup_plugin_cache.assert_called_once()
 
 
 # =========================================================================
@@ -2392,7 +2550,10 @@ class TestObsidianElsetDataview:
 
         connector = ObsidianConnector(project_root=Path("/tmp/test"))
         node = Node(
-            id=1, type="abaqus_elset", name="ELSET_A", format="",
+            id=1,
+            type="abaqus_elset",
+            name="ELSET_A",
+            format="",
             properties={
                 "element_count": 100,
                 "material": "Steel_S235",
@@ -2411,7 +2572,10 @@ class TestObsidianElsetDataview:
 
         connector = ObsidianConnector(project_root=Path("/tmp/test"))
         node = Node(
-            id=1, type="abaqus_material", name="Steel_S235", format="material",
+            id=1,
+            type="abaqus_material",
+            name="Steel_S235",
+            format="material",
             properties={},
         )
         frontmatter = connector.node_to_frontmatter(node)
@@ -2426,7 +2590,10 @@ class TestObsidianElsetDataview:
 
         connector = ObsidianConnector(project_root=Path("/tmp/test"))
         node = Node(
-            id=1, type="go", name="go_test_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_test_v1",
+            format="inp",
             properties={
                 "elsets": ["ELSET_A", "ELSET_B"],
                 "path": "go_test_v1.inp",
@@ -2455,8 +2622,13 @@ class TestObsidianElsetCanvas:
 
         nodes = [
             Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
-            Node(id=2, type="abaqus_elset", name="ELSET_A", format="",
-                 properties={"material": "Steel", "element_count": 100}),
+            Node(
+                id=2,
+                type="abaqus_elset",
+                name="ELSET_A",
+                format="",
+                properties={"material": "Steel", "element_count": 100},
+            ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -2492,8 +2664,7 @@ class TestObsidianElsetCanvas:
         from services.export.connectors.obsidian import ObsidianConnector
 
         nodes = [
-            Node(id=1, type="abaqus_elset", name="ELSET_A", format="",
-                 properties={"element_count": 50}),  # 材料なし
+            Node(id=1, type="abaqus_elset", name="ELSET_A", format="", properties={"element_count": 50}),  # 材料なし
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -2539,9 +2710,8 @@ class TestExporterRegistry:
 
     def test_obsidian_exporter_via_registry(self, tmp_path: Path):
         """ObsidianExporterがレジストリ経由で取得・実行できること"""
-        from jj_types import GraphModel
-
         import services.export.connectors  # noqa: F401
+        from jj_types import GraphModel
         from services.export import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("obsidian")
@@ -2560,9 +2730,8 @@ class TestExporterRegistry:
 
     def test_cypher_exporter_via_registry(self, tmp_path: Path):
         """CypherExporterがレジストリ経由で取得・実行できること"""
-        from jj_types import GraphModel
-
         import services.export.connectors  # noqa: F401
+        from jj_types import GraphModel
         from services.export import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("cypher")
@@ -2580,9 +2749,8 @@ class TestExporterRegistry:
 
     def test_dashboard_json_exporter_via_registry(self, tmp_path: Path):
         """DashboardJsonExporterがレジストリ経由で取得・実行できること"""
-        from jj_types import GraphModel
-
         import services.export.connectors  # noqa: F401
+        from jj_types import GraphModel
         from services.export import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("dashboard-json")
@@ -2590,8 +2758,7 @@ class TestExporterRegistry:
         assert exporter_cls.format == "dashboard-json"
 
         nodes = [
-            Node(id=1, type="go", name="test1", format="inp",
-                 properties={"index": "1", "version": "1"}),
+            Node(id=1, type="go", name="test1", format="inp", properties={"index": "1", "version": "1"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         exporter = exporter_cls()
@@ -2622,7 +2789,7 @@ class TestExporterRegistry:
         service = GraphCommandService(tmp_path)
         try:
             service.export_by_format(graph, "unknown_format_xyz")
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as e:
             assert "未対応のエクスポート形式" in str(e)
 
@@ -2643,16 +2810,19 @@ class TestObsidianElsetMaterialGoCanvas:
         from services.export.connectors.obsidian import ObsidianConnector
 
         nodes = [
-            Node(id=1, type="go", name="go_test_v1", format="inp",
-                 properties={"path": "go_test_v1.inp"}),
-            Node(id=2, type="abaqus_material", name="Steel", format="material",
-                 properties={}),
-            Node(id=3, type="abaqus_elset", name="ELSET_A", format="",
-                 properties={
-                     "material": "Steel",
-                     "element_count": 100,
-                     "source_file": "go_test_v1.inp",
-                 }),
+            Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
+            Node(id=2, type="abaqus_material", name="Steel", format="material", properties={}),
+            Node(
+                id=3,
+                type="abaqus_elset",
+                name="ELSET_A",
+                format="",
+                properties={
+                    "material": "Steel",
+                    "element_count": 100,
+                    "source_file": "go_test_v1.inp",
+                },
+            ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -2680,10 +2850,14 @@ class TestObsidianElsetMaterialGoCanvas:
         from services.export.connectors.obsidian import ObsidianConnector
 
         nodes = [
-            Node(id=1, type="abaqus_material", name="Steel", format="material",
-                 properties={}),
-            Node(id=2, type="abaqus_elset", name="ELSET_A", format="",
-                 properties={"material": "Steel", "element_count": 50}),
+            Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
+            Node(
+                id=2,
+                type="abaqus_elset",
+                name="ELSET_A",
+                format="",
+                properties={"material": "Steel", "element_count": 50},
+            ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -2705,13 +2879,17 @@ class TestObsidianElsetMaterialGoCanvas:
         from services.export.connectors.obsidian import ObsidianConnector
 
         nodes = [
-            Node(id=1, type="go", name="go_test_v1", format="inp",
-                 properties={"path": "go_test_v1.inp"}),
-            Node(id=2, type="abaqus_elset", name="ELSET_A", format="",
-                 properties={
-                     "element_count": 50,
-                     "source_file": "go_test_v1.inp",
-                 }),  # 材料なし
+            Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
+            Node(
+                id=2,
+                type="abaqus_elset",
+                name="ELSET_A",
+                format="",
+                properties={
+                    "element_count": 50,
+                    "source_file": "go_test_v1.inp",
+                },
+            ),  # 材料なし
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -2842,8 +3020,7 @@ class TestExportUnified:
         from services.service.graph_command import GraphCommandService
 
         nodes = [
-            Node(id=1, type="go", name="test1", format="inp",
-                 properties={"index": "1", "version": "1"}),
+            Node(id=1, type="go", name="test1", format="inp", properties={"index": "1", "version": "1"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         service = GraphCommandService(tmp_path)
@@ -2858,8 +3035,7 @@ class TestExportUnified:
         from services.service.graph_command import GraphCommandService
 
         nodes = [
-            Node(id=1, type="go", name="test1", format="inp",
-                 properties={"path": "test1.inp"}),
+            Node(id=1, type="go", name="test1", format="inp", properties={"path": "test1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         service = GraphCommandService(tmp_path)
@@ -2876,7 +3052,7 @@ class TestExportUnified:
         service = GraphCommandService(tmp_path)
         try:
             service.export_unified(graph, "unknown_format")
-            assert False, "Should have raised ValueError"
+            raise AssertionError("Should have raised ValueError")
         except ValueError as e:
             assert "未対応のエクスポート形式" in str(e)
 
@@ -2913,14 +3089,15 @@ class TestObsidianSummaryNote:
         from services.export.connectors.obsidian import ObsidianConnector
 
         nodes = [
-            Node(id=1, type="go", name="go_test_v1", format="inp",
-                 properties={"path": "go_test_v1.inp"}),
-            Node(id=2, type="abaqus_material", name="Steel", format="material",
-                 properties={}),
+            Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
+            Node(id=2, type="abaqus_material", name="Steel", format="material", properties={}),
         ]
-        graph = GraphModel(nodes=nodes, relations=[
-            Relation(id=1, label="uses_material", node1_id=1, node2_id=2),
-        ])
+        graph = GraphModel(
+            nodes=nodes,
+            relations=[
+                Relation(id=1, label="uses_material", node1_id=1, node2_id=2),
+            ],
+        )
         connector = ObsidianConnector(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
 
@@ -2987,8 +3164,7 @@ class TestObsidianVaultConfig:
         from services.export.connectors.obsidian import ObsidianConnector
 
         nodes = [
-            Node(id=1, type="go", name="go_test_v1", format="inp",
-                 properties={"path": "go_test_v1.inp"}),
+            Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -3032,8 +3208,7 @@ class TestObsidianVaultConfig:
         (obsidian_dir / "app.json").write_text('{"custom": true}', encoding="utf-8")
 
         nodes = [
-            Node(id=1, type="go", name="go_test_v1", format="inp",
-                 properties={"path": "go_test_v1.inp"}),
+            Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         connector = ObsidianConnector(project_root=tmp_path)
@@ -3049,7 +3224,6 @@ class TestObsidianVaultConfig:
 
     def test_vault_config_standalone(self, tmp_path: Path):
         """_write_vault_config()を単独で呼んだ場合のテスト"""
-        import json
 
         from services.export.connectors.obsidian import ObsidianConnector
 
@@ -3067,8 +3241,7 @@ class TestObsidianVaultConfig:
         from services.export.connectors.obsidian import ObsidianExporter
 
         nodes = [
-            Node(id=1, type="go", name="go_test_v1", format="inp",
-                 properties={"path": "go_test_v1.inp"}),
+            Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         exporter = ObsidianExporter()

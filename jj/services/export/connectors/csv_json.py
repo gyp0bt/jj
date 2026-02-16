@@ -132,17 +132,14 @@ def _export_data(
 
     # -prop フィルタ
     if prop_filters:
-        filtered_nodes = [
-            n for n in filtered_nodes
-            if all(k in n.properties for k in prop_filters)
-        ]
+        filtered_nodes = [n for n in filtered_nodes if all(k in n.properties for k in prop_filters)]
 
     if not filtered_nodes:
         raise ValueError("対象ノードが見つかりません。")
 
     # 平坦化のデフォルト
     if flatten is None:
-        flatten = (target == "csv")
+        flatten = target == "csv"
 
     # プロパティを収集
     data_rows: list[dict[str, Any]] = []
@@ -252,9 +249,7 @@ def match_unit(key: str, units: dict[str, str]) -> str:
     return ""
 
 
-def flatten_properties(
-    props: dict[str, Any], prefix: str = ""
-) -> dict[str, Any]:
+def flatten_properties(props: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     """辞書プロパティを"."区切りで平坦化する"""
     result: dict[str, Any] = {}
     for key, value in props.items():

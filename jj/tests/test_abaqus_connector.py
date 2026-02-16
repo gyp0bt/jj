@@ -9,29 +9,22 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
-from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
 from services.parse.connectors.abaqus import (
-    ABQData,
     Context,
     RawBlock,
     ReadBoundary,
     ReadElastic,
     ReadElement,
-    ReadElset,
     ReadMaterial,
     ReadNode,
     ReadNset,
-    ReadParameter,
     ReadPlastic,
     ReadProcedure,
-    StepData,
     _build_nodes_lookup,
     _compute_element_skew,
     _parse_keyline_options,
     _quad_warp_angle,
-    _serialize_mesh_component,
     _summarize_element_data,
     _summarize_node_data,
     _summarize_set_data,
@@ -43,6 +36,8 @@ from services.parse.connectors.abaqus import (
     generate_diff_props,
     read_inp,
 )
+from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
 # ==========================
 # フィクスチャ
@@ -200,7 +195,7 @@ class TestReadInp:
         """ノードが正しくパースされること"""
         abq = read_inp(simple_inp, verbose=False)
         assert "ALL" in abq.nodes or "all" in abq.nodes
-        node_comp = list(abq.nodes.values())[0]
+        node_comp = next(iter(abq.nodes.values()))
         assert len(node_comp.data) == 4  # 4ノード
         # 最初のノード: (1, 0.0, 0.0, 0.0)
         assert node_comp.data[0][0] == 1
@@ -209,7 +204,7 @@ class TestReadInp:
     def test_elements_parsed_correctly(self, simple_inp):
         """要素が正しくパースされること"""
         abq = read_inp(simple_inp, verbose=False)
-        elem_comp = list(abq.elements.values())[0]
+        elem_comp = next(iter(abq.elements.values()))
         assert len(elem_comp.data) == 1  # 1要素
         assert elem_comp.data[0] == [1, 1, 2, 3, 4]
 
@@ -232,7 +227,7 @@ class TestReadInp:
         """材料が正しくパースされること"""
         abq = read_inp(simple_inp, verbose=False)
         assert len(abq.materials) == 1
-        mat_name = list(abq.materials.keys())[0]
+        mat_name = next(iter(abq.materials.keys()))
         assert "steel" in mat_name.lower()
         mat = abq.materials[mat_name]
         assert "elastic" in mat
@@ -267,9 +262,7 @@ class TestReadInp:
         step = abq.steps[0]
         # ReadBoundaryインスタンスまたはRawBlockとして保持される
         boundary_found = any(
-            (isinstance(b, ReadBoundary))
-            or (isinstance(b, RawBlock) and b.keyword == "boundary")
-            for b in step.blocks
+            (isinstance(b, ReadBoundary)) or (isinstance(b, RawBlock) and b.keyword == "boundary") for b in step.blocks
         )
         # __eq__の挙動により、optionsが空のBoundaryはProcedureと等価判定され
         # step.blocksに追加されないケースがある。その場合はall_componentsで確認
@@ -285,7 +278,7 @@ class TestReadInpWithInclude:
         """*INCLUDEで参照された材料ファイルが解析されること"""
         abq = read_inp(include_inp, verbose=False)
         assert len(abq.materials) == 1
-        mat_name = list(abq.materials.keys())[0]
+        mat_name = next(iter(abq.materials.keys()))
         assert "copper" in mat_name.lower()
 
 
@@ -297,7 +290,7 @@ class TestReadInpWithParameter:
         abq = read_inp(parameter_inp, verbose=False)
         # パラメータは内部contextに格納される（外部からは直接見えないが、
         # ノード座標が<param>で置換されているかで確認）
-        node_comp = list(abq.nodes.values())[0]
+        node_comp = next(iter(abq.nodes.values()))
         # ノード2: (<width>, 0.0, 0.0) → (10.0, 0.0, 0.0)
         assert node_comp.data[1][1] == pytest.approx(10.0)
         # ノード3: (<width>, <height>, 0.0) → (10.0, 20.0, 0.0)
@@ -613,10 +606,7 @@ class TestParseMsgFile:
         # エラーメッセージの内容確認
         assert any("CONVERGENCE" in e for e in result["errors"])
         # 警告メッセージの内容確認
-        assert any(
-            "INACCURATE" in w or "DISPLACEMENT" in w or "DISTORTED" in w
-            for w in result["warnings"]
-        )
+        assert any("INACCURATE" in w or "DISPLACEMENT" in w or "DISTORTED" in w for w in result["warnings"])
 
     def test_parse_msg_success(self, msg_success_file):
         """エラーなしの.msgファイルの解析"""
@@ -661,9 +651,7 @@ class TestParseMsgFile:
         msg_nodes = [n for n in graph.nodes if n.format == "msg"]
         if msg_nodes:
             msg_node = msg_nodes[0]
-            assert (
-                "msg_errors" in msg_node.properties or "errors" in msg_node.properties
-            )
+            assert "msg_errors" in msg_node.properties or "errors" in msg_node.properties
 
 
 # ==========================
@@ -859,7 +847,7 @@ class TestMeshSummaryInDiff:
         result = abq_to_dict(abq)
 
         # ノードデータが要約形式であること
-        for name, node_dict in result["nodes"].items():
+        for _name, node_dict in result["nodes"].items():
             assert "summary" in node_dict
             assert "node_count" in node_dict["summary"]
             assert "data" not in node_dict
@@ -869,7 +857,7 @@ class TestMeshSummaryInDiff:
         abq = read_inp(simple_inp, verbose=False)
         result = abq_to_dict(abq)
 
-        for name, elem_dict in result["elements"].items():
+        for _name, elem_dict in result["elements"].items():
             assert "summary" in elem_dict
             assert "element_count" in elem_dict["summary"]
             assert "data" not in elem_dict
@@ -879,7 +867,7 @@ class TestMeshSummaryInDiff:
         abq = read_inp(simple_inp, verbose=False)
         result = abq_to_dict(abq)
 
-        for name, nset_dict in result["nsets"].items():
+        for _name, nset_dict in result["nsets"].items():
             assert "summary" in nset_dict
             assert "data" not in nset_dict
 
@@ -888,7 +876,7 @@ class TestMeshSummaryInDiff:
         abq = read_inp(simple_inp, verbose=False)
         result = abq_to_dict(abq)
 
-        for name, elset_dict in result["elsets"].items():
+        for _name, elset_dict in result["elsets"].items():
             assert "summary" in elset_dict
             assert "data" not in elset_dict
 
@@ -987,7 +975,7 @@ class TestMeshSummaryInDiff:
         abq = read_inp(simple_inp, verbose=False)
         result = abq_to_dict(abq)
 
-        for name, elem_dict in result["elements"].items():
+        for _name, elem_dict in result["elements"].items():
             summary = elem_dict["summary"]
             assert "element_count" in summary
             # simple_inp には4ノードあるのでサイズ計算可能
@@ -1023,7 +1011,7 @@ class TestReadInpRealMeshTest:
     def test_mesh_test_element_types(self):
         """mesh_test.inp: C3D8要素のみ"""
         abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
-        for name, comp in abq.elements.items():
+        for _name, comp in abq.elements.items():
             assert comp.options.get("type") == "c3d8"
 
     def test_mesh_test_nsets(self):
@@ -1072,7 +1060,7 @@ class TestReadInpRealMeshTest:
         counts = []
         for name in ["mesh_test.inp", "mesh_test.v2.inp", "mesh_test.v3.inp"]:
             abq = read_inp(ASSET_DIR / "old" / name, verbose=False)
-            counts.append(len(list(abq.nodes.values())[0].data))
+            counts.append(len(next(iter(abq.nodes.values())).data))
         assert counts[0] < counts[1] < counts[2]
 
 
@@ -1262,7 +1250,7 @@ class TestMeshSummaryRealData:
     def test_mesh_test_node_summary(self):
         """mesh_test.inp: ノード要約が正しい座標範囲を返す"""
         abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
-        node_comp = list(abq.nodes.values())[0]
+        node_comp = next(iter(abq.nodes.values()))
         summary = _summarize_node_data(node_comp.data)
         assert summary["node_count"] == 540
         # 座標範囲が妥当な値であること
@@ -1274,7 +1262,7 @@ class TestMeshSummaryRealData:
         """mesh_test.inp: 要素要約にサイズ情報が含まれる"""
         abq = read_inp(ASSET_DIR / "old" / "mesh_test.inp", verbose=False)
         nodes_lookup = _build_nodes_lookup(abq)
-        for name, elem_comp in abq.elements.items():
+        for _name, elem_comp in abq.elements.items():
             summary = _summarize_element_data(elem_comp.data, nodes_lookup=nodes_lookup)
             assert summary["element_count"] > 0
             assert "size" in summary
@@ -1286,9 +1274,9 @@ class TestMeshSummaryRealData:
         result = abq_to_dict(abq)
         assert "nodes" in result
         assert "elements" in result
-        for name, node_dict in result["nodes"].items():
+        for _name, node_dict in result["nodes"].items():
             assert "summary" in node_dict
-        for name, elem_dict in result["elements"].items():
+        for _name, elem_dict in result["elements"].items():
             assert "summary" in elem_dict
 
 

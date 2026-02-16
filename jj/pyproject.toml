@@ -135,6 +135,9 @@ ignore = [
     "E501",   # line too long (formatterに任せる)
     "B008",   # do not perform function call in argument defaults (Pydantic/FastAPI互換)
     "SIM108", # use ternary (可読性の判断はケースバイケース)
+    "RUF001", # ambiguous unicode character in string (日本語文字列で意図的に使用)
+    "RUF002", # ambiguous unicode character in docstring (日本語docstringで意図的に使用)
+    "RUF003", # ambiguous unicode character in comment (日本語コメントで意図的に使用)
 ]
 
 [tool.ruff.lint.isort]

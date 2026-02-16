@@ -48,9 +48,7 @@ class VocabFinalizer(AbstractFileParser):
         return graph
 
 
-def _apply_vocab_to_dict(
-    d: dict[str, Any], vocab: dict[str, str]
-) -> dict[str, Any]:
+def _apply_vocab_to_dict(d: dict[str, Any], vocab: dict[str, str]) -> dict[str, Any]:
     """辞書のキーと文字列値にvocab置換を再帰的に適用する
 
     Args:

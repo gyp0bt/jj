@@ -1,9 +1,8 @@
 import json
 import os
 from collections import defaultdict
-from typing import Any, Generator, Optional
+from collections.abc import Generator
 
-import numpy as np
 import pandas as pd
 
 # Field = dict[int, float | NDArray]
@@ -13,8 +12,8 @@ Field = pd.DataFrame
 class Frame:
     def __init__(
         self,
-        fields: Optional[dict[str, pd.DataFrame]] = None,
-        description: Optional[str] = None,
+        fields: dict[str, pd.DataFrame] | None = None,
+        description: str | None = None,
     ):
         if fields is None:
             fields = {}
@@ -27,7 +26,7 @@ class Frame:
 
     def __repr__(self) -> str:
         text = ""
-        for field_key, field in self.fields.items():
+        for field_key, _field in self.fields.items():
             text += f"\t\t- {field_key}\n"
         return text
 
@@ -36,7 +35,7 @@ class Frame:
 
 
 class History:
-    def __init__(self, histories: Optional[dict[int, dict[str, pd.DataFrame]]] = None):
+    def __init__(self, histories: dict[int, dict[str, pd.DataFrame]] | None = None):
         if histories is None:
             histories = {}
         self.histories = defaultdict(dict)
@@ -45,7 +44,7 @@ class History:
     def __repr__(self) -> str:
         text = ""
         for node_number, node_history in self.histories.items():
-            for history_key, history_data in node_history.items():
+            for history_key, _history_data in node_history.items():
                 text += f"\t\t- ({node_number}){history_key}\n"
         return text
 
@@ -53,9 +52,7 @@ class History:
 class Step:
     """Stepデータ格納クラス"""
 
-    def __init__(
-        self, frames: dict[str, Frame] = None, histories: dict[str, History] = None
-    ):
+    def __init__(self, frames: dict[str, Frame] | None = None, histories: dict[str, History] | None = None):
         if frames is None:
             frames = {}
         if histories is None:
@@ -78,7 +75,7 @@ class Step:
     def get_frame(self, index: int) -> Frame:
         if isinstance(index, int):
             if index <= -2:
-                raise ValueError(f"index must be larger than -2")
+                raise ValueError("index must be larger than -2")
             elif index == -1:
                 index = len(self.frames) - 1
             return list(self.frames.values())[index]
@@ -87,9 +84,7 @@ class Step:
 
     def get_history(self, refnode: str, node_number: int) -> pd.DataFrame:
         if refnode not in self.histories:
-            raise ValueError(
-                f"refnode '{refnode}' not in steps.histories (maybe in {list(self.histories.keys())})"
-            )
+            raise ValueError(f"refnode '{refnode}' not in steps.histories (maybe in {list(self.histories.keys())})")
         history = self.histories[refnode]
         if node_number not in history.histories:
             raise ValueError(
@@ -113,7 +108,7 @@ class OdbData:
                 History.histories (dict[int, dict[str, pd.DataFrame]]) : 参照NSET内id - フィールド名 - ステップタイムと値の2D配列
     """
 
-    def __init__(self, steps: dict[str, Step] = None):
+    def __init__(self, steps: dict[str, Step] | None = None):
         if steps is None:
             steps = {}
         self.steps = defaultdict(Step)
@@ -144,15 +139,13 @@ class OdbData:
         """
         if isinstance(index, int):
             if index <= -2:
-                raise ValueError(f"index must be larger than -2")
+                raise ValueError("index must be larger than -2")
             elif index == -1:
                 index = len(self.steps) - 1
             return list(self.steps.values())[index]
         else:
             if index not in self.steps:
-                raise ValueError(
-                    f"step index '{index}' not in odb.steps (maybe in {list(self.steps.keys())})"
-                )
+                raise ValueError(f"step index '{index}' not in odb.steps (maybe in {list(self.steps.keys())})")
             return self.steps[index]
 
     def get_frame(self, frame_index: int, step_index: str | int = "Step-1") -> Frame:
@@ -166,9 +159,7 @@ class OdbData:
         step = self.get_step(step_index)
         return step.get_frame(frame_index)
 
-    def get_history(
-        self, step_id: int | str, refnode: str, node_number: int = 0
-    ) -> pd.DataFrame:
+    def get_history(self, step_id: int | str, refnode: str, node_number: int = 0) -> pd.DataFrame:
         """
         Returns:
             *Historyデータ (pd.DataFrame)
@@ -182,7 +173,7 @@ class OdbData:
         return history
 
     def iter_frames(
-        self, step_index_list: Optional[list[str] | list[int]] = None
+        self, step_index_list: list[str] | list[int] | None = None
     ) -> Generator[tuple[int, Frame], None, None]:
         if step_index_list is None:
             step_index_list = list(self.steps.keys())
@@ -193,7 +184,7 @@ class OdbData:
 
 def load_odb_json(json_filepath: str) -> OdbData:
     try:
-        with open(json_filepath, "r") as f:
+        with open(json_filepath) as f:
             data = json.load(f)
         steps = dict()
 
@@ -203,9 +194,7 @@ def load_odb_json(json_filepath: str) -> OdbData:
 
             for frame_key, field in step["frames"].items():
                 description = field.get("description", "")
-                field = {
-                    k: pd.DataFrame(v) for k, v in field.items() if k != "description"
-                }
+                field = {k: pd.DataFrame(v) for k, v in field.items() if k != "description"}
                 new_field = {}
                 for k, v in field.items():
                     df = pd.DataFrame(v)
@@ -214,10 +203,7 @@ def load_odb_json(json_filepath: str) -> OdbData:
                 frames[frame_key] = Frame(fields=new_field, description=description)
             for refnode_key, history in step["histories"].items():
                 histories[refnode_key] = History(
-                    histories={
-                        int(k): {str(kk): pd.DataFrame(vv) for kk, vv in v.items()}
-                        for k, v in history.items()
-                    }
+                    histories={int(k): {str(kk): pd.DataFrame(vv) for kk, vv in v.items()} for k, v in history.items()}
                 )
 
             frames = dict(sorted(frames.items(), key=lambda x: int(x[0])))
@@ -228,9 +214,7 @@ def load_odb_json(json_filepath: str) -> OdbData:
         return odb_data
     except Exception as e:
         raise e
-        raise RuntimeError(
-            f"Error: Failed to read odb-json {json_filepath} ({e})"
-        ) from e
+        raise RuntimeError(f"Error: Failed to read odb-json {json_filepath} ({e})") from e
         return None
 
 
@@ -241,9 +225,7 @@ def load_odb_json(json_filepath: str) -> OdbData:
 # seriarize_odb_filepath = (
 # "/".join(os.path.abspath(__file__).split("/")[:-1]) + "/bin/seriarize_odb.py"
 # )
-seriarize_odb_filepath = (
-    "\\".join(os.path.abspath(__file__).split("\\")[:-1]) + "\\bin\\seriarize_odb.py"
-)
+seriarize_odb_filepath = "\\".join(os.path.abspath(__file__).split("\\")[:-1]) + "\\bin\\seriarize_odb.py"
 # seriarize_odb_filepath = "./" + seriarize_odb_filepath.replace(
 # os.path.abspath(os.getcwd()) + "/", ""
 # )
@@ -260,13 +242,13 @@ module_name = seriarize_odb_filepath.split("\\")[-4]
 
 def dump_odb_to_json(
     odb_filepath: str,
-    json_filepath: Optional[str] = None,
-    field_keys: Optional[list[str] | str] = None,
-    steps: Optional[list[str] | str] = None,
-    frames: Optional[list[int] | int] = None,
-    refnodes: Optional[list[str] | str] = None,
-    refnode_numbers: Optional[list[str] | list[int]] = None,
-    history_keys: Optional[list[str] | str] = None,
+    json_filepath: str | None = None,
+    field_keys: list[str] | str | None = None,
+    steps: list[str] | str | None = None,
+    frames: list[int] | int | None = None,
+    refnodes: list[str] | str | None = None,
+    refnode_numbers: list[str] | list[int] | None = None,
+    history_keys: list[str] | str | None = None,
     silent: bool = False,
 ):
     if isinstance(field_keys, str):
@@ -287,7 +269,9 @@ def dump_odb_to_json(
     # command = f"/mnt/c/Windows/System32/cmd.exe /c  C:/SIMULIA/Commands/abq2023.bat python {module_name}/misc/bin/seriarize_odb.py -o {odb_filepath} -j {json_filepath}"
     # command = f"/mnt/c/Windows/System32/cmd.exe /c  C:/SIMULIA/Commands/abq2023.bat python {seriarize_odb_filepath_windows} -o {odb_filepath} -j {json_filepath}"
     # print(os.system("/mnt/c/Windows/System32/cmd.exe /c cd"))
-    command = f"C:/SIMULIA/Commands/abq2023.bat python {seriarize_odb_filepath_windows} -o {odb_filepath} -j {json_filepath}"
+    command = (
+        f"C:/SIMULIA/Commands/abq2023.bat python {seriarize_odb_filepath_windows} -o {odb_filepath} -j {json_filepath}"
+    )
     # command = f"C:/SIMULIA/Commands/abq2024.bat python {seriarize_odb_filepath_windows} -o {odb_filepath} -j {json_filepath}"
     # command = f"C:/SIMULIA/Commands/abq2025.bat python {seriarize_odb_filepath_windows} -o {odb_filepath} -j {json_filepath}"
 
@@ -322,7 +306,7 @@ def dump_odb_to_json(
             command += f" {i}"
 
     if silent:
-        command += f" -sil"
+        command += " -sil"
 
     if not silent:
         print(command)
@@ -334,12 +318,12 @@ def dump_odb_to_json(
 def load_odb(
     odb_filepath: str,
     skip_seriarize: bool = False,
-    field_keys: Optional[list[str]] = None,
-    steps: Optional[list[str]] = None,
-    frames: Optional[list[int]] = None,
-    refnodes: Optional[list[str]] = None,
-    refnode_numbers: Optional[list[str]] = None,
-    history_keys: Optional[list[str]] = None,
+    field_keys: list[str] | None = None,
+    steps: list[str] | None = None,
+    frames: list[int] | None = None,
+    refnodes: list[str] | None = None,
+    refnode_numbers: list[str] | None = None,
+    history_keys: list[str] | None = None,
     silent: bool = True,
 ) -> OdbData:
     json_filepath = odb_filepath + ".json"

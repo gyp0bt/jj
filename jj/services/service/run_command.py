@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from services.run import RunService, RunResult
+from services.run import RunResult, RunService
 
 
 class RunCommandService:

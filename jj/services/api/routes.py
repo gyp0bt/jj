@@ -28,7 +28,7 @@ jj serveで起動されるREST APIのエンドポイントを定義する。
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -81,9 +81,9 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/nodes")
     def get_nodes(
         request: Request,
-        type: Optional[str] = Query(None, description="ノードタイプでフィルタ"),
-        active: Optional[bool] = Query(None, description="activeフラグでフィルタ"),
-        name: Optional[str] = Query(None, description="名前の部分一致フィルタ"),
+        type: str | None = Query(None, description="ノードタイプでフィルタ"),
+        active: bool | None = Query(None, description="activeフラグでフィルタ"),
+        name: str | None = Query(None, description="名前の部分一致フィルタ"),
         limit: int = Query(1000, description="取得件数上限", ge=1, le=10000),
         offset: int = Query(0, description="オフセット", ge=0),
     ) -> dict[str, Any]:
@@ -132,7 +132,7 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/api/v1/nodes/{node_id}/related")
     def get_related_nodes(
         node_id: int,
-        label: Optional[str] = Query(None, description="リレーションラベルでフィルタ"),
+        label: str | None = Query(None, description="リレーションラベルでフィルタ"),
     ) -> dict[str, Any]:
         """関連ノードを返す"""
         related = api_svc.get_related_files(node_id, label=label)
@@ -143,7 +143,7 @@ def create_app(project_root: Path) -> FastAPI:
     # ------------------------------------------
     @app.get("/api/v1/relations")
     def get_relations(
-        label: Optional[str] = Query(None, description="ラベルでフィルタ"),
+        label: str | None = Query(None, description="ラベルでフィルタ"),
         limit: int = Query(1000, description="取得件数上限", ge=1, le=10000),
         offset: int = Query(0, description="オフセット", ge=0),
     ) -> dict[str, Any]:

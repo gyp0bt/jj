@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import numpy as np
 
+import numpy as np
 
 # ============================================================
 # Q4 kinematics (2x2 Gauss)
@@ -21,12 +21,8 @@ def q4_dN_dxi_eta(xi: float, eta: float) -> tuple[np.ndarray, np.ndarray]:
     """Q4 dN/dxi, dN/deta at (xi,eta). Node order:
     0:(-1,-1), 1:(+1,-1), 2:(+1,+1), 3:(-1,+1)
     """
-    dN_dxi = 0.25 * np.array(
-        [-(1 - eta), +(1 - eta), +(1 + eta), -(1 + eta)], dtype=np.float64
-    )
-    dN_deta = 0.25 * np.array(
-        [-(1 - xi), -(1 + xi), +(1 + xi), +(1 - xi)], dtype=np.float64
-    )
+    dN_dxi = 0.25 * np.array([-(1 - eta), +(1 - eta), +(1 + eta), -(1 + eta)], dtype=np.float64)
+    dN_deta = 0.25 * np.array([-(1 - xi), -(1 + xi), +(1 + xi), +(1 - xi)], dtype=np.float64)
     return dN_dxi, dN_deta
 
 
@@ -66,7 +62,7 @@ def extract_boundary_edges_quads(quads: np.ndarray) -> np.ndarray:
     key_s = key[order]
     edges_s = np.stack([a[order], b[order]], axis=1)
 
-    uniq, idx, counts = np.unique(key_s, return_index=True, return_counts=True)
+    _uniq, idx, counts = np.unique(key_s, return_index=True, return_counts=True)
     bnd_edges = edges_s[idx[counts == 1]]
     return bnd_edges
 
@@ -496,9 +492,7 @@ class PipelineConfig:
     w_boundary_elem_mul: float = 1.0  # 1.0 means no extra weight
 
 
-def elements_touching_boundary(
-    quads: np.ndarray, boundary_edges: np.ndarray
-) -> np.ndarray:
+def elements_touching_boundary(quads: np.ndarray, boundary_edges: np.ndarray) -> np.ndarray:
     """境界に接する要素（境界辺を含む要素）のmask."""
     q = np.asarray(quads, dtype=np.int64)
     bnd = np.asarray(boundary_edges, dtype=np.int64)
@@ -513,9 +507,7 @@ def elements_touching_boundary(
     key_set = set(map(int, key_b))
 
     mask = np.zeros(q.shape[0], dtype=bool)
-    edges = np.stack(
-        [q[:, [0, 1]], q[:, [1, 2]], q[:, [2, 3]], q[:, [3, 0]]], axis=1
-    )  # (M,4,2)
+    edges = np.stack([q[:, [0, 1]], q[:, [1, 2]], q[:, [2, 3]], q[:, [3, 0]]], axis=1)  # (M,4,2)
     for e in range(q.shape[0]):
         for k in range(4):
             u, v = int(edges[e, k, 0]), int(edges[e, k, 1])
@@ -565,9 +557,7 @@ def optimize_quads_soft_equal_area_with_tangent_boundary(
     bnd_elem_mask = elements_touching_boundary(q, bnd_edges)
 
     # target area (global equal)
-    A_abs = np.array(
-        [abs(quad_signed_area_and_grad(pts[ids])[0]) for ids in q], dtype=np.float64
-    )
+    A_abs = np.array([abs(quad_signed_area_and_grad(pts[ids])[0]) for ids in q], dtype=np.float64)
     A_tot = float(np.sum(A_abs))
     A0 = A_tot / float(q.shape[0])
 
@@ -619,9 +609,7 @@ def optimize_quads_soft_equal_area_with_tangent_boundary(
             mu_area=mu_area,
             use_abs_area=cfg.use_abs_area,
         )
-        e_angle, g_angle = quad_angle_energy_and_grad_cos2(
-            pts, q, fixed_mask=fixed_mask, w_angle=cfg.w_angle
-        )
+        e_angle, g_angle = quad_angle_energy_and_grad_cos2(pts, q, fixed_mask=fixed_mask, w_angle=cfg.w_angle)
 
         # boundary length equalization (sum over loops)
         e_len = 0.0
@@ -698,22 +686,20 @@ def optimize_quads_soft_equal_area_with_tangent_boundary(
             rel = (A_now - A0) / max(A0, 1e-30)
             print(
                 f"iter {it:5d} | E={E0:.6e} | acc={accepted} | "
-                f"min(detJ)={minJ:.3e} | max|relA|={np.max(np.abs(rel))*100:.2f}% | "
-                f"rms|relA|={np.sqrt(np.mean(rel**2))*100:.2f}% | mu={mu_area:.3g}"
+                f"min(detJ)={minJ:.3e} | max|relA|={np.max(np.abs(rel)) * 100:.2f}% | "
+                f"rms|relA|={np.sqrt(np.mean(rel**2)) * 100:.2f}% | mu={mu_area:.3g}"
             )
         if not accepted:
             break
 
     # stats
-    A_now = np.array(
-        [abs(quad_signed_area_and_grad(pts[ids])[0]) for ids in q], dtype=np.float64
-    )
+    A_now = np.array([abs(quad_signed_area_and_grad(pts[ids])[0]) for ids in q], dtype=np.float64)
     rel = (A_now - A0) / max(A0, 1e-30)
     stats = {
         "A0": float(A0),
         "max_rel_area_err": float(np.max(np.abs(rel))),
         "rms_rel_area_err": float(np.sqrt(np.mean(rel**2))),
-        "n_boundary_loops": int(len(loops)),
+        "n_boundary_loops": len(loops),
         "n_boundary_edges": int(bnd_edges.shape[0]),
     }
     return pts, stats

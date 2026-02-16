@@ -1,14 +1,11 @@
 from abc import ABCMeta, abstractmethod
+from collections.abc import Iterable, Iterator
 from functools import wraps
 from io import StringIO
 from typing import (
     Any,
     Generic,
-    Iterable,
-    Iterator,
     Literal,
-    Tuple,
-    Type,
     TypeVar,
     Union,
 )
@@ -17,7 +14,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
 
-from ..typing import *
+from ..typing import node_coord_array_dtype
 from .child import BaseChildComponent, Element, Node
 from .misc import is_empty_array
 
@@ -54,9 +51,7 @@ class BaseParentComponent(Generic[TChild], metaclass=ABCMeta):
         for i in iter(self):
             if i[0] == label:
                 return self.make_child(data=i)
-        raise AttributeError(
-            f"{self.__class__.__name__}({self.name}) has no child index '{label}'"
-        )
+        raise AttributeError(f"{self.__class__.__name__}({self.name}) has no child index '{label}'")
 
     def sort_labels(self) -> NDArray | None:
         indices = np.argsort(self.data[:, 0])
@@ -88,7 +83,7 @@ class BaseParentComponent(Generic[TChild], metaclass=ABCMeta):
 
     @classmethod
     def from_array(
-        cls: Type[TParent],
+        cls: type[TParent],
         arr: ArrayLike | NDArray | list[float] | None,
         options: dict[str, Any],
     ) -> TParent:
@@ -109,9 +104,7 @@ class BaseParentComponent(Generic[TChild], metaclass=ABCMeta):
         return self.data
 
     @classmethod
-    def from_dict(
-        cls: Type[TParent], data: dict[int, Any], options: dict[str, Any]
-    ) -> TParent:
+    def from_dict(cls: type[TParent], data: dict[int, Any], options: dict[str, Any]) -> TParent:
         raise NotImplementedError
 
     @abstractmethod
@@ -185,19 +178,14 @@ class Nodes(BaseParentComponent[Node]):
         super().append_array(arr=arr)
         unique_labels = np.unique(self.data["label"])
         if self.data["label"].size != unique_labels.size:
-            raise ValueError(
-                f"節点ラベルが重複しています(重複数：{self.data['label'].size - unique_labels.size})"
-            )
+            raise ValueError(f"節点ラベルが重複しています(重複数：{self.data['label'].size - unique_labels.size})")
 
     def append_coord_array(self, coord_array: NDArray | list[tuple[float, ...]]):
         if all(i != 0 for i in tuple(self.data.shape)):
             max_label = np.max(self.get_labels())
         else:
             max_label = 0
-        arr = [
-            (int(max_label + 1 + i), float(ii[0]), float(ii[1]), float(ii[2]))
-            for i, ii in enumerate(coord_array)
-        ]
+        arr = [(int(max_label + 1 + i), float(ii[0]), float(ii[1]), float(ii[2])) for i, ii in enumerate(coord_array)]
         self.append_array(arr)
 
     def make_child(self, data: NDArray | tuple[float, ...]) -> Node:
@@ -252,9 +240,7 @@ class Elements(BaseParentComponent[Element]):
             raise ValueError(f"array must be 2-dimensional (not {self.data.ndim})")
         unique_labels = np.unique(self.data[:, 0])
         if self.data.shape[0] != unique_labels.size:
-            raise ValueError(
-                f"節点ラベルが重複しています(重複数：{self.data.shape[0] - unique_labels.size})"
-            )
+            raise ValueError(f"節点ラベルが重複しています(重複数：{self.data.shape[0] - unique_labels.size})")
 
     def make_child(self, data: NDArray | tuple[float, ...]) -> Element:
         if self.options:
@@ -282,7 +268,7 @@ class Nset(BaseParentComponent[Node]):
     @staticmethod
     def split_into_consecutive_sequences(
         numbers: list[int],
-    ) -> Tuple[bool, list[list[int]]]:
+    ) -> tuple[bool, list[list[int]]]:
         """
         指定されたリストの中から連番を抽出し、連番ごとのリストに分割する。
         また、連番が含まれているかどうかのブール値も返す。
@@ -315,9 +301,7 @@ class Nset(BaseParentComponent[Node]):
 
     @staticmethod
     def _to_str(instance: BaseParentComponent, mode: Literal["ELSET", "NSET"]) -> str:
-        has_consecutive, consecutive_labels_list = (
-            Nset.split_into_consecutive_sequences(instance.get_labels())
-        )
+        has_consecutive, consecutive_labels_list = Nset.split_into_consecutive_sequences(instance.get_labels())
 
         if has_consecutive:
             text = f"*{mode}, {mode}={instance.name.upper()}, GENERATE\n"
@@ -360,8 +344,7 @@ class Nset(BaseParentComponent[Node]):
 
     @staticmethod
     def _iter_labels(instance: Union["Nset", "Elset"]) -> Iterator[int | str]:
-        for i in instance:
-            yield i
+        yield from instance
 
     @staticmethod
     def _sort_labels(instance: Union["Nset", "Elset"]) -> NDArray:

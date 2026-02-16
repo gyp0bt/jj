@@ -1,13 +1,11 @@
 import re
 from abc import ABCMeta
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import (
     Any,
     Generic,
-    Iterable,
-    Optional,
-    Type,
     TypeVar,
 )
 
@@ -15,7 +13,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..misc.data import cut_dup_numbers, cut_isolated_numbers
-from ..typing import *
+from ..typing import NodeCoordArray
 from .child import BaseChildComponent, Element, Node
 from .parent import BaseParentComponent, Elements, Elset, Nodes, Nset
 
@@ -57,7 +55,7 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
     def __str__(self) -> str:
         text = f"{self.__class__.__name__}("
         if self.data:
-            for i in self.data.keys():
+            for i in self.data:
                 text += f"{i},"
         text += ")"
         return text
@@ -89,14 +87,13 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
     def items(self) -> Iterable[Any]:
         return self.data.items()
 
-    def iter_children(self, name: Optional[str | list[str]]) -> Iterable[TChild]:
+    def iter_children(self, name: str | list[str] | None) -> Iterable[TChild]:
         if name is not None and isinstance(name, str):
             name = [name]
 
         for parent in self.data.values():
             if name is None or parent.name in name:
-                for child in parent.iter_children():
-                    yield child
+                yield from parent.iter_children()
 
     def get_child(self, label: int) -> TChild:
         for _, parent in self.data.items():
@@ -104,7 +101,7 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
                 return parent.get_child(label=label)
         raise IndexError(f"{self.__class__.__name__} has no child, label'{label}'")
 
-    def get_children(self, name: Optional[str | list[str]] = None) -> dict[int, TChild]:
+    def get_children(self, name: str | list[str] | None = None) -> dict[int, TChild]:
         parent_list = self.get_parents_list(name=name)
         children_dict = {}
         for parent in parent_list:
@@ -112,7 +109,7 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
                 children_dict[child.label] = child
         return children_dict
 
-    def get_labels(self, name: Optional[str | list[str]] = None) -> list[int]:
+    def get_labels(self, name: str | list[str] | None = None) -> list[int]:
         parent_list = self.get_parents_list(name=name)
         labels = []
         for component in parent_list:
@@ -129,9 +126,7 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
         for parent in self.data.values():
             if parent.data.dtype.fields:
                 indices = (
-                    np.isin(parent.data["label"], labels)
-                    if except_with
-                    else ~np.isin(parent.data["label"], labels)
+                    np.isin(parent.data["label"], labels) if except_with else ~np.isin(parent.data["label"], labels)
                 )
                 parent.data = parent.data[indices]
             elif parent.data.ndim == 1:
@@ -140,32 +135,26 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
                 else:
                     parent.data = np.array(cut_dup_numbers(parent.data, labels))
             else:
-                indices = (
-                    np.isin(parent.data[:, 0], labels)
-                    if except_with
-                    else ~np.isin(parent.data[:, 0], labels)
-                )
+                indices = np.isin(parent.data[:, 0], labels) if except_with else ~np.isin(parent.data[:, 0], labels)
                 parent.data = parent.data[indices]
 
-    def pop(self, name: Optional[str | list[str]]):
+    def pop(self, name: str | list[str] | None):
         self.drop_names(name)
 
-    def drop(self, name: Optional[str | list[str]]):
+    def drop(self, name: str | list[str] | None):
         self.drop_names(name)
 
     def drop_names(
         self,
-        name: Optional[str | list[str]] = None,
-        except_name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
+        except_name: str | list[str] | None = None,
     ):
         if name is None and except_name is None:
-            raise ValueError(f"you must specify at least one of name or except_name")
+            raise ValueError("you must specify at least one of name or except_name")
         elif name is not None and except_name is not None:
-            raise ValueError(
-                f"you cannot specify name and except_name at once, choice one"
-            )
+            raise ValueError("you cannot specify name and except_name at once, choice one")
         elif except_name is not None:
-            name = [k for k in self.data.keys() if k not in except_name]
+            name = [k for k in self.data if k not in except_name]
 
         if name is None:
             raise ValueError
@@ -223,9 +212,7 @@ class BaseGrandpaComponent(Generic[TParent, TChild], metaclass=ABCMeta):
                 arr = parent_array
             else:
                 if not isinstance(parent_array, np.ndarray):
-                    raise TypeError(
-                        f"to_array() が ndarray を返していません: {type(parent_array)}"
-                    )
+                    raise TypeError(f"to_array() が ndarray を返していません: {type(parent_array)}")
                 arr = np.append(arr, parent_array, axis=0)
 
         if arr is None:
@@ -259,7 +246,7 @@ class ElementField:
 
 
 class NodesDict(BaseGrandpaComponent[Nodes, Node]):
-    def __init__(self, data: dict[str, Nodes], parent_class: Type[Nodes] = Nodes):
+    def __init__(self, data: dict[str, Nodes], parent_class: type[Nodes] = Nodes):
         self.data = data
         self.parent_class = parent_class
 
@@ -267,9 +254,7 @@ class NodesDict(BaseGrandpaComponent[Nodes, Node]):
 class ElementsDict(BaseGrandpaComponent[Elements, Element]):
     parent_class = Elements
 
-    def __init__(
-        self, data: dict[str, Elements], parent_class: Type[Elements] = Elements
-    ):
+    def __init__(self, data: dict[str, Elements], parent_class: type[Elements] = Elements):
         self.data = data
         # 要素場名 -> ElementField
         self.fields: dict[str, ElementField] = defaultdict(ElementField)
@@ -284,36 +269,30 @@ class ElementsDict(BaseGrandpaComponent[Elements, Element]):
 
     def drop_names(
         self,
-        name: Optional[str | list[str]] = None,
-        except_name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
+        except_name: str | list[str] | None = None,
     ):
         if name is None and except_name is None:
-            raise ValueError(f"you must specify at least one of name or except_name")
+            raise ValueError("you must specify at least one of name or except_name")
         elif name is not None and except_name is not None:
-            raise ValueError(
-                f"you cannot specify name and except_name at once, choice one"
-            )
+            raise ValueError("you cannot specify name and except_name at once, choice one")
 
         if isinstance(name, str):
             name = [name]
         elif except_name is not None:
             if not isinstance(except_name, list):
                 except_name = [except_name]
-            name = [k for k in self.data.keys() if k not in except_name]
+            name = [k for k in self.data if k not in except_name]
 
         if name is not None:
-            self.data = {
-                k: v
-                for k, v in self.data.items()
-                if all([k.split(",")[0] != i for i in name])
-            }
+            self.data = {k: v for k, v in self.data.items() if all([k.split(",")[0] != i for i in name])}
 
         if name is None:
             raise ValueError("何かおかしい")
 
     def get_array(
         self,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         allow_polymorphism: bool = True,
         invalid_node: int = 0,
     ) -> NDArray:
@@ -334,15 +313,13 @@ class ElementsDict(BaseGrandpaComponent[Elements, Element]):
         """
         parents_list = self.get_parents_list(name=name)
 
-        arr: Optional[NDArray] = None
+        arr: NDArray | None = None
 
         for parent in parents_list:
             parent_array = parent.to_array()
 
             if not isinstance(parent_array, np.ndarray):
-                raise TypeError(
-                    f"to_array() が ndarray を返していません: {type(parent_array)}"
-                )
+                raise TypeError(f"to_array() が ndarray を返していません: {type(parent_array)}")
 
             if arr is None:
                 # 最初の配列を基準として採用
@@ -352,8 +329,7 @@ class ElementsDict(BaseGrandpaComponent[Elements, Element]):
             # ここから 2個目以降
             if arr.ndim != parent_array.ndim:
                 raise ValueError(
-                    f"配列の次元数が一致しません: arr.ndim={arr.ndim}, "
-                    f"parent_array.ndim={parent_array.ndim}"
+                    f"配列の次元数が一致しません: arr.ndim={arr.ndim}, parent_array.ndim={parent_array.ndim}"
                 )
 
             if arr.ndim != 2:
@@ -366,8 +342,7 @@ class ElementsDict(BaseGrandpaComponent[Elements, Element]):
             if n_cols_arr != n_cols_new:
                 if not allow_polymorphism:
                     raise ValueError(
-                        f"列数が一致しません (allow_polymorphism=False): "
-                        f"既存={n_cols_arr}, 新規={n_cols_new}"
+                        f"列数が一致しません (allow_polymorphism=False): 既存={n_cols_arr}, 新規={n_cols_new}"
                     )
 
                 # 列数を合わせるために右側パディング
@@ -416,8 +391,8 @@ class ElementsDict(BaseGrandpaComponent[Elements, Element]):
         key = self.get_elset_key_from_elset_and_type(elset=elset, type=etype)
         try:
             return self.data[key]
-        except KeyError:
-            raise KeyError(f"ElementsDict にキー {key!r} は存在しません。")
+        except KeyError as err:
+            raise KeyError(f"ElementsDict にキー {key!r} は存在しません。") from err
 
     def get_parents_list(
         self,
@@ -456,12 +431,12 @@ class ElementsDict(BaseGrandpaComponent[Elements, Element]):
 
 
 class NsetDict(BaseGrandpaComponent[Nset, Node]):
-    def __init__(self, data: dict[str, Nset], parent_class: Type[Nset] = Nset):
+    def __init__(self, data: dict[str, Nset], parent_class: type[Nset] = Nset):
         self.data = data
         self.parent_class = parent_class
 
 
 class ElsetDict(BaseGrandpaComponent[Elset, Element]):
-    def __init__(self, data: dict[str, Elset], parent_class: Type[Elset] = Elset):
+    def __init__(self, data: dict[str, Elset], parent_class: type[Elset] = Elset):
         self.data = data
         self.parent_class = parent_class

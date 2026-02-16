@@ -1,13 +1,14 @@
 # pymesh/mesh/mesh_base/protocol.py
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable, Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Literal, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..grandpa import NodesDict, ElementsDict, NsetDict, ElsetDict
 from ...typing import NodeCoordArray
+from ..grandpa import ElementsDict, ElsetDict, NodesDict, NsetDict
 
 
 @runtime_checkable
@@ -28,7 +29,7 @@ class MesherCoreProtocol(Protocol):
     # --- 要素関連 ---
     def get_element_array(
         self,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         allow_polymorphism: bool = True,
         invalid_node: int = 0,
     ) -> NDArray: ...
@@ -36,7 +37,7 @@ class MesherCoreProtocol(Protocol):
     def get_element_array_dict(
         self,
         mode: Literal["type", "num_nodes"],
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
     ) -> dict[str | int, NDArray]: ...
 
     # --- ラベル・削除系 ---
@@ -47,13 +48,9 @@ class MesherCoreProtocol(Protocol):
     def drop_unreferenced_nodes(self) -> None: ...
 
     # --- 座標更新 ---
-    def update_node_coord_with_array(
-        self, node_coord_array: NodeCoordArray
-    ) -> None: ...
+    def update_node_coord_with_array(self, node_coord_array: NodeCoordArray) -> None: ...
 
     # --- 他 ---
     def get_node_coord(self) -> dict[int, np.ndarray]: ...
     def update_node_coord(self, node_coord: dict[int, np.ndarray]) -> None: ...
-    def get_element_coord_array(
-        self, name: Optional[str | list[str]] = None
-    ) -> NodeCoordArray: ...
+    def get_element_coord_array(self, name: str | list[str] | None = None) -> NodeCoordArray: ...

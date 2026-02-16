@@ -237,9 +237,7 @@ def _read_csv_arrays(csv_path: Path) -> dict[str, list[float]]:
                 num_cols = len(first_row)
                 fieldnames = [f"col_{i}" for i in range(num_cols)]
 
-            columns: dict[str, list[float]] = {
-                col: [] for col in fieldnames
-            }
+            columns: dict[str, list[float]] = {col: [] for col in fieldnames}
 
             def _append_row(row: list[str]) -> None:
                 for i, col in enumerate(fieldnames):
@@ -264,5 +262,5 @@ def _read_csv_arrays(csv_path: Path) -> dict[str, list[float]]:
                     result[col] = values
 
             return result
-    except (OSError, IOError):
+    except OSError:
         return {}

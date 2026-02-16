@@ -11,9 +11,7 @@ from __future__ import annotations
 import fnmatch
 
 
-def sort_columns_by_vocab(
-    columns: list[str], vocab: dict[str, str]
-) -> list[str]:
+def sort_columns_by_vocab(columns: list[str], vocab: dict[str, str]) -> list[str]:
     """vocab順でカラムをソート
 
     vocab辞書の値（日本語表記）の出現順を優先し、

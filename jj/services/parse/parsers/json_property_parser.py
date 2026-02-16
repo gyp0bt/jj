@@ -85,7 +85,7 @@ class JsonPropertyParser(AbstractFileParser):
                     continue
 
                 # サフィックスを取得（例: "stress", "dat_warning"）
-                suffix = json_name[len(inp_basename) + 1:]
+                suffix = json_name[len(inp_basename) + 1 :]
                 if not suffix:
                     continue
 
@@ -118,16 +118,16 @@ class JsonPropertyParser(AbstractFileParser):
     def _read_json(json_path) -> dict[str, Any] | None:
         """JSONファイルを読み込み（NaN/Infinity対応）"""
         try:
-            with open(json_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(json_path, encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-        except (OSError, IOError):
+        except OSError:
             return None
 
         # NaN/Infinityをnullに置換してからパース
         # -Infinityを先に置換しないとInfinity置換で-nullになる
-        content = re.sub(r'\bNaN\b', 'null', content)
-        content = re.sub(r'-Infinity\b', 'null', content)
-        content = re.sub(r'\bInfinity\b', 'null', content)
+        content = re.sub(r"\bNaN\b", "null", content)
+        content = re.sub(r"-Infinity\b", "null", content)
+        content = re.sub(r"\bInfinity\b", "null", content)
 
         try:
             data = json.loads(content)
@@ -140,9 +140,7 @@ class JsonPropertyParser(AbstractFileParser):
         return data
 
 
-def _flatten_json(
-    data: dict[str, Any], prefix: str = ""
-) -> dict[str, Any]:
+def _flatten_json(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     """辞書を"."区切りで再帰的に平坦化する
 
     Args:

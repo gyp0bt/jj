@@ -13,7 +13,8 @@ type/status/activeの基本フィルタに加え、プロパティ条件式
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 # ====================================================================
 # truthy判定
@@ -65,17 +66,13 @@ def apply_filters(
     if type_filter and type_filter != "すべて":
         filtered = [r for r in filtered if r.get("type") == type_filter]
     if status_filter and status_filter != "すべて":
-        filtered = [
-            r for r in filtered if r.get("analysis_status") == status_filter
-        ]
+        filtered = [r for r in filtered if r.get("analysis_status") == status_filter]
     if active_only:
         filtered = [r for r in filtered if is_truthy(r.get("active"))]
     return filtered
 
 
-def apply_saved_view_filters(
-    rows: list[dict[str, Any]], filters: dict[str, Any]
-) -> list[dict[str, Any]]:
+def apply_saved_view_filters(rows: list[dict[str, Any]], filters: dict[str, Any]) -> list[dict[str, Any]]:
     """保存済みビューのフィルタを適用
 
     Args:
@@ -94,15 +91,11 @@ def apply_saved_view_filters(
             if is_truthy(value):
                 filtered = [r for r in filtered if is_truthy(r.get("active"))]
             else:
-                filtered = [
-                    r for r in filtered if not is_truthy(r.get("active"))
-                ]
+                filtered = [r for r in filtered if not is_truthy(r.get("active"))]
         elif key == "type" and value != "すべて":
             filtered = [r for r in filtered if r.get("type") == value]
         elif key == "analysis_status" and value != "すべて":
-            filtered = [
-                r for r in filtered if r.get("analysis_status") == value
-            ]
+            filtered = [r for r in filtered if r.get("analysis_status") == value]
         else:
             filtered = [r for r in filtered if r.get(key) == value]
 
@@ -185,7 +178,9 @@ def apply_prop_filters(
         return items
 
     if prop_getter is None:
-        prop_getter = lambda item, key: item.get(key)
+
+        def prop_getter(item, key):
+            return item.get(key)
 
     result: list[Any] = []
     for item in items:

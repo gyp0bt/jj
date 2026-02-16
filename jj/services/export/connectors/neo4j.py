@@ -22,16 +22,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from jj_types import GraphModel, Node, Relation
+from services.export import AbstractExporter
+from shared.config import Neo4jConfig
 from shared.neo4j_schema import (
-    NodeLabel,
     get_neo4j_label,
     get_neo4j_reltype,
 )
-from shared.config import Neo4jConfig
-from services.export import AbstractExporter
 
 
 def _sanitize_property_value(value: Any) -> Any:
@@ -75,12 +74,10 @@ def _is_homogeneous_list(items: list) -> bool:
     numeric_types = (int, float)
     if first_type in numeric_types:
         return all(isinstance(x, numeric_types) for x in items)
-    return all(type(x) == first_type for x in items)
+    return all(type(x) is first_type for x in items)
 
 
-def _build_node_properties(
-    node: Node, project: str
-) -> dict[str, Any]:
+def _build_node_properties(node: Node, project: str) -> dict[str, Any]:
     """NodeからNeo4j用のプロパティ辞書を構築"""
     props: dict[str, Any] = {
         "jj_id": node.id,
@@ -150,11 +147,10 @@ class Neo4jConnector:
                     self.config.uri,
                     auth=(self.config.user, self.config.password),
                 )
-            except ImportError:
+            except ImportError as err:
                 raise ImportError(
-                    "neo4jパッケージがインストールされていません。\n"
-                    "pip install neo4j>=5.0.0 を実行してください。"
-                )
+                    "neo4jパッケージがインストールされていません。\npip install neo4j>=5.0.0 を実行してください。"
+                ) from err
         return self._driver
 
     def close(self) -> None:
@@ -209,9 +205,7 @@ class Neo4jConnector:
             project=self.project,
         )
 
-    def _upsert_nodes(
-        self, session, nodes: list[Node]
-    ) -> dict[str, int]:
+    def _upsert_nodes(self, session, nodes: list[Node]) -> dict[str, int]:
         """ノードをバッチでupsert"""
         stats = {"created": 0, "updated": 0}
 
@@ -247,9 +241,7 @@ class Neo4jConnector:
 
         return stats
 
-    def _upsert_relations(
-        self, session, relations: list[Relation]
-    ) -> dict[str, int]:
+    def _upsert_relations(self, session, relations: list[Relation]) -> dict[str, int]:
         """リレーションをバッチでupsert"""
         stats = {"created": 0, "updated": 0}
 
@@ -317,9 +309,7 @@ class Neo4jConnector:
         if clear_project:
             lines.append("// プロジェクトデータの削除")
             project_escaped = _escape_cypher_string(self.project)
-            lines.append(
-                f'MATCH (n) WHERE n.project = "{project_escaped}" DETACH DELETE n;'
-            )
+            lines.append(f'MATCH (n) WHERE n.project = "{project_escaped}" DETACH DELETE n;')
             lines.append("")
 
         # ノード作成
@@ -327,13 +317,9 @@ class Neo4jConnector:
         for node in graph.nodes:
             label = get_neo4j_label(node.type)
             props = _build_node_properties(node, self.project)
-            props_str = ", ".join(
-                f"{k}: {_format_cypher_value(v)}" for k, v in props.items()
-            )
+            props_str = ", ".join(f"{k}: {_format_cypher_value(v)}" for k, v in props.items())
             merge_key = f'project: "{_escape_cypher_string(self.project)}", jj_id: {node.id}'
-            lines.append(
-                f"MERGE (n:{label} {{{merge_key}}}) SET n += {{{props_str}}};"
-            )
+            lines.append(f"MERGE (n:{label} {{{merge_key}}}) SET n += {{{props_str}}};")
 
         lines.append("")
         lines.append("// === リレーション ===")
@@ -369,15 +355,13 @@ class Neo4jConnector:
         driver = self._get_driver()
         with driver.session(database=self.config.database) as session:
             result = session.run(
-                "MATCH (n) WHERE n.project = $project "
-                "RETURN labels(n)[0] AS label, count(n) AS count",
+                "MATCH (n) WHERE n.project = $project RETURN labels(n)[0] AS label, count(n) AS count",
                 project=self.project,
             )
             node_counts = {record["label"]: record["count"] for record in result}
 
             result = session.run(
-                "MATCH ()-[r]->() WHERE r.project = $project "
-                "RETURN type(r) AS type, count(r) AS count",
+                "MATCH ()-[r]->() WHERE r.project = $project RETURN type(r) AS type, count(r) AS count",
                 project=self.project,
             )
             rel_counts = {record["type"]: record["count"] for record in result}
@@ -412,9 +396,7 @@ class Neo4jExporter(AbstractExporter):
         project_root = kwargs.get("project_root")
         clear_project = kwargs.get("clear_project", False)
 
-        neo4j_config = Neo4jConfig.from_jj_config(
-            Path(project_root) if project_root else Path.cwd()
-        )
+        neo4j_config = Neo4jConfig.from_jj_config(Path(project_root) if project_root else Path.cwd())
         # CLIオプションで上書き
         if kwargs.get("neo4j_uri"):
             neo4j_config.uri = kwargs["neo4j_uri"]

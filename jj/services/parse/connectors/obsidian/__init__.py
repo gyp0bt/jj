@@ -6,7 +6,7 @@
 [READMEへ戻る](../../../README.md)
 """
 
-from services.export.connectors.obsidian import (  # noqa: F401
+from services.export.connectors.obsidian import (
     ObsidianConfig,
     ObsidianConnector,
     _coerce_property_value,

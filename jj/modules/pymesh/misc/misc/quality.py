@@ -1,10 +1,9 @@
-from typing import Literal, Dict, List, Any, Optional, Union
+from typing import Literal
+
 import numpy as np
 
 
-def get_tetrahedron_volume_batch(
-    p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
-) -> np.ndarray:
+def get_tetrahedron_volume_batch(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray) -> np.ndarray:
     """
     複数の四面体の体積をバッチ計算する関数。
 
@@ -162,9 +161,7 @@ def get_volume_batch(element_node_coord_array: np.ndarray) -> np.ndarray:
         )
 
 
-def get_tetrahedron_detJ_batch(
-    p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
-) -> np.ndarray:
+def get_tetrahedron_detJ_batch(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray) -> np.ndarray:
     """
     複数の四面体要素のdetJ（ヤコビ行列の行列式）をバッチ計算する関数。
 
@@ -196,9 +193,7 @@ def get_prism_detJ_batch(element_node_coord_array: np.ndarray) -> np.ndarray:
     jacobians = np.zeros((element_node_coord_array.shape[0], 3, 3))
 
     for i in range(3):
-        jacobians[:, :, i] = (
-            element_node_coord_array[:, i + 3] - element_node_coord_array[:, i]
-        )
+        jacobians[:, :, i] = element_node_coord_array[:, i + 3] - element_node_coord_array[:, i]
 
     return np.linalg.det(jacobians)
 
@@ -254,9 +249,7 @@ def get_detJ_batch(element_node_coord_array: np.ndarray) -> np.ndarray:
         )
 
 
-def get_tetrahedron_aspect_ratio_batch(
-    p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
-) -> np.ndarray:
+def get_tetrahedron_aspect_ratio_batch(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray) -> np.ndarray:
     """
     四面体要素のアスペクト比をバッチで計算する関数。
 
@@ -298,9 +291,7 @@ def get_prism_aspect_ratio_batch(element_node_coord_array: np.ndarray) -> np.nda
     ), "三角柱要素は6つの頂点と3次元座標で構成される必要があります"
 
     edges = [
-        np.linalg.norm(
-            element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1
-        )
+        np.linalg.norm(element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1)
         for i in range(6)
         for j in range(i + 1, 6)
     ]
@@ -330,9 +321,7 @@ def get_hexahedron_aspect_ratio_batch(
     ), "8面体要素は8つの頂点と3次元座標で構成される必要があります"
 
     edges = [
-        np.linalg.norm(
-            element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1
-        )
+        np.linalg.norm(element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1)
         for i in range(8)
         for j in range(i + 1, 8)
     ]
@@ -371,9 +360,7 @@ def get_aspect_ratio_batch(element_node_coord_array: np.ndarray) -> np.ndarray:
         )
 
 
-def get_tetrahedron_skewness_batch(
-    p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
-) -> np.ndarray:
+def get_tetrahedron_skewness_batch(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray) -> np.ndarray:
     """
     複数の四面体要素の Skewness をバッチで計算する関数。
 
@@ -419,9 +406,7 @@ def get_prism_skewness_batch(element_node_coord_array: np.ndarray) -> np.ndarray
     ), "三角柱要素は6つの頂点と3次元座標で構成される必要があります"
 
     edges = [
-        np.linalg.norm(
-            element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1
-        )
+        np.linalg.norm(element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1)
         for i in range(6)
         for j in range(i + 1, 6)
     ]
@@ -450,9 +435,7 @@ def get_hexahedron_skewness_batch(element_node_coord_array: np.ndarray) -> np.nd
     ), "8面体要素は8つの頂点と3次元座標で構成される必要があります"
 
     edges = [
-        np.linalg.norm(
-            element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1
-        )
+        np.linalg.norm(element_node_coord_array[:, i] - element_node_coord_array[:, j], axis=1)
         for i in range(8)
         for j in range(i + 1, 8)
     ]
@@ -494,7 +477,7 @@ def get_skewness_batch(element_node_coord_array: np.ndarray) -> np.ndarray:
 
 def get_element_quality(
     element_node_coord_array: np.ndarray,
-    mode: Literal["skewness", "aspect", "detJ", "volume"] | List[str] = None,
+    mode: Literal["skewness", "aspect", "detJ", "volume"] | list[str] | None = None,
 ):
     quality_eval_funcs = dict(
         skewness=get_skewness_batch,

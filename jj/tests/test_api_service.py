@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -25,12 +25,9 @@ from services.service.api_service import ApiService
 def sample_graph():
     """テスト用のGraphModel"""
     nodes = [
-        Node(id=1, type="go", name="go_model1.inp", format=".inp",
-             properties={"active": True, "RF3": 10.5}),
-        Node(id=2, type="mesh", name="mesh_model1.inp", format=".inp",
-             properties={"active": False}),
-        Node(id=3, type="go", name="go_model2.inp", format=".inp",
-             properties={"active": True, "RF3": 3.0}),
+        Node(id=1, type="go", name="go_model1.inp", format=".inp", properties={"active": True, "RF3": 10.5}),
+        Node(id=2, type="mesh", name="mesh_model1.inp", format=".inp", properties={"active": False}),
+        Node(id=3, type="go", name="go_model2.inp", format=".inp", properties={"active": True, "RF3": 3.0}),
     ]
     relations = [
         Relation(id=1, label="has_output", node1_id=1, node2_id=2),

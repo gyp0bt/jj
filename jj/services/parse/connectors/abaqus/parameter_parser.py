@@ -93,6 +93,6 @@ class AbaqusParameterParser(AbstractFileParser):
                                 v = vocab.get(v, v)
                                 props[k] = v
                         return props
-        except (OSError, IOError):
+        except OSError:
             pass
         return props

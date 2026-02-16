@@ -21,39 +21,42 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 # プロジェクトルートをsys.pathに追加（Streamlitプロセスからのインポート用）
 _project_src = str(Path(__file__).resolve().parents[2])
 if _project_src not in sys.path:
     sys.path.insert(0, _project_src)
 
-from jj_types import GraphModel
-from services.dashboard.data_provider import DashboardDataProvider
-from services.dashboard.connectors import get_connector_pages, render_connector_page
-from services.dashboard.query import (
-    find_graph_path,
-    get_graph_mtime,
-    is_truthy,
-    select_table_columns,
+# コネクター自動登録（インポート時に__init_subclass__で登録される）
+import contextlib  # noqa: E402
+
+import services.dashboard.connectors.abaqus  # noqa: F401, E402
+from jj_types import GraphModel  # noqa: E402
+from services.dashboard.connectors import get_connector_pages, render_connector_page  # noqa: E402
+from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
+from services.dashboard.html_export import (  # noqa: E402
+    _add_group_lines_to_fig,
+    _add_ng_regions_to_fig,
+    _create_plot_figure,
+    generate_saved_views_html,
+)
+from services.dashboard.query import (  # noqa: E402
     apply_filters,
     apply_saved_view_filters,
-    saved_view_filters_to_provider_filters,
-    normalize_group_key,
     collect_group_keys,
+    get_graph_mtime,
+    is_truthy,
+    normalize_group_key,
+    saved_view_filters_to_provider_filters,
+    select_table_columns,
 )
-from services.dashboard.html_export import (
-    generate_saved_views_html,
-    _create_plot_figure,
-    _add_ng_regions_to_fig,
-    _add_group_lines_to_fig,
-)
-from services.graph import GraphService
-
-# コネクター自動登録（インポート時に__init_subclass__で登録される）
-import services.dashboard.connectors.abaqus  # noqa: F401
+from services.graph import GraphService  # noqa: E402
 
 
 def _check_graph_changed(project_root: Path) -> bool:
@@ -101,7 +104,7 @@ def _get_project_root() -> Path:
 # ====================================================================
 
 
-def _try_render_aggrid(df: "pd.DataFrame") -> bool:
+def _try_render_aggrid(df: pd.DataFrame) -> bool:
     """AgGridでDataFrameを表示（widgets.pyへの委譲ラッパー）"""
     from services.dashboard.widgets import try_render_aggrid
 
@@ -150,7 +153,7 @@ def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
 
     # タイプフィルタ
     types = sorted({r.get("type", "") for r in rows if r.get("type")})
-    type_options = ["すべて"] + types
+    type_options = ["すべて", *types]
     current_type = st.session_state.get("_filter_type", "すべて")
     type_idx = type_options.index(current_type) if current_type in type_options else 0
     selected_type = st.sidebar.selectbox("タイプフィルタ", type_options, index=type_idx, key="_sb_filter_type")
@@ -158,7 +161,7 @@ def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
 
     # ステータスフィルタ
     statuses = sorted({r.get("analysis_status", "unknown") for r in rows if r.get("analysis_status")})
-    status_options = ["すべて"] + statuses
+    status_options = ["すべて", *statuses]
     current_status = st.session_state.get("_filter_status", "すべて")
     status_idx = status_options.index(current_status) if current_status in status_options else 0
     selected_status = st.sidebar.selectbox(
@@ -396,7 +399,7 @@ def _render_table_page(
 # ====================================================================
 
 
-def _render_excel_download(df: "pd.DataFrame", filename_prefix: str = "data") -> None:
+def _render_excel_download(df: pd.DataFrame, filename_prefix: str = "data") -> None:
     """DataFrameをExcelファイルとしてダウンロードするボタンを表示
 
     openpyxlが利用可能な場合のみ表示する。
@@ -407,6 +410,7 @@ def _render_excel_download(df: "pd.DataFrame", filename_prefix: str = "data") ->
     """
     try:
         import io
+
         import openpyxl  # noqa: F401
 
         buffer = io.BytesIO()
@@ -539,7 +543,7 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
     with col2:
         y_key = st.selectbox("Y軸", keys, index=y_default_idx)
     with col3:
-        color_options = ["なし"] + keys
+        color_options = ["なし", *keys]
         color_key = st.selectbox("色分け", color_options, index=0)
     with col4:
         chart_type = st.selectbox("チャートタイプ", ["散布図", "棒グラフ", "線図"])
@@ -566,7 +570,7 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
     # グループ結線設定
     group_line_key = getattr(dashboard_config, "group_line_key", None)
     group_line_options = ["なし"] + [k for k in keys if k != x_key and k != y_key]
-    col_gl1, col_gl2 = st.columns(2)
+    col_gl1, _col_gl2 = st.columns(2)
     with col_gl1:
         gl_default = 0
         if group_line_key and group_line_key in group_line_options:
@@ -619,7 +623,7 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
 
 
 def _render_plot_grid(
-    df: "pd.DataFrame",
+    df: pd.DataFrame,
     x_key: str,
     y_key: str,
     color: str | None,
@@ -1092,13 +1096,13 @@ def _render_gallery_output_images(
 
     # フィルタ: フォーマット
     formats = sorted({img["image_format"] for img in images})
-    selected_format = st.sidebar.selectbox("画像フォーマット", ["すべて"] + formats)
+    selected_format = st.sidebar.selectbox("画像フォーマット", ["すべて", *formats])
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
     # グループ表示オプション（デフォルト: 最初の利用可能キー）
     group_keys = collect_group_keys(images, source="output")
-    group_options = ["なし"] + group_keys
+    group_options = ["なし", *group_keys]
     default_group_idx = 1 if group_keys else 0
     group_by = st.sidebar.selectbox(
         "グループ表示",
@@ -1155,19 +1159,19 @@ def _render_gallery_property_images(
 
     # キー別フィルタ
     all_keys = sorted({img["property_key"] for img in images})
-    selected_key = st.sidebar.selectbox("プロパティキー", ["すべて"] + all_keys)
+    selected_key = st.sidebar.selectbox("プロパティキー", ["すべて", *all_keys])
     if selected_key != "すべて":
         images = [img for img in images if img["property_key"] == selected_key]
 
     # フォーマットフィルタ
     formats = sorted({img["image_format"] for img in images})
-    selected_format = st.sidebar.selectbox("画像フォーマット（プロパティ）", ["すべて"] + formats)
+    selected_format = st.sidebar.selectbox("画像フォーマット（プロパティ）", ["すべて", *formats])
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
     # グループ表示オプション（デフォルト: property_key でグループ化）
     group_keys = collect_group_keys(images, source="property")
-    group_options = ["なし"] + group_keys
+    group_options = ["なし", *group_keys]
     # property_keyが利用可能な場合はデフォルトで選択
     default_group_idx = 0
     if "property_key" in group_keys:
@@ -1295,10 +1299,8 @@ def _render_saved_views_page(
 
     dynamic_view_configs: list[SavedViewConfig] = []
     for dv in dynamic_views:
-        try:
+        with contextlib.suppress(ValueError, KeyError):
             dynamic_view_configs.append(SavedViewConfig.from_dict(dv))
-        except (ValueError, KeyError):
-            pass
 
     all_views = saved_views + dynamic_view_configs
 
@@ -1682,10 +1684,8 @@ def _render_html_export_button(
     from config import SavedViewConfig
 
     for dv in dynamic_views:
-        try:
+        with contextlib.suppress(ValueError, KeyError):
             saved_views.append(SavedViewConfig.from_dict(dv))
-        except (ValueError, KeyError):
-            pass
 
     if not saved_views:
         return

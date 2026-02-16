@@ -27,7 +27,6 @@ from services.query.sort import (  # noqa: F401
     sort_columns_by_vocab,
 )
 
-
 # ====================================================================
 # graph.yaml 検知ユーティリティ（dashboard固有）
 # ====================================================================
@@ -91,9 +90,7 @@ def normalize_group_key(key: str) -> str:
     return key
 
 
-def collect_group_keys(
-    images: list[dict[str, Any]], source: str
-) -> list[str]:
+def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
     """画像リストからグループ化に利用できるキーを収集
 
     Args:
@@ -112,5 +109,5 @@ def collect_group_keys(
     result = sorted(keys)
     # propertyソースの場合はproperty_keyでのグルーピングも追加
     if source == "property":
-        result = ["property_key"] + result
+        result = ["property_key", *result]
     return result

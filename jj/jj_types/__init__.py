@@ -25,5 +25,5 @@ class GraphModel(BaseModel):
     relations: list[Relation] = Field(default_factory=list)
 
     @classmethod
-    def empty(cls) -> "GraphModel":
+    def empty(cls) -> GraphModel:
         return cls(nodes=[], relations=[])

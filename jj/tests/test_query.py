@@ -13,7 +13,6 @@ import pytest
 
 from jj_types import Node
 
-
 # ====================================================================
 # filters.py テスト
 # ====================================================================
@@ -262,10 +261,13 @@ class TestApplyPropFilters:
             {"name": "c", "RF3": 5.0, "temperature": 400},
         ]
 
-        result = apply_prop_filters(rows, [
-            ("RF3", "gt", 4.0),
-            ("temperature", "lt", 400.0),
-        ])
+        result = apply_prop_filters(
+            rows,
+            [
+                ("RF3", "gt", 4.0),
+                ("temperature", "lt", 400.0),
+            ],
+        )
         assert len(result) == 1
         assert result[0]["name"] == "b"
 
@@ -274,17 +276,12 @@ class TestApplyPropFilters:
         from services.query import apply_prop_filters, node_prop_getter
 
         nodes = [
-            Node(id=1, type="go", name="a", format="inp",
-                 properties={"RF3": 3.0, "temperature": 300}),
-            Node(id=2, type="go", name="b", format="inp",
-                 properties={"RF3": 8.0, "temperature": 350}),
-            Node(id=3, type="go", name="c", format="inp",
-                 properties={"RF3": 5.0, "temperature": 400}),
+            Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
+            Node(id=2, type="go", name="b", format="inp", properties={"RF3": 8.0, "temperature": 350}),
+            Node(id=3, type="go", name="c", format="inp", properties={"RF3": 5.0, "temperature": 400}),
         ]
 
-        result = apply_prop_filters(
-            nodes, [("RF3", "gt", 5.0)], prop_getter=node_prop_getter
-        )
+        result = apply_prop_filters(nodes, [("RF3", "gt", 5.0)], prop_getter=node_prop_getter)
         assert len(result) == 1
         assert result[0].name == "b"
 
@@ -292,12 +289,9 @@ class TestApplyPropFilters:
         from services.query import apply_prop_filters, node_prop_getter
 
         nodes = [
-            Node(id=1, type="go", name="a", format="inp",
-                 properties={"RF3": 3.0, "temperature": 300}),
-            Node(id=2, type="go", name="b", format="inp",
-                 properties={"RF3": 8.0, "temperature": 350}),
-            Node(id=3, type="go", name="c", format="inp",
-                 properties={"RF3": 5.0, "temperature": 400}),
+            Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
+            Node(id=2, type="go", name="b", format="inp", properties={"RF3": 8.0, "temperature": 350}),
+            Node(id=3, type="go", name="c", format="inp", properties={"RF3": 5.0, "temperature": 400}),
         ]
 
         result = apply_prop_filters(
@@ -468,6 +462,7 @@ def _import_query_service():
     """
     try:
         from services.service.query_service import QueryService
+
         return QueryService
     except ImportError as e:
         pytest.skip(f"QueryService import failed: {e}")
@@ -478,14 +473,10 @@ class TestQueryService:
 
     def _make_nodes(self):
         return [
-            Node(id=1, type="go", name="go_idx1", format="inp",
-                 properties={"RF3": 3.0, "active": True}),
-            Node(id=2, type="go", name="go_idx2", format="inp",
-                 properties={"RF3": 8.0, "active": False}),
-            Node(id=3, type="material", name="Steel", format="inp",
-                 properties={"RF3": 5.0, "active": True}),
-            Node(id=4, type="go", name="go_idx3", format="inp",
-                 properties={"RF3": 10.0, "active": True}),
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"RF3": 3.0, "active": True}),
+            Node(id=2, type="go", name="go_idx2", format="inp", properties={"RF3": 8.0, "active": False}),
+            Node(id=3, type="material", name="Steel", format="inp", properties={"RF3": 5.0, "active": True}),
+            Node(id=4, type="go", name="go_idx3", format="inp", properties={"RF3": 10.0, "active": True}),
         ]
 
     def test_no_filter(self):
@@ -529,9 +520,7 @@ class TestQueryService:
         QueryService = _import_query_service()
 
         nodes = self._make_nodes()
-        result = QueryService.filter_nodes(
-            nodes, query_params={"props.RF3.gt": "5"}
-        )
+        result = QueryService.filter_nodes(nodes, query_params={"props.RF3.gt": "5"})
         assert len(result) == 2
         names = {n.name for n in result}
         assert names == {"go_idx2", "go_idx3"}

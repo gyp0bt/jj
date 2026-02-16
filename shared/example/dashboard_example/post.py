@@ -4,7 +4,6 @@ import os
 sys.path.append(os.getcwd())
 
 import glob
-from io import BytesIO
 import io
 
 import numpy as np
@@ -75,9 +74,7 @@ def parse(s: str) -> dict:
     }
     data["extra_length_ratio"] = (
         # (data["length"] - data["distance"]) / data["length"] * 100.0
-        (data["length"] - data["distance"])
-        / data["distance"]
-        * 100.0
+        (data["length"] - data["distance"]) / data["distance"] * 100.0
     )
     omega = np.sqrt((data["acceleration"] * 9.8) / data["displacement"] / 1.0e-3)
     data["frequency"] = float(f"{omega / 2 / np.pi:.2e}")
@@ -255,7 +252,6 @@ if df_display.shape[0] == 0:
     st.warning("条件が存在しません。")
 
 else:
-
     df_xlsx = df_display[
         [i for i in df.columns if i not in [args["jp_dict"][j] for j in ["filename"]]]
     ]

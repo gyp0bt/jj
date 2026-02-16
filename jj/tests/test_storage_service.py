@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from jj_types import GraphModel, Node, Relation
-
 from services.graph.storage import GraphStorage
 
 

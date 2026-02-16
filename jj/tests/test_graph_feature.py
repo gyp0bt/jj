@@ -10,7 +10,8 @@
 from pathlib import Path
 
 import pytest
-from config import GraphConfig, PathTypeMapConfig
+
+from config import GraphConfig
 from jj_types import GraphModel, Node
 from services.graph import GraphService
 from services.parse.file_parse import FileParse, FileType
@@ -459,10 +460,10 @@ class TestConfigRules:
 
         ignore = IgnoreConfig.from_list(["notes", "notes/**", ".obsidian", ".obsidian/**"])
 
-        assert ignore.should_ignore("notes/sample.md") == True
-        assert ignore.should_ignore("notes/nested/file.md") == True
-        assert ignore.should_ignore(".obsidian/config.json") == True
-        assert ignore.should_ignore("go_idx1.inp") == False
+        assert ignore.should_ignore("notes/sample.md")
+        assert ignore.should_ignore("notes/nested/file.md")
+        assert ignore.should_ignore(".obsidian/config.json")
+        assert not ignore.should_ignore("go_idx1.inp")
 
 
 class TestDateParsing:
@@ -1782,8 +1783,8 @@ class TestVocabValueTranslation:
 
     def test_vocab_translates_prop_values(self, tmp_path):
         """vocabがプロパティ値も変換する"""
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
         from services.graph.project_graph import ProjectGraph
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
 
         config = GraphConfig.from_dict(
             {
@@ -2174,7 +2175,7 @@ class TestTrailingCommaInMaterialProperty:
         density = MaterialPropertyReadComponent(context)
 
         # 末尾カンマのある行: "1.0e-9,"
-        result = density.read_line("1.0e-9,")
+        density.read_line("1.0e-9,")
         # エラーにならずにデータが追加される
         assert len(density.data) == 1
         row = density.data[0]
@@ -3016,7 +3017,7 @@ class TestExportCSVJSON:
         import csv
         import json
 
-        mod = self._import_graph_module()
+        self._import_graph_module()
 
         graph = GraphModel(
             nodes=[
@@ -3090,10 +3091,10 @@ class TestMaterialAssignmentProps:
         """_enrich_material_assignment_propsで材料名とelsetが追加される"""
         from config import GraphConfig
         from jj_types import Relation
+        from services.graph.project_graph import ProjectGraph
         from services.parse.connectors.abaqus.inp_parser import (
             AbaqusMaterialAssignmentParser,
         )
-        from services.graph.project_graph import ProjectGraph
 
         config = GraphConfig.from_dict({})
 
@@ -3582,7 +3583,7 @@ class TestPymeshImport:
         """pymeshが正しくインポートできる（絶対インポート）"""
         from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
-        create_mesher, get_quality = _safe_import_pymesh()
+        create_mesher, _get_quality = _safe_import_pymesh()
         # pymeshが利用可能ならNoneでない
         assert create_mesher is not None, "pymeshのインポートに失敗"
 
@@ -3630,7 +3631,7 @@ class TestWindowsPathParsing:
 
     def test_backslash_path_normalized(self, tmp_path):
         """バックスラッシュパスからbasenameを正しく抽出"""
-        from pathlib import PurePosixPath, PureWindowsPath
+        from pathlib import PurePosixPath
 
         path = "subdir\\go_idx1_v1.inp"
         normalized = path.replace("\\", "/")
@@ -3678,7 +3679,6 @@ class TestCredentialService:
     def test_save_and_load_credentials(self, tmp_path):
         """クレデンシャルの保存と読み込み"""
         from services.lib.credentials import (
-            _get_secret_key_path,
             load_credentials,
             save_credentials,
         )

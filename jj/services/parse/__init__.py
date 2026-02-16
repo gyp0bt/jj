@@ -1,3 +1,6 @@
+# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
+import services.parse.parsers  # noqa: F401
+
 from .base import AbstractFileParser, FileNameParser, parse
 from .file_parse import (
     TARGET_EXTENSIONS,
@@ -15,9 +18,6 @@ from .file_parse import (
     safe_relative_path,
 )
 
-# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
-import services.parse.parsers  # noqa: F401
-
 # Abaqus/Obsidian等のコネクターはプラグインレジストリ経由で動的に登録される。
 # services.sdk.plugin_registry.load_all_plugins() を呼び出し済みであれば
 # services.plugins.abaqus / services.plugins.obsidian が自動インポートされ、
@@ -28,6 +28,7 @@ import services.parse.parsers  # noqa: F401
 # Abaqus固有APIは services.parse.connectors.abaqus から直接importすること。
 
 __all__ = [
+    "TARGET_EXTENSIONS",
     "AbstractFileParser",
     "FileGroup",
     "FileNameParser",
@@ -35,7 +36,6 @@ __all__ = [
     "FileType",
     "ObsidianFileParse",
     "ObsidianMap",
-    "TARGET_EXTENSIONS",
     "get_basename",
     "get_basename_with_ext",
     "get_group_name",

@@ -19,13 +19,12 @@ from jj_types import GraphModel, Node, Relation
 from services.graph import GraphService
 from services.graph.project_graph import ProjectGraph
 from services.parse.base import (
-    AbstractFileParser,
-    clear_parser_registry,
     get_parser_registry,
     parse,
 )
 
 ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+
 
 # テスト間でレジストリ状態を共有するためのフィクスチャ
 @pytest.fixture
@@ -48,6 +47,7 @@ def graph(config: GraphConfig) -> GraphModel:
 # R1: ProjectGraph 型テスト
 # ====================================================================
 
+
 class TestProjectGraph:
     """ProjectGraph dataclass の基本動作"""
 
@@ -65,27 +65,20 @@ class TestProjectGraph:
         assert pg._node_id_counter == 1
 
     def test_add_node_updates_index(self, config: GraphConfig):
-        pg = ProjectGraph(
-            nodes=[], relations=[], project_root=ASSET_DIR, config=config
-        )
-        node = Node(id=pg.next_node_id(), type="go", name="test", format="inp",
-                     properties={"path": "test.inp"})
+        pg = ProjectGraph(nodes=[], relations=[], project_root=ASSET_DIR, config=config)
+        node = Node(id=pg.next_node_id(), type="go", name="test", format="inp", properties={"path": "test.inp"})
         pg.add_node(node)
         assert pg.get_node_by_path("test.inp") is node
         assert pg.get_node_by_id(node.id) is node
 
     def test_next_id_increments(self, config: GraphConfig):
-        pg = ProjectGraph(
-            nodes=[], relations=[], project_root=ASSET_DIR, config=config
-        )
+        pg = ProjectGraph(nodes=[], relations=[], project_root=ASSET_DIR, config=config)
         id1 = pg.next_node_id()
         id2 = pg.next_node_id()
         assert id2 == id1 + 1
 
     def test_remove_nodes(self, config: GraphConfig):
-        pg = ProjectGraph(
-            nodes=[], relations=[], project_root=ASSET_DIR, config=config
-        )
+        pg = ProjectGraph(nodes=[], relations=[], project_root=ASSET_DIR, config=config)
         n1 = Node(id=1, type="a", name="a", format="x", properties={"path": "a.x"})
         n2 = Node(id=2, type="b", name="b", format="y", properties={"path": "b.y"})
         rel = Relation(id=1, label="test", node1_id=1, node2_id=2)
@@ -111,10 +104,8 @@ class TestProjectGraph:
     def test_iterate_directories(self, config: GraphConfig):
         pg = ProjectGraph(
             nodes=[
-                Node(id=1, type="go", name="a", format="inp",
-                     properties={"path": "sub/a.inp"}),
-                Node(id=2, type="go", name="b", format="inp",
-                     properties={"path": "sub/deep/b.inp"}),
+                Node(id=1, type="go", name="a", format="inp", properties={"path": "sub/a.inp"}),
+                Node(id=2, type="go", name="b", format="inp", properties={"path": "sub/deep/b.inp"}),
             ],
             relations=[],
             project_root=ASSET_DIR,
@@ -125,9 +116,7 @@ class TestProjectGraph:
         assert len(dirs) >= 3
 
     def test_safe_relative_path(self, config: GraphConfig):
-        pg = ProjectGraph(
-            nodes=[], relations=[], project_root=ASSET_DIR, config=config
-        )
+        pg = ProjectGraph(nodes=[], relations=[], project_root=ASSET_DIR, config=config)
         rel = pg.safe_relative_path(ASSET_DIR / "go_idx1.v3.inp")
         assert rel == "go_idx1.v3.inp"
         assert not rel.startswith("./")
@@ -136,6 +125,7 @@ class TestProjectGraph:
 # ====================================================================
 # R2: パーサーレジストリテスト
 # ====================================================================
+
 
 class TestParserRegistry:
     """AbstractFileParser.__init_subclass__ による自動登録"""
@@ -161,10 +151,20 @@ class TestParserRegistry:
         """parse() が全パーサーを通してGraphを返す"""
         pg = ProjectGraph(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "dummy.inp", "index": "1", "version": "4"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "dummy.inp", "index": "1", "version": "4"},
+                ),
             ],
             relations=[],
             project_root=ASSET_DIR,
@@ -180,6 +180,7 @@ class TestParserRegistry:
 # ====================================================================
 # R3: 統合テスト（test_asset1 全体パース）
 # ====================================================================
+
 
 class TestPipelineIntegration:
     """test_asset1 を丸ごとパースした結果の検証"""
@@ -199,9 +200,7 @@ class TestPipelineIntegration:
     def test_no_sta_msg_dat_nodes(self, graph: GraphModel):
         """enrichment-only (.sta/.msg/.dat) ノードはフィルタ済み"""
         for node in graph.nodes:
-            assert node.format not in ("sta", "msg", "dat"), (
-                f"enrichment-only node残存: {node.name}.{node.format}"
-            )
+            assert node.format not in ("sta", "msg", "dat"), f"enrichment-only node残存: {node.name}.{node.format}"
 
     def test_go_nodes_have_expected_properties(self, graph: GraphModel):
         go_nodes = [n for n in graph.nodes if n.type == "go"]
@@ -223,25 +222,13 @@ class TestPipelineIntegration:
 
     def test_go_node_active_flag(self, graph: GraphModel):
         """old/ 配下は active=false"""
-        old_go = [
-            n for n in graph.nodes
-            if n.type == "go"
-            and n.properties.get("path", "").startswith("old/")
-        ]
+        old_go = [n for n in graph.nodes if n.type == "go" and n.properties.get("path", "").startswith("old/")]
         for n in old_go:
-            assert n.properties.get("active") == "false", (
-                f"{n.name} should be active=false"
-            )
+            assert n.properties.get("active") == "false", f"{n.name} should be active=false"
 
-        top_go = [
-            n for n in graph.nodes
-            if n.type == "go"
-            and not n.properties.get("path", "").startswith("old/")
-        ]
+        top_go = [n for n in graph.nodes if n.type == "go" and not n.properties.get("path", "").startswith("old/")]
         for n in top_go:
-            assert n.properties.get("active") == "true", (
-                f"{n.name} should be active=true"
-            )
+            assert n.properties.get("active") == "true", f"{n.name} should be active=true"
 
     # --- リレーション系 ---
 
@@ -281,10 +268,7 @@ class TestPipelineIntegration:
     def test_results_dir_files_not_noded(self, graph: GraphModel):
         """results/配下のファイルはNode化されない（info-only）"""
         results_file_nodes = [
-            n
-            for n in graph.nodes
-            if n.properties.get("path", "").startswith("results/")
-            and n.format != "directory"
+            n for n in graph.nodes if n.properties.get("path", "").startswith("results/") and n.format != "directory"
         ]
         assert len(results_file_nodes) == 0, (
             f"results/配下のファイルがNode化されている: {[n.name for n in results_file_nodes]}"
@@ -296,9 +280,7 @@ class TestPipelineIntegration:
         # JsonPropertyParser(priority=33)がresults/のJSONを読んでプロパティ付与
         # EnrichmentOnlyFilter(priority=99)でresults/ノード除去後も情報は残る
         # JSONキーはファイル名サフィックスなしで直接割り当て（key:value形式）
-        has_json_prop = any(
-            "0(center)" in n.properties for n in go_nodes
-        )
+        has_json_prop = any("0(center)" in n.properties for n in go_nodes)
         assert has_json_prop, "results/のJSON情報がgo_*.inpに伝搬されていない"
 
     # --- ディレクトリノード ---
@@ -317,9 +299,7 @@ class TestPipelineIntegration:
         if node is None:
             pytest.skip("go_idx1.v3.inp not found")
         # msg ファイルにwarning/errorがあれば伝搬されているはず
-        has_msg_prop = (
-            "msg_warnings" in node.properties or "msg_errors" in node.properties
-        )
+        has_msg_prop = "msg_warnings" in node.properties or "msg_errors" in node.properties
         assert has_msg_prop, "msg情報がinpに伝搬されていない"
 
 
@@ -332,11 +312,7 @@ class TestVersionRelations:
         v3 = _find_node(graph, name="go_idx2.v3", format="inp")
         if v2 is None or v3 is None:
             pytest.skip("go_idx2 v2/v3 not found")
-        nv = [
-            r for r in graph.relations
-            if r.label == "next_version"
-            and r.node1_id == v2.id and r.node2_id == v3.id
-        ]
+        nv = [r for r in graph.relations if r.label == "next_version" and r.node1_id == v2.id and r.node2_id == v3.id]
         assert len(nv) == 1
 
     def test_go_idx3_has_next_version(self, graph: GraphModel):
@@ -345,11 +321,7 @@ class TestVersionRelations:
         v2 = _find_node(graph, name="go_idx3.v2", format="inp")
         if v1 is None or v2 is None:
             pytest.skip("go_idx3 v1/v2 not found")
-        nv = [
-            r for r in graph.relations
-            if r.label == "next_version"
-            and r.node1_id == v1.id and r.node2_id == v2.id
-        ]
+        nv = [r for r in graph.relations if r.label == "next_version" and r.node1_id == v1.id and r.node2_id == v2.id]
         assert len(nv) == 1
 
 
@@ -365,10 +337,7 @@ class TestIncludesRelations:
         if go is None:
             pytest.skip("go_idx1.v3 not found")
 
-        includes = [
-            r for r in graph.relations
-            if r.label == "includes" and r.node1_id == go.id
-        ]
+        includes = [r for r in graph.relations if r.label == "includes" and r.node1_id == go.id]
         assert len(includes) >= 1, "go_idx1.v3 should include at least mesh_*.inp"
 
 
@@ -382,10 +351,7 @@ class TestDirectoryRelations:
         )
         if old_dir is None:
             pytest.skip("old directory node not found")
-        contains = [
-            r for r in graph.relations
-            if r.label == "contains" and r.node1_id == old_dir.id
-        ]
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == old_dir.id]
         assert len(contains) >= 5  # old/ に複数ファイルがある
 
 
@@ -458,15 +424,10 @@ class TestIncludesRelationPipeline:
         """go_idx1.v3 → mesh_shape1_t95.v8 + step_stress_v1"""
         go = _find_node(graph, name="go_idx1.v3", format="inp")
         assert go is not None
-        includes = [
-            r for r in graph.relations
-            if r.label == "includes" and r.node1_id == go.id
-        ]
+        includes = [r for r in graph.relations if r.label == "includes" and r.node1_id == go.id]
         target_names = set()
         for r in includes:
-            target = next(
-                (n for n in graph.nodes if n.id == r.node2_id), None
-            )
+            target = next((n for n in graph.nodes if n.id == r.node2_id), None)
             if target:
                 target_names.add(target.name)
         assert "mesh_shape1_t95.v8" in target_names
@@ -477,14 +438,12 @@ class TestIncludesRelationPipeline:
         all_includes_targets = set()
         for r in graph.relations:
             if r.label == "includes":
-                target = next(
-                    (n for n in graph.nodes if n.id == r.node2_id), None
-                )
+                target = next((n for n in graph.nodes if n.id == r.node2_id), None)
                 if target:
                     all_includes_targets.add(target.name)
-        assert any(
-            "material" in name for name in all_includes_targets
-        ), "material.inpが存在するのにincludes先に含まれていない"
+        assert any("material" in name for name in all_includes_targets), (
+            "material.inpが存在するのにincludes先に含まれていない"
+        )
 
 
 class TestDerivedFromRelationPipeline:
@@ -559,9 +518,8 @@ class TestMsgPropagationPipeline:
 # ヘルパー
 # ====================================================================
 
-def _find_node(
-    graph: GraphModel, *, name: str, format: str
-) -> Node | None:
+
+def _find_node(graph: GraphModel, *, name: str, format: str) -> Node | None:
     """名前とフォーマットでノードを検索"""
     for n in graph.nodes:
         if n.name == name and n.format == format:

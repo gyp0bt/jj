@@ -45,7 +45,7 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.obsidian.daily_parser  # noqa: F401
+    import services.parse.connectors.obsidian.daily_parser
 
     # エクスポーターのインポート（自動登録が発動）
     # ObsidianExporterはservices.export.connectors.obsidianで定義されている

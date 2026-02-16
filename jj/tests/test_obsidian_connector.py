@@ -8,14 +8,11 @@
 [READMEへ戻る](../README.md)
 """
 
-from pathlib import Path
-
 import pytest
+
 from config import GraphConfig
 from jj_types import GraphModel, Node
-
 from services.parse.connectors.obsidian import (
-    ObsidianConfig,
     ObsidianConnector,
     _coerce_property_value,
     from_obsidian_filename,
@@ -226,7 +223,7 @@ class TestObsidianBaseAndGroupFiles:
         assert "go_idx1.base" in base_names
         assert "go.base" in base_names
         # idx .base はYAML形式（frontmatterの---で始まらない）
-        idx_base = [p for p in base_files if p.name == "go_idx1.base"][0]
+        idx_base = next(p for p in base_files if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         assert not content.startswith("---")
         assert "views:" in content
@@ -408,12 +405,27 @@ class TestObsidianVersionLinks:
         """v1→v2, v2→v3, v3→.base のリンクチェーン"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
-                Node(id=3, type="go", name="go_idx1_v3", format="inp",
-                     properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+                ),
+                Node(
+                    id=3,
+                    type="go",
+                    name="go_idx1_v3",
+                    format="inp",
+                    properties={"path": "go_idx1_v3.inp", "index": "1", "version": "3"},
+                ),
             ],
             relations=[],
         )
@@ -441,10 +453,20 @@ class TestObsidianVersionLinks:
         """.baseファイル名はnode.typeを使用する（同一タイプ.baseも生成される）"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
-                     properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="Abaqusインプット", name="go_idx1_v2", format="inp",
-                     properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+                Node(
+                    id=1,
+                    type="Abaqusインプット",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="Abaqusインプット",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+                ),
             ],
             relations=[],
         )
@@ -529,14 +551,16 @@ class TestFrontmatterPropertyTypes:
     def test_int_properties_in_frontmatter(self, connector):
         """整数値がintとしてfrontmatterに入る（vocabで変換後のキー名を使用）"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go_idx1_v1.inp", "index": "1", "version": "2", "w": "5"},
         )
         fm = connector.node_to_frontmatter(node)
         # デフォルトvocab: idx→条件, v→バージョン
         idx_key = connector.graph_config.vocab.get("idx", "idx")
-        ver_key = connector.graph_config.vocab.get("v",
-                  connector.graph_config.vocab.get("ver", "ver"))
+        ver_key = connector.graph_config.vocab.get("v", connector.graph_config.vocab.get("ver", "ver"))
         assert fm[idx_key] == 1
         assert isinstance(fm[idx_key], int)
         assert fm[ver_key] == 2
@@ -547,7 +571,10 @@ class TestFrontmatterPropertyTypes:
     def test_float_properties_in_frontmatter(self, connector):
         """小数値がfloatとしてfrontmatterに入る"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1", "thickness": "2.5"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -557,7 +584,10 @@ class TestFrontmatterPropertyTypes:
     def test_bool_properties_in_frontmatter(self, connector):
         """true/falseがboolとしてfrontmatterに入る"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1", "active": "true"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -567,7 +597,10 @@ class TestFrontmatterPropertyTypes:
     def test_bool_false_in_frontmatter(self, connector):
         """falseがbool Falseとしてfrontmatterに入る"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1", "active": "false"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -576,7 +609,10 @@ class TestFrontmatterPropertyTypes:
     def test_yaml_output_bool_unquoted(self, connector, tmp_path):
         """YAML出力でtrue/falseがクオートなしで書かれる"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1", "active": "true"},
         )
         path = connector.write_md(node, overwrite=True)
@@ -599,15 +635,25 @@ class TestBaseFilterSimplified:
         """フィルターがfolder条件のみであること"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
-                     properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="Abaqusインプット", name="go_idx1_v2", format="inp",
-                     properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"}),
+                Node(
+                    id=1,
+                    type="Abaqusインプット",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="Abaqusインプット",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go_idx1_v2.inp", "index": "1", "version": "2"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        idx_base = [p for p in written if p.name == "Abaqusインプット_idx1.base"][0]
+        idx_base = next(p for p in written if p.name == "Abaqusインプット_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         # folder条件のみ、andブロック不要
         assert 'file.folder == "notes/props/Abaqusインプット"' in content
@@ -618,15 +664,25 @@ class TestBaseFilterSimplified:
         """余計なand条件（endsWith等）がないこと"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "go.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "go2.inp", "index": "1", "version": "2"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "go2.inp", "index": "1", "version": "2"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         assert "endsWith" not in content
         assert "active ==" not in content
@@ -643,17 +699,25 @@ class TestBaseOrderIntersection:
         """orderブロックにグループ共通プロパティが含まれる"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1",
-                                 "w": "5", "t": "20", "active": "true"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "b.inp", "index": "1", "version": "2",
-                                 "w": "5", "t": "20", "active": "true"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1", "w": "5", "t": "20", "active": "true"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "1", "version": "2", "w": "5", "t": "20", "active": "true"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         # 共通プロパティ w, t, active がorderに含まれる
         assert "- w" in content
@@ -664,17 +728,25 @@ class TestBaseOrderIntersection:
         """片方のノードにしかないプロパティはorderに含まれない"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1",
-                                 "w": "5", "unique_prop": "x"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "b.inp", "index": "1", "version": "2",
-                                 "w": "5"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1", "w": "5", "unique_prop": "x"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "1", "version": "2", "w": "5"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         # unique_propは片方のみなのでorderに含まれない
         assert "unique_prop" not in content
@@ -693,10 +765,20 @@ class TestSameTypeBaseFiles:
         """同一タイプのノードが2つ以上あればタイプ.baseが生成される"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="go", name="go_idx2_v1", format="inp",
-                     properties={"path": "b.inp", "index": "2", "version": "1"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "2", "version": "1"},
+                ),
             ],
             relations=[],
         )
@@ -708,15 +790,25 @@ class TestSameTypeBaseFiles:
         """タイプ.baseにもプロパティ積集合がorderに含まれる"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1", "w": "5"}),
-                Node(id=2, type="go", name="go_idx2_v1", format="inp",
-                     properties={"path": "b.inp", "index": "2", "version": "1", "w": "10"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1", "w": "5"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "2", "version": "1", "w": "10"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        type_base = [p for p in written if p.name == "go.base"][0]
+        type_base = next(p for p in written if p.name == "go.base")
         content = type_base.read_text(encoding="utf-8")
         # 共通のw がorderに含まれる
         assert "- w" in content
@@ -725,8 +817,13 @@ class TestSameTypeBaseFiles:
         """ノードが1つの場合はタイプ.baseは生成されない"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1"},
+                ),
             ],
             relations=[],
         )
@@ -738,12 +835,27 @@ class TestSameTypeBaseFiles:
         """同一index .baseと同一タイプ.baseが両方生成される"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="Abaqusインプット", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="Abaqusインプット", name="go_idx1_v2", format="inp",
-                     properties={"path": "b.inp", "index": "1", "version": "2"}),
-                Node(id=3, type="Abaqusインプット", name="go_idx2_v1", format="inp",
-                     properties={"path": "c.inp", "index": "2", "version": "1"}),
+                Node(
+                    id=1,
+                    type="Abaqusインプット",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="Abaqusインプット",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "1", "version": "2"},
+                ),
+                Node(
+                    id=3,
+                    type="Abaqusインプット",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={"path": "c.inp", "index": "2", "version": "1"},
+                ),
             ],
             relations=[],
         )
@@ -764,7 +876,10 @@ class TestOverwriteBehavior:
     def test_props_always_overwritten(self, connector, tmp_path):
         """props/のmdファイルはoverwrite=Falseでも上書きされる"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1", "w": "5"},
         )
         # 初回書き込み
@@ -773,7 +888,10 @@ class TestOverwriteBehavior:
 
         # プロパティを変更して再エクスポート（overwrite=Falseでも上書き）
         node2 = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1", "w": "10"},
         )
         graph2 = GraphModel(nodes=[node2], relations=[])
@@ -796,7 +914,10 @@ class TestVocabPropsUnification:
     def test_default_vocab_idx_to_jouken(self, connector):
         """デフォルトvocabでidx→条件に変換される"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -810,7 +931,10 @@ class TestVocabPropsUnification:
     def test_default_vocab_ver_to_version(self, connector):
         """デフォルトvocabでv→バージョンに変換される"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "2"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -825,7 +949,10 @@ class TestVocabPropsUnification:
     def test_no_duplicate_keys(self, connector):
         """translated_propsとindex/versionで重複が生じない"""
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={
                 "path": "go.inp",
                 "index": "1",
@@ -841,12 +968,17 @@ class TestVocabPropsUnification:
 
     def test_custom_vocab_connector(self, tmp_path):
         """カスタムvocabで任意のキー名に変換"""
-        config = GraphConfig.from_dict({
-            "vocab": {"idx": "No.", "v": "Rev"},
-        })
+        config = GraphConfig.from_dict(
+            {
+                "vocab": {"idx": "No.", "v": "Rev"},
+            }
+        )
         connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "3", "version": "5"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -862,7 +994,10 @@ class TestVocabPropsUnification:
         config = GraphConfig.from_dict({"vocab": {}})
         connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
         node = Node(
-            id=1, type="go", name="go_idx1_v1", format="inp",
+            id=1,
+            type="go",
+            name="go_idx1_v1",
+            format="inp",
             properties={"path": "go.inp", "index": "1", "version": "1"},
         )
         fm = connector.node_to_frontmatter(node)
@@ -873,15 +1008,25 @@ class TestVocabPropsUnification:
         """baseファイルのorderがvocab変換後のキー名を使用"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "1", "version": "2"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         # vocab変換後のキー名がorderに含まれる
         assert "- 条件" in content or "条件" in content
@@ -894,28 +1039,53 @@ class TestVocabPropsUnification:
         """baseファイルのsortがvocab変換後のキー名を使用"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "1", "version": "2"},
+                ),
             ],
             relations=[],
         )
         written = connector.export_graph(graph)
-        idx_base = [p for p in written if p.name == "go_idx1.base"][0]
+        idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
         # sortのproperty名もvocab変換済み
-        assert "property: 条件" in content or "property: '\\u6761\\u4EF6'" in content or "property: \"\\u6761\\u4EF6\"" in content or "条件" in content
+        assert (
+            "property: 条件" in content
+            or "property: '\\u6761\\u4EF6'" in content
+            or 'property: "\\u6761\\u4EF6"' in content
+            or "条件" in content
+        )
         assert "property: idx" not in content
 
     def test_base_no_file_links(self, connector, tmp_path):
         """baseファイルにfile.linksが含まれない"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "index": "1", "version": "1"}),
-                Node(id=2, type="go", name="go_idx1_v2", format="inp",
-                     properties={"path": "b.inp", "index": "1", "version": "2"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "index": "1", "version": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v2",
+                    format="inp",
+                    properties={"path": "b.inp", "index": "1", "version": "2"},
+                ),
             ],
             relations=[],
         )

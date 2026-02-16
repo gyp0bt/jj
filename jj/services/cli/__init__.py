@@ -28,6 +28,10 @@ from services.cli.graph import (
 from services.service.run_command import RunCommandService
 from services.service.submit import JobListItem, SubmitService, WarningItem
 
+__all__ = [
+    "JobListItem",
+]
+
 # =========
 # 定数
 # =========
@@ -80,9 +84,7 @@ def _add_target_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--inp-files", "-fn", nargs="+", help="実行ファイルリストを指定")
     p.add_argument("--index", "-id", nargs="+", help="実行ファイルリストをindex指定")
     p.add_argument("--inp-files-versions", "-v", nargs="+", help="version指定")
-    p.add_argument(
-        "--all-files", "-all", action="store_true", help="全ファイル選択", default=False
-    )
+    p.add_argument("--all-files", "-all", action="store_true", help="全ファイル選択", default=False)
     p.add_argument(
         "--subdirectory-depth",
         "-subdir",
@@ -107,13 +109,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # 旧CLI互換フラグ（凍結: Phase 3着手まで変更禁止）
     p.add_argument("--use-gpu", "-g", action="store_true", help="GPUを使用")
-    p.add_argument(
-        "--no-background", "-nbg", action="store_true", help="wblockを有効化"
-    )
+    p.add_argument("--no-background", "-nbg", action="store_true", help="wblockを有効化")
     p.add_argument("--jcf", default="abq.jcf", type=str, help="jcfファイル名を指定")
-    p.add_argument(
-        "--abq-version", "-abqv", default="2023", help="abaqusのversionを指定"
-    )
+    p.add_argument("--abq-version", "-abqv", default="2023", help="abaqusのversionを指定")
     p.add_argument("--ss-class", "-ss", action="store_true", help="SSクラス")
     p.add_argument("--s-class", "-s", action="store_true", help="Sクラス")
     p.add_argument("--ncpu", "-N", type=int, help="cpu数")
@@ -198,8 +196,15 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         args.cmd = "graph"
     # トップレベルのグラフコマンド（jj init/parse/show/export/info/credential）
     if args.cmd in (
-        "init", "parse", "show", "export", "info", "diff", "credential",
-        "dashboard", "serve",
+        "init",
+        "parse",
+        "show",
+        "export",
+        "info",
+        "diff",
+        "credential",
+        "dashboard",
+        "serve",
     ):
         return args
     if getattr(args, "cmd", None):
@@ -385,8 +390,15 @@ def dispatch(args: argparse.Namespace) -> int:
     if cmd == "graph":
         return run_graph_command(args)
     if cmd in (
-        "init", "parse", "show", "export", "info", "diff", "credential",
-        "dashboard", "serve",
+        "init",
+        "parse",
+        "show",
+        "export",
+        "info",
+        "diff",
+        "credential",
+        "dashboard",
+        "serve",
     ):
         return run_top_level_graph_command(cmd, args)
 

@@ -8,6 +8,7 @@ DashboardDataProviderをAbstractExporterサブクラスとしてラップし、
 
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 from typing import Any
@@ -75,10 +76,8 @@ class DashboardJsonExporter(AbstractExporter):
         row_count = result.get("row_count", 0)
         rel = output_path
         if output_path:
-            try:
+            with contextlib.suppress(ValueError):
                 rel = Path(output_path).relative_to(project_root)
-            except ValueError:
-                pass
         lines = [
             f"dashboard-jsonエクスポート完了: {rel}",
             f"ノード: {node_count}件、リレーション: {relation_count}件、テーブル行: {row_count}件",

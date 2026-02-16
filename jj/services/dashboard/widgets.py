@@ -8,6 +8,11 @@ app.pyとコネクター双方が使用するStreamlit UIヘルパー関数を�
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
+
 
 def estimate_column_width(col_name: str) -> int:
     """列名の文字幅からAgGrid列幅（px）を推定
@@ -31,7 +36,7 @@ def estimate_column_width(col_name: str) -> int:
     return max(80, char_width * 10 + 30)
 
 
-def try_render_aggrid(df: "pd.DataFrame") -> bool:
+def try_render_aggrid(df: pd.DataFrame) -> bool:
     """AgGridでDataFrameを表示。失敗時はFalseを返す。
 
     列幅は列名の文字数に基づいて初期設定する。
