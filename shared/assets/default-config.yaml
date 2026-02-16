@@ -410,6 +410,7 @@ dashboard:
   # 保存済みビュー（ダッシュボードの「保存済みビュー」ページに表示順で表示）
   # 各ビューにはフィルタ条件、プロット条件、ギャラリー条件を指定できます。
   # ビュータイプ: table / plot / gallery / card / status / array_plot
+  # array_plotのmode: overlay（全条件重ね書き、デフォルト） / grid（個別グリッド） / single（個別ノード）
   # 使用例:
   #   saved-views:
   #     - name: アクティブ解析一覧
@@ -438,7 +439,7 @@ dashboard:
   #         prefix: RF
   #         x: RF.time
   #         y: [RF.RF3]
-  #         mode: grid
+  #         mode: overlay
   # saved-views:
 
 # ========================================================================
