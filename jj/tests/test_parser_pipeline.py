@@ -265,14 +265,35 @@ class TestPipelineIntegration:
         # test_asset1にはgo_*/mesh_*等の命名規則ディレクトリがないため0も許容
         assert labels.get("has_output", 0) >= 0
 
-    def test_results_dir_files_not_noded(self, graph: GraphModel):
-        """results/配下のファイルはNode化されない（info-only）"""
-        results_file_nodes = [
-            n for n in graph.nodes if n.properties.get("path", "").startswith("results/") and n.format != "directory"
+    def test_results_direct_files_not_noded(self, graph: GraphModel):
+        """results/直下のファイルはNode化されない（info-only）"""
+        results_direct_nodes = [
+            n
+            for n in graph.nodes
+            if n.properties.get("path", "").startswith("results/")
+            and n.format != "directory"
+            and n.properties.get("path", "").count("/") == 1
         ]
-        assert len(results_file_nodes) == 0, (
-            f"results/配下のファイルがNode化されている: {[n.name for n in results_file_nodes]}"
+        assert len(results_direct_nodes) == 0, (
+            f"results/直下のファイルがNode化されている: {[n.name for n in results_direct_nodes]}"
         )
+
+    def test_results_subdirectory_files_noded(self, graph: GraphModel):
+        """results/サブディレクトリのファイルはNode化される"""
+        results_subdir_nodes = [
+            n
+            for n in graph.nodes
+            if n.properties.get("path", "").startswith("results/")
+            and n.format != "directory"
+            and n.properties.get("path", "").count("/") >= 2
+        ]
+        assert len(results_subdir_nodes) > 0, "results/サブディレクトリのファイルがNode化されていない"
+
+    def test_results_metadata_assigned_to_go_inp(self, graph: GraphModel):
+        """results/サブディレクトリのメタデータがgo_*.inpに割り当てられる"""
+        go_nodes = [n for n in graph.nodes if n.type == "go" and n.format == "inp"]
+        has_results = any(any(k.startswith("results.") for k in n.properties) for n in go_nodes)
+        assert has_results, "results/メタデータがgo_*.inpに割り当てられていない"
 
     def test_json_properties_propagated_despite_results_filter(self, graph: GraphModel):
         """results/のJSONファイルの情報はgo_*.inpに伝搬されている（info-only）"""
