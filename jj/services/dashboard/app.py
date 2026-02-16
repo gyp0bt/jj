@@ -21,39 +21,42 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 # プロジェクトルートをsys.pathに追加（Streamlitプロセスからのインポート用）
 _project_src = str(Path(__file__).resolve().parents[2])
 if _project_src not in sys.path:
     sys.path.insert(0, _project_src)
 
-from jj_types import GraphModel
-from services.dashboard.data_provider import DashboardDataProvider
-from services.dashboard.connectors import get_connector_pages, render_connector_page
-from services.dashboard.query import (
-    find_graph_path,
-    get_graph_mtime,
-    is_truthy,
-    select_table_columns,
+# コネクター自動登録（インポート時に__init_subclass__で登録される）
+import contextlib  # noqa: E402
+
+import services.dashboard.connectors.abaqus  # noqa: F401, E402
+from jj_types import GraphModel  # noqa: E402
+from services.dashboard.connectors import get_connector_pages, render_connector_page  # noqa: E402
+from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
+from services.dashboard.html_export import (  # noqa: E402
+    _add_group_lines_to_fig,
+    _add_ng_regions_to_fig,
+    _create_plot_figure,
+    generate_saved_views_html,
+)
+from services.dashboard.query import (  # noqa: E402
     apply_filters,
     apply_saved_view_filters,
-    saved_view_filters_to_provider_filters,
-    normalize_group_key,
     collect_group_keys,
+    get_graph_mtime,
+    is_truthy,
+    normalize_group_key,
+    saved_view_filters_to_provider_filters,
+    select_table_columns,
 )
-from services.dashboard.html_export import (
-    generate_saved_views_html,
-    _create_plot_figure,
-    _add_ng_regions_to_fig,
-    _add_group_lines_to_fig,
-)
-from services.graph import GraphService
-
-# コネクター自動登録（インポート時に__init_subclass__で登録される）
-import services.dashboard.connectors.abaqus  # noqa: F401
+from services.graph import GraphService  # noqa: E402
 
 
 def _check_graph_changed(project_root: Path) -> bool:
@@ -101,22 +104,23 @@ def _get_project_root() -> Path:
 # ====================================================================
 
 
-def _try_render_aggrid(df: "pd.DataFrame") -> bool:
+def _try_render_aggrid(df: pd.DataFrame) -> bool:
     """AgGridでDataFrameを表示（widgets.pyへの委譲ラッパー）"""
     from services.dashboard.widgets import try_render_aggrid
+
     return try_render_aggrid(df)
 
 
 def _estimate_column_width(col_name: str) -> int:
     """列名の文字幅からAgGrid列幅を推定（widgets.pyへの委譲ラッパー）"""
     from services.dashboard.widgets import estimate_column_width
+
     return estimate_column_width(col_name)
 
 
 # ====================================================================
 # カラムフィルタリング（query.pyへの後方互換ラッパー）
 # ====================================================================
-
 
 
 # ====================================================================
@@ -134,9 +138,7 @@ def _init_shared_filters(default_filters: dict[str, Any]) -> None:
         st.session_state["_filters_initialized"] = True
         # active値はYAML由来のboolまたは文字列"true"の両方に対応
         raw_active = default_filters.get("active", False)
-        st.session_state.setdefault(
-            "_filter_active", is_truthy(raw_active)
-        )
+        st.session_state.setdefault("_filter_active", is_truthy(raw_active))
         st.session_state.setdefault("_filter_type", "すべて")
         st.session_state.setdefault("_filter_status", "すべて")
 
@@ -151,25 +153,17 @@ def _render_shared_filters(rows: list[dict[str, Any]]) -> None:
 
     # タイプフィルタ
     types = sorted({r.get("type", "") for r in rows if r.get("type")})
-    type_options = ["すべて"] + types
+    type_options = ["すべて", *types]
     current_type = st.session_state.get("_filter_type", "すべて")
     type_idx = type_options.index(current_type) if current_type in type_options else 0
-    selected_type = st.sidebar.selectbox(
-        "タイプフィルタ", type_options, index=type_idx, key="_sb_filter_type"
-    )
+    selected_type = st.sidebar.selectbox("タイプフィルタ", type_options, index=type_idx, key="_sb_filter_type")
     st.session_state["_filter_type"] = selected_type
 
     # ステータスフィルタ
-    statuses = sorted({
-        r.get("analysis_status", "unknown")
-        for r in rows
-        if r.get("analysis_status")
-    })
-    status_options = ["すべて"] + statuses
+    statuses = sorted({r.get("analysis_status", "unknown") for r in rows if r.get("analysis_status")})
+    status_options = ["すべて", *statuses]
     current_status = st.session_state.get("_filter_status", "すべて")
-    status_idx = (
-        status_options.index(current_status) if current_status in status_options else 0
-    )
+    status_idx = status_options.index(current_status) if current_status in status_options else 0
     selected_status = st.sidebar.selectbox(
         "ステータスフィルタ",
         status_options,
@@ -241,9 +235,7 @@ def main() -> None:
     # 自動リフレッシュ設定
     auto_refresh = st.sidebar.checkbox("自動リフレッシュ", value=False)
     if auto_refresh:
-        refresh_sec = st.sidebar.slider(
-            "リフレッシュ間隔（秒）", min_value=3, max_value=60, value=10
-        )
+        refresh_sec = st.sidebar.slider("リフレッシュ間隔（秒）", min_value=3, max_value=60, value=10)
         # JavaScriptによる自動リフレッシュ
         st.components.v1.html(
             f"""<script>
@@ -297,8 +289,12 @@ def main() -> None:
 
     # ページ選択（コネクターページ + 保存済みビュー動的追加）
     page_options = [
-        "テーブル", "カード", "プロット", "配列プロット",
-        "ステータス", "ギャラリー",
+        "テーブル",
+        "カード",
+        "プロット",
+        "配列プロット",
+        "ステータス",
+        "ギャラリー",
     ]
     # コネクターが提供するページを動的追加
     connector_pages = get_connector_pages(provider)
@@ -386,9 +382,7 @@ def _render_table_page(
 
     # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)
-    selected_cols = select_table_columns(
-        list(df.columns), table_columns, vocab=vocab or {}
-    )
+    selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
 
@@ -405,7 +399,7 @@ def _render_table_page(
 # ====================================================================
 
 
-def _render_excel_download(df: "pd.DataFrame", filename_prefix: str = "data") -> None:
+def _render_excel_download(df: pd.DataFrame, filename_prefix: str = "data") -> None:
     """DataFrameをExcelファイルとしてダウンロードするボタンを表示
 
     openpyxlが利用可能な場合のみ表示する。
@@ -416,6 +410,7 @@ def _render_excel_download(df: "pd.DataFrame", filename_prefix: str = "data") ->
     """
     try:
         import io
+
         import openpyxl  # noqa: F401
 
         buffer = io.BytesIO()
@@ -447,14 +442,17 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
         st.info("go_ ファイルが見つかりません。")
         return
 
-    names = [r["name"] for r in rows]
-    selected = st.selectbox("ノード選択", names)
+    # verbose_nameキー（vocab変換後）
+    vn_key = provider._verbose_name_key
+    # 選択肢: 表示名があればそれを使用
+    display_names = [r.get(vn_key, r["name"]) for r in rows]
+    selected = st.selectbox("ノード選択", display_names)
 
     if not selected:
         return
 
     # IDを取得
-    node_id = next((r["id"] for r in rows if r["name"] == selected), None)
+    node_id = next((r["id"] for r in rows if r.get(vn_key, r["name"]) == selected), None)
     if node_id is None:
         return
 
@@ -466,8 +464,11 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
     # カード表示
     col1, col2 = st.columns(2)
 
+    # 表示名を取得
+    display_name = card["properties"].get(vn_key) or card["properties"].get("verbose_name") or card["name"]
+
     with col1:
-        st.subheader(card["name"])
+        st.subheader(display_name)
         st.markdown(f"**タイプ**: {card['type']}")
         st.markdown(f"**フォーマット**: {card['format']}")
 
@@ -482,11 +483,7 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
     st.markdown("---")
     st.subheader("プロパティ")
 
-    props = {
-        k: v
-        for k, v in card["properties"].items()
-        if k not in ("path", "include_properties")
-    }
+    props = {k: v for k, v in card["properties"].items() if k not in ("path", "include_properties")}
     if props:
         import pandas as pd
 
@@ -509,10 +506,7 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
     if relations:
         for rel in relations:
             direction = "→" if rel["direction"] == "outgoing" else "←"
-            st.markdown(
-                f"- {direction} **{rel['label']}** → {rel['node_name']} "
-                f"({rel['node_type']})"
-            )
+            st.markdown(f"- {direction} **{rel['label']}** → {rel['node_name']} ({rel['node_type']})")
     else:
         st.info("リレーションがありません。")
 
@@ -522,9 +516,7 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
 # ====================================================================
 
 
-def _render_plot_page(
-    provider: DashboardDataProvider, dashboard_config: Any
-) -> None:
+def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) -> None:
     """プロットビュー: プロパティの散布図/棒グラフ"""
     st.header("プロットビュー")
 
@@ -551,7 +543,7 @@ def _render_plot_page(
     with col2:
         y_key = st.selectbox("Y軸", keys, index=y_default_idx)
     with col3:
-        color_options = ["なし"] + keys
+        color_options = ["なし", *keys]
         color_key = st.selectbox("色分け", color_options, index=0)
     with col4:
         chart_type = st.selectbox("チャートタイプ", ["散布図", "棒グラフ", "線図"])
@@ -563,9 +555,7 @@ def _render_plot_page(
     data = provider.get_plot_data(x_key, y_key, color_key=color)
 
     if not data:
-        st.warning(
-            f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。"
-        )
+        st.warning(f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。")
         return
 
     import pandas as pd
@@ -580,27 +570,41 @@ def _render_plot_page(
     # グループ結線設定
     group_line_key = getattr(dashboard_config, "group_line_key", None)
     group_line_options = ["なし"] + [k for k in keys if k != x_key and k != y_key]
-    col_gl1, col_gl2 = st.columns(2)
+    col_gl1, _col_gl2 = st.columns(2)
     with col_gl1:
         gl_default = 0
         if group_line_key and group_line_key in group_line_options:
             gl_default = group_line_options.index(group_line_key)
-        selected_group_line = st.selectbox(
-            "グループ結線キー", group_line_options, index=gl_default
-        )
+        selected_group_line = st.selectbox("グループ結線キー", group_line_options, index=gl_default)
 
     try:
         import plotly.express as px
 
+        # verbose_nameキーをhover名に使用
+        vn_key = provider._verbose_name_key
+
         if grid_mode:
             # グリッドモード: 各データ点ごとに個別プロットをNxMグリッド配置
             _render_plot_grid(
-                df, x_key, y_key, color, chart_type, gallery_cols, gallery_rows
+                df,
+                x_key,
+                y_key,
+                color,
+                chart_type,
+                gallery_cols,
+                gallery_rows,
+                hover_name_col=vn_key,
             )
         else:
             # 通常モード: 1つのプロット
             fig = _create_plot_figure(
-                px, df, x_key, y_key, color, chart_type
+                px,
+                df,
+                x_key,
+                y_key,
+                color,
+                chart_type,
+                hover_name_col=vn_key,
             )
             # NG領域塗りつぶし
             ng_regions = getattr(dashboard_config, "ng_regions", [])
@@ -619,13 +623,14 @@ def _render_plot_page(
 
 
 def _render_plot_grid(
-    df: "pd.DataFrame",
+    df: pd.DataFrame,
     x_key: str,
     y_key: str,
     color: str | None,
     chart_type: str,
     cols_per_row: int,
     max_rows: int,
+    hover_name_col: str = "name",
 ) -> None:
     """プロットをNxMグリッドで表示（スクリーンショット向け）
 
@@ -637,11 +642,22 @@ def _render_plot_grid(
         st.warning("plotlyが必要です。")
         return
 
+    # hover_name列の解決
+    hn = hover_name_col if hover_name_col in df.columns else "name"
+
     # 色分けキーでグループ化、なければnameごと
     group_key = color if color else "name"
     if group_key not in df.columns:
         st.plotly_chart(
-            _create_plot_figure(px, df, x_key, y_key, color, chart_type),
+            _create_plot_figure(
+                px,
+                df,
+                x_key,
+                y_key,
+                color,
+                chart_type,
+                hover_name_col=hn,
+            ),
             use_container_width=True,
         )
         return
@@ -652,26 +668,30 @@ def _render_plot_grid(
 
     for row_start in range(0, len(groups), cols_per_row):
         cols = st.columns(cols_per_row)
-        for col_idx, (group_name, group_df) in enumerate(
-            groups[row_start: row_start + cols_per_row]
-        ):
+        for col_idx, (group_name, group_df) in enumerate(groups[row_start : row_start + cols_per_row]):
             with cols[col_idx]:
                 if chart_type == "散布図":
                     fig = px.scatter(
-                        group_df, x=x_key, y=y_key,
+                        group_df,
+                        x=x_key,
+                        y=y_key,
                         title=str(group_name),
-                        hover_name="name" if "name" in group_df.columns else None,
+                        hover_name=hn if hn in group_df.columns else None,
                     )
                 elif chart_type == "棒グラフ":
                     fig = px.bar(
-                        group_df, x="name", y=y_key,
+                        group_df,
+                        x=hn if hn in group_df.columns else "name",
+                        y=y_key,
                         title=str(group_name),
                     )
                 else:
                     fig = px.line(
-                        group_df, x=x_key, y=y_key,
+                        group_df,
+                        x=x_key,
+                        y=y_key,
                         title=str(group_name),
-                        hover_name="name" if "name" in group_df.columns else None,
+                        hover_name=hn if hn in group_df.columns else None,
                         markers=True,
                     )
                 fig.update_layout(
@@ -687,18 +707,13 @@ def _render_plot_grid(
 # ====================================================================
 
 
-def _render_array_plot_page(
-    provider: DashboardDataProvider, dashboard_config: Any
-) -> None:
+def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: Any) -> None:
     """配列プロットビュー: GOノードの配列プロパティをラインプロット"""
     st.header("配列プロットビュー")
 
     array_keys = provider.get_array_property_keys()
     if not array_keys:
-        st.info(
-            "配列プロパティが見つかりません。"
-            "CSVファイルがhas_output関係でGOファイルに紐付いている必要があります。"
-        )
+        st.info("配列プロパティが見つかりません。CSVファイルがhas_output関係でGOファイルに紐付いている必要があります。")
         return
 
     # 共有フィルタ（サイドバー描画 + 適用）
@@ -730,9 +745,7 @@ def _render_array_plot_page(
         return
 
     # 表示モード: 全条件比較 or グリッド比較 or 個別ノード
-    view_mode = st.radio(
-        "表示モード", ["全条件比較", "グリッド比較", "個別ノード"], horizontal=True
-    )
+    view_mode = st.radio("表示モード", ["全条件比較", "グリッド比較", "個別ノード"], horizontal=True)
 
     # 共有フィルタをprovider用のフィルタ辞書に変換
     active_filters = _get_active_filters()
@@ -742,18 +755,28 @@ def _render_array_plot_page(
 
     if view_mode == "全条件比較":
         _render_array_overlay(
-            provider, x_key, y_keys,
-            filters=active_filters, ng_regions=ng_regions,
+            provider,
+            x_key,
+            y_keys,
+            filters=active_filters,
+            ng_regions=ng_regions,
         )
     elif view_mode == "グリッド比較":
         _render_array_grid(
-            provider, dashboard_config, x_key, y_keys,
-            filters=active_filters, ng_regions=ng_regions,
+            provider,
+            dashboard_config,
+            x_key,
+            y_keys,
+            filters=active_filters,
+            ng_regions=ng_regions,
         )
     else:
         _render_array_single(
-            provider, x_key, y_keys,
-            filters=active_filters, ng_regions=ng_regions,
+            provider,
+            x_key,
+            y_keys,
+            filters=active_filters,
+            ng_regions=ng_regions,
         )
 
 
@@ -779,20 +802,16 @@ def _render_array_overlay(
 
             fig = go.Figure()
             for item in grid_data:
-                idx_str = item.get("index", "")
-                ver_str = item.get("version", "")
-                label = item["name"]
-                if idx_str:
-                    label += f" (idx{idx_str}"
-                    if ver_str:
-                        label += f",v{ver_str}"
-                    label += ")"
-                fig.add_trace(go.Scatter(
-                    x=item["x_values"],
-                    y=item["y_values"],
-                    mode="lines+markers",
-                    name=label,
-                ))
+                # display_nameがあれば優先使用
+                label = item.get("display_name", item["name"])
+                fig.add_trace(
+                    go.Scatter(
+                        x=item["x_values"],
+                        y=item["y_values"],
+                        mode="lines+markers",
+                        name=label,
+                    )
+                )
             if ng_regions:
                 _add_ng_regions_to_fig(fig, ng_regions)
             fig.update_layout(
@@ -836,28 +855,22 @@ def _render_array_grid(
 
             for row_start in range(0, len(grid_data), cols_per_row):
                 cols = st.columns(cols_per_row)
-                for col_idx, item in enumerate(
-                    grid_data[row_start: row_start + cols_per_row]
-                ):
+                for col_idx, item in enumerate(grid_data[row_start : row_start + cols_per_row]):
                     with cols[col_idx]:
                         fig = go.Figure()
-                        fig.add_trace(go.Scatter(
-                            x=item["x_values"],
-                            y=item["y_values"],
-                            mode="lines+markers",
-                            name=y_key,
-                        ))
+                        fig.add_trace(
+                            go.Scatter(
+                                x=item["x_values"],
+                                y=item["y_values"],
+                                mode="lines+markers",
+                                name=y_key,
+                            )
+                        )
                         # NG領域塗りつぶし
                         if ng_regions:
                             _add_ng_regions_to_fig(fig, ng_regions)
-                        idx_str = item.get("index", "")
-                        ver_str = item.get("version", "")
-                        title = item["name"]
-                        if idx_str:
-                            title += f" (idx{idx_str}"
-                            if ver_str:
-                                title += f",v{ver_str}"
-                            title += ")"
+                        # display_nameがあれば優先使用
+                        title = item.get("display_name", item["name"])
                         fig.update_layout(
                             title=title,
                             xaxis_title=x_key.split(".")[-1],
@@ -891,25 +904,34 @@ def _render_array_single(
     if filters:
         rows = [r for r in rows if provider._matches_filters(r, filters)]
 
-    # 配列データを持つノードのみ
-    names_with_array = []
-    for r in rows:
-        node_id = r["id"]
-        node = provider._node_by_id.get(node_id)
-        if node and isinstance(node.properties.get(x_key), list):
-            names_with_array.append(r["name"])
+    # verbose_nameキー
+    vn_key = provider._verbose_name_key
 
-    if not names_with_array:
+    # 配列データを持つノードのみ（表示名を使用）
+    items_with_array = []
+    for r in rows:
+        nid = r["id"]
+        node = provider._node_by_id.get(nid)
+        if node and isinstance(node.properties.get(x_key), list):
+            items_with_array.append(
+                {
+                    "id": nid,
+                    "display_name": r.get(vn_key, r["name"]),
+                }
+            )
+
+    if not items_with_array:
         st.info(f"'{x_key}' データを持つノードがありません。")
         return
 
-    selected = st.selectbox("ノード選択", names_with_array)
+    display_names = [item["display_name"] for item in items_with_array]
+    selected = st.selectbox("ノード選択", display_names)
     if not selected:
         return
 
     # 選択ノードのIDを取得
     node_id = next(
-        (r["id"] for r in rows if r["name"] == selected),
+        (item["id"] for item in items_with_array if item["display_name"] == selected),
         None,
     )
     if node_id is None:
@@ -925,12 +947,14 @@ def _render_array_single(
 
         fig = go.Figure()
         for s in plot_data["series"]:
-            fig.add_trace(go.Scatter(
-                x=plot_data["x_values"],
-                y=s["values"],
-                mode="lines+markers",
-                name=s["key"].split(".")[-1],
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=plot_data["x_values"],
+                    y=s["values"],
+                    mode="lines+markers",
+                    name=s["key"].split(".")[-1],
+                )
+            )
         # NG領域塗りつぶし
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
@@ -973,9 +997,7 @@ def _render_status_page(provider: DashboardDataProvider) -> None:
     # ステータス別に分類
     completed_items = [i for i in items if i["analysis_status"] == "completed"]
     failed_items = [i for i in items if i["analysis_status"] == "failed"]
-    unknown_items = [
-        i for i in items if i["analysis_status"] not in ("completed", "failed")
-    ]
+    unknown_items = [i for i in items if i["analysis_status"] not in ("completed", "failed")]
 
     if failed_items:
         st.subheader("❌ 失敗")
@@ -1014,9 +1036,7 @@ def _render_gallery_page(
 
     # 画像ソース選択
     source_options = ["has_output関係", "プロパティ画像パス"]
-    image_source = st.radio(
-        "画像ソース", source_options, horizontal=True
-    )
+    image_source = st.radio("画像ソース", source_options, horizontal=True)
 
     if image_source == "has_output関係":
         _render_gallery_output_images(provider, project_root, dashboard_config)
@@ -1076,18 +1096,18 @@ def _render_gallery_output_images(
 
     # フィルタ: フォーマット
     formats = sorted({img["image_format"] for img in images})
-    selected_format = st.sidebar.selectbox(
-        "画像フォーマット", ["すべて"] + formats
-    )
+    selected_format = st.sidebar.selectbox("画像フォーマット", ["すべて", *formats])
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
     # グループ表示オプション（デフォルト: 最初の利用可能キー）
     group_keys = collect_group_keys(images, source="output")
-    group_options = ["なし"] + group_keys
+    group_options = ["なし", *group_keys]
     default_group_idx = 1 if group_keys else 0
     group_by = st.sidebar.selectbox(
-        "グループ表示", group_options, index=default_group_idx,
+        "グループ表示",
+        group_options,
+        index=default_group_idx,
         key="_gallery_output_group",
     )
 
@@ -1097,9 +1117,7 @@ def _render_gallery_output_images(
 
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")
-        _render_gallery_grouped(
-            images, cols_per_row, project_root, source="output", group_key=group_by
-        )
+        _render_gallery_grouped(images, cols_per_row, project_root, source="output", group_key=group_by)
         return
 
     max_display = cols_per_row * rows_per_page
@@ -1107,11 +1125,9 @@ def _render_gallery_output_images(
     # ページネーション
     total_images = len(images)
     total_pages = max(1, (total_images + max_display - 1) // max_display)
-    page_num = st.sidebar.number_input(
-        "ページ", min_value=1, max_value=total_pages, value=1
-    )
+    page_num = st.sidebar.number_input("ページ", min_value=1, max_value=total_pages, value=1)
     start_idx = (page_num - 1) * max_display
-    page_images = images[start_idx: start_idx + max_display]
+    page_images = images[start_idx : start_idx + max_display]
 
     st.caption(
         f"{len(page_images)} / {total_images} 件 "
@@ -1143,23 +1159,19 @@ def _render_gallery_property_images(
 
     # キー別フィルタ
     all_keys = sorted({img["property_key"] for img in images})
-    selected_key = st.sidebar.selectbox(
-        "プロパティキー", ["すべて"] + all_keys
-    )
+    selected_key = st.sidebar.selectbox("プロパティキー", ["すべて", *all_keys])
     if selected_key != "すべて":
         images = [img for img in images if img["property_key"] == selected_key]
 
     # フォーマットフィルタ
     formats = sorted({img["image_format"] for img in images})
-    selected_format = st.sidebar.selectbox(
-        "画像フォーマット（プロパティ）", ["すべて"] + formats
-    )
+    selected_format = st.sidebar.selectbox("画像フォーマット（プロパティ）", ["すべて", *formats])
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
     # グループ表示オプション（デフォルト: property_key でグループ化）
     group_keys = collect_group_keys(images, source="property")
-    group_options = ["なし"] + group_keys
+    group_options = ["なし", *group_keys]
     # property_keyが利用可能な場合はデフォルトで選択
     default_group_idx = 0
     if "property_key" in group_keys:
@@ -1167,7 +1179,9 @@ def _render_gallery_property_images(
     elif group_keys:
         default_group_idx = 1
     group_by = st.sidebar.selectbox(
-        "グループ表示（プロパティ）", group_options, index=default_group_idx,
+        "グループ表示（プロパティ）",
+        group_options,
+        index=default_group_idx,
         key="_gallery_property_group",
     )
 
@@ -1177,9 +1191,7 @@ def _render_gallery_property_images(
 
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")
-        _render_gallery_grouped(
-            images, cols_per_row, project_root, source="property", group_key=group_by
-        )
+        _render_gallery_grouped(images, cols_per_row, project_root, source="property", group_key=group_by)
         return
 
     max_display = cols_per_row * rows_per_page
@@ -1187,11 +1199,9 @@ def _render_gallery_property_images(
     # ページネーション
     total_images = len(images)
     total_pages = max(1, (total_images + max_display - 1) // max_display)
-    page_num = st.sidebar.number_input(
-        "ページ（プロパティ画像）", min_value=1, max_value=total_pages, value=1
-    )
+    page_num = st.sidebar.number_input("ページ（プロパティ画像）", min_value=1, max_value=total_pages, value=1)
     start_idx = (page_num - 1) * max_display
-    page_images = images[start_idx: start_idx + max_display]
+    page_images = images[start_idx : start_idx + max_display]
 
     st.caption(
         f"{len(page_images)} / {total_images} 件 "
@@ -1222,9 +1232,7 @@ def _render_image_grid(
     """
     for row_start in range(0, len(images), cols_per_row):
         cols = st.columns(cols_per_row)
-        for col_idx, img_info in enumerate(
-            images[row_start: row_start + cols_per_row]
-        ):
+        for col_idx, img_info in enumerate(images[row_start : row_start + cols_per_row]):
             with cols[col_idx]:
                 # ヘッダー情報
                 if source == "output":
@@ -1288,12 +1296,11 @@ def _render_saved_views_page(
 
     # 動的ビューをSavedViewConfigに変換
     from config import SavedViewConfig
+
     dynamic_view_configs: list[SavedViewConfig] = []
     for dv in dynamic_views:
-        try:
+        with contextlib.suppress(ValueError, KeyError):
             dynamic_view_configs.append(SavedViewConfig.from_dict(dv))
-        except (ValueError, KeyError):
-            pass
 
     all_views = saved_views + dynamic_view_configs
 
@@ -1345,9 +1352,7 @@ def _render_saved_views_page(
 
     # HTMLエクスポート
     st.markdown("---")
-    _render_html_export_button(
-        provider, project_root, dashboard_config, vocab
-    )
+    _render_html_export_button(provider, project_root, dashboard_config, vocab)
 
     # 新規ビュー追加セクション
     st.markdown("---")
@@ -1388,9 +1393,7 @@ def _render_saved_table(
 
     # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)
-    selected_cols = select_table_columns(
-        list(df.columns), table_columns, vocab=vocab or {}
-    )
+    selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
 
@@ -1426,9 +1429,7 @@ def _render_saved_plot(
         data = [d for d in data if d.get("name") in filtered_names]
 
     if not data:
-        st.warning(
-            f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。"
-        )
+        st.warning(f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。")
         return
 
     import pandas as pd
@@ -1469,16 +1470,12 @@ def _render_saved_gallery(
     if source == "property":
         images = provider.get_property_images()
         if property_key:
-            images = [
-                img for img in images if img["property_key"] == property_key
-            ]
+            images = [img for img in images if img["property_key"] == property_key]
     else:
         images = provider.get_output_images()
 
     if format_filter:
-        images = [
-            img for img in images if img["image_format"] == format_filter
-        ]
+        images = [img for img in images if img["image_format"] == format_filter]
 
     if not images:
         st.info("条件に一致する画像がありません。")
@@ -1491,7 +1488,9 @@ def _render_saved_gallery(
 
     st.caption(f"{len(images)} 件")
     _render_image_grid(
-        images, cols_per_row, project_root,
+        images,
+        cols_per_row,
+        project_root,
         source="property" if source == "property" else "output",
     )
 
@@ -1523,10 +1522,7 @@ def _render_saved_card(
         return
 
     st.markdown(f"**{card['name']}** ({card['type']})")
-    props = {
-        k: v for k, v in card["properties"].items()
-        if k not in ("path", "include_properties")
-    }
+    props = {k: v for k, v in card["properties"].items() if k not in ("path", "include_properties")}
     if props:
         import pandas as pd
 
@@ -1595,14 +1591,17 @@ def _render_saved_array_plot(
             if plot_data:
                 try:
                     import plotly.graph_objects as go
+
                     fig = go.Figure()
                     for s in plot_data["series"]:
-                        fig.add_trace(go.Scatter(
-                            x=plot_data["x_values"],
-                            y=s["values"],
-                            mode="lines+markers",
-                            name=s["key"].split(".")[-1],
-                        ))
+                        fig.add_trace(
+                            go.Scatter(
+                                x=plot_data["x_values"],
+                                y=s["values"],
+                                mode="lines+markers",
+                                name=s["key"].split(".")[-1],
+                            )
+                        )
                     # NG領域塗りつぶし
                     if ng_regions:
                         _add_ng_regions_to_fig(fig, ng_regions)
@@ -1618,8 +1617,11 @@ def _render_saved_array_plot(
     elif mode == "overlay":
         # 全条件比較（凡例付き同一グラフ）
         _render_array_overlay(
-            provider, x_key, y_keys,
-            filters=filter_dict, ng_regions=ng_regions,
+            provider,
+            x_key,
+            y_keys,
+            filters=filter_dict,
+            ng_regions=ng_regions,
         )
     else:
         # グリッド比較
@@ -1632,26 +1634,24 @@ def _render_saved_array_plot(
             st.markdown(f"**{y_key} vs {x_key}**")
             try:
                 import plotly.graph_objects as go
+
                 for row_start in range(0, len(grid_data), cols_per_row):
                     cols = st.columns(cols_per_row)
-                    for col_idx, item in enumerate(
-                        grid_data[row_start: row_start + cols_per_row]
-                    ):
+                    for col_idx, item in enumerate(grid_data[row_start : row_start + cols_per_row]):
                         with cols[col_idx]:
                             fig = go.Figure()
-                            fig.add_trace(go.Scatter(
-                                x=item["x_values"],
-                                y=item["y_values"],
-                                mode="lines+markers",
-                                name=y_key,
-                            ))
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=item["x_values"],
+                                    y=item["y_values"],
+                                    mode="lines+markers",
+                                    name=y_key,
+                                )
+                            )
                             # NG領域塗りつぶし
                             if ng_regions:
                                 _add_ng_regions_to_fig(fig, ng_regions)
-                            title = item["name"]
-                            idx_str = item.get("index", "")
-                            if idx_str:
-                                title += f" (idx{idx_str})"
+                            title = item.get("display_name", item["name"])
                             fig.update_layout(
                                 title=title,
                                 xaxis_title=x_key.split(".")[-1],
@@ -1682,20 +1682,17 @@ def _render_html_export_button(
     # 動的ビューも含める
     dynamic_views = st.session_state.get("_dynamic_views", [])
     from config import SavedViewConfig
+
     for dv in dynamic_views:
-        try:
+        with contextlib.suppress(ValueError, KeyError):
             saved_views.append(SavedViewConfig.from_dict(dv))
-        except (ValueError, KeyError):
-            pass
 
     if not saved_views:
         return
 
     if st.button("HTMLエクスポート", key="_html_export_btn"):
         with st.spinner("HTMLを生成中..."):
-            html = generate_saved_views_html(
-                provider, project_root, dashboard_config, saved_views, vocab
-            )
+            html = generate_saved_views_html(provider, project_root, dashboard_config, saved_views, vocab)
         st.download_button(
             label="HTMLダウンロード",
             data=html.encode("utf-8"),
@@ -1759,8 +1756,10 @@ def _render_view_add_form(
                 ap_y_options = [k for k in prefix_keys if k != ap_x]
                 ap_y = st.multiselect("Y軸", ap_y_options, key="_add_view_ap_y")
                 array_plot_config = {
-                    "prefix": ap_prefix, "x": ap_x,
-                    "y": ap_y, "mode": ap_mode,
+                    "prefix": ap_prefix,
+                    "x": ap_x,
+                    "y": ap_y,
+                    "mode": ap_mode,
                 }
 
         elif view_type == "gallery":
@@ -1806,15 +1805,14 @@ def _render_view_edit_form(
     """動的ビューの編集フォーム"""
     with st.container():
         view_name = st.text_input(
-            "ビュー名", value=view_data.get("name", ""),
+            "ビュー名",
+            value=view_data.get("name", ""),
             key=f"_edit_name_{dyn_idx}",
         )
         view_type = st.selectbox(
             "タイプ",
             ["table", "plot", "array_plot", "gallery", "card", "status"],
-            index=["table", "plot", "array_plot", "gallery", "card", "status"].index(
-                view_data.get("type", "table")
-            ),
+            index=["table", "plot", "array_plot", "gallery", "card", "status"].index(view_data.get("type", "table")),
             key=f"_edit_type_{dyn_idx}",
         )
 
@@ -1824,7 +1822,8 @@ def _render_view_edit_form(
         fc1, fc2, fc3 = st.columns(3)
         with fc1:
             f_type = st.text_input(
-                "type", value=existing_filters.get("type", ""),
+                "type",
+                value=existing_filters.get("type", ""),
                 key=f"_edit_f_type_{dyn_idx}",
             )
         with fc2:
@@ -1835,7 +1834,8 @@ def _render_view_edit_form(
             )
         with fc3:
             f_active = st.checkbox(
-                "active", value=existing_filters.get("active", False),
+                "active",
+                value=existing_filters.get("active", False),
                 key=f"_edit_f_active_{dyn_idx}",
             )
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from jj_types import Node, Relation
 from services.parse.base import AbstractFileParser, _parse_prop_token
@@ -31,11 +31,11 @@ def parse_material_blocks(inp_path: Path) -> list[dict[str, Any]]:
     try:
         with inp_path.open("r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
-    except (OSError, IOError):
+    except OSError:
         return materials
 
-    current_material: Optional[dict[str, Any]] = None
-    current_keyword: Optional[str] = None
+    current_material: dict[str, Any] | None = None
+    current_keyword: str | None = None
     current_data: list[list[float]] = []
 
     def _flush_keyword():
@@ -123,9 +123,7 @@ class AbaqusInpParser(AbstractFileParser):
         name_lower = node.name.lower()
         if name_lower.startswith("go_") or name_lower == "go":
             return True
-        if name_lower.startswith("material_") or name_lower == "material":
-            return True
-        return False
+        return bool(name_lower.startswith("material_") or name_lower == "material")
 
     def _build_material_nodes(self, graph: ProjectGraph) -> None:
         """material.inpの高度な解析 - Node(abaqus_material)を生成
@@ -268,7 +266,7 @@ class AbaqusInpParser(AbstractFileParser):
             vocab = graph.config.vocab
             type_name = vocab.get("material", "material")
 
-            vn_parts = [type_name] + mat_names
+            vn_parts = [type_name, *mat_names]
             verbose_name = "_".join(vn_parts)
             node.properties["verbose_name"] = verbose_name
 
@@ -348,9 +346,7 @@ class AbaqusMaterialAssignmentParser(AbstractFileParser):
         for n in mat_nodes:
             node_by_id[n.id] = n
 
-        inp_materials: dict[int, dict[str, list[str]]] = defaultdict(
-            lambda: defaultdict(list)
-        )
+        inp_materials: dict[int, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
 
         for rel in mat_relations:
             if rel.label != "assigned_to":
@@ -612,11 +608,13 @@ def parse_keyword_blocks(inp_path: Path) -> list[dict[str, Any]]:
                         # 値なしオプション
                         options[tok.strip()] = ""
 
-                keywords.append({
-                    "keyword": keyword_name,
-                    "options": options,
-                })
-    except (OSError, IOError):
+                keywords.append(
+                    {
+                        "keyword": keyword_name,
+                        "options": options,
+                    }
+                )
+    except OSError:
         pass
 
     return keywords

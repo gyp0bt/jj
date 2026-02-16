@@ -58,12 +58,12 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.abaqus.parameter_parser  # noqa: F401
-    import services.parse.connectors.abaqus.inp_parser  # noqa: F401
-    import services.parse.connectors.abaqus.result_parser  # noqa: F401
-    import services.parse.connectors.abaqus.mesh_parser  # noqa: F401
-    import services.parse.connectors.abaqus.mesh_inherit_parser  # noqa: F401
-    import services.parse.connectors.abaqus.diff_parser  # noqa: F401
+    import services.parse.connectors.abaqus.diff_parser
+    import services.parse.connectors.abaqus.inp_parser
+    import services.parse.connectors.abaqus.mesh_inherit_parser
+    import services.parse.connectors.abaqus.mesh_parser
+    import services.parse.connectors.abaqus.parameter_parser
+    import services.parse.connectors.abaqus.result_parser
 
     # ダッシュボードコネクターのインポート（自動登録が発動）
     try:

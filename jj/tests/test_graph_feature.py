@@ -10,7 +10,8 @@
 from pathlib import Path
 
 import pytest
-from config import GraphConfig, PathTypeMapConfig
+
+from config import GraphConfig
 from jj_types import GraphModel, Node
 from services.graph import GraphService
 from services.parse.file_parse import FileParse, FileType
@@ -279,9 +280,7 @@ class TestGraphServiceParse:
         idx1_nodes = [n for n in graph.nodes if n.properties.get("index") == "1"]
 
         # バージョン関係があることを確認
-        next_version_relations = [
-            r for r in graph.relations if r.label == "next_version"
-        ]
+        next_version_relations = [r for r in graph.relations if r.label == "next_version"]
         # 同じidxのノードが複数あるなら、next_version関係があるはず
         if len(idx1_nodes) > 1:
             # 少なくとも1つのnext_version関係がある
@@ -331,12 +330,8 @@ class TestResultFileRelations:
         extensions = [".inp", ".odb"]
         graph = graph_service.parse_project(extensions=extensions)
 
-        inp_nodes = [
-            n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"
-        ]
-        odb_nodes = [
-            n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "odb"
-        ]
+        inp_nodes = [n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"]
+        odb_nodes = [n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "odb"]
 
         assert len(inp_nodes) == 1
         # .odbはNO_NODE_EXTENSIONSに含まれるためNode化されない
@@ -353,11 +348,7 @@ class TestResultFileRelations:
 
         # .inpは存在する
         inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         assert inp_node is not None
@@ -394,16 +385,10 @@ class TestVersionSorting:
         graph = graph_service.parse_project(extensions=extensions)
 
         # idx=1, type=Abaqusインプットのノードを取得
-        idx1_inps = [
-            n
-            for n in graph.nodes
-            if n.properties.get("index") == "1" and n.type == "Abaqusインプット"
-        ]
+        idx1_inps = [n for n in graph.nodes if n.properties.get("index") == "1" and n.type == "Abaqusインプット"]
 
         # next_version関係を取得
-        next_version_relations = [
-            r for r in graph.relations if r.label == "next_version"
-        ]
+        next_version_relations = [r for r in graph.relations if r.label == "next_version"]
 
         # go_idx1_w5_t20.inp → go_idx1_v2.inp の関係を確認
         v1_node = next((n for n in idx1_inps if n.name == "go_idx1_w5_t20"), None)
@@ -416,22 +401,14 @@ class TestVersionSorting:
 
         # v1 → v2の関係
         v1_to_v2 = next(
-            (
-                r
-                for r in next_version_relations
-                if r.node1_id == v1_node.id and r.node2_id == v2_node.id
-            ),
+            (r for r in next_version_relations if r.node1_id == v1_node.id and r.node2_id == v2_node.id),
             None,
         )
         assert v1_to_v2 is not None, "v1 → v2 の next_version 関係がない"
 
         # v2 → v3の関係
         v2_to_v3 = next(
-            (
-                r
-                for r in next_version_relations
-                if r.node1_id == v2_node.id and r.node2_id == v3_node.id
-            ),
+            (r for r in next_version_relations if r.node1_id == v2_node.id and r.node2_id == v3_node.id),
             None,
         )
         assert v2_to_v3 is not None, "v2 → v3 の next_version 関係がない"
@@ -454,9 +431,7 @@ class TestPathTypeMapIntegration:
         )
 
         # path-type-mapのマッチング確認
-        result = config.path_type_map.get_type(
-            "reports/260205_構造解析_idx1.pptx", "260205_構造解析_idx1.pptx"
-        )
+        result = config.path_type_map.get_type("reports/260205_構造解析_idx1.pptx", "260205_構造解析_idx1.pptx")
         assert result == "報告書"
 
     def test_assets_dir_type(self):
@@ -483,14 +458,12 @@ class TestConfigRules:
         """notes/ディレクトリは除外される"""
         from config import IgnoreConfig
 
-        ignore = IgnoreConfig.from_list(
-            ["notes", "notes/**", ".obsidian", ".obsidian/**"]
-        )
+        ignore = IgnoreConfig.from_list(["notes", "notes/**", ".obsidian", ".obsidian/**"])
 
-        assert ignore.should_ignore("notes/sample.md") == True
-        assert ignore.should_ignore("notes/nested/file.md") == True
-        assert ignore.should_ignore(".obsidian/config.json") == True
-        assert ignore.should_ignore("go_idx1.inp") == False
+        assert ignore.should_ignore("notes/sample.md")
+        assert ignore.should_ignore("notes/nested/file.md")
+        assert ignore.should_ignore(".obsidian/config.json")
+        assert not ignore.should_ignore("go_idx1.inp")
 
 
 class TestDateParsing:
@@ -594,26 +567,16 @@ class TestAssetRelations:
         derived_relations = [r for r in graph.relations if r.label == "derived_from"]
 
         # mesh.inp と mesh.modfem のノードを取得
-        mesh_inp = next(
-            (n for n in graph.nodes if n.name == "mesh" and n.format == "inp"), None
-        )
-        mesh_modfem = next(
-            (n for n in graph.nodes if n.name == "mesh" and n.format == "modfem"), None
-        )
+        mesh_inp = next((n for n in graph.nodes if n.name == "mesh" and n.format == "inp"), None)
+        mesh_modfem = next((n for n in graph.nodes if n.name == "mesh" and n.format == "modfem"), None)
 
         if mesh_inp and mesh_modfem:
             # derived_from関係が存在
             relation = next(
-                (
-                    r
-                    for r in derived_relations
-                    if r.node1_id == mesh_inp.id and r.node2_id == mesh_modfem.id
-                ),
+                (r for r in derived_relations if r.node1_id == mesh_inp.id and r.node2_id == mesh_modfem.id),
                 None,
             )
-            assert relation is not None, (
-                "mesh.inp → mesh.modfem の derived_from 関係がない"
-            )
+            assert relation is not None, "mesh.inp → mesh.modfem の derived_from 関係がない"
 
 
 class TestPathTypeMapOrdering:
@@ -626,9 +589,7 @@ class TestPathTypeMapOrdering:
                 "vocab": {},
                 "path-type-map": {
                     "**go_*": {"*.inp": "汎用計算"},  # より汎用的
-                    "**/reports/*": {
-                        "*.pptx": "報告書"
-                    },  # より具体的（先に評価される）
+                    "**/reports/*": {"*.pptx": "報告書"},  # より具体的（先に評価される）
                 },
                 "ignore": [],
                 "obsidian": {},
@@ -736,19 +697,11 @@ class TestOutputRelations:
         has_output_relations = [r for r in graph.relations if r.label == "has_output"]
 
         inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         rf_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20_RF" and n.format == "csv"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20_RF" and n.format == "csv"),
             None,
         )
 
@@ -760,16 +713,10 @@ class TestOutputRelations:
 
         # has_output関係が存在
         relation = next(
-            (
-                r
-                for r in has_output_relations
-                if r.node1_id == inp_node.id and r.node2_id == rf_node.id
-            ),
+            (r for r in has_output_relations if r.node1_id == inp_node.id and r.node2_id == rf_node.id),
             None,
         )
-        assert relation is not None, (
-            "go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv の has_output 関係がない"
-        )
+        assert relation is not None, "go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv の has_output 関係がない"
 
     def test_results_dir_files_not_noded(self, graph_service):
         """results/ディレクトリのファイルはNode化されない（info-only）"""
@@ -778,14 +725,9 @@ class TestOutputRelations:
 
         # results/配下のファイルはNode化されないことを確認
         results_nodes = [
-            n
-            for n in graph.nodes
-            if n.properties.get("path", "").startswith("results/")
-            and n.format != "directory"
+            n for n in graph.nodes if n.properties.get("path", "").startswith("results/") and n.format != "directory"
         ]
-        assert len(results_nodes) == 0, (
-            f"results/配下のファイルがNode化されている: {[n.name for n in results_nodes]}"
-        )
+        assert len(results_nodes) == 0, f"results/配下のファイルがNode化されている: {[n.name for n in results_nodes]}"
 
 
 class TestDirectoryRelations:
@@ -837,19 +779,13 @@ class TestDirectoryRelations:
         contains_relations = [r for r in graph.relations if r.label == "contains"]
 
         dir_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "directory"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "directory"),
             None,
         )
         assert dir_node is not None
 
         # ディレクトリ内のファイルが含まれている
-        contained_ids = {
-            r.node2_id for r in contains_relations if r.node1_id == dir_node.id
-        }
+        contained_ids = {r.node2_id for r in contains_relations if r.node1_id == dir_node.id}
         assert len(contained_ids) > 0, "contains関係が1つもない"
 
     def test_directory_has_output_from_inp(self, graph_service):
@@ -860,19 +796,11 @@ class TestDirectoryRelations:
         has_output_relations = [r for r in graph.relations if r.label == "has_output"]
 
         inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         dir_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "directory"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "directory"),
             None,
         )
 
@@ -880,16 +808,10 @@ class TestDirectoryRelations:
         assert dir_node is not None
 
         relation = next(
-            (
-                r
-                for r in has_output_relations
-                if r.node1_id == inp_node.id and r.node2_id == dir_node.id
-            ),
+            (r for r in has_output_relations if r.node1_id == inp_node.id and r.node2_id == dir_node.id),
             None,
         )
-        assert relation is not None, (
-            "go_idx1_w5_t20.inp → go_idx1_w5_t20/ の has_output 関係がない"
-        )
+        assert relation is not None, "go_idx1_w5_t20.inp → go_idx1_w5_t20/ の has_output 関係がない"
 
 
 class TestMaterialParsing:
@@ -921,14 +843,10 @@ class TestMaterialParsing:
         graph = graph_service.parse_project(extensions=extensions)
 
         mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
-        assert len(mat_nodes) >= 2, (
-            f"materialノードが2つ以上必要 (実際: {len(mat_nodes)})"
-        )
+        assert len(mat_nodes) >= 2, f"materialノードが2つ以上必要 (実際: {len(mat_nodes)})"
 
         names = {n.name for n in mat_nodes}
-        assert "steel_s235" in names or "Steel_S235" in names, (
-            f"Steel_S235 materialが見つからない: {names}"
-        )
+        assert "steel_s235" in names or "Steel_S235" in names, f"Steel_S235 materialが見つからない: {names}"
 
     def test_material_elastic_props(self, graph_service):
         """material nodeにelasticプロパティが含まれる"""
@@ -1033,22 +951,14 @@ class TestStaAnalysis:
 
         # .staはNode化されない
         sta_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "sta"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "sta"),
             None,
         )
         assert sta_node is None, ".staノードはグラフから除外されるべき"
 
         # 対応するinpノードにanalysis_statusが集約される
         inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         assert inp_node is not None, "go_idx1_w5_t20.inp ノードが見つからない"
@@ -1073,9 +983,7 @@ class TestStaAnalysis:
         )
         assert inp_node is not None, "go_idx2.inp ノードが見つからない"
         assert inp_node.properties.get("analysis_status") == "failed"
-        assert len(inp_node.properties.get("sta_errors", [])) > 0, (
-            "エラーメッセージが集約されていない"
-        )
+        assert len(inp_node.properties.get("sta_errors", [])) > 0, "エラーメッセージが集約されていない"
 
     def test_includes_relation_with_content(self, graph_service):
         """go_idx1_w5_t20.inp に実際の *INCLUDE があり、includes関係が構築される"""
@@ -1085,11 +993,7 @@ class TestStaAnalysis:
         includes_relations = [r for r in graph.relations if r.label == "includes"]
 
         go_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         material_node = next(
@@ -1101,16 +1005,10 @@ class TestStaAnalysis:
         assert material_node is not None
 
         relation = next(
-            (
-                r
-                for r in includes_relations
-                if r.node1_id == go_node.id and r.node2_id == material_node.id
-            ),
+            (r for r in includes_relations if r.node1_id == go_node.id and r.node2_id == material_node.id),
             None,
         )
-        assert relation is not None, (
-            "go_idx1_w5_t20.inp → material.inp の includes 関係がない"
-        )
+        assert relation is not None, "go_idx1_w5_t20.inp → material.inp の includes 関係がない"
 
 
 class TestParseMaterialBlocks:
@@ -1418,11 +1316,7 @@ class TestScanExtensions:
 
         # 対応するinpノードにanalysis_statusが集約される
         inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         assert inp_node is not None
@@ -1483,33 +1377,23 @@ class TestPathTypeMapWithDefaultConfig:
 
     def test_reports_files_get_type(self, config):
         """reports/配下のファイルが「報告書」タイプになる"""
-        result = config.path_type_map.get_type(
-            "reports/260205_構造解析_idx1.pptx", "260205_構造解析_idx1.pptx"
-        )
+        result = config.path_type_map.get_type("reports/260205_構造解析_idx1.pptx", "260205_構造解析_idx1.pptx")
         assert result == "報告書", f"reports/配下のファイルが報告書にならない: {result}"
 
     def test_tools_files_get_type(self, config):
         """tools/配下のファイルが「処理スクリプト」タイプになる"""
         result = config.path_type_map.get_type("tools/make_inputs.py", "make_inputs.py")
-        assert result == "処理スクリプト", (
-            f"tools/配下のファイルが処理スクリプトにならない: {result}"
-        )
+        assert result == "処理スクリプト", f"tools/配下のファイルが処理スクリプトにならない: {result}"
 
     def test_results_files_get_type(self, config):
         """results/配下のファイルが「計算結果」タイプになる"""
-        result = config.path_type_map.get_type(
-            "results/go_idx1_w5_t20_stress.csv", "go_idx1_w5_t20_stress.csv"
-        )
-        assert result == "計算結果", (
-            f"results/配下のファイルが計算結果にならない: {result}"
-        )
+        result = config.path_type_map.get_type("results/go_idx1_w5_t20_stress.csv", "go_idx1_w5_t20_stress.csv")
+        assert result == "計算結果", f"results/配下のファイルが計算結果にならない: {result}"
 
     def test_docs_files_get_type(self, config):
         """docs/配下のファイルが「受領ファイル」タイプになる"""
         result = config.path_type_map.get_type("docs/指示書/file.pptx", "file.pptx")
-        assert result == "受領ファイル", (
-            f"docs/配下のファイルが受領ファイルにならない: {result}"
-        )
+        assert result == "受領ファイル", f"docs/配下のファイルが受領ファイルにならない: {result}"
 
     def test_root_go_inp_gets_type(self, config):
         """プロジェクト直下の go.inp が「Abaqusインプット」タイプになる"""
@@ -1528,9 +1412,7 @@ class TestPathTypeMapWithDefaultConfig:
 
     def test_root_go_idx1_inp_gets_type(self, config):
         """プロジェクト直下の go_idx1_w5_t20.inp が正しいタイプになる"""
-        result = config.path_type_map.get_type(
-            "go_idx1_w5_t20.inp", "go_idx1_w5_t20.inp"
-        )
+        result = config.path_type_map.get_type("go_idx1_w5_t20.inp", "go_idx1_w5_t20.inp")
         assert result == "Abaqusインプット"
 
     def test_full_parse_reports_typed(self, graph_service):
@@ -1538,22 +1420,16 @@ class TestPathTypeMapWithDefaultConfig:
         extensions = [".pptx", ".csv", ".py", ".inp"]
         graph = graph_service.parse_project(extensions=extensions)
 
-        report_nodes = [
-            n for n in graph.nodes if "reports/" in n.properties.get("path", "")
-        ]
+        report_nodes = [n for n in graph.nodes if "reports/" in n.properties.get("path", "")]
         for node in report_nodes:
-            assert node.type == "報告書", (
-                f"{node.properties['path']} のタイプが {node.type}（報告書であるべき）"
-            )
+            assert node.type == "報告書", f"{node.properties['path']} のタイプが {node.type}（報告書であるべき）"
 
     def test_full_parse_tools_typed(self, graph_service):
         """統合テスト: parse_projectでtools配下のファイルが正しく型付けされる"""
         extensions = [".py", ".inp"]
         graph = graph_service.parse_project(extensions=extensions)
 
-        tools_nodes = [
-            n for n in graph.nodes if "tools/" in n.properties.get("path", "")
-        ]
+        tools_nodes = [n for n in graph.nodes if "tools/" in n.properties.get("path", "")]
         for node in tools_nodes:
             assert node.type == "処理スクリプト", (
                 f"{node.properties['path']} のタイプが {node.type}（処理スクリプトであるべき）"
@@ -1603,20 +1479,12 @@ class TestDirectoryNodeWindows:
         graph = graph_service.parse_project(extensions=extensions)
 
         dir_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "directory"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "directory"),
             None,
         )
         assert dir_node is not None, "go_idx1_w5_t20 ディレクトリノードが見つからない"
 
-        contains = [
-            r
-            for r in graph.relations
-            if r.label == "contains" and r.node1_id == dir_node.id
-        ]
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == dir_node.id]
         assert len(contains) >= 3, (
             f"go_idx1_w5_t20/内の3ファイル(csv,png,yaml)に対するcontains関係が不足: {len(contains)}"
         )
@@ -1703,9 +1571,8 @@ class TestInpParameterProps:
 
         # AbaqusParameterParser経由でプロパティを付与
         from services.graph.project_graph import ProjectGraph
-        pg = ProjectGraph(
-            nodes=[node], relations=[], project_root=tmp_path, config=config
-        )
+
+        pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
         # vocabマッピングが適用される
@@ -1723,9 +1590,8 @@ class TestInpParameterProps:
         node = gs.file_to_node(inp)
 
         from services.graph.project_graph import ProjectGraph
-        pg = ProjectGraph(
-            nodes=[node], relations=[], project_root=tmp_path, config=config
-        )
+
+        pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
         assert "width" not in node.properties
@@ -1742,9 +1608,8 @@ class TestInpParameterProps:
         node = gs.file_to_node(inp)
 
         from services.graph.project_graph import ProjectGraph
-        pg = ProjectGraph(
-            nodes=[node], relations=[], project_root=tmp_path, config=config
-        )
+
+        pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
         assert "width" not in node.properties
@@ -1760,9 +1625,8 @@ class TestInpParameterProps:
         node = gs.file_to_node(csv)
 
         from services.graph.project_graph import ProjectGraph
-        pg = ProjectGraph(
-            nodes=[node], relations=[], project_root=tmp_path, config=config
-        )
+
+        pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
         assert "width" not in node.properties
@@ -1804,11 +1668,7 @@ class TestResultFileAggregation:
         graph = graph_service.parse_project(extensions=extensions)
 
         inp_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.name == "go_idx1_w5_t20" and n.format == "inp"
-            ),
+            (n for n in graph.nodes if n.name == "go_idx1_w5_t20" and n.format == "inp"),
             None,
         )
         assert inp_node is not None
@@ -1923,8 +1783,8 @@ class TestVocabValueTranslation:
 
     def test_vocab_translates_prop_values(self, tmp_path):
         """vocabがプロパティ値も変換する"""
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
         from services.graph.project_graph import ProjectGraph
+        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
 
         config = GraphConfig.from_dict(
             {
@@ -1939,9 +1799,7 @@ class TestVocabValueTranslation:
         node = svc.file_to_node(inp)
 
         # AbaqusParameterParser経由でプロパティを付与
-        pg = ProjectGraph(
-            nodes=[node], relations=[], project_root=tmp_path, config=config
-        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
         # *PARAMETER/**propsの値がvocabで変換される
@@ -2052,11 +1910,7 @@ class TestMaterialAssignmentRelations:
         """材料割り当てがassigned_to関係を生成する"""
         # 材料定義と割り当てを含む.inpファイルを作成
         inp_content = (
-            "*MATERIAL, NAME=STEEL\n"
-            "*ELASTIC\n"
-            "210000.0, 0.3\n"
-            "*SOLID SECTION, MATERIAL=STEEL, ELSET=ALL_ELEMS\n"
-            "1.0,\n"
+            "*MATERIAL, NAME=STEEL\n*ELASTIC\n210000.0, 0.3\n*SOLID SECTION, MATERIAL=STEEL, ELSET=ALL_ELEMS\n1.0,\n"
         )
         inp_file = tmp_path / "go_idx1_v1.inp"
         inp_file.write_text(inp_content, encoding="utf-8")
@@ -2118,9 +1972,7 @@ class TestMaterialSourceFiltering:
 
         mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
         dat_mats = [n for n in mat_nodes if "dat" in n.name.lower()]
-        assert len(dat_mats) == 0, (
-            f".datファイルからmaterialが読み取られている: {[n.name for n in dat_mats]}"
-        )
+        assert len(dat_mats) == 0, f".datファイルからmaterialが読み取られている: {[n.name for n in dat_mats]}"
 
     def test_go_inp_parsed_for_materials(self, tmp_path):
         """go系.inpからはmaterialを読み取る"""
@@ -2180,9 +2032,7 @@ class TestMaterialSourceFiltering:
         graph = svc.parse_project()
 
         mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
-        assert len(mat_nodes) == 0, (
-            f"step系.inpからmaterialが読み取られている: {[n.name for n in mat_nodes]}"
-        )
+        assert len(mat_nodes) == 0, f"step系.inpからmaterialが読み取られている: {[n.name for n in mat_nodes]}"
 
     def test_is_material_source_node_static(self):
         """_is_material_source_nodeの静的テスト"""
@@ -2193,15 +2043,11 @@ class TestMaterialSourceFiltering:
         assert AbaqusInpParser._is_material_source_node(go_node) is True
 
         # material系.inp → True
-        mat_node = Node(
-            id=2, type="material", name="material", format="inp", properties={}
-        )
+        mat_node = Node(id=2, type="material", name="material", format="inp", properties={})
         assert AbaqusInpParser._is_material_source_node(mat_node) is True
 
         # material_v2.inp → True
-        mat2_node = Node(
-            id=3, type="material", name="material_v2", format="inp", properties={}
-        )
+        mat2_node = Node(id=3, type="material", name="material_v2", format="inp", properties={})
         assert AbaqusInpParser._is_material_source_node(mat2_node) is True
 
         # go_idx3.dat → False
@@ -2209,9 +2055,7 @@ class TestMaterialSourceFiltering:
         assert AbaqusInpParser._is_material_source_node(dat_node) is False
 
         # step_static.inp → False
-        step_node = Node(
-            id=5, type="step", name="step_static", format="inp", properties={}
-        )
+        step_node = Node(id=5, type="step", name="step_static", format="inp", properties={})
         assert AbaqusInpParser._is_material_source_node(step_node) is False
 
         # mesh.inp → False
@@ -2271,24 +2115,16 @@ class TestGenericDirectoryNodes:
         )
         assert reports_dir is not None
 
-        contains = [
-            r
-            for r in graph.relations
-            if r.label == "contains" and r.node1_id == reports_dir.id
-        ]
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == reports_dir.id]
         assert len(contains) >= 1, "reports/ 内にcontains関係がない"
 
         # reportsフォルダ内のファイルが正しくリンクされている
         contained_ids = {r.node2_id for r in contains}
         report_file_nodes = [
-            n
-            for n in graph.nodes
-            if "reports/" in n.properties.get("path", "") and n.format != "directory"
+            n for n in graph.nodes if "reports/" in n.properties.get("path", "") and n.format != "directory"
         ]
         for file_node in report_file_nodes:
-            assert file_node.id in contained_ids, (
-                f"{file_node.name} がcontains関係に含まれていない"
-            )
+            assert file_node.id in contained_ids, f"{file_node.name} がcontains関係に含まれていない"
 
     def test_results_directory_node_created(self, graph_service):
         """results/ ディレクトリもtype=directoryのノードとして生成される"""
@@ -2339,7 +2175,7 @@ class TestTrailingCommaInMaterialProperty:
         density = MaterialPropertyReadComponent(context)
 
         # 末尾カンマのある行: "1.0e-9,"
-        result = density.read_line("1.0e-9,")
+        density.read_line("1.0e-9,")
         # エラーにならずにデータが追加される
         assert len(density.data) == 1
         row = density.data[0]
@@ -2373,11 +2209,7 @@ class TestIncludeFileNotFound:
 
         inp = tmp_path / "main.inp"
         inp.write_text(
-            "*HEADING\ntest\n"
-            "*INCLUDE, INPUT=nonexistent_material.inp\n"
-            "*STEP\n"
-            "*STATIC\n"
-            "*END STEP\n",
+            "*HEADING\ntest\n*INCLUDE, INPUT=nonexistent_material.inp\n*STEP\n*STATIC\n*END STEP\n",
             encoding="utf-8",
         )
 
@@ -2413,11 +2245,7 @@ class TestIncludeFileNotFound:
         """*includeファイルが存在しなくてもparse_projectがグラフを生成できる"""
         inp = tmp_path / "go_idx1.inp"
         inp.write_text(
-            "*HEADING\ntest\n"
-            "*INCLUDE, INPUT=moved_to_old.inp\n"
-            "*MATERIAL, NAME=INLINE_STEEL\n"
-            "*ELASTIC\n"
-            "210000.0, 0.3\n",
+            "*HEADING\ntest\n*INCLUDE, INPUT=moved_to_old.inp\n*MATERIAL, NAME=INLINE_STEEL\n*ELASTIC\n210000.0, 0.3\n",
             encoding="utf-8",
         )
 
@@ -2552,18 +2380,12 @@ class TestIncludePropertyPropagation:
         """includeされたmeshファイルの統計情報がgo_*.inpに伝搬される"""
         # メッシュファイル
         mesh_content = (
-            "*NODE\n"
-            "1, 0.0, 0.0, 0.0\n"
-            "2, 1.0, 0.0, 0.0\n"
-            "*ELEMENT, TYPE=C3D8, ELSET=EALL\n"
-            "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
+            "*NODE\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8, ELSET=EALL\n1, 1, 2, 3, 4, 5, 6, 7, 8\n"
         )
         (tmp_path / "mesh.inp").write_text(mesh_content)
 
         # go_inpファイル (meshをinclude)
-        go_content = (
-            "** go file\n*INCLUDE, INPUT=mesh.inp\n*STEP\n*STATIC\n1., 1.\n*END STEP\n"
-        )
+        go_content = "** go file\n*INCLUDE, INPUT=mesh.inp\n*STEP\n*STATIC\n1., 1.\n*END STEP\n"
         (tmp_path / "go_idx1.inp").write_text(go_content)
 
         config = GraphConfig.from_dict({"vocab": {}})
@@ -2585,9 +2407,7 @@ class TestIncludePropertyPropagation:
     def test_include_relations_exist(self, tmp_path):
         """includes関係が正しく構築される"""
         (tmp_path / "mesh.inp").write_text("*NODE\n1, 0., 0., 0.\n")
-        go_content = (
-            "** go file\n*INCLUDE, INPUT=mesh.inp\n*STEP\n*STATIC\n1., 1.\n*END STEP\n"
-        )
+        go_content = "** go file\n*INCLUDE, INPUT=mesh.inp\n*STEP\n*STATIC\n1., 1.\n*END STEP\n"
         (tmp_path / "go_idx1.inp").write_text(go_content)
 
         config = GraphConfig.from_dict({"vocab": {}})
@@ -2877,9 +2697,7 @@ tags:
         """日報のプロパティが対象ノードに反映される"""
         daily_dir = tmp_path / "notes" / "daily"
         daily_dir.mkdir(parents=True)
-        (daily_dir / "2026-02-06.md").write_text(
-            "## テスト\ngo_idx1.inp: 備考: 最終版\n"
-        )
+        (daily_dir / "2026-02-06.md").write_text("## テスト\ngo_idx1.inp: 備考: 最終版\n")
 
         (tmp_path / "go_idx1.inp").write_text("** test\n")
 
@@ -2985,10 +2803,7 @@ class TestDailyConnectorEnhanced:
 
         assert _extract_file_path_from_value("[[image.png]]") == "image.png"
         assert _extract_file_path_from_value("[[image.png|画像1]]") == "image.png"
-        assert (
-            _extract_file_path_from_value("[[path/to/image.png]]")
-            == "path/to/image.png"
-        )
+        assert _extract_file_path_from_value("[[path/to/image.png]]") == "path/to/image.png"
         assert _extract_file_path_from_value("普通の値") == "普通の値"
 
     def test_strip_obsidian_prefix(self):
@@ -3194,9 +3009,7 @@ class TestExportCSVJSON:
 
         parser = argparse.ArgumentParser()
         mod._add_export_args(parser)
-        args = parser.parse_args(
-            ["--target", "csv", "--select", "file1.inp", "file2.inp"]
-        )
+        args = parser.parse_args(["--target", "csv", "--select", "file1.inp", "file2.inp"])
         assert args.select == ["file1.inp", "file2.inp"]
 
     def test_export_data_csv(self, tmp_path):
@@ -3204,7 +3017,7 @@ class TestExportCSVJSON:
         import csv
         import json
 
-        mod = self._import_graph_module()
+        self._import_graph_module()
 
         graph = GraphModel(
             nodes=[
@@ -3278,10 +3091,10 @@ class TestMaterialAssignmentProps:
         """_enrich_material_assignment_propsで材料名とelsetが追加される"""
         from config import GraphConfig
         from jj_types import Relation
+        from services.graph.project_graph import ProjectGraph
         from services.parse.connectors.abaqus.inp_parser import (
             AbaqusMaterialAssignmentParser,
         )
-        from services.graph.project_graph import ProjectGraph
 
         config = GraphConfig.from_dict({})
 
@@ -3309,9 +3122,7 @@ class TestMaterialAssignmentProps:
             config=config,
         )
 
-        AbaqusMaterialAssignmentParser._enrich_material_assignment_props(
-            graph, [mat_node], [mat_rel]
-        )
+        AbaqusMaterialAssignmentParser._enrich_material_assignment_props(graph, [mat_node], [mat_rel])
 
         assert "materials" in go_node.properties
         assert "Steel" in go_node.properties["materials"]
@@ -3523,9 +3334,7 @@ class TestStaEnrichmentOnly:
 
     def test_sta_not_node_but_enriches_inp(self, tmp_path):
         """.staファイルはNodeにならず、対応inpに情報を集約"""
-        sta_content = (
-            " STEP   1  STATIC ANALYSIS\n\n\n THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n"
-        )
+        sta_content = " STEP   1  STATIC ANALYSIS\n\n\n THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n"
         (tmp_path / "go_idx1_v1.inp").write_text("")
         (tmp_path / "go_idx1_v1.sta").write_text(sta_content)
 
@@ -3597,10 +3406,7 @@ class TestMaterialVerboseNameEnrichment:
 
     def test_material_verbose_name_includes_material_names(self, tmp_path):
         """material.inpのverbose_nameに材料名が含まれる"""
-        mat_content = (
-            "*MATERIAL, NAME=Steel\n*ELASTIC\n210000.0, 0.3\n"
-            "*MATERIAL, NAME=Rubber\n*ELASTIC\n100.0, 0.49\n"
-        )
+        mat_content = "*MATERIAL, NAME=Steel\n*ELASTIC\n210000.0, 0.3\n*MATERIAL, NAME=Rubber\n*ELASTIC\n100.0, 0.49\n"
         (tmp_path / "material.inp").write_text(mat_content)
 
         config = GraphConfig.from_dict(
@@ -3658,11 +3464,7 @@ class TestRootDirectoryNode:
 
         # project-name未設定の場合はプロジェクトルートのフォルダ名を使用
         root_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.format == "directory" and n.properties.get("path") == "."
-            ),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
@@ -3680,11 +3482,7 @@ class TestRootDirectoryNode:
         graph = svc.parse_project(extensions=[".inp"])
 
         root_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.format == "directory" and n.properties.get("path") == "."
-            ),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
@@ -3699,20 +3497,12 @@ class TestRootDirectoryNode:
         graph = svc.parse_project(extensions=[".inp"])
 
         root_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.format == "directory" and n.properties.get("path") == "."
-            ),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
 
-        contains = [
-            r
-            for r in graph.relations
-            if r.label == "contains" and r.node1_id == root_node.id
-        ]
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == root_node.id]
         assert len(contains) >= 2  # go_idx1_v1.inp + material.inp
 
     def test_subdir_files_not_in_root_contains(self, tmp_path):
@@ -3726,19 +3516,11 @@ class TestRootDirectoryNode:
         graph = svc.parse_project(extensions=[".inp"])
 
         root_node = next(
-            (
-                n
-                for n in graph.nodes
-                if n.format == "directory" and n.properties.get("path") == "."
-            ),
+            (n for n in graph.nodes if n.format == "directory" and n.properties.get("path") == "."),
             None,
         )
         assert root_node is not None
-        contains = [
-            r
-            for r in graph.relations
-            if r.label == "contains" and r.node1_id == root_node.id
-        ]
+        contains = [r for r in graph.relations if r.label == "contains" and r.node1_id == root_node.id]
         # ルート直下のgo_idx1_v1.inpとsubdirディレクトリ
         assert len(contains) == 2
 
@@ -3751,9 +3533,7 @@ class TestDatEnrichment:
         from services.parse.connectors.abaqus.result_parser import parse_dat_file
 
         dat_content = (
-            "SOME OUTPUT DATA\n"
-            " TOTAL CPU TIME (SEC)      =   123.45\n"
-            " TOTAL WALL CLOCK TIME (SEC) =    67.89\n"
+            "SOME OUTPUT DATA\n TOTAL CPU TIME (SEC)      =   123.45\n TOTAL WALL CLOCK TIME (SEC) =    67.89\n"
         )
         dat_file = tmp_path / "go_idx1.dat"
         dat_file.write_text(dat_content)
@@ -3774,8 +3554,7 @@ class TestDatEnrichment:
         """.datの計算時間情報がinpに集約される"""
         (tmp_path / "go_idx1_v1.inp").write_text("")
         (tmp_path / "go_idx1_v1.dat").write_text(
-            " TOTAL CPU TIME (SEC)      =   100.5\n"
-            " TOTAL WALL CLOCK TIME (SEC) =    50.2\n"
+            " TOTAL CPU TIME (SEC)      =   100.5\n TOTAL WALL CLOCK TIME (SEC) =    50.2\n"
         )
         config = GraphConfig.from_dict(
             {
@@ -3804,7 +3583,7 @@ class TestPymeshImport:
         """pymeshが正しくインポートできる（絶対インポート）"""
         from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
-        create_mesher, get_quality = _safe_import_pymesh()
+        create_mesher, _get_quality = _safe_import_pymesh()
         # pymeshが利用可能ならNoneでない
         assert create_mesher is not None, "pymeshのインポートに失敗"
 
@@ -3852,7 +3631,7 @@ class TestWindowsPathParsing:
 
     def test_backslash_path_normalized(self, tmp_path):
         """バックスラッシュパスからbasenameを正しく抽出"""
-        from pathlib import PurePosixPath, PureWindowsPath
+        from pathlib import PurePosixPath
 
         path = "subdir\\go_idx1_v1.inp"
         normalized = path.replace("\\", "/")
@@ -3900,7 +3679,6 @@ class TestCredentialService:
     def test_save_and_load_credentials(self, tmp_path):
         """クレデンシャルの保存と読み込み"""
         from services.lib.credentials import (
-            _get_secret_key_path,
             load_credentials,
             save_credentials,
         )
@@ -3974,6 +3752,219 @@ class TestMeshStatsDisplay:
         quality = props["mesh_quality"]
         assert isinstance(quality, dict)
         assert "volume" in quality
+
+
+class TestVerboseNameFormat:
+    """verbose-name-formatテンプレートのテスト"""
+
+    def test_format_basic(self, tmp_path):
+        """フォーマットテンプレートでverbose_nameが生成される"""
+        config = GraphConfig.from_dict(
+            {
+                "vocab": {"idx": "条件", "go": "計算入力", "t": "高さ", "F": "荷重"},
+                "verbose-name-format": "条件{条件}(高さ{高さ},荷重{荷重})",
+            }
+        )
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1_t5_F20.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1_t5_F20.inp")
+        vn = node.properties.get("verbose_name", "")
+        assert vn == "条件1(高さ5,荷重20)"
+
+    def test_format_with_original_keys(self, tmp_path):
+        """フォーマットでvocab変換前のキー名も参照可能"""
+        config = GraphConfig.from_dict(
+            {
+                "vocab": {"idx": "条件", "go": "計算入力"},
+                "verbose-name-format": "idx{idx}",
+            }
+        )
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx3.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx3.inp")
+        vn = node.properties.get("verbose_name", "")
+        assert vn == "idx3"
+
+    def test_format_missing_key_is_empty(self, tmp_path):
+        """フォーマット内の存在しないキーは空文字に置換"""
+        config = GraphConfig.from_dict(
+            {
+                "vocab": {"idx": "条件"},
+                "verbose-name-format": "条件{条件}_存在しない{不明}",
+            }
+        )
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx1.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx1.inp")
+        vn = node.properties.get("verbose_name", "")
+        assert vn == "条件1_存在しない"
+
+    def test_format_not_set_uses_legacy(self, tmp_path):
+        """verbose-name-format未設定時は従来方式"""
+        config = GraphConfig.from_dict(
+            {
+                "vocab": {"idx": "条件", "go": "計算入力"},
+            }
+        )
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx2_v1.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx2_v1.inp")
+        vn = node.properties.get("verbose_name", "")
+        # 従来方式: タイプ_プロパティ の形式
+        assert "計算入力" in vn
+        assert "条件2" in vn
+
+    def test_format_with_type_reference(self, tmp_path):
+        """フォーマットで{type}を参照可能"""
+        config = GraphConfig.from_dict(
+            {
+                "vocab": {"idx": "条件", "go": "計算入力"},
+                "verbose-name-format": "{type}_{条件}",
+            }
+        )
+        svc = GraphService(project_root=tmp_path, config=config)
+        (tmp_path / "go_idx5.inp").write_text("")
+        node = svc.file_to_node(tmp_path / "go_idx5.inp")
+        vn = node.properties.get("verbose_name", "")
+        assert vn == "計算入力_5"
+
+
+class TestDashboardDisplayName:
+    """dashboardのdisplay_name（verbose_name表示）テスト"""
+
+    def test_node_to_row_includes_display_name(self):
+        """_node_to_rowにverbose_nameキーの列が含まれる"""
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "verbose_name": "条件1"},
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph, vocab={})
+        rows = provider.get_go_table()
+        assert len(rows) == 1
+        # verbose_nameキー（vocab未設定 → "verbose_name"）
+        assert rows[0]["verbose_name"] == "条件1"
+
+    def test_node_to_row_display_name_with_vocab(self):
+        """vocab変換後のキー名でverbose_nameが表示される"""
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "表示名": "条件1(高さ5)"},
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph, vocab={"verbose_name": "表示名"})
+        rows = provider.get_go_table()
+        assert len(rows) == 1
+        # vocab変換後のキー（"表示名"）で表示名が返される
+        assert rows[0]["表示名"] == "条件1(高さ5)"
+
+    def test_get_display_name_fallback(self):
+        """verbose_nameが無い場合はnameにフォールバック"""
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph, vocab={})
+        display = provider._get_display_name(nodes[0])
+        assert display == "go_idx1"
+
+    def test_plot_data_includes_display_name(self):
+        """get_plot_dataにverbose_nameキーが含まれる"""
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "verbose_name": "条件1", "x": 1.0, "y": 2.0},
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph, vocab={})
+        points = provider.get_plot_data("x", "y")
+        assert len(points) == 1
+        assert points[0]["verbose_name"] == "条件1"
+
+    def test_array_grid_data_includes_display_name(self):
+        """get_array_grid_dataにdisplay_nameが含まれる"""
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "verbose_name": "条件1",
+                    "RF.time": [0.0, 1.0],
+                    "RF.RF3": [10.0, 20.0],
+                },
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph, vocab={})
+        data = provider.get_array_grid_data("RF.time", "RF.RF3")
+        assert len(data) == 1
+        assert data[0]["display_name"] == "条件1"
+
+
+class TestPropertyKeysVocabSort:
+    """get_property_keysのvocabソートテスト"""
+
+    def test_vocab_keys_first(self):
+        """vocab指定のあるキーが先にソートされる"""
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={
+                    "path": "go_idx1.inp",
+                    "条件": "1",
+                    "xyz_unknown": "42",
+                    "温度": "300",
+                    "abc_other": "100",
+                },
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        vocab = {"idx": "条件", "temp": "温度"}
+        provider = DashboardDataProvider(graph, vocab=vocab)
+        keys = provider.get_property_keys()
+        # vocab指定あり（条件、温度）が先に来る
+        vocab_keys = [k for k in keys if k in ("条件", "温度")]
+        non_vocab_keys = [k for k in keys if k in ("xyz_unknown", "abc_other")]
+        # vocab指定キーがnon-vocabキーより前にある
+        assert keys.index(vocab_keys[0]) < keys.index(non_vocab_keys[0])
 
 
 if __name__ == "__main__":

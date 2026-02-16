@@ -102,9 +102,7 @@ class AbaqusMeshParser(AbstractFileParser):
             # キャッシュからABQDataを取得（または新規パースしてキャッシュに保存）
             cached_abq = self._get_or_parse_inp(graph, str(file_path))
 
-            stats = extract_mesh_stats(
-                file_path, verbose=False, cached_abq_data=cached_abq
-            )
+            stats = extract_mesh_stats(file_path, verbose=False, cached_abq_data=cached_abq)
             if stats is None:
                 logger.debug(f"extract_mesh_stats returned None for {node.name}")
                 continue
@@ -127,9 +125,7 @@ class AbaqusMeshParser(AbstractFileParser):
                 )
 
             # Elsetごとの品質統計
-            elset_quality = extract_elset_quality_stats(
-                file_path, verbose=False, cached_abq_data=cached_abq
-            )
+            elset_quality = extract_elset_quality_stats(file_path, verbose=False, cached_abq_data=cached_abq)
             if elset_quality:
                 node.properties["mesh_elset_quality"] = elset_quality
 

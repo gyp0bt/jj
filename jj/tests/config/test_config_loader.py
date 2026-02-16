@@ -1,6 +1,3 @@
-import tempfile
-from pathlib import Path
-
 import pytest
 import yaml
 
@@ -9,7 +6,6 @@ from config import (
     DEFAULT_PREFIXES,
     ExtensionsConfig,
     PrefixesConfig,
-    VocabConfig,
     get_config_dir,
     init_config_dir,
     load_extensions_config,

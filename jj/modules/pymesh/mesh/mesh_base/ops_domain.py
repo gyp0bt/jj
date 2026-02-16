@@ -1,39 +1,30 @@
 # pymesh/mesh/mesh_base/ops_domain.py
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple
-from typing import Literal, TYPE_CHECKING, Any, Iterator, Iterable, Callable
+import warnings
+from collections import deque
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from numpy.typing import NDArray
-
 from scipy.spatial import KDTree
+
+from ...etypes import ElementType
+from ...misc.quality import get_element_quality
+from ...typing import NodeCoordArray, node_coord_array_dtype
 from .. import utils
 from ..grandpa import (
     BaseParentComponent,
-    BaseGrandpaComponent,
-    BaseChildComponent,
-    ElementsDict,
-    NodesDict,
-    Nodes,
     Elements,
     Elset,
+    Nodes,
     Nset,
-    NsetDict,
-    ElsetDict,
-    ElementField,
-    Element,
-    Node,
 )
-from ...etypes import ElementType
-
-from ...misc.quality import get_element_quality
-from ...typing import NodeCoordArray, node_coord_array_dtype
 from .protocol import MesherCoreProtocol
 
 if TYPE_CHECKING:
     # 型チェック時のみ self の型に使う
-    from ..mesh import Mesher
+    pass
 
 
 class DomainOpsMixin:
@@ -55,7 +46,7 @@ class DomainOpsMixin:
         elif u3 is not None:
             labels = u3.keys()
         else:
-            raise ValueError(f"you must specify at least one of u1, u2, u3")
+            raise ValueError("you must specify at least one of u1, u2, u3")
 
         node_coord = self.get_node_coord()
         for label in labels:
@@ -67,16 +58,12 @@ class DomainOpsMixin:
                     node_coord[intlabel][1] += u2[label]
                 if u3 is not None:
                     node_coord[intlabel][2] += u3[label]
-            except:
+            except Exception:
                 pass
         self.update_node_coord(node_coord=node_coord)
 
-    def update_node_coord_with_odb_COORD(
-        self: MesherCoreProtocol, node_coord: dict[str, dict[str, float]]
-    ):
-        node_coord_modif = {
-            int(k): np.array([v["0"], v["1"], v["2"]]) for k, v in node_coord.items()
-        }
+    def update_node_coord_with_odb_COORD(self: MesherCoreProtocol, node_coord: dict[str, dict[str, float]]):
+        node_coord_modif = {int(k): np.array([v["0"], v["1"], v["2"]]) for k, v in node_coord.items()}
         self.update_node_coord(node_coord=node_coord_modif)
 
     def drop_overranged_elements(
@@ -89,7 +76,7 @@ class DomainOpsMixin:
     ):
         element_coord_arr = self.get_element_coord_array()
         if element_coord_arr is None:
-            raise ValueError(f"elementデータが不正")
+            raise ValueError("elementデータが不正")
         over_ranged_element_labels = []
 
         def _drop(labels: list, arr: NDArray, axis: str, index: int = 0) -> NDArray:
@@ -132,12 +119,8 @@ class DomainOpsMixin:
             points1 = np.array([[i["x"], i["y"], i["z"]] for i in arr1])
         else:
             points1 = arr1.copy()[:, 1:]
-            arr1 = np.array(
-                [(i[0], i[1], i[2], i[3]) for i in arr1], dtype=node_coord_array_dtype
-            )
-            arr2 = np.array(
-                [(i[0], i[1], i[2], i[3]) for i in arr2], dtype=node_coord_array_dtype
-            )
+            arr1 = np.array([(i[0], i[1], i[2], i[3]) for i in arr1], dtype=node_coord_array_dtype)
+            arr2 = np.array([(i[0], i[1], i[2], i[3]) for i in arr2], dtype=node_coord_array_dtype)
 
         tree = KDTree(data=points1)
         pairs = []
@@ -145,9 +128,7 @@ class DomainOpsMixin:
         for i in arr2:
             if indices := tree.query_ball_point(x=[i["x"], i["y"], i["z"]], r=dmax):
                 if dmin is not None:
-                    exception = tree.query_ball_point(
-                        x=[i["x"], i["y"], i["z"]], r=dmin
-                    )
+                    exception = tree.query_ball_point(x=[i["x"], i["y"], i["z"]], r=dmin)
                     indices = [i for i in indices if i not in exception]
                 for index in indices:
                     pairs.append((i["label"], arr1[index]["label"]))
@@ -157,9 +138,7 @@ class DomainOpsMixin:
     def merge_meshes(self: MesherCoreProtocol, other: MesherCoreProtocol):
         def add_parent_auto(parent: BaseParentComponent):
             if not isinstance(parent, BaseParentComponent):
-                raise ValueError(
-                    f"Argument parent is not BaseParentComponent, but {parent}"
-                )
+                raise ValueError(f"Argument parent is not BaseParentComponent, but {parent}")
 
             elif isinstance(parent, Nodes):
                 key = parent.name
@@ -183,7 +162,7 @@ class DomainOpsMixin:
 
             data[key] = parent
 
-        for parent in iter_all_parents(other):
+        for parent in other.iter_all_parents():
             add_parent_auto(parent)
         return self
 
@@ -191,7 +170,7 @@ class DomainOpsMixin:
         self: MesherCoreProtocol,
         scale: tuple[float, float],
         vminmax: tuple[float, float],
-        elset_name: Optional[str | list[str]] = None,
+        elset_name: str | list[str] | None = None,
         axis: Literal["x", "y", "z"] = "z",
         scale_overranged: bool = True,
     ):
@@ -203,15 +182,11 @@ class DomainOpsMixin:
         if vminmax[0] >= vminmax[1]:
             raise ValueError
         columns = [i for i in ["x", "y", "z"] if i != axis]
-        r = np.sqrt(
-            node_coord_array[columns[0]] ** 2 + node_coord_array[columns[1]] ** 2
-        )
+        r = np.sqrt(node_coord_array[columns[0]] ** 2 + node_coord_array[columns[1]] ** 2)
         t = np.arctan2(node_coord_array[columns[0]], node_coord_array[columns[1]])
 
         amp = vminmax[1] - vminmax[0]
-        indices = (node_coord_array[axis] >= vminmax[0]) & (
-            node_coord_array[axis] <= vminmax[1]
-        )
+        indices = (node_coord_array[axis] >= vminmax[0]) & (node_coord_array[axis] <= vminmax[1])
 
         slope = scale[1] - scale[0]
         local_v = (node_coord_array[axis][indices] - vminmax[0]) / amp
@@ -233,18 +208,16 @@ class DomainOpsMixin:
             for org_key, elements_i in self.elements_data.items():
                 if org == elements_i.type:
                     elements_i.options["type"] = new
-                    new_key = self.get_elset_key_from_elset_and_type(
-                        elset=elements_i.name, type=new
-                    )
+                    new_key = self.get_elset_key_from_elset_and_type(elset=elements_i.name, type=new)
                     self.elements_data.drop_names(org_key.split(",")[0])
                     self.elements_data[new_key] = elements_i
 
     def square_to_circle(
         self: MesherCoreProtocol,
-        l: float,
+        length: float,
         r: float,
         plane: Literal["xy", "yz", "zx"] = "xy",
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
     ):
         if plane != "xy":
             raise NotImplementedError
@@ -260,10 +233,8 @@ class DomainOpsMixin:
 
         for _ in range(3):
             theta_array[theta_array > np.pi / 2.0] -= np.pi / 2.0
-        theta_array[theta_array > np.pi / 4.0] = (
-            np.pi / 2.0 - theta_array[theta_array > np.pi / 4.0]
-        )
-        square_radius_array = np.sqrt(l**2 / (1 - np.sin(theta_array) ** 2))
+        theta_array[theta_array > np.pi / 4.0] = np.pi / 2.0 - theta_array[theta_array > np.pi / 4.0]
+        square_radius_array = np.sqrt(length**2 / (1 - np.sin(theta_array) ** 2))
         scale = r / square_radius_array
 
         radius_array *= scale
@@ -277,15 +248,15 @@ class DomainOpsMixin:
 
     def set_refnode(
         self: MesherCoreProtocol,
-        elset_name: Optional[str | list[str]],
-        refnode_name: Optional[str] = None,
+        elset_name: str | list[str] | None,
+        refnode_name: str | None = None,
     ):
 
         if refnode_name is None:
             if isinstance(elset_name, str):
                 refnode_name = "ref" + elset_name[1:]
             else:
-                raise ValueError(f"elset_name or refnode_name must be defined")
+                raise ValueError("elset_name or refnode_name must be defined")
 
         if isinstance(elset_name, str):
             elset_name = [elset_name]
@@ -336,7 +307,7 @@ class DomainOpsMixin:
 
     def cluster_elements_by_shared_nodes(
         self: MesherCoreProtocol,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         invalid_node: int | None = 0,
     ) -> tuple[NDArray[np.int64], dict[int, NDArray[np.int64]]]:
         """節点共有による要素クラスタリング（連結成分分解）.
@@ -437,12 +408,8 @@ class DomainOpsMixin:
             labels=element_labels2, allow_polymorphism=True, invalid_node=invalid_node
         )
         # print(elem_arr1.shape, elem_arr2.shape)
-        node_arr1 = self.get_node_coord_array_with_element_labels(
-            labels=element_labels1
-        )
-        node_arr2 = self.get_node_coord_array_with_element_labels(
-            labels=element_labels2
-        )
+        node_arr1 = self.get_node_coord_array_with_element_labels(labels=element_labels1)
+        node_arr2 = self.get_node_coord_array_with_element_labels(labels=element_labels2)
         # print(elem_arr1)
         # print(node_arr1)
         # print(node_arr1.shape, node_arr2.shape)
@@ -472,20 +439,16 @@ class DomainOpsMixin:
         # print(new_nodes)
         self.add_nodes(name="global", arr=new_nodes)
         if prism_arr is not None:
-            self.add_elements(
-                name=target_elset_name, arr=prism_arr, type=ElementType.C3D6.name
-            )
+            self.add_elements(name=target_elset_name, arr=prism_arr, type=ElementType.C3D6.name)
         if hex_arr is not None:
-            self.add_elements(
-                name=target_elset_name, arr=hex_arr, type=ElementType.C3D8R.name
-            )
+            self.add_elements(name=target_elset_name, arr=hex_arr, type=ElementType.C3D8R.name)
 
     def create_intermediate_shell_between_topology_matched_shell_clusters(
         self: MesherCoreProtocol,
         element_labels1: list[int],
         element_labels2: list[int],
         target_elset_name: str,
-        target_element_type: Optional[dict[int, str]] = None,
+        target_element_type: dict[int, str] | None = None,
         node_tol: float = 1.0,
         invalid_node: int = 0,
         n: int = 1,
@@ -498,20 +461,14 @@ class DomainOpsMixin:
         elem_arr2 = self.get_element_array_with_labels(
             labels=element_labels2, allow_polymorphism=True, invalid_node=invalid_node
         )
-        node_arr1 = self.get_node_coord_array_with_element_labels(
-            labels=element_labels1
-        )
-        node_arr2 = self.get_node_coord_array_with_element_labels(
-            labels=element_labels2
-        )
-        elems_arr2_matched, bottom_to_top_nodes = (
-            utils.match_shell_clusters_by_geometory(
-                elems_bottom=elem_arr1,
-                nodes_bottom=node_arr1,
-                elems_top=elem_arr2,
-                nodes_top=node_arr2,
-                node_tol=node_tol,
-            )
+        node_arr1 = self.get_node_coord_array_with_element_labels(labels=element_labels1)
+        node_arr2 = self.get_node_coord_array_with_element_labels(labels=element_labels2)
+        _elems_arr2_matched, bottom_to_top_nodes = utils.match_shell_clusters_by_geometory(
+            elems_bottom=elem_arr1,
+            nodes_bottom=node_arr1,
+            elems_top=elem_arr2,
+            nodes_top=node_arr2,
+            node_tol=node_tol,
         )
 
         matched_node_labels2 = [bottom_to_top_nodes[i] for i in node_arr1["label"]]
@@ -522,9 +479,7 @@ class DomainOpsMixin:
             # print(scale)
             new_node_arr = np.array(
                 [
-                    np.arange(
-                        start_label.node, start_label.node + matched_node_arr2.shape[0]
-                    ),
+                    np.arange(start_label.node, start_label.node + matched_node_arr2.shape[0]),
                     node_arr1["x"] + (matched_node_arr2["x"] - node_arr1["x"]) * scale,
                     node_arr1["y"] + (matched_node_arr2["y"] - node_arr1["y"]) * scale,
                     node_arr1["z"] + (matched_node_arr2["z"] - node_arr1["z"]) * scale,
@@ -533,14 +488,10 @@ class DomainOpsMixin:
             self.add_nodes(name="global", arr=new_node_arr)
 
             node_labels1_to_new_node_labels = {
-                i: j for i, j in zip(node_arr1["label"], new_node_arr[:, 0])
+                i: j for i, j in zip(node_arr1["label"], new_node_arr[:, 0], strict=False)
             }
-            new_elem_labels = np.arange(
-                start_label.elem, start_label.elem + elem_arr2.shape[0]
-            ).reshape(-1, 1)
-            new_elem_node_arr = np.vectorize(
-                lambda x: node_labels1_to_new_node_labels.get(x, None)
-            )(elem_arr1[:, 1:])
+            new_elem_labels = np.arange(start_label.elem, start_label.elem + elem_arr2.shape[0]).reshape(-1, 1)
+            new_elem_node_arr = np.vectorize(lambda x, _m=node_labels1_to_new_node_labels: _m.get(x))(elem_arr1[:, 1:])
             new_elem_arr = np.hstack([new_elem_labels, new_elem_node_arr])
 
             tri_indices = np.isnan(new_elem_arr[:, 1:]).any(axis=1)
@@ -569,14 +520,11 @@ class DomainOpsMixin:
                     type=target_element_type[4],
                 )
 
-    def experimental_mirror_element_xy(
-        self: MesherCoreProtocol, name: Optional[str | list[str]] = None
-    ):
+    def experimental_mirror_element_xy(self: MesherCoreProtocol, name: str | list[str] | None = None):
         if isinstance(name, str):
             name = [name]
 
         for elements in self.elements_data.values():
-
             if elements.options["elset"] not in name:
                 continue
 
@@ -593,7 +541,7 @@ class DomainOpsMixin:
 
     def get_element_volume(
         self: MesherCoreProtocol,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         mode: Literal["elements", "elset"] = "elements",
     ) -> float:
 
@@ -603,9 +551,7 @@ class DomainOpsMixin:
                 return 0.0
             element_node_coord_array_list = [element_node_coord_array]
         elif mode == "elset":
-            element_node_coord_array_dict = self.get_node_coord_array_dict_with_elset(
-                name=name
-            )
+            element_node_coord_array_dict = self.get_node_coord_array_dict_with_elset(name=name)
             if all([i.size == 0 for i in element_node_coord_array_dict.values()]):
                 return 0.0
             element_node_coord_array_list = list(element_node_coord_array_dict.values())
@@ -616,16 +562,14 @@ class DomainOpsMixin:
             if i.size == 0:
                 continue
 
-            volume_i = np.sum(
-                get_element_quality(element_node_coord_array=i, mode="volume")["volume"]
-            )
+            volume_i = np.sum(get_element_quality(element_node_coord_array=i, mode="volume")["volume"])
             volume += volume_i
 
         return volume
 
     def get_element_area(
         self: MesherCoreProtocol,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         mode: Literal["elements", "elset"] = "elements",
     ) -> float:
         """
@@ -644,9 +588,7 @@ class DomainOpsMixin:
                 return 0.0
             element_node_coord_array_list = [element_node_coord_array]
         elif mode == "elset":
-            element_node_coord_array_dict = self.get_node_coord_array_dict_with_elset(
-                name=name
-            )
+            element_node_coord_array_dict = self.get_node_coord_array_dict_with_elset(name=name)
             if all([i.size == 0 for i in element_node_coord_array_dict.values()]):
                 return 0.0
             element_node_coord_array_list = list(element_node_coord_array_dict.values())
@@ -658,30 +600,28 @@ class DomainOpsMixin:
         for i in element_node_coord_array_list:
             if i.size == 0:
                 continue
-            area_i = np.sum(
-                get_element_quality(element_node_coord_array=i, mode="area")["area"]
-            )
+            area_i = np.sum(get_element_quality(element_node_coord_array=i, mode="area")["area"])
             area += area_i
 
         return area
 
     def drop_collapsed_elements(
         self: MesherCoreProtocol,
-        name: Optional[str | list[str]] = None,
-        cutoff: dict[str, float | None] = dict(volume=None, detJ=None),
+        name: str | list[str] | None = None,
+        cutoff: dict[str, float | None] | None = None,
     ) -> list[int] | None:
-        if "detJ" not in cutoff.keys() or cutoff["detJ"] is None:
+        if cutoff is None:
+            cutoff = dict(volume=None, detJ=None)
+        if "detJ" not in cutoff or cutoff["detJ"] is None:
             cutoff["detJ"] = 0.0
-        if "volume" not in cutoff.keys() or cutoff["volume"] is None:
+        if "volume" not in cutoff or cutoff["volume"] is None:
             cutoff["detJ"] = 0.0
 
         element_node_coord_array = self.get_element_node_coord_array(name=name)
         if element_node_coord_array is None:
             raise ValueError(f"elset({name})が不正")
 
-        quality = get_element_quality(
-            element_node_coord_array=element_node_coord_array, mode=["volume", "detJ"]
-        )
+        quality = get_element_quality(element_node_coord_array=element_node_coord_array, mode=["volume", "detJ"])
         element_array = self.get_element_array(name=name)
         if element_array is None:
             raise ValueError(f"elset({name})が不正")
@@ -694,9 +634,7 @@ class DomainOpsMixin:
 
         return zero_volume_element_labels
 
-    def reverse_elements_nodes_indices(
-        self: MesherCoreProtocol, name: Optional[str | list[str]] = None
-    ):
+    def reverse_elements_nodes_indices(self: MesherCoreProtocol, name: str | list[str] | None = None):
         if name is not None and not isinstance(name, list):
             name = [name]
         for elements in self.elements_data.values():
@@ -704,22 +642,19 @@ class DomainOpsMixin:
                 continue
             elements.data[:, 1:] = elements.data[:, 1:][:, ::-1]
 
-    def scale_coord(
-        self: MesherCoreProtocol, scale: tuple[float, float, float] = (1, 1, 1)
-    ):
+    def scale_coord(self: MesherCoreProtocol, scale: tuple[float, float, float] = (1, 1, 1)):
         for nodes in self.nodes_data.get_parents_list():
             nodes.data["x"] *= scale[0]
             nodes.data["y"] *= scale[1]
             nodes.data["z"] *= scale[2]
 
-    def mirror_node_coord(
-        self: MesherCoreProtocol, plane: Literal["xy", "yz", "zx"], hexa: bool = True
-    ):
+    def mirror_node_coord(self: MesherCoreProtocol, plane: Literal["xy", "yz", "zx"], hexa: bool = True):
         if not hexa:
-            raise NotImplementedError(f"Mirrors not Hexa meshes is not implemented")
+            raise NotImplementedError("Mirrors not Hexa meshes is not implemented")
 
         warnings.warn(
-            "This feature is extremely experimental, something wrong must happen..."
+            "This feature is extremely experimental, something wrong must happen...",
+            stacklevel=2,
         )
 
         match plane:
@@ -733,7 +668,7 @@ class DomainOpsMixin:
                 self.scale_coord(scale=(1, -1, 1))
                 new_indices = [1, 0, 3, 2, 5, 4, 7, 6]
             case _:
-                raise ValueError(f"Plane must be one of xy, yz, zx")
+                raise ValueError("Plane must be one of xy, yz, zx")
 
         for elements in self.elements_data.values():
             elements.data[:, 1:] = elements.data[:, 1:][:, new_indices]

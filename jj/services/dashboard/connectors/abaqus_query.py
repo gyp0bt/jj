@@ -14,7 +14,7 @@ abaqus_materialノードの物性テーブル、テーブル型プロパティ�
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
@@ -55,7 +55,7 @@ def _format_material_property_value(
     return "配列"
 
 
-def get_material_table(provider: "DashboardDataProvider") -> list[dict[str, Any]]:
+def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
     """abaqus_materialノードの物性テーブルデータ
 
     全abaqus_materialノードの非テーブル型プロパティを
@@ -83,9 +83,7 @@ def get_material_table(provider: "DashboardDataProvider") -> list[dict[str, Any]
         raw_elsets = node.properties.get("assigned_elsets", [])
         if isinstance(raw_elsets, str):
             raw_elsets = [raw_elsets]
-        assigned_elsets_str = ", ".join(
-            vocab.get(e, e) for e in raw_elsets
-        ) if raw_elsets else ""
+        assigned_elsets_str = ", ".join(vocab.get(e, e) for e in raw_elsets) if raw_elsets else ""
 
         row: dict[str, Any] = {
             "id": node.id,
@@ -97,8 +95,13 @@ def get_material_table(provider: "DashboardDataProvider") -> list[dict[str, Any]
         for key, value in node.properties.items():
             # 除外キー: 内部情報・タグ・既出
             if key in (
-                "path", "include_properties", "source_file",
-                "tags", "verbose_name", "assigned_elsets", "keywords",
+                "path",
+                "include_properties",
+                "source_file",
+                "tags",
+                "verbose_name",
+                "assigned_elsets",
+                "keywords",
             ):
                 continue
             # テーブル型データ（list[list]）はフォーマット
@@ -117,7 +120,7 @@ def get_material_table(provider: "DashboardDataProvider") -> list[dict[str, Any]
 
 
 def get_material_table_data(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     node_id: int,
     property_key: str,
 ) -> dict[str, Any] | None:
@@ -160,7 +163,7 @@ def get_material_table_data(
 
 
 def get_material_table_keys(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     node_id: int,
 ) -> list[str]:
     """materialノードのテーブル型プロパティキーを返す
@@ -181,10 +184,9 @@ def get_material_table_keys(
 
     keys: list[str] = []
     for key, value in node.properties.items():
-        if isinstance(value, list) and value and isinstance(value[0], list):
+        if isinstance(value, list) and value and isinstance(value[0], list) and len(value) >= 2:
             # 1行しかないプロパティは配列プロットでは表示しない
-            if len(value) >= 2:
-                keys.append(key)
+            keys.append(key)
     return sorted(keys)
 
 
@@ -294,7 +296,7 @@ def parse_material_curve_columns(
 
 
 def get_material_usage(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> list[dict[str, Any]]:
     """materialノードとgo_ノードの使用関係を取得
 
@@ -325,11 +327,13 @@ def get_material_usage(
             if name_lower.startswith("go_") or name_lower == "go":
                 go_nodes.append({"name": go_node.name, "id": go_node.id})
 
-        results.append({
-            "material_name": node.name,
-            "material_id": node.id,
-            "go_nodes": go_nodes,
-        })
+        results.append(
+            {
+                "material_name": node.name,
+                "material_id": node.id,
+                "go_nodes": go_nodes,
+            }
+        )
 
     return results
 
@@ -340,7 +344,7 @@ def get_material_usage(
 
 
 def get_mesh_quality_summary(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> list[dict[str, Any]]:
     """go_ノードごとのメッシュ品質サマリーを返す
 
@@ -374,7 +378,7 @@ def get_mesh_quality_summary(
 
 
 def get_elset_quality_summary(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> list[dict[str, Any]]:
     """elsetノードごとの品質サマリーを返す
 
@@ -409,7 +413,7 @@ def get_elset_quality_summary(
 
 
 def get_job_summary(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> list[dict[str, Any]]:
     """go_ノードのジョブサマリーデータを返す
 
@@ -433,10 +437,15 @@ def get_job_summary(
         has_job_data = any(
             k in props
             for k in (
-                "analysis_status", "cpu_time", "wallclock_time",
-                "sta_errors", "sta_warnings",
-                "msg_errors", "msg_warnings",
-                "dat_errors", "dat_warnings",
+                "analysis_status",
+                "cpu_time",
+                "wallclock_time",
+                "sta_errors",
+                "sta_warnings",
+                "msg_errors",
+                "msg_warnings",
+                "dat_errors",
+                "dat_warnings",
             )
         )
         if not has_job_data:
@@ -450,8 +459,7 @@ def get_job_summary(
             row["cpu_time"] = props["cpu_time"]
         if "wallclock_time" in props:
             row["wallclock_time"] = props["wallclock_time"]
-        for key in ("sta_errors", "sta_warnings", "msg_errors",
-                     "msg_warnings", "dat_errors", "dat_warnings"):
+        for key in ("sta_errors", "sta_warnings", "msg_errors", "msg_warnings", "dat_errors", "dat_warnings"):
             if key in props:
                 row[key] = props[key]
         rows.append(row)

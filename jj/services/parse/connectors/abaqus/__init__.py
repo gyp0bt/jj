@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Type, Union
+from typing import Any, ClassVar
 
 import chardet
 import numpy as np
@@ -14,8 +15,8 @@ from numpy.typing import NDArray
 #  型エイリアス
 # ==========================
 
-PathLike = Union[str, Path]
-PathList = Union[PathLike, List[PathLike]]
+PathLike = str | Path
+PathList = PathLike | list[PathLike]
 
 
 # ==========================
@@ -27,7 +28,7 @@ def _resolve_include_path(
     include_name: str,
     file_path: Path,
     max_depth: int = 5,
-) -> Optional[Path]:
+) -> Path | None:
     """*INCLUDEで参照されるファイルを探索する
 
     探索順序:
@@ -86,7 +87,7 @@ def _walk_max_depth(root: Path, max_depth: int) -> Generator[Path, None, None]:
         return
 
 
-def _normalize_paths(file_paths: PathList) -> List[Path]:
+def _normalize_paths(file_paths: PathList) -> list[Path]:
     """内部用: パス引数を List[Path] に正規化"""
     if isinstance(file_paths, (str, Path)):
         file_paths = [file_paths]
@@ -143,7 +144,7 @@ def read_files_with_unknown_encoding(
                 raw_head = f.read(4096)
             enc = _detect_encoding(raw_head)
 
-            with open(file_path, "r", encoding=enc, errors="replace") as f:
+            with open(file_path, encoding=enc, errors="replace") as f:
                 for raw_line in f:
                     line_stripped = raw_line.rstrip("\r\n")
 
@@ -155,14 +156,10 @@ def read_files_with_unknown_encoding(
                             flags=re.IGNORECASE,
                         )
                         if not m:
-                            print(
-                                f"Warning: *INCLUDE 行の解析に失敗しました: {line_stripped}"
-                            )
+                            print(f"Warning: *INCLUDE 行の解析に失敗しました: {line_stripped}")
                             continue
                         include_name = m.group(1)
-                        include_path = _resolve_include_path(
-                            include_name, file_path, max_depth=include_max_depth
-                        )
+                        include_path = _resolve_include_path(include_name, file_path, max_depth=include_max_depth)
                         if include_path is None:
                             print(
                                 f"Warning: *INCLUDE ファイルが見つかりません（スキップ）: "
@@ -172,8 +169,7 @@ def read_files_with_unknown_encoding(
                         if verbose:
                             print(f"Reading included file: {include_path}")
                         yield from read_files_with_unknown_encoding(
-                            include_path, verbose=verbose,
-                            include_max_depth=include_max_depth
+                            include_path, verbose=verbose, include_max_depth=include_max_depth
                         )
                     else:
                         yield file_path, line_stripped
@@ -191,8 +187,8 @@ class Context:
     """INP全体の状態を保持"""
 
     def __init__(self) -> None:
-        self.parameters: Dict[str, Any] = {}
-        self.current_material: Optional[ReadMaterial] = None
+        self.parameters: dict[str, Any] = {}
+        self.current_material: ReadMaterial | None = None
 
     def __str__(self) -> str:
         return str(self.parameters)
@@ -202,16 +198,15 @@ class ReadComponent:
     """対応キーワード用の基底クラス"""
 
     dtype: Any = "int32"
-    read_component_list: List[Type["ReadComponent"]] = []
+    read_component_list: ClassVar[list[type[ReadComponent]]] = []
 
     @staticmethod
-    def iter_read_components() -> Generator[Type["ReadComponent"], None, None]:
-        for cls in ReadComponent.read_component_list:
-            yield cls
+    def iter_read_components() -> Generator[type[ReadComponent], None, None]:
+        yield from ReadComponent.read_component_list
 
     def __init__(self, context: Context) -> None:
-        self.data: List[Any] = []
-        self.options: Dict[str, Any] = {}
+        self.data: list[Any] = []
+        self.options: dict[str, Any] = {}
         self.context = context
 
     @property
@@ -228,14 +223,14 @@ class ReadComponent:
             raise ValueError(f"class key({new_key}) is duplicated with other subclass")
         ReadComponent.read_component_list.append(cls)
 
-    def read_line(self, line: str) -> List[str]:
+    def read_line(self, line: str) -> list[str]:
         """共通の行パース
 
         * ','区切り
         * 末尾 '.' を削る
         * <param> を Context.parameters で展開
         """
-        values: List[str] = []
+        values: list[str] = []
         for token in line.split(","):
             token = token.strip()
             if token.endswith("."):
@@ -275,8 +270,8 @@ class RawBlock:
     """
 
     keyword: str  # 例: "amplitude", "restart"
-    options: Dict[str, Any]
-    lines: List[List[str]]  # ← 各行は ["A1", "A2", ...] みたいな形
+    options: dict[str, Any]
+    lines: list[list[str]]  # ← 各行は ["A1", "A2", ...] みたいな形
     file_path: Path
 
 
@@ -290,8 +285,8 @@ class StepData:
     """*STEP〜*END STEP を表現する構造"""
 
     name: str  # STEP名 (なければ空文字)
-    options: Dict[str, Any]
-    blocks: List[Union[ReadComponent, RawBlock]]
+    options: dict[str, Any]
+    blocks: list[ReadComponent | RawBlock]
 
 
 # ==========================
@@ -299,7 +294,7 @@ class StepData:
 # ==========================
 
 
-def _parse_rawblock_data_line(line: str, context: Context) -> List[str]:
+def _parse_rawblock_data_line(line: str, context: Context) -> list[str]:
     """RawBlock 用のデータ行パーサ
 
     * ',' 区切り
@@ -307,7 +302,7 @@ def _parse_rawblock_data_line(line: str, context: Context) -> List[str]:
     * 末尾 '.' を削除
     * <param> を context.parameters で置換
     """
-    values: List[str] = []
+    values: list[str] = []
     for token in line.split(","):
         token = token.strip()
         if not token:
@@ -327,7 +322,7 @@ def _parse_rawblock_data_line(line: str, context: Context) -> List[str]:
     return values
 
 
-def _replace_param_token(value: str, context: Optional[Context]) -> str:
+def _replace_param_token(value: str, context: Context | None) -> str:
     """<param> を context.parameters で置換するヘルパ
 
     Args:
@@ -350,8 +345,8 @@ def _replace_param_token(value: str, context: Optional[Context]) -> str:
 
 def _parse_keyline_options(
     line: str,
-    context: Optional[Context] = None,
-) -> tuple[str, Dict[str, Any]]:
+    context: Context | None = None,
+) -> tuple[str, dict[str, Any]]:
     """キーワード行を解析して (key, options) を返す
 
     line は小文字・空白除去済みと想定:
@@ -363,7 +358,7 @@ def _parse_keyline_options(
         raise ValueError(f"invalid key line: {line}")
 
     key = tokens[0].replace("*", "")
-    options: Dict[str, Any] = {}
+    options: dict[str, Any] = {}
 
     for tok in tokens[1:]:
         if "=" in tok:
@@ -383,11 +378,11 @@ def _parse_keyline_options(
 def get_or_create_read_component_from_line(
     line: str,
     context: Context,
-    already_created_component_list: List[ReadComponent],
-) -> Optional[ReadComponent]:
+    already_created_component_list: list[ReadComponent],
+) -> ReadComponent | None:
     """キーワード行から対応する ReadComponent を生成 or 既存インスタンス再利用"""
     key, options = _parse_keyline_options(line, context=context)
-    component_cls: Optional[Type[ReadComponent]] = None
+    component_cls: type[ReadComponent] | None = None
 
     for cls in ReadComponent.iter_read_components():
         if cls.get_key() == key:
@@ -415,7 +410,7 @@ def get_or_create_read_component_from_line(
 class ReadNode(ReadComponent):
     """*Node"""
 
-    dtype = [
+    dtype: ClassVar[list] = [
         ("label", "int32"),
         ("x", "float32"),
         ("y", "float32"),
@@ -443,8 +438,8 @@ class ReadElement(ReadComponent):
         values = super().read_line(line)
         try:
             self.data.append([int(v) for v in values if v != ""])
-        except ValueError:
-            raise ValueError(f"要素行のパースに失敗しました: {line}")
+        except ValueError as err:
+            raise ValueError(f"要素行のパースに失敗しました: {line}") from err
 
 
 class ReadNset(ReadComponent):
@@ -461,15 +456,13 @@ class ReadNset(ReadComponent):
         if "generate" not in instance.options:
             try:
                 instance.data.extend([int(v) for v in values if v != ""])
-            except Exception as e:
+            except Exception:
                 instance.data.extend([v for v in values if v != ""])
         else:
             # generate, i.e. start, stop, step
             start, stop, step = (int(i) for i in values)
             if step != 1:
-                raise RuntimeError(
-                    f"{instance.__class__.__name__}: step '{step}' は未対応 (現状1のみ)"
-                )
+                raise RuntimeError(f"{instance.__class__.__name__}: step '{step}' は未対応 (現状1のみ)")
             if start == stop:
                 instance.data.append(start)
             else:
@@ -508,7 +501,7 @@ class ReadMaterial(ReadComponent):
 class MaterialPropertyReadComponent(ReadComponent):
     """*Elastic, *Plastic, *Density などの共通実装"""
 
-    default_options: Optional[Dict[str, str]] = None
+    default_options: dict[str, str] | None = None
 
     def __init__(self, context: Context) -> None:
         super().__init__(context)
@@ -521,9 +514,7 @@ class MaterialPropertyReadComponent(ReadComponent):
             for k, v in self.default_options.items():
                 self.options.setdefault(k, v)
 
-    def read_line(
-        self, line: str, store_data: bool = True
-    ) -> Optional[List[List[float]]]:
+    def read_line(self, line: str, store_data: bool = True) -> list[list[float]] | None:
         values = super().read_line(line)
         if len(values) == 1 and values[0] == "":
             return None
@@ -534,10 +525,7 @@ class MaterialPropertyReadComponent(ReadComponent):
         except ValueError as e:
             mat = self.context.current_material
             mat_name = mat.options.get("name", "UNKNOWN") if mat else "UNKNOWN"
-            print(
-                f"Error: Failed to convert {values} to float "
-                f"(line:{line}, in {mat_name}/*{self.get_key()}) ({e})"
-            )
+            print(f"Error: Failed to convert {values} to float (line:{line}, in {mat_name}/*{self.get_key()}) ({e})")
             return None
 
         if store_data:
@@ -557,23 +545,23 @@ for _k in ["SpecificHeat", "Density", "DamageInitiation", "DamageEvolution", "Cr
 
 
 class ReadElastic(MaterialPropertyReadComponent):
-    default_options = dict(type="elastic")
+    default_options: ClassVar[dict] = dict(type="elastic")
 
 
 class ReadPlastic(MaterialPropertyReadComponent):
-    default_options = dict(hardening="isotropic")
+    default_options: ClassVar[dict] = dict(hardening="isotropic")
 
 
 class Expansion(MaterialPropertyReadComponent):
-    default_options = dict(type="isotropic")
+    default_options: ClassVar[dict] = dict(type="isotropic")
 
 
 class Conductivity(MaterialPropertyReadComponent):
-    default_options = dict(type="isotropic")
+    default_options: ClassVar[dict] = dict(type="isotropic")
 
 
 class ElectricalConductivity(MaterialPropertyReadComponent):
-    default_options = dict(type="isotropic")
+    default_options: ClassVar[dict] = dict(type="isotropic")
 
 
 class ReadBoundary(ReadComponent):
@@ -622,7 +610,7 @@ class ReadProcedure(ReadComponent):
             " , 1., 0.1" → [nan, 1.0, 0.1]
         """
         tokens = super().read_line(line)  # <param> 置換済み
-        row: List[float] = []
+        row: list[float] = []
         for t in tokens:
             if t == "" or t is None:
                 row.append(float("nan"))
@@ -640,7 +628,7 @@ class SurfaceInteractionBlock:
     """*Surface Interaction + その配下の behavior / friction 等をひとまとめにした論理ブロック"""
 
     main: RawBlock  # keyword == "surfaceinteraction"
-    sub_blocks: List[RawBlock]  # keyword in {"surfacebehavior", "friction", ...}
+    sub_blocks: list[RawBlock]  # keyword in {"surfacebehavior", "friction", ...}
 
 
 # ==========================
@@ -648,7 +636,7 @@ class SurfaceInteractionBlock:
 # ==========================
 
 
-def evaluate_expressions(expr: str) -> Optional[float]:
+def evaluate_expressions(expr: str) -> float | None:
     """文字列で与えられたPython数式を計算してfloatを返す
 
     注意:
@@ -710,7 +698,7 @@ class ReadParameter(ReadComponent):
 @dataclass
 class MaterialData:
     name: str
-    options: Dict[str, Any]
+    options: dict[str, Any]
     data: Any
 
 
@@ -718,14 +706,14 @@ class MaterialData:
 class ABQData:
     """トップレベルの解析済みINP"""
 
-    nodes: Dict[str, ReadNode]
-    elements: Dict[str, ReadElement]
-    nsets: Dict[str, ReadNset]
-    elsets: Dict[str, ReadElset]
-    surfaces: Dict[str, ReadSurface]
-    materials: Dict[str, Dict[str, MaterialData]]
-    steps: List[StepData]
-    raw_blocks: List[RawBlock]  # STEP外の未対応キーワード
+    nodes: dict[str, ReadNode]
+    elements: dict[str, ReadElement]
+    nsets: dict[str, ReadNset]
+    elsets: dict[str, ReadElset]
+    surfaces: dict[str, ReadSurface]
+    materials: dict[str, dict[str, MaterialData]]
+    steps: list[StepData]
+    raw_blocks: list[RawBlock]  # STEP外の未対応キーワード
 
 
 # ==========================
@@ -743,13 +731,13 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
         * *BOUNDARY: ReadBoundary としてブロック化 (Step内で拾える)
     """
     context = Context()
-    all_components: List[ReadComponent] = []
+    all_components: list[ReadComponent] = []
 
-    current_component: Optional[Union[ReadComponent, RawBlock]] = None
-    current_step: Optional[StepData] = None
+    current_component: ReadComponent | RawBlock | None = None
+    current_step: StepData | None = None
 
-    steps: List[StepData] = []
-    raw_blocks_top: List[RawBlock] = []
+    steps: list[StepData] = []
+    raw_blocks_top: list[RawBlock] = []
 
     # ---- パースループ ----
     for file_path, raw_line in read_files_with_unknown_encoding(
@@ -767,9 +755,7 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
             current_component = None
 
             # キー行解析（parameter置換込み）
-            key_for_step, options_for_step = _parse_keyline_options(
-                norm, context=context
-            )
+            key_for_step, options_for_step = _parse_keyline_options(norm, context=context)
             normalized_key_only = re.sub(r"[^a-z]", "", key_for_step)
 
             # *STEP
@@ -845,12 +831,12 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
                 current_component.lines.append(tokens)
 
     # ---- 辞書構築 ----
-    nodes: Dict[str, ReadNode] = {}
-    elements: Dict[str, ReadElement] = {}
-    nsets: Dict[str, ReadNset] = {}
-    elsets: Dict[str, ReadElset] = {}
-    surfaces: Dict[str, ReadSurface] = {}
-    materials: Dict[str, Dict[str, MaterialData]] = {}
+    nodes: dict[str, ReadNode] = {}
+    elements: dict[str, ReadElement] = {}
+    nsets: dict[str, ReadNset] = {}
+    elsets: dict[str, ReadElset] = {}
+    surfaces: dict[str, ReadSurface] = {}
+    materials: dict[str, dict[str, MaterialData]] = {}
 
     for comp in all_components:
         opts = comp.options
@@ -880,7 +866,7 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
             if "name" not in opts:
                 continue
             mat_name = fix_text(opts["name"])
-            mat_dict: Dict[str, MaterialData] = {}
+            mat_dict: dict[str, MaterialData] = {}
             for sub in comp.data:
                 sub_key = str(sub.key)
                 mat_dict[sub_key] = MaterialData(
@@ -902,7 +888,7 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
     )
 
 
-def abq_to_dict(abq: ABQData) -> Dict[str, Any]:
+def abq_to_dict(abq: ABQData) -> dict[str, Any]:
     """ABQData を辞書型へ変換する（JSON化可能な構造へ正規化）。
 
     メッシュ関連キーワード (Node, Element, Nset, Elset) は要約形式で出力する。
@@ -916,11 +902,11 @@ def abq_to_dict(abq: ABQData) -> Dict[str, Any]:
     # ノード座標ルックアップテーブル（要素サイズ・ねじれ角計算用）
     nodes_lookup = _build_nodes_lookup(abq)
 
-    def mesh_comp_to_dict(comp: ReadComponent) -> Dict[str, Any]:
+    def mesh_comp_to_dict(comp: ReadComponent) -> dict[str, Any]:
         """メッシュ関連コンポーネントを要約形式で変換"""
         return _serialize_mesh_component(comp, nodes_lookup)
 
-    def comp_to_dict(comp: ReadComponent) -> Dict[str, Any]:
+    def comp_to_dict(comp: ReadComponent) -> dict[str, Any]:
         """メッシュ関連は要約、それ以外は従来通り変換"""
         if comp.key in MESH_SUMMARY_KEYS:
             return mesh_comp_to_dict(comp)
@@ -935,7 +921,7 @@ def abq_to_dict(abq: ABQData) -> Dict[str, Any]:
             "data": data,
         }
 
-    def raw_block_to_dict(rb: RawBlock) -> Dict[str, Any]:
+    def raw_block_to_dict(rb: RawBlock) -> dict[str, Any]:
         return {
             "keyword": rb.keyword,
             "options": dict(rb.options),
@@ -943,14 +929,14 @@ def abq_to_dict(abq: ABQData) -> Dict[str, Any]:
             "file_path": str(rb.file_path),
         }
 
-    def material_data_to_dict(md: MaterialData) -> Dict[str, Any]:
+    def material_data_to_dict(md: MaterialData) -> dict[str, Any]:
         return {
             "name": md.name,
             "options": dict(md.options),
             "data": md.data,  # material property は list[list[float]] のため変換不要
         }
 
-    def step_to_dict(step: StepData) -> Dict[str, Any]:
+    def step_to_dict(step: StepData) -> dict[str, Any]:
         blocks = []
         for b in step.blocks:
             if isinstance(b, ReadComponent):
@@ -974,9 +960,7 @@ def abq_to_dict(abq: ABQData) -> Dict[str, Any]:
         "elsets": {name: comp_to_dict(c) for name, c in abq.elsets.items()},
         "surfaces": {name: comp_to_dict(c) for name, c in abq.surfaces.items()},
         "materials": {
-            mat_name: {
-                prop_name: material_data_to_dict(md) for prop_name, md in props.items()
-            }
+            mat_name: {prop_name: material_data_to_dict(md) for prop_name, md in props.items()}
             for mat_name, props in abq.materials.items()
         },
         "steps": [step_to_dict(s) for s in abq.steps],
@@ -995,8 +979,8 @@ class BlockDiff:
     """
 
     location: str
-    left: Optional[Dict[str, Any]]
-    right: Optional[Dict[str, Any]]
+    left: dict[str, Any] | None
+    right: dict[str, Any] | None
 
 
 def _sort_component_data_for_diff(comp: ReadComponent, data: Any) -> Any:
@@ -1033,13 +1017,13 @@ def _sort_component_data_for_diff(comp: ReadComponent, data: Any) -> Any:
 MESH_SUMMARY_KEYS = {"node", "element", "nset", "elset"}
 
 
-def _build_nodes_lookup(abq: ABQData) -> Dict[int, tuple]:
+def _build_nodes_lookup(abq: ABQData) -> dict[int, tuple]:
     """ABQData からノード座標のルックアップテーブルを構築
 
     Returns:
         {node_label: (x, y, z), ...}
     """
-    lookup: Dict[int, tuple] = {}
+    lookup: dict[int, tuple] = {}
     for _name, comp in abq.nodes.items():
         for row in comp.data:
             label = row[0]
@@ -1050,7 +1034,7 @@ def _build_nodes_lookup(abq: ABQData) -> Dict[int, tuple]:
     return lookup
 
 
-def _summarize_node_data(data: List) -> Dict[str, Any]:
+def _summarize_node_data(data: list) -> dict[str, Any]:
     """Nodeデータを要約
 
     Args:
@@ -1069,7 +1053,7 @@ def _summarize_node_data(data: List) -> Dict[str, Any]:
             ys.append(float(row[2]))
             zs.append(float(row[3]))
 
-    summary: Dict[str, Any] = {"node_count": len(data)}
+    summary: dict[str, Any] = {"node_count": len(data)}
 
     if xs:
         summary["x_range"] = {"min": round(min(xs), 6), "max": round(max(xs), 6)}
@@ -1080,8 +1064,11 @@ def _summarize_node_data(data: List) -> Dict[str, Any]:
 
 
 def _quad_warp_angle(
-    p1: tuple, p2: tuple, p3: tuple, p4: tuple,
-) -> Optional[float]:
+    p1: tuple,
+    p2: tuple,
+    p3: tuple,
+    p4: tuple,
+) -> float | None:
     """四辺形のwarp角（度）を計算
 
     4頂点を2つの三角形に分割し、法線ベクトル間の角度を返す。
@@ -1118,7 +1105,7 @@ def _quad_warp_angle(
     return math.degrees(math.acos(cos_angle))
 
 
-def _compute_element_skew(coords: List[tuple]) -> Optional[float]:
+def _compute_element_skew(coords: list[tuple]) -> float | None:
     """要素のねじれ角（warp角）を計算
 
     四辺形/六面体面のwarp角を計算する。
@@ -1160,9 +1147,9 @@ def _compute_element_skew(coords: List[tuple]) -> Optional[float]:
 
 
 def _summarize_element_data(
-    data: List,
-    nodes_lookup: Optional[Dict[int, tuple]] = None,
-) -> Dict[str, Any]:
+    data: list,
+    nodes_lookup: dict[int, tuple] | None = None,
+) -> dict[str, Any]:
     """Elementデータを要約
 
     Args:
@@ -1177,13 +1164,13 @@ def _summarize_element_data(
     if not data:
         return {"element_count": 0}
 
-    summary: Dict[str, Any] = {"element_count": len(data)}
+    summary: dict[str, Any] = {"element_count": len(data)}
 
     if not nodes_lookup:
         return summary
 
-    sizes: List[float] = []
-    skews: List[float] = []
+    sizes: list[float] = []
+    skews: list[float] = []
 
     for row in data:
         node_ids = row[1:]
@@ -1224,7 +1211,7 @@ def _summarize_element_data(
     return summary
 
 
-def _summarize_set_data(data: List) -> Dict[str, Any]:
+def _summarize_set_data(data: list) -> dict[str, Any]:
     """Nset/Elsetデータを要約
 
     文字列が割り当てられていればそのまま返す。
@@ -1246,10 +1233,10 @@ def _summarize_set_data(data: List) -> Dict[str, Any]:
 
 def _serialize_mesh_component(
     comp: ReadComponent,
-    nodes_lookup: Optional[Dict[int, tuple]] = None,
-) -> Dict[str, Any]:
+    nodes_lookup: dict[int, tuple] | None = None,
+) -> dict[str, Any]:
     """メッシュ関連コンポーネントを要約形式でシリアライズ"""
-    d: Dict[str, Any] = {
+    d: dict[str, Any] = {
         "kind": "component",
         "key": comp.key,
         "options": dict(comp.options),
@@ -1265,7 +1252,7 @@ def _serialize_mesh_component(
     return d
 
 
-def _serialize_component(comp: ReadComponent, nodes_lookup: Optional[Dict[int, tuple]] = None) -> Dict[str, Any]:
+def _serialize_component(comp: ReadComponent, nodes_lookup: dict[int, tuple] | None = None) -> dict[str, Any]:
     """ReadComponent を比較用の dict に正規化
 
     - メッシュキーワード (node, element, nset, elset) は要約データに置換
@@ -1283,7 +1270,7 @@ def _serialize_component(comp: ReadComponent, nodes_lookup: Optional[Dict[int, t
 
     data = _sort_component_data_for_diff(comp, data)
 
-    d: Dict[str, Any] = {
+    d: dict[str, Any] = {
         "kind": "component",
         "key": comp.key,
         "options": dict(comp.options),
@@ -1297,7 +1284,7 @@ def _serialize_component(comp: ReadComponent, nodes_lookup: Optional[Dict[int, t
     return d
 
 
-def _serialize_rawblock(rb: RawBlock) -> Dict[str, Any]:
+def _serialize_rawblock(rb: RawBlock) -> dict[str, Any]:
     """RawBlock を比較用の dict に正規化
 
     注意:
@@ -1313,7 +1300,7 @@ def _serialize_rawblock(rb: RawBlock) -> Dict[str, Any]:
 
 def _serialize_surface_interaction_block(
     sib: SurfaceInteractionBlock,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """SurfaceInteractionBlock を比較用の dict に正規化"""
     return {
         "kind": "surfaceinteraction_block",
@@ -1323,9 +1310,9 @@ def _serialize_surface_interaction_block(
 
 
 def _serialize_block(
-    block: Union[ReadComponent, RawBlock, SurfaceInteractionBlock],
-    nodes_lookup: Optional[Dict[int, tuple]] = None,
-) -> Dict[str, Any]:
+    block: ReadComponent | RawBlock | SurfaceInteractionBlock,
+    nodes_lookup: dict[int, tuple] | None = None,
+) -> dict[str, Any]:
     """Step.blocks / top-level raw_blocks / SurfaceInteractionBlock を共通形式に変換"""
     if isinstance(block, SurfaceInteractionBlock):
         return _serialize_surface_interaction_block(block)
@@ -1342,7 +1329,7 @@ def _serialize_block(
 
 
 def _get_block_group_key(
-    block: Union[ReadComponent, RawBlock, SurfaceInteractionBlock],
+    block: ReadComponent | RawBlock | SurfaceInteractionBlock,
 ) -> tuple[str, str]:
     """kind/keyword ベースでブロックのグループキーを取得
 
@@ -1351,8 +1338,6 @@ def _get_block_group_key(
     - RawBlock:      ("rawblock", rb.keyword)
     - SurfaceInteractionBlock: ("surfaceinteraction_block", name相当)
     """
-    from typing import cast
-
     if isinstance(block, SurfaceInteractionBlock):
         # 名前が options にあるならそれをidに使う、なければ "unnamed"
         name = block.main.options.get("name", "unnamed")
@@ -1379,8 +1364,8 @@ SURF_INT_SUB_KEYWORDS = {
 
 
 def _build_logical_blocks(
-    blocks: List[Union[ReadComponent, RawBlock]],
-) -> List[Union[ReadComponent, RawBlock, SurfaceInteractionBlock]]:
+    blocks: list[ReadComponent | RawBlock],
+) -> list[ReadComponent | RawBlock | SurfaceInteractionBlock]:
     """元の Step.blocks から、SurfaceInteractionBlock を組み立てた論理ブロック列を構成する。
 
     仕様:
@@ -1388,7 +1373,7 @@ def _build_logical_blocks(
         - 直後に続く RawBlock.keyword が SURF_INT_SUB_KEYWORDS に含まれる間 sub_blocks に追加
         - 次の surfaceinteraction が来たら新しい SurfaceInteractionBlock を開始
     """
-    logical: List[Union[ReadComponent, RawBlock, SurfaceInteractionBlock]] = []
+    logical: list[ReadComponent | RawBlock | SurfaceInteractionBlock] = []
     i = 0
     n = len(blocks)
 
@@ -1397,7 +1382,7 @@ def _build_logical_blocks(
 
         if isinstance(b, RawBlock) and b.keyword == "surfaceinteraction":
             main = b
-            subs: List[RawBlock] = []
+            subs: list[RawBlock] = []
             j = i + 1
             while j < n:
                 bj = blocks[j]
@@ -1441,31 +1426,29 @@ ORDERLESS_KINDS = {
 def _is_orderless_group(kind: str, gid: str) -> bool:
     if (kind, gid) in ORDERLESS_GROUPS:
         return True
-    if kind in ORDERLESS_KINDS:
-        return True
-    return False
+    return kind in ORDERLESS_KINDS
 
 
 def _diff_block_groups(
-    left_blocks: List[Union[ReadComponent, RawBlock, SurfaceInteractionBlock]],
-    right_blocks: List[Union[ReadComponent, RawBlock, SurfaceInteractionBlock]],
+    left_blocks: list[ReadComponent | RawBlock | SurfaceInteractionBlock],
+    right_blocks: list[ReadComponent | RawBlock | SurfaceInteractionBlock],
     base_location: str,
-    left_nodes_lookup: Optional[Dict[int, tuple]] = None,
-    right_nodes_lookup: Optional[Dict[int, tuple]] = None,
-) -> List[BlockDiff]:
+    left_nodes_lookup: dict[int, tuple] | None = None,
+    right_nodes_lookup: dict[int, tuple] | None = None,
+) -> list[BlockDiff]:
     """ブロック列を kind/keyword グループ単位に分けて差分比較する。
 
     - group key: (kind, id) = _get_block_group_key(...)
     - 順不同扱いグループ: multisetとして比較（単純にはソート済みリスト比較）
     - それ以外: インデックス順に 1:1 対応で比較
     """
-    diffs: List[BlockDiff] = []
+    diffs: list[BlockDiff] = []
 
     # グループ化
     from collections import defaultdict
 
-    left_groups: Dict[tuple[str, str], List[Any]] = defaultdict(list)
-    right_groups: Dict[tuple[str, str], List[Any]] = defaultdict(list)
+    left_groups: dict[tuple[str, str], list[Any]] = defaultdict(list)
+    right_groups: dict[tuple[str, str], list[Any]] = defaultdict(list)
 
     for b in left_blocks:
         k = _get_block_group_key(b)
@@ -1572,18 +1555,18 @@ def _diff_block_groups(
 
 
 def _diff_block_lists(
-    left_blocks: List[Union[ReadComponent, RawBlock]],
-    right_blocks: List[Union[ReadComponent, RawBlock]],
+    left_blocks: list[ReadComponent | RawBlock],
+    right_blocks: list[ReadComponent | RawBlock],
     base_location: str,
-    left_nodes_lookup: Optional[Dict[int, tuple]] = None,
-    right_nodes_lookup: Optional[Dict[int, tuple]] = None,
-) -> List[BlockDiff]:
+    left_nodes_lookup: dict[int, tuple] | None = None,
+    right_nodes_lookup: dict[int, tuple] | None = None,
+) -> list[BlockDiff]:
     """ブロックのリスト同士を単純比較し、差分だけ返す
 
     * インデックスごとに 1:1 対応させて比較
     * 長さが違う場合は足りない側を None として扱う
     """
-    diffs: List[BlockDiff] = []
+    diffs: list[BlockDiff] = []
 
     max_len = max(len(left_blocks), len(right_blocks))
     for idx in range(max_len):
@@ -1630,12 +1613,12 @@ def _diff_block_lists(
 
 
 def _diff_mesh_dicts(
-    diffs: List[BlockDiff],
-    left_dict: Dict[str, ReadComponent],
-    right_dict: Dict[str, ReadComponent],
+    diffs: list[BlockDiff],
+    left_dict: dict[str, ReadComponent],
+    right_dict: dict[str, ReadComponent],
     category: str,
-    left_nodes_lookup: Optional[Dict[int, tuple]] = None,
-    right_nodes_lookup: Optional[Dict[int, tuple]] = None,
+    left_nodes_lookup: dict[int, tuple] | None = None,
+    right_nodes_lookup: dict[int, tuple] | None = None,
 ) -> None:
     """トップレベルのメッシュデータ辞書（nodes/elements/nsets/elsets）を比較
 
@@ -1668,12 +1651,10 @@ def _diff_mesh_dicts(
             left_ser = _serialize_component(left_comp, nodes_lookup=left_nodes_lookup)
             right_ser = _serialize_component(right_comp, nodes_lookup=right_nodes_lookup)
             if left_ser != right_ser:
-                diffs.append(
-                    BlockDiff(location=loc, left=left_ser, right=right_ser)
-                )
+                diffs.append(BlockDiff(location=loc, left=left_ser, right=right_ser))
 
 
-def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
+def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
     """2つの ABQData の差分を取り、差があるブロックのみ抽出する。
 
     現状仕様:
@@ -1683,21 +1664,17 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
         - メッシュ関連キーワード (Node, Element, Nset, Elset) は要約データに置換して比較
         - surface, contact, contact property, boundary, surface interaction block は順不同扱い
     """
-    diffs: List[BlockDiff] = []
+    diffs: list[BlockDiff] = []
 
     # ---- ノード座標ルックアップテーブルを構築 ----
     left_nodes_lookup = _build_nodes_lookup(left)
     right_nodes_lookup = _build_nodes_lookup(right)
 
     # ---- トップレベルのメッシュデータ比較（要約形式）----
-    _diff_mesh_dicts(diffs, left.nodes, right.nodes, "nodes",
-                     left_nodes_lookup, right_nodes_lookup)
-    _diff_mesh_dicts(diffs, left.elements, right.elements, "elements",
-                     left_nodes_lookup, right_nodes_lookup)
-    _diff_mesh_dicts(diffs, left.nsets, right.nsets, "nsets",
-                     left_nodes_lookup, right_nodes_lookup)
-    _diff_mesh_dicts(diffs, left.elsets, right.elsets, "elsets",
-                     left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.nodes, right.nodes, "nodes", left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.elements, right.elements, "elements", left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.nsets, right.nsets, "nsets", left_nodes_lookup, right_nodes_lookup)
+    _diff_mesh_dicts(diffs, left.elsets, right.elsets, "elsets", left_nodes_lookup, right_nodes_lookup)
 
     # ---- STEP 配下の blocks の比較 ----
     max_steps = max(len(left.steps), len(right.steps))
@@ -1737,9 +1714,7 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
         right_step = right.steps[si]
 
         # STEPメタ情報の差
-        if (left_step.name != right_step.name) or (
-            left_step.options != right_step.options
-        ):
+        if (left_step.name != right_step.name) or (left_step.options != right_step.options):
             diffs.append(
                 BlockDiff(
                     location=f"step[{si}].meta",
@@ -1788,7 +1763,7 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> List[BlockDiff]:
 # ==========================
 
 
-def format_diff_summary_table(diffs: List[BlockDiff]) -> str:
+def format_diff_summary_table(diffs: list[BlockDiff]) -> str:
     """BlockDiffのリストからMarkdownテーブル形式のサマリーを生成
 
     Args:
@@ -1819,7 +1794,7 @@ def format_diff_summary_table(diffs: List[BlockDiff]) -> str:
     return "\n".join(lines)
 
 
-def format_diff_blocks_markdown(diffs: List[BlockDiff]) -> str:
+def format_diff_blocks_markdown(diffs: list[BlockDiff]) -> str:
     """BlockDiffのリストからMarkdown形式の詳細差分ブロックを生成
 
     Args:

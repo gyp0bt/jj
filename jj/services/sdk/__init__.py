@@ -25,25 +25,25 @@ from __future__ import annotations
 from jj_types import GraphModel, Node, Relation
 
 # --------------------------------------------------
-# パーサー基盤
+# ダッシュボードコネクター基盤
 # --------------------------------------------------
-from services.parse.base import AbstractFileParser
-from services.graph.project_graph import (
-    ProjectGraph,
-    ProjectFile,
-    ProjectDirectory,
-    ProjectNonFileNode,
-)
+from services.dashboard.connectors import DashboardPageConnector
 
 # --------------------------------------------------
 # エクスポーター基盤
 # --------------------------------------------------
 from services.export import AbstractExporter
+from services.graph.project_graph import (
+    ProjectDirectory,
+    ProjectFile,
+    ProjectGraph,
+    ProjectNonFileNode,
+)
 
 # --------------------------------------------------
-# ダッシュボードコネクター基盤
+# パーサー基盤
 # --------------------------------------------------
-from services.dashboard.connectors import DashboardPageConnector
+from services.parse.base import AbstractFileParser
 
 # --------------------------------------------------
 # キャッシュプロバイダープロトコル
@@ -54,30 +54,30 @@ from services.sdk.cache import CacheProvider
 # プラグインレジストリ
 # --------------------------------------------------
 from services.sdk.plugin_registry import (
-    load_all_plugins,
     discover_entry_point_plugins,
+    load_all_plugins,
     reset_plugins,
 )
 
 __all__ = [
-    # 型
-    "Node",
-    "Relation",
-    "GraphModel",
-    # パーサー
-    "AbstractFileParser",
-    "ProjectGraph",
-    "ProjectFile",
-    "ProjectDirectory",
-    "ProjectNonFileNode",
     # エクスポーター
     "AbstractExporter",
-    # ダッシュボード
-    "DashboardPageConnector",
+    # パーサー
+    "AbstractFileParser",
     # キャッシュ
     "CacheProvider",
+    # ダッシュボード
+    "DashboardPageConnector",
+    "GraphModel",
+    # 型
+    "Node",
+    "ProjectDirectory",
+    "ProjectFile",
+    "ProjectGraph",
+    "ProjectNonFileNode",
+    "Relation",
+    "discover_entry_point_plugins",
     # プラグインレジストリ
     "load_all_plugins",
-    "discover_entry_point_plugins",
     "reset_plugins",
 ]

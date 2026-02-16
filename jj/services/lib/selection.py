@@ -9,7 +9,6 @@ CLI引数の範囲展開（1..3 → ["1","2","3"]）と
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 
 def expand_ranges(values: list[str] | None) -> list[str] | None:

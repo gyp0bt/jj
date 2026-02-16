@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from jj_types import GraphModel, Node, Relation
 from services.dashboard.data_provider import DashboardDataProvider
-
 
 # ====================================================================
 # テストフィクスチャ
@@ -194,12 +195,9 @@ class TestGetGoTable:
         """activeフィルタが文字列'true'でも機能する"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_a", format="inp",
-                     properties={"path": "a.inp", "active": "true"}),
-                Node(id=2, type="go", name="go_b", format="inp",
-                     properties={"path": "b.inp", "active": "false"}),
-                Node(id=3, type="go", name="go_c", format="inp",
-                     properties={"path": "c.inp", "active": True}),
+                Node(id=1, type="go", name="go_a", format="inp", properties={"path": "a.inp", "active": "true"}),
+                Node(id=2, type="go", name="go_b", format="inp", properties={"path": "b.inp", "active": "false"}),
+                Node(id=3, type="go", name="go_c", format="inp", properties={"path": "c.inp", "active": True}),
             ],
             relations=[],
         )
@@ -683,9 +681,7 @@ class TestGetOutputImages:
         for img in images:
             assert img["go_node_id"] == 1
 
-    def test_no_images_for_node_without_output(
-        self, provider: DashboardDataProvider
-    ):
+    def test_no_images_for_node_without_output(self, provider: DashboardDataProvider):
         """画像出力がないノードでは空リスト"""
         images = provider.get_output_images(node_id=3)
         assert images == []
@@ -703,9 +699,7 @@ class TestGetOutputImages:
         assert "image_format" in img
         assert "go_properties" in img
 
-    def test_go_properties_exclude_internal(
-        self, provider: DashboardDataProvider
-    ):
+    def test_go_properties_exclude_internal(self, provider: DashboardDataProvider):
         """go_propertiesからpath等の内部キーが除外される"""
         images = provider.get_output_images()
         for img in images:
@@ -801,12 +795,10 @@ class TestAgGridHelper:
         # st_aggridがインストールされていない場合はFalse、
         # インストール済みでも描画コンテキストがないのでエラーになり得る。
         # ここではインポート可否のロジックのみ確認。
-        try:
-            result = _try_render_aggrid(df)
+        with contextlib.suppress(Exception):
+            _try_render_aggrid(df)
             # インストール済みの場合: Streamlitコンテキスト外でエラーか成功
-        except Exception:
             # Streamlitコンテキスト外で動かした場合のエラーは許容
-            pass
 
 
 # ====================================================================
@@ -1111,14 +1103,10 @@ class TestSelectTableColumns:
         """globパターンによるカラムマッチ"""
         from services.dashboard.query import select_table_columns
 
-        all_cols = [
-            "name", "type", "format", "stress_center", "stress_edge", "RF3"
-        ]
+        all_cols = ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
         table_columns = ["stress*", "RF3"]
         result = select_table_columns(all_cols, table_columns)
-        assert result == [
-            "name", "type", "format", "stress_center", "stress_edge", "RF3"
-        ]
+        assert result == ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
 
     def test_no_match(self):
         """マッチしないパターンの場合は固定カラムのみ"""
@@ -1184,11 +1172,13 @@ class TestSavedViewConfig:
         """基本テーブルビュー設定"""
         from config import SavedViewConfig
 
-        view = SavedViewConfig.from_dict({
-            "name": "テスト一覧",
-            "type": "table",
-            "filters": {"active": True},
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "テスト一覧",
+                "type": "table",
+                "filters": {"active": True},
+            }
+        )
         assert view.name == "テスト一覧"
         assert view.view_type == "table"
         assert view.filters == {"active": True}
@@ -1199,11 +1189,13 @@ class TestSavedViewConfig:
         """プロットビュー設定"""
         from config import SavedViewConfig
 
-        view = SavedViewConfig.from_dict({
-            "name": "RF3 vs 条件",
-            "type": "plot",
-            "plot": {"x": "条件", "y": "RF3", "color": "バージョン"},
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "RF3 vs 条件",
+                "type": "plot",
+                "plot": {"x": "条件", "y": "RF3", "color": "バージョン"},
+            }
+        )
         assert view.view_type == "plot"
         assert view.plot["x"] == "条件"
         assert view.plot["y"] == "RF3"
@@ -1212,11 +1204,13 @@ class TestSavedViewConfig:
         """ギャラリービュー設定"""
         from config import SavedViewConfig
 
-        view = SavedViewConfig.from_dict({
-            "name": "スクショ",
-            "type": "gallery",
-            "gallery": {"source": "property", "property_key": "screenshot"},
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "スクショ",
+                "type": "gallery",
+                "gallery": {"source": "property", "property_key": "screenshot"},
+            }
+        )
         assert view.view_type == "gallery"
         assert view.gallery["source"] == "property"
 
@@ -1856,16 +1850,32 @@ class TestGetArrayGridData:
         """グリッドデータを返す"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={
-                         "path": "a.inp", "index": "1", "version": "1",
-                         "RF.time": [0.0, 1.0], "RF.RF3": [0.0, 100.0],
-                     }),
-                Node(id=2, type="go", name="go_idx2_v1", format="inp",
-                     properties={
-                         "path": "b.inp", "index": "2", "version": "1",
-                         "RF.time": [0.0, 1.0], "RF.RF3": [0.0, 200.0],
-                     }),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "index": "1",
+                        "version": "1",
+                        "RF.time": [0.0, 1.0],
+                        "RF.RF3": [0.0, 100.0],
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={
+                        "path": "b.inp",
+                        "index": "2",
+                        "version": "1",
+                        "RF.time": [0.0, 1.0],
+                        "RF.RF3": [0.0, 200.0],
+                    },
+                ),
             ],
             relations=[],
         )
@@ -1880,10 +1890,14 @@ class TestGetArrayGridData:
         """配列データなしのノードは除外"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={"path": "a.inp", "RF.time": [0.0], "RF.RF3": [0.0]}),
-                Node(id=2, type="go", name="go_idx2_v1", format="inp",
-                     properties={"path": "b.inp", "index": "2"}),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "a.inp", "RF.time": [0.0], "RF.RF3": [0.0]},
+                ),
+                Node(id=2, type="go", name="go_idx2_v1", format="inp", properties={"path": "b.inp", "index": "2"}),
             ],
             relations=[],
         )
@@ -2078,8 +2092,7 @@ class TestGetMaterialTableKeys:
 
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1", format="inp",
-                     properties={"path": "a.inp"}),
+                Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "a.inp"}),
             ],
             relations=[],
         )
@@ -2273,17 +2286,19 @@ class TestDashboardConfigMaterialCurveColumns:
         """GraphConfigからconnectors.abaqus.material-curve-columnsが読み込まれる"""
         from config import GraphConfig
 
-        cfg = GraphConfig.from_dict({
-            "dashboard": {
-                "connectors": {
-                    "abaqus": {
-                        "material-curve-columns": {
-                            "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+        cfg = GraphConfig.from_dict(
+            {
+                "dashboard": {
+                    "connectors": {
+                        "abaqus": {
+                            "material-curve-columns": {
+                                "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         abq = cfg.dashboard.get_connector_config("abaqus")
         assert "plastic" in abq["material-curve-columns"]
 
@@ -2291,13 +2306,15 @@ class TestDashboardConfigMaterialCurveColumns:
         """旧形式GraphConfigのmaterial-curve-columnsも後方互換で読める"""
         from config import GraphConfig
 
-        cfg = GraphConfig.from_dict({
-            "dashboard": {
-                "material-curve-columns": {
-                    "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+        cfg = GraphConfig.from_dict(
+            {
+                "dashboard": {
+                    "material-curve-columns": {
+                        "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
+                    }
                 }
             }
-        })
+        )
         abq = cfg.dashboard.get_connector_config("abaqus")
         assert "plastic" in abq["material-curve-columns"]
 
@@ -2312,8 +2329,8 @@ class TestDashboardPageConnector:
 
     def test_abaqus_connector_registered(self):
         """AbaqusMaterialPageConnectorがレジストリに登録されている"""
-        from services.dashboard.connectors import DashboardPageConnector
         import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import DashboardPageConnector
 
         assert "物性一覧" in DashboardPageConnector._registry
 
@@ -2328,24 +2345,25 @@ class TestDashboardPageConnector:
         from config import DashboardConfig
         from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
 
-        cfg = DashboardConfig.from_dict({
-            "connectors": {
-                "abaqus": {"material-curve-columns": {"plastic": {"columns": ["s", "e"]}}},
+        cfg = DashboardConfig.from_dict(
+            {
+                "connectors": {
+                    "abaqus": {"material-curve-columns": {"plastic": {"columns": ["s", "e"]}}},
+                }
             }
-        })
+        )
         connector = AbaqusMaterialPageConnector()
         result = connector.get_connector_config(cfg)
         assert "material-curve-columns" in result
 
     def test_get_connector_pages_with_material(self):
         """abaqus_materialノードがある場合にコネクターページが返される"""
-        from services.dashboard.connectors import get_connector_pages
         import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import get_connector_pages
 
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="abaqus_material", name="Steel",
-                     format="material", properties={}),
+                Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
             ],
             relations=[],
         )
@@ -2355,13 +2373,12 @@ class TestDashboardPageConnector:
 
     def test_get_connector_pages_without_material(self):
         """abaqus_materialノードがない場合はコネクターページが返されない"""
-        from services.dashboard.connectors import get_connector_pages
         import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import get_connector_pages
 
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1",
-                     format="inp", properties={"path": "a.inp"}),
+                Node(id=1, type="go", name="go_idx1_v1", format="inp", properties={"path": "a.inp"}),
             ],
             relations=[],
         )
@@ -2469,35 +2486,33 @@ class TestCsvArraySubdirectory:
 
     def test_compute_prefix_token_diff(self):
         """トークン差分方式の接頭辞"""
-        from services.parse.parsers.csv_array_parser import _compute_prefix
         from jj_types import Node
+        from services.parse.parsers.csv_array_parser import _compute_prefix
 
-        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
-                        properties={"path": "go_idx1_w5_t20.inp"})
-        out_node = Node(id=2, type="go", name="go_idx1_w5_t20_RF", format="csv",
-                        properties={"path": "go_idx1_w5_t20_RF.csv"})
+        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp", properties={"path": "go_idx1_w5_t20.inp"})
+        out_node = Node(
+            id=2, type="go", name="go_idx1_w5_t20_RF", format="csv", properties={"path": "go_idx1_w5_t20_RF.csv"}
+        )
         assert _compute_prefix(inp_node, out_node) == "RF"
 
     def test_compute_prefix_subdirectory(self):
         """サブディレクトリ方式の接頭辞"""
-        from services.parse.parsers.csv_array_parser import _compute_prefix
         from jj_types import Node
+        from services.parse.parsers.csv_array_parser import _compute_prefix
 
-        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
-                        properties={"path": "go_idx1_w5_t20.inp"})
-        out_node = Node(id=2, type="go", name="history_RF3", format="csv",
-                        properties={"path": "go_idx1_w5_t20/history_RF3.csv"})
+        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp", properties={"path": "go_idx1_w5_t20.inp"})
+        out_node = Node(
+            id=2, type="go", name="history_RF3", format="csv", properties={"path": "go_idx1_w5_t20/history_RF3.csv"}
+        )
         assert _compute_prefix(inp_node, out_node) == "history_RF3"
 
     def test_compute_prefix_no_match(self):
         """マッチしない場合は空文字"""
-        from services.parse.parsers.csv_array_parser import _compute_prefix
         from jj_types import Node
+        from services.parse.parsers.csv_array_parser import _compute_prefix
 
-        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
-                        properties={"path": "go_idx1_w5_t20.inp"})
-        out_node = Node(id=2, type="go", name="unrelated", format="csv",
-                        properties={"path": "other_dir/unrelated.csv"})
+        inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp", properties={"path": "go_idx1_w5_t20.inp"})
+        out_node = Node(id=2, type="go", name="unrelated", format="csv", properties={"path": "other_dir/unrelated.csv"})
         assert _compute_prefix(inp_node, out_node) == ""
 
 
@@ -2652,16 +2667,13 @@ class TestRestApiPropFilter:
 
     def test_apply_prop_filters(self):
         """プロパティフィルターの適用"""
-        from services.query import apply_prop_filters, node_prop_getter
         from jj_types import Node
+        from services.query import apply_prop_filters, node_prop_getter
 
         nodes = [
-            Node(id=1, type="go", name="a", format="inp",
-                 properties={"RF3": 3.0, "temperature": 300}),
-            Node(id=2, type="go", name="b", format="inp",
-                 properties={"RF3": 8.0, "temperature": 350}),
-            Node(id=3, type="go", name="c", format="inp",
-                 properties={"RF3": 5.0, "temperature": 400}),
+            Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
+            Node(id=2, type="go", name="b", format="inp", properties={"RF3": 8.0, "temperature": 350}),
+            Node(id=3, type="go", name="c", format="inp", properties={"RF3": 5.0, "temperature": 400}),
         ]
 
         # RF3 > 5
@@ -2678,23 +2690,24 @@ class TestRestApiPropFilter:
 
     def test_apply_prop_filters_combined(self):
         """複合プロパティフィルター"""
-        from services.query import apply_prop_filters, node_prop_getter
         from jj_types import Node
+        from services.query import apply_prop_filters, node_prop_getter
 
         nodes = [
-            Node(id=1, type="go", name="a", format="inp",
-                 properties={"RF3": 3.0, "temperature": 300}),
-            Node(id=2, type="go", name="b", format="inp",
-                 properties={"RF3": 8.0, "temperature": 350}),
-            Node(id=3, type="go", name="c", format="inp",
-                 properties={"RF3": 5.0, "temperature": 400}),
+            Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
+            Node(id=2, type="go", name="b", format="inp", properties={"RF3": 8.0, "temperature": 350}),
+            Node(id=3, type="go", name="c", format="inp", properties={"RF3": 5.0, "temperature": 400}),
         ]
 
         # RF3 > 4 AND temperature < 400
-        result = apply_prop_filters(nodes, [
-            ("RF3", "gt", 4.0),
-            ("temperature", "lt", 400.0),
-        ], prop_getter=node_prop_getter)
+        result = apply_prop_filters(
+            nodes,
+            [
+                ("RF3", "gt", 4.0),
+                ("temperature", "lt", 400.0),
+            ],
+            prop_getter=node_prop_getter,
+        )
         assert len(result) == 1
         assert result[0].name == "b"
 
@@ -2748,16 +2761,23 @@ class TestRestApiPropFilter:
 def _make_project_graph_with_subdir_csv():
     """サブディレクトリCSVテスト用のProjectGraph風オブジェクトを作成"""
     from unittest.mock import MagicMock
+
     from jj_types import Node
 
     graph = MagicMock()
     graph.config.file_relations.input_extensions = {".inp"}
     graph.config.file_relations.result_extensions = {".odb", ".sta"}
 
-    inp_node = Node(id=1, type="go", name="go_idx1_w5_t20", format="inp",
-                    properties={"path": "go_idx1_w5_t20.inp", "index": "1"})
-    csv_node = Node(id=2, type="go", name="history_RF3", format="csv",
-                    properties={"path": "go_idx1_w5_t20/history_RF3.csv", "index": ""})
+    inp_node = Node(
+        id=1, type="go", name="go_idx1_w5_t20", format="inp", properties={"path": "go_idx1_w5_t20.inp", "index": "1"}
+    )
+    csv_node = Node(
+        id=2,
+        type="go",
+        name="history_RF3",
+        format="csv",
+        properties={"path": "go_idx1_w5_t20/history_RF3.csv", "index": ""},
+    )
 
     graph.nodes = [inp_node, csv_node]
     graph.relations = []
@@ -2794,16 +2814,18 @@ class TestSavedViewConfigArrayPlot:
         """array_plotタイプが受け入れられる"""
         from config import SavedViewConfig
 
-        view = SavedViewConfig.from_dict({
-            "name": "テスト配列プロット",
-            "type": "array_plot",
-            "array_plot": {
-                "prefix": "RF",
-                "x": "RF.time",
-                "y": ["RF.RF3"],
-                "mode": "grid",
-            },
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "テスト配列プロット",
+                "type": "array_plot",
+                "array_plot": {
+                    "prefix": "RF",
+                    "x": "RF.time",
+                    "y": ["RF.RF3"],
+                    "mode": "grid",
+                },
+            }
+        )
         assert view.view_type == "array_plot"
         assert view.array_plot["prefix"] == "RF"
         assert view.array_plot["x"] == "RF.time"
@@ -2814,10 +2836,12 @@ class TestSavedViewConfigArrayPlot:
         """array_plot未指定時は空辞書"""
         from config import SavedViewConfig
 
-        view = SavedViewConfig.from_dict({
-            "name": "テスト",
-            "type": "table",
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "テスト",
+                "type": "table",
+            }
+        )
         assert view.array_plot == {}
 
     def test_invalid_type_raises(self):
@@ -2825,10 +2849,12 @@ class TestSavedViewConfigArrayPlot:
         from config import SavedViewConfig
 
         with pytest.raises(ValueError, match="saved-views"):
-            SavedViewConfig.from_dict({
-                "name": "テスト",
-                "type": "invalid_type",
-            })
+            SavedViewConfig.from_dict(
+                {
+                    "name": "テスト",
+                    "type": "invalid_type",
+                }
+            )
 
 
 # ====================================================================
@@ -2843,19 +2869,21 @@ class TestDashboardConfigNgRegions:
         """矩形NG領域の読み込み"""
         from config import DashboardConfig
 
-        config = DashboardConfig.from_dict({
-            "ng-regions": [
-                {
-                    "type": "rect",
-                    "x_min": 0,
-                    "x_max": 100,
-                    "y_min": 0,
-                    "y_max": 5,
-                    "color": "rgba(255,0,0,0.1)",
-                    "label": "NG",
-                },
-            ],
-        })
+        config = DashboardConfig.from_dict(
+            {
+                "ng-regions": [
+                    {
+                        "type": "rect",
+                        "x_min": 0,
+                        "x_max": 100,
+                        "y_min": 0,
+                        "y_max": 5,
+                        "color": "rgba(255,0,0,0.1)",
+                        "label": "NG",
+                    },
+                ],
+            }
+        )
         assert len(config.ng_regions) == 1
         assert config.ng_regions[0]["type"] == "rect"
         assert config.ng_regions[0]["x_max"] == 100
@@ -2864,16 +2892,18 @@ class TestDashboardConfigNgRegions:
         """カーブNG領域の読み込み"""
         from config import DashboardConfig
 
-        config = DashboardConfig.from_dict({
-            "ng-regions": [
-                {
-                    "type": "curve",
-                    "points": [[0, 100], [50, 200]],
-                    "fill": "below",
-                    "label": "Baskin",
-                },
-            ],
-        })
+        config = DashboardConfig.from_dict(
+            {
+                "ng-regions": [
+                    {
+                        "type": "curve",
+                        "points": [[0, 100], [50, 200]],
+                        "fill": "below",
+                        "label": "Baskin",
+                    },
+                ],
+            }
+        )
         assert len(config.ng_regions) == 1
         assert config.ng_regions[0]["type"] == "curve"
         assert len(config.ng_regions[0]["points"]) == 2
@@ -2889,9 +2919,11 @@ class TestDashboardConfigNgRegions:
         """グループ結線キーの読み込み"""
         from config import DashboardConfig
 
-        config = DashboardConfig.from_dict({
-            "group-line-key": "index",
-        })
+        config = DashboardConfig.from_dict(
+            {
+                "group-line-key": "index",
+            }
+        )
         assert config.group_line_key == "index"
 
     def test_group_line_key_default_none(self):
@@ -3032,8 +3064,7 @@ class TestMaterialUsage:
 
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="abaqus_material", name="Steel",
-                     format="material", properties={}),
+                Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
             ],
             relations=[],
         )
@@ -3056,16 +3087,32 @@ class TestArrayPlotFilters:
         """フィルタ付きでget_array_grid_dataが正しく動作"""
         graph = GraphModel(
             nodes=[
-                Node(id=1, type="go", name="go_idx1_v1", format="inp",
-                     properties={
-                         "path": "a.inp", "active": True, "index": "1",
-                         "RF.time": [0, 1, 2], "RF.RF3": [10, 20, 30],
-                     }),
-                Node(id=2, type="go", name="go_idx2_v1", format="inp",
-                     properties={
-                         "path": "b.inp", "active": False, "index": "2",
-                         "RF.time": [0, 1, 2], "RF.RF3": [5, 10, 15],
-                     }),
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "active": True,
+                        "index": "1",
+                        "RF.time": [0, 1, 2],
+                        "RF.RF3": [10, 20, 30],
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={
+                        "path": "b.inp",
+                        "active": False,
+                        "index": "2",
+                        "RF.time": [0, 1, 2],
+                        "RF.RF3": [5, 10, 15],
+                    },
+                ),
             ],
             relations=[],
         )
@@ -3076,9 +3123,7 @@ class TestArrayPlotFilters:
         assert len(all_data) == 2
 
         # activeフィルタ: 1件のみ
-        active_data = provider.get_array_grid_data(
-            "RF.time", "RF.RF3", filters={"active": True}
-        )
+        active_data = provider.get_array_grid_data("RF.time", "RF.RF3", filters={"active": True})
         assert len(active_data) == 1
         assert active_data[0]["name"] == "go_idx1_v1"
 
@@ -3102,12 +3147,14 @@ class TestNgRegionConfig:
         """矩形とカーブの混合"""
         from config import DashboardConfig
 
-        config = DashboardConfig.from_dict({
-            "ng-regions": [
-                {"type": "rect", "x_min": 0, "x_max": 10, "y_min": 0, "y_max": 5},
-                {"type": "curve", "points": [[0, 1], [10, 2]], "fill": "above"},
-            ],
-        })
+        config = DashboardConfig.from_dict(
+            {
+                "ng-regions": [
+                    {"type": "rect", "x_min": 0, "x_max": 10, "y_min": 0, "y_max": 5},
+                    {"type": "curve", "points": [[0, 1], [10, 2]], "fill": "above"},
+                ],
+            }
+        )
         assert len(config.ng_regions) == 2
         assert config.ng_regions[0]["type"] == "rect"
         assert config.ng_regions[1]["type"] == "curve"
@@ -3126,7 +3173,9 @@ class TestMaterialComparisonCsv:
         return GraphModel(
             nodes=[
                 Node(
-                    id=1, type="abaqus_material", name="Steel",
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
                     format="material",
                     properties={
                         "plastic": [[100.0, 0.0], [200.0, 0.01], [250.0, 0.05]],
@@ -3134,7 +3183,9 @@ class TestMaterialComparisonCsv:
                     },
                 ),
                 Node(
-                    id=2, type="abaqus_material", name="Aluminum",
+                    id=2,
+                    type="abaqus_material",
+                    name="Aluminum",
                     format="material",
                     properties={
                         "plastic": [[80.0, 0.0], [150.0, 0.02]],
@@ -3150,7 +3201,6 @@ class TestMaterialComparisonCsv:
             get_material_table,
             get_material_table_data,
             guess_table_column_names,
-            get_curve_plot_axes,
         )
 
         graph = self._make_material_graph()
@@ -3209,7 +3259,10 @@ class TestHtmlExport:
         return GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_test1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_test1",
+                    format="inp",
                     properties={
                         "path": "go_test1.inp",
                         "active": True,
@@ -3219,7 +3272,10 @@ class TestHtmlExport:
                     },
                 ),
                 Node(
-                    id=2, type="go", name="go_test2", format="inp",
+                    id=2,
+                    type="go",
+                    name="go_test2",
+                    format="inp",
                     properties={
                         "path": "go_test2.inp",
                         "active": True,
@@ -3234,16 +3290,18 @@ class TestHtmlExport:
 
     def test_generate_table_html(self):
         """テーブルビューのHTML生成"""
-        from config import SavedViewConfig, DashboardConfig
+        from config import DashboardConfig, SavedViewConfig
         from services.dashboard.html_export import generate_table_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
         dashboard_config = DashboardConfig.from_dict({})
-        view = SavedViewConfig.from_dict({
-            "name": "test_table",
-            "type": "table",
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "test_table",
+                "type": "table",
+            }
+        )
         html = generate_table_html(provider, dashboard_config, view)
         assert "go_test1" in html
         assert "go_test2" in html
@@ -3251,17 +3309,19 @@ class TestHtmlExport:
 
     def test_generate_table_html_with_filter(self):
         """フィルタ付きテーブルビューのHTML生成"""
-        from config import SavedViewConfig, DashboardConfig
+        from config import DashboardConfig, SavedViewConfig
         from services.dashboard.html_export import generate_table_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
         dashboard_config = DashboardConfig.from_dict({})
-        view = SavedViewConfig.from_dict({
-            "name": "completed_only",
-            "type": "table",
-            "filters": {"analysis_status": "completed"},
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "completed_only",
+                "type": "table",
+                "filters": {"analysis_status": "completed"},
+            }
+        )
         html = generate_table_html(provider, dashboard_config, view)
         assert "go_test1" in html
         assert "go_test2" not in html
@@ -3284,17 +3344,19 @@ class TestHtmlExport:
         except ImportError:
             pytest.skip("plotly not installed")
 
-        from config import SavedViewConfig, DashboardConfig
+        from config import DashboardConfig, SavedViewConfig
         from services.dashboard.html_export import generate_plot_html
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
         dashboard_config = DashboardConfig.from_dict({})
-        view = SavedViewConfig.from_dict({
-            "name": "test_plot",
-            "type": "plot",
-            "plot": {"x": "RF3", "y": "temperature"},
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "test_plot",
+                "type": "plot",
+                "plot": {"x": "RF3", "y": "temperature"},
+            }
+        )
         html = generate_plot_html(provider, view, dashboard_config)
         assert "plotly-graph" in html or "データ点数" in html
 
@@ -3305,17 +3367,20 @@ class TestHtmlExport:
 
         graph = self._make_test_graph()
         provider = DashboardDataProvider(graph)
-        view = SavedViewConfig.from_dict({
-            "name": "test_card",
-            "type": "card",
-        })
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "test_card",
+                "type": "card",
+            }
+        )
         html = generate_card_html(provider, view)
         assert "go_test1" in html
 
     def test_full_html_generation(self):
         """全体HTMLの生成"""
         from pathlib import Path
-        from config import SavedViewConfig, DashboardConfig
+
+        from config import DashboardConfig, SavedViewConfig
         from services.dashboard.html_export import generate_saved_views_html
 
         graph = self._make_test_graph()
@@ -3325,9 +3390,7 @@ class TestHtmlExport:
             SavedViewConfig.from_dict({"name": "テスト一覧", "type": "table"}),
             SavedViewConfig.from_dict({"name": "ステータス", "type": "status"}),
         ]
-        html = generate_saved_views_html(
-            provider, Path("/tmp"), dashboard_config, views
-        )
+        html = generate_saved_views_html(provider, Path("/tmp"), dashboard_config, views)
         assert "<!DOCTYPE html>" in html
         assert "テスト一覧" in html
         assert "ステータス" in html
@@ -3568,9 +3631,7 @@ class TestQueryModule:
             {"type": "material", "analysis_status": "completed", "active": True},
             {"type": "go", "analysis_status": "completed", "active": False},
         ]
-        result = apply_filters(
-            rows, type_filter="go", status_filter="completed", active_only=True
-        )
+        result = apply_filters(rows, type_filter="go", status_filter="completed", active_only=True)
         assert len(result) == 1
         assert result[0]["type"] == "go"
         assert result[0]["analysis_status"] == "completed"
@@ -3831,7 +3892,7 @@ class TestAbaqusQueryModule:
         from services.dashboard.connectors.abaqus_query import get_material_table
 
         rows = get_material_table(material_provider)
-        steel = [r for r in rows if r["name"] == "Steel"][0]
+        steel = next(r for r in rows if r["name"] == "Steel")
         # 2行以上のテーブル型データ → "配列"
         assert steel["plastic"] == "配列"
         # 1行2要素 → "val0(val1)"
@@ -4012,7 +4073,7 @@ class TestAbaqusQueryModule:
 
         usage = get_material_usage(material_provider)
         assert len(usage) == 2
-        steel_usage = [u for u in usage if u["material_name"] == "Steel"][0]
+        steel_usage = next(u for u in usage if u["material_name"] == "Steel")
         assert steel_usage["material_id"] == 2
         assert len(steel_usage["go_nodes"]) == 1
         assert steel_usage["go_nodes"][0]["name"] == "go_idx1_v1"
@@ -4048,53 +4109,59 @@ class TestHtmlExportHelpers:
 
     def test_create_plot_figure_scatter(self):
         try:
-            import plotly.express as px
             import pandas as pd
+            import plotly.express as px
         except ImportError:
             pytest.skip("plotly or pandas not installed")
 
         from services.dashboard.html_export import _create_plot_figure
 
-        df = pd.DataFrame({
-            "x": [1, 2, 3],
-            "y": [4, 5, 6],
-            "name": ["a", "b", "c"],
-        })
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "y": [4, 5, 6],
+                "name": ["a", "b", "c"],
+            }
+        )
         fig = _create_plot_figure(px, df, "x", "y", None, "散布図")
         assert fig is not None
         assert len(fig.data) >= 1
 
     def test_create_plot_figure_bar(self):
         try:
-            import plotly.express as px
             import pandas as pd
+            import plotly.express as px
         except ImportError:
             pytest.skip("plotly or pandas not installed")
 
         from services.dashboard.html_export import _create_plot_figure
 
-        df = pd.DataFrame({
-            "x": [1, 2, 3],
-            "y": [4, 5, 6],
-            "name": ["a", "b", "c"],
-        })
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "y": [4, 5, 6],
+                "name": ["a", "b", "c"],
+            }
+        )
         fig = _create_plot_figure(px, df, "x", "y", None, "棒グラフ")
         assert fig is not None
 
     def test_create_plot_figure_line(self):
         try:
-            import plotly.express as px
             import pandas as pd
+            import plotly.express as px
         except ImportError:
             pytest.skip("plotly or pandas not installed")
 
         from services.dashboard.html_export import _create_plot_figure
 
-        df = pd.DataFrame({
-            "x": [1, 2, 3],
-            "y": [4, 5, 6],
-            "name": ["a", "b", "c"],
-        })
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "y": [4, 5, 6],
+                "name": ["a", "b", "c"],
+            }
+        )
         fig = _create_plot_figure(px, df, "x", "y", None, "折れ線")
         assert fig is not None
 
@@ -4109,8 +4176,15 @@ class TestHtmlExportHelpers:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]))
         ng_regions = [
-            {"type": "rect", "x_min": 0, "x_max": 2, "y_min": 0, "y_max": 3,
-             "color": "rgba(255,0,0,0.1)", "label": "NG"},
+            {
+                "type": "rect",
+                "x_min": 0,
+                "x_max": 2,
+                "y_min": 0,
+                "y_max": 3,
+                "color": "rgba(255,0,0,0.1)",
+                "label": "NG",
+            },
         ]
         _add_ng_regions_to_fig(fig, ng_regions)
         # 矩形はshapeとして追加される
@@ -4127,8 +4201,13 @@ class TestHtmlExportHelpers:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]))
         ng_regions = [
-            {"type": "curve", "points": [[1, 2], [2, 3], [3, 4]],
-             "fill": "above", "color": "rgba(255,0,0,0.1)", "label": "NG curve"},
+            {
+                "type": "curve",
+                "points": [[1, 2], [2, 3], [3, 4]],
+                "fill": "above",
+                "color": "rgba(255,0,0,0.1)",
+                "label": "NG curve",
+            },
         ]
         _add_ng_regions_to_fig(fig, ng_regions)
         # カーブはtrace（境界線 + fill）として追加
@@ -4148,38 +4227,42 @@ class TestHtmlExportHelpers:
 
     def test_add_group_lines(self):
         try:
-            import plotly.graph_objects as go
             import pandas as pd
+            import plotly.graph_objects as go
         except ImportError:
             pytest.skip("plotly or pandas not installed")
 
         from services.dashboard.html_export import _add_group_lines_to_fig
 
         fig = go.Figure()
-        df = pd.DataFrame({
-            "x": [1, 2, 3, 4],
-            "y": [10, 20, 30, 40],
-            "group": ["A", "A", "B", "B"],
-        })
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "y": [10, 20, 30, 40],
+                "group": ["A", "A", "B", "B"],
+            }
+        )
         _add_group_lines_to_fig(fig, df, "x", "y", "group")
         # 2グループ、各2点以上なのでそれぞれ結線される
         assert len(fig.data) == 2
 
     def test_add_group_lines_single_point_group(self):
         try:
-            import plotly.graph_objects as go
             import pandas as pd
+            import plotly.graph_objects as go
         except ImportError:
             pytest.skip("plotly or pandas not installed")
 
         from services.dashboard.html_export import _add_group_lines_to_fig
 
         fig = go.Figure()
-        df = pd.DataFrame({
-            "x": [1, 2],
-            "y": [10, 20],
-            "group": ["A", "B"],
-        })
+        df = pd.DataFrame(
+            {
+                "x": [1, 2],
+                "y": [10, 20],
+                "group": ["A", "B"],
+            }
+        )
         _add_group_lines_to_fig(fig, df, "x", "y", "group")
         # 各グループ1点のみなので結線なし
         assert len(fig.data) == 0

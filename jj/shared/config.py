@@ -5,7 +5,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -19,7 +20,7 @@ class Neo4jConfig(BaseModel):
     database: str = "neo4j"
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Neo4jConfig":
+    def from_dict(cls, data: dict[str, Any]) -> Neo4jConfig:
         return cls(
             uri=data.get("uri", "bolt://localhost:7687"),
             user=data.get("user", "neo4j"),
@@ -28,7 +29,7 @@ class Neo4jConfig(BaseModel):
         )
 
     @classmethod
-    def from_jj_config(cls, base_dir: Optional["Path"] = None) -> "Neo4jConfig":
+    def from_jj_config(cls, base_dir: Path | None = None) -> Neo4jConfig:
         """jjの設定からNeo4j接続情報を読み込む
 
         優先順位:
@@ -36,8 +37,6 @@ class Neo4jConfig(BaseModel):
         2. config.yamlのneo4jセクション
         3. デフォルト値
         """
-        from pathlib import Path
-
         from config import load_project_config
 
         if base_dir is None:

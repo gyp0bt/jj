@@ -153,9 +153,7 @@ class IncludesRelationParser(AbstractFileParser):
     @staticmethod
     def _extract_includes(file_path: Path) -> list[str]:
         """ファイルから*includeパスを抽出する"""
-        include_pattern = re.compile(
-            r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE
-        )
+        include_pattern = re.compile(r"^\*include\s*,\s*input\s*=\s*(.+)$", re.IGNORECASE)
         includes: list[str] = []
         try:
             with file_path.open("r", encoding="utf-8", errors="ignore") as f:
@@ -166,7 +164,7 @@ class IncludesRelationParser(AbstractFileParser):
                     match = include_pattern.match(line)
                     if match:
                         includes.append(match.group(1).strip())
-        except (OSError, IOError):
+        except OSError:
             pass
         return includes
 
@@ -203,10 +201,7 @@ class IncludesRelationParser(AbstractFileParser):
 
                 target_node = None
                 for path, n in graph._node_by_path.items():
-                    if (
-                        path.endswith(include_path)
-                        or Path(path).name == include_filename
-                    ):
+                    if path.endswith(include_path) or Path(path).name == include_filename:
                         target_node = n
                         break
 

@@ -11,18 +11,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
-from jj_types import GraphModel, Node, Relation
+if TYPE_CHECKING:
+    from services.export import AbstractExporter
+
 from config import init_graph_config
+from jj_types import GraphModel, Node, Relation
 from services.graph import GraphService
-from services.service.info import InfoService
 from services.lib.credentials import (
     load_credentials,
     mask_value,
     save_credentials,
 )
-
+from services.service.info import InfoService
 
 # =========
 # 戻り値データクラス
@@ -150,16 +152,12 @@ class GraphCommandService:
         from dataclasses import replace as dc_replace
 
         if max_depth is not None:
-            self._graph_service.config = dc_replace(
-                self._graph_service.config, directory_max_depth=max_depth
-            )
+            self._graph_service.config = dc_replace(self._graph_service.config, directory_max_depth=max_depth)
 
         if output_file is None:
             output_file = f"graph.{format}"
 
-        graph, save_path = self._graph_service.parse_and_save(
-            filename=output_file, full_mode=full_mode, debug=debug
-        )
+        graph, save_path = self._graph_service.parse_and_save(filename=output_file, full_mode=full_mode, debug=debug)
         summary = self._graph_service.summary(graph)
 
         return ParseResult(
@@ -240,7 +238,7 @@ class GraphCommandService:
         graph: GraphModel,
         target: str,
         **cli_kwargs: Any,
-    ) -> tuple[dict[str, Any], "AbstractExporter"]:
+    ) -> tuple[dict[str, Any], AbstractExporter]:
         """統一エクスポートパイプライン
 
         全エクスポート形式をレジストリ経由で統一的に呼び出す。
@@ -261,7 +259,7 @@ class GraphCommandService:
             (エクスポート結果辞書, エクスポーターインスタンス)
         """
         import services.export.connectors  # noqa: F401
-        from services.export import AbstractExporter, get_exporter_for_format
+        from services.export import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
         if exporter_cls is None:
@@ -386,12 +384,7 @@ class GraphCommandService:
             return InfoResult(nodes=[], graph=graph, empty=True, no_criteria=False)
 
         # 何も指定がない場合
-        if (
-            not filenames
-            and index_filters is None
-            and version_filters is None
-            and not all_nodes
-        ):
+        if not filenames and index_filters is None and version_filters is None and not all_nodes:
             return InfoResult(nodes=[], graph=graph, empty=False, no_criteria=True)
 
         # InfoServiceでノード検索
@@ -407,11 +400,7 @@ class GraphCommandService:
 
         # -prop フィルタ: 指定プロパティを持つノードのみに絞り込み
         if prop_filters:
-            matched_nodes = [
-                n
-                for n in matched_nodes
-                if all(k in n.properties for k in prop_filters)
-            ]
+            matched_nodes = [n for n in matched_nodes if all(k in n.properties for k in prop_filters)]
 
         return InfoResult(
             nodes=matched_nodes,
@@ -420,9 +409,7 @@ class GraphCommandService:
             no_criteria=False,
         )
 
-    def get_relations_for_node(
-        self, graph: GraphModel, node_id: int
-    ) -> list[Relation]:
+    def get_relations_for_node(self, graph: GraphModel, node_id: int) -> list[Relation]:
         """ノードに関連するリレーションを取得"""
         return self._info_service.get_relations_for_node(graph, node_id)
 
@@ -489,7 +476,7 @@ class GraphCommandService:
             try:
                 text1 = file1.read_text(encoding="utf-8", errors="ignore").splitlines()
                 text2 = file2.read_text(encoding="utf-8", errors="ignore").splitlines()
-            except (OSError, IOError) as e:
+            except OSError as e:
                 return DiffResult(error=f"ファイル読み込みエラー: {e}")
 
             diff_lines = list(
@@ -525,9 +512,7 @@ class GraphCommandService:
         """
         return save_credentials(self.project_root, service, creds)
 
-    def credential_show(
-        self, service: str, unmask: bool = False
-    ) -> CredentialShowResult:
+    def credential_show(self, service: str, unmask: bool = False) -> CredentialShowResult:
         """保存済みクレデンシャルを表示
 
         Args:

@@ -15,29 +15,29 @@ AbstractFileParserサブクラス群に分散されました。
 
 from __future__ import annotations
 
+import contextlib
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Any
 
+# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
+import services.parse.parsers  # noqa: F401
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
-
 from services.graph.storage import GraphStorage
-from services.sdk.cache import CacheProvider
 from services.parse.base import parse as run_parser_pipeline
 from services.parse.file_parse import (
     DEFAULT_EXTENSIONS,
     NO_NODE_EXTENSIONS,
     FileParse,
-    FileType,
 )
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
-
-# 汎用パーサーサブクラスのimport（コア機能、自動登録用）
-import services.parse.parsers  # noqa: F401
+from services.sdk.cache import CacheProvider
 
 # プラグインの動的発見を実行（Abaqus/Obsidian等のコネクタを登録）
 from services.sdk.plugin_registry import load_all_plugins as _load_all_plugins
+
 _load_all_plugins()
 
 
@@ -60,7 +60,7 @@ class GraphService:
     def __init__(
         self,
         project_root: Path | str | None = None,
-        storage: Union[CacheProvider, GraphStorage, None] = None,
+        storage: CacheProvider | GraphStorage | None = None,
         config: GraphConfig | None = None,
     ) -> None:
         self.project_root = Path(project_root or Path.cwd()).resolve()
@@ -162,22 +162,14 @@ class GraphService:
         translated_props: dict[str, Any] = {}
         for key, value in props.items():
             translated_key = self.config.vocab.get(key, key)
-            translated_value = (
-                self.config.vocab.get(str(value), str(value))
-                if isinstance(value, str)
-                else value
-            )
+            translated_value = self.config.vocab.get(str(value), str(value)) if isinstance(value, str) else value
             translated_props[translated_key] = translated_value
 
         # 日付を取得
         date_formatted = parser.get_date_formatted()
 
         # oldフォルダに入っていなければactive=True
-        parent_dir = (
-            file_path.parent.name
-            if isinstance(file_path, Path)
-            else Path(str(file_path)).parent.name
-        )
+        parent_dir = file_path.parent.name if isinstance(file_path, Path) else Path(str(file_path)).parent.name
         active = "false" if parent_dir == "old" else "true"
 
         properties: dict[str, Any] = {
@@ -247,7 +239,12 @@ class GraphService:
     ) -> str:
         """config vocabで変換した後の表示名を生成
 
-        ファイル名を構成要素に分解し、vocabで変換された値を用いて再構成する。
+        verbose-name-formatが設定されている場合はフォーマットテンプレートを使用。
+        例: "条件{条件}(高さ{高さ},荷重{荷重})" → "条件1(高さ5,荷重20)"
+        テンプレート内の{キー名}はtranslated_propsの値で置換される。
+        存在しないキーは空文字に置換される。
+
+        未設定の場合は従来方式（アンダースコア結合）:
         例: go_idx1_w5_t20 → {type翻訳}_{index翻訳}1_{w翻訳}5_{t翻訳}20
 
         token_key_mapで割り当てたキーは、verbose_nameに値のみ含める。
@@ -263,6 +260,12 @@ class GraphService:
         Returns:
             変換後の表示名
         """
+        # フォーマットテンプレートが設定されている場合
+        fmt = getattr(self.config, "verbose_name_format", None)
+        if fmt:
+            return self._apply_verbose_name_format(fmt, resolved_type, translated_props)
+
+        # 従来方式: アンダースコア結合
         vocab = self.config.vocab
         mapped_keys = token_key_mapped_keys or set()
         # token_key_mapped_keysはvocab変換前のキー名。変換後のキー名も収集
@@ -293,6 +296,54 @@ class GraphService:
             parts.append(translated_tag)
 
         return "_".join(parts)
+
+    def _apply_verbose_name_format(
+        self,
+        fmt: str,
+        resolved_type: str,
+        translated_props: dict[str, Any],
+    ) -> str:
+        """フォーマットテンプレートでverbose_nameを生成
+
+        テンプレート内の{キー名}をプロパティ値で置換する。
+        vocabの変換前・変換後どちらのキー名でも参照可能。
+        存在しないキーは空文字に置換される。
+
+        Args:
+            fmt: フォーマットテンプレート（例: "条件{条件}(高さ{高さ})"）
+            resolved_type: 解決済みタイプ
+            translated_props: vocab変換済みプロパティ
+
+        Returns:
+            フォーマット適用後の表示名
+        """
+        vocab = self.config.vocab
+
+        # プロパティ値の辞書を構築（vocab変換前後のキーで参照可能）
+        values: dict[str, str] = {}
+        # タイプ名をtype/変換後キーの両方で参照可能に
+        type_name = vocab.get(resolved_type, resolved_type)
+        values["type"] = type_name
+        type_translated = vocab.get("type")
+        if type_translated:
+            values[type_translated] = type_name
+
+        for key, value in translated_props.items():
+            if isinstance(value, (list, dict)):
+                continue
+            values[key] = str(value)
+
+        # vocab変換前のキー名でも参照可能にする
+        # （例: フォーマットに{idx}と書いてあるが、propsでは"条件"キーになっている場合）
+        for orig_key, translated_key in vocab.items():
+            if translated_key in values and orig_key not in values:
+                values[orig_key] = values[translated_key]
+
+        # format_mapで置換（KeyError回避のためdefaultdict使用）
+        from collections import defaultdict
+
+        safe_values = defaultdict(str, values)
+        return fmt.format_map(safe_values)
 
     def _safe_relative_path(self, file_path: Path) -> str:
         """Windowsでも安全に相対パスを生成
@@ -410,14 +461,11 @@ class GraphService:
         project_graph._file_timestamps = current_timestamps
 
         modified_count = sum(
-            1 for p in current_timestamps
-            if p not in prev_timestamps or prev_timestamps.get(p) != current_timestamps[p]
+            1 for p in current_timestamps if p not in prev_timestamps or prev_timestamps.get(p) != current_timestamps[p]
         )
         total_count = len(current_timestamps)
         if prev_timestamps:
-            logger.info(
-                f"タイムスタンプ差分: {modified_count}/{total_count}ファイルが変更済み"
-            )
+            logger.info(f"タイムスタンプ差分: {modified_count}/{total_count}ファイルが変更済み")
 
         # 全登録パーサーをpriority順に適用
         project_graph = run_parser_pipeline(project_graph, full_mode=full_mode, debug=debug)
@@ -431,11 +479,11 @@ class GraphService:
 
         return project_graph.to_graph_model()
 
-    def load(self, filename: Optional[str] = None) -> GraphModel:
+    def load(self, filename: str | None = None) -> GraphModel:
         """グラフデータを読み込み"""
         return self.storage.load(self.project_root, filename)
 
-    def save(self, graph: GraphModel, filename: Optional[str] = None) -> Path:
+    def save(self, graph: GraphModel, filename: str | None = None) -> Path:
         """グラフデータを保存"""
         return self.storage.save(self.project_root, graph, filename)
 
@@ -443,7 +491,7 @@ class GraphService:
         self,
         extensions: Iterable[str] | None = None,
         exclude_dirs: Iterable[str] | None = None,
-        filename: Optional[str] = None,
+        filename: str | None = None,
         full_mode: bool = False,
         debug: bool = False,
     ) -> tuple[GraphModel, Path]:
@@ -456,14 +504,12 @@ class GraphService:
         path = self.save(graph, filename)
 
         # プラグインキャッシュの自動クリーンアップ（古いキャッシュの削除）
-        try:
+        with contextlib.suppress(Exception):
             self.storage.cleanup_plugin_cache(
                 self.project_root,
                 max_age_days=self.config.cache_max_age_days,
                 max_count=self.config.cache_max_count,
             )
-        except Exception:
-            pass  # クリーンアップ失敗はパース結果に影響しない
 
         return graph, path
 
@@ -471,7 +517,7 @@ class GraphService:
         """タイプでノードをフィルタリング"""
         return [n for n in graph.nodes if n.type == node_type]
 
-    def get_node_by_id(self, graph: GraphModel, node_id: int) -> Optional[Node]:
+    def get_node_by_id(self, graph: GraphModel, node_id: int) -> Node | None:
         """IDでノードを取得"""
         for node in graph.nodes:
             if node.id == node_id:
@@ -480,9 +526,7 @@ class GraphService:
 
     def get_relations_for_node(self, graph: GraphModel, node_id: int) -> list[Relation]:
         """ノードに関連するリレーションを取得"""
-        return [
-            r for r in graph.relations if r.node1_id == node_id or r.node2_id == node_id
-        ]
+        return [r for r in graph.relations if r.node1_id == node_id or r.node2_id == node_id]
 
     def summary(self, graph: GraphModel) -> dict[str, Any]:
         """グラフのサマリーを生成"""

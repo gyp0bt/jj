@@ -42,7 +42,7 @@ from __future__ import annotations
 import importlib
 import logging
 import sys
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -67,14 +67,13 @@ def discover_entry_point_plugins(group: str) -> list[Any]:
     """
     loaded = []
     try:
-        if sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 12) or sys.version_info >= (3, 10):
             from importlib.metadata import entry_points
-            eps = entry_points(group=group)
-        elif sys.version_info >= (3, 10):
-            from importlib.metadata import entry_points
+
             eps = entry_points(group=group)
         else:
             from importlib.metadata import entry_points
+
             all_eps = entry_points()
             eps = all_eps.get(group, [])
 
@@ -84,9 +83,7 @@ def discover_entry_point_plugins(group: str) -> list[Any]:
                 loaded.append(obj)
                 logger.debug(f"プラグイン発見: {group}::{ep.name} -> {ep.value}")
             except Exception as e:
-                logger.warning(
-                    f"プラグインのロードに失敗: {group}::{ep.name}: {e}"
-                )
+                logger.warning(f"プラグインのロードに失敗: {group}::{ep.name}: {e}")
     except Exception as e:
         logger.debug(f"entry_points({group})の発見に失敗（正常動作の可能性あり）: {e}")
 

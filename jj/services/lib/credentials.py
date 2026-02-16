@@ -13,13 +13,11 @@ config.yamlに平文パスワードを書く代わりに、暗号化されたク
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
-import os
 import secrets
 from pathlib import Path
-from typing import Any, Optional
-
 
 # クレデンシャルファイル名（隠しファイル）
 CREDENTIALS_FILENAME = ".credentials"
@@ -57,10 +55,8 @@ def _ensure_secret_key() -> bytes:
     key_path.write_bytes(base64.urlsafe_b64encode(key))
 
     # パーミッション制限（Unix系のみ）
-    try:
+    with contextlib.suppress(OSError, AttributeError):
         key_path.chmod(0o600)
-    except (OSError, AttributeError):
-        pass
 
     return key
 
@@ -81,7 +77,7 @@ def _encrypt(plaintext: str, key: bytes) -> str:
     # IVと鍵からストリームキーを導出
     derived = hashlib.pbkdf2_hmac("sha256", key, iv, 100_000, dklen=len(plaintext.encode()))
     plainbytes = plaintext.encode("utf-8")
-    cipher = bytes(a ^ b for a, b in zip(plainbytes, derived))
+    cipher = bytes(a ^ b for a, b in zip(plainbytes, derived, strict=False))
     return base64.urlsafe_b64encode(iv + cipher).decode("ascii")
 
 
@@ -99,7 +95,7 @@ def _decrypt(ciphertext: str, key: bytes) -> str:
     iv = raw[:16]
     cipher = raw[16:]
     derived = hashlib.pbkdf2_hmac("sha256", key, iv, 100_000, dklen=len(cipher))
-    plainbytes = bytes(a ^ b for a, b in zip(cipher, derived))
+    plainbytes = bytes(a ^ b for a, b in zip(cipher, derived, strict=False))
     return plainbytes.decode("utf-8")
 
 
@@ -144,10 +140,8 @@ def save_credentials(
     )
 
     # パーミッション制限
-    try:
+    with contextlib.suppress(OSError, AttributeError):
         cred_path.chmod(0o600)
-    except (OSError, AttributeError):
-        pass
 
     return cred_path
 
@@ -155,7 +149,7 @@ def save_credentials(
 def load_credentials(
     project_root: Path,
     service: str,
-) -> Optional[dict[str, str]]:
+) -> dict[str, str] | None:
     """暗号化されたクレデンシャルを復号して取得
 
     Args:

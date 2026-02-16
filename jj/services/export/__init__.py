@@ -80,9 +80,7 @@ class AbstractExporter(ABC):
         """
         ...
 
-    def format_cli_result(
-        self, result: dict[str, Any], project_root: Path
-    ) -> str:
+    def format_cli_result(self, result: dict[str, Any], project_root: Path) -> str:
         """エクスポート結果をCLI出力用文字列にフォーマット
 
         デフォルト実装は汎用的なサマリーを返す。

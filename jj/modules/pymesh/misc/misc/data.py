@@ -1,13 +1,10 @@
 from abc import ABCMeta
-from typing import Dict, Type, List, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
 
-def create_custom_meta(
-    subclasses_list: list, name_list: list, require_slots: bool = True
-):
+def create_custom_meta(subclasses_list: list, name_list: list, require_slots: bool = True):
     """カスタムメタクラスを生成する関数。
 
     Args:
@@ -37,7 +34,7 @@ def create_custom_meta(
     return CustomMeta
 
 
-def cut_dup_numbers(target: List[int] | NDArray, sub: List[int] | NDArray) -> List[int]:
+def cut_dup_numbers(target: list[int] | NDArray, sub: list[int] | NDArray) -> list[int]:
     if not isinstance(target, np.ndarray):
         target = np.array(target)
 
@@ -48,9 +45,7 @@ def cut_dup_numbers(target: List[int] | NDArray, sub: List[int] | NDArray) -> Li
     return target
 
 
-def cut_isolated_numbers(
-    target: Union[List[int], NDArray], sub: Union[List[int], NDArray]
-) -> List[int]:
+def cut_isolated_numbers(target: list[int] | NDArray, sub: list[int] | NDArray) -> list[int]:
     """
     target内の要素から、subに含まれない要素を削除する関数。
 

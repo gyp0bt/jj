@@ -58,9 +58,7 @@ def shape_function_derivatives(xi: float, eta: float, zeta: float) -> np.ndarray
     return dN_dxi
 
 
-def get_jacobian(
-    element_node_coord: np.ndarray, xi: float, eta: float, zeta: float
-) -> np.ndarray:
+def get_jacobian(element_node_coord: np.ndarray, xi: float, eta: float, zeta: float) -> np.ndarray:
     """
     8節点ヘキサ要素のヤコビアン行列を計算する。
 

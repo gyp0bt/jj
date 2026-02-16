@@ -18,16 +18,16 @@ from typing import Any
 
 from services.dashboard.connectors import DashboardPageConnector
 from services.dashboard.connectors.abaqus_query import (
+    get_curve_plot_axes,
+    get_elset_quality_summary,
+    get_job_summary,
     get_material_table,
     get_material_table_data,
     get_material_table_keys,
-    guess_table_column_names,
-    get_curve_plot_axes,
-    parse_material_curve_columns,
     get_material_usage,
     get_mesh_quality_summary,
-    get_elset_quality_summary,
-    get_job_summary,
+    guess_table_column_names,
+    parse_material_curve_columns,
 )
 
 if False:  # TYPE_CHECKING
@@ -35,7 +35,7 @@ if False:  # TYPE_CHECKING
 
 
 def _render_material_page(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     dashboard_config: Any = None,
 ) -> None:
     """物性一覧ビュー: abaqus_materialノードをテーブル表示＋ラインプロット"""
@@ -56,10 +56,7 @@ def _render_material_page(
 
     mat_rows = get_material_table(provider)
     if not mat_rows:
-        st.info(
-            "abaqus_materialノードが見つかりません。"
-            "material.inpファイルがパースされている必要があります。"
-        )
+        st.info("abaqus_materialノードが見つかりません。material.inpファイルがパースされている必要があります。")
         return
 
     # テーブル表示
@@ -122,9 +119,7 @@ def _render_material_page(
         # テーブル表示
         data_rows = table_data["data"]
         if data_rows:
-            col_names = guess_table_column_names(
-                selected_key, len(data_rows[0]), mcc
-            )
+            col_names = guess_table_column_names(selected_key, len(data_rows[0]), mcc)
             table_df = pd.DataFrame(data_rows, columns=col_names)
             st.dataframe(table_df, use_container_width=True, hide_index=True)
 
@@ -132,23 +127,22 @@ def _render_material_page(
         # ラインプロット
         data_rows = table_data["data"]
         if data_rows and len(data_rows[0]) >= 2:
-            col_names = guess_table_column_names(
-                selected_key, len(data_rows[0]), mcc
-            )
-            x_idx, y_idx = get_curve_plot_axes(
-                selected_key, len(data_rows[0]), mcc
-            )
+            col_names = guess_table_column_names(selected_key, len(data_rows[0]), mcc)
+            x_idx, y_idx = get_curve_plot_axes(selected_key, len(data_rows[0]), mcc)
             try:
                 import plotly.graph_objects as go
 
                 fig = go.Figure()
                 x_vals = [row[x_idx] for row in data_rows]
                 y_vals = [row[y_idx] for row in data_rows]
-                fig.add_trace(go.Scatter(
-                    x=x_vals, y=y_vals,
-                    mode="lines+markers",
-                    name=selected_key,
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_vals,
+                        y=y_vals,
+                        mode="lines+markers",
+                        name=selected_key,
+                    )
+                )
                 fig.update_layout(
                     xaxis_title=col_names[x_idx] if x_idx < len(col_names) else "X",
                     yaxis_title=col_names[y_idx] if y_idx < len(col_names) else "Y",
@@ -177,7 +171,7 @@ def _render_material_page(
 
 
 def _render_material_comparison(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
     mat_rows: list[dict[str, Any]],
     mcc: dict[str, dict[str, Any]],
 ) -> None:
@@ -216,7 +210,7 @@ def _render_material_comparison(
     selected_mats = st.multiselect(
         "比較する物性",
         mat_names_with_key,
-        default=mat_names_with_key[:min(5, len(mat_names_with_key))],
+        default=mat_names_with_key[: min(5, len(mat_names_with_key))],
         key="_mat_compare_select",
     )
 
@@ -231,9 +225,7 @@ def _render_material_comparison(
     num_cols = 2  # デフォルト
 
     for mat_name in selected_mats:
-        mat_id = next(
-            (r["id"] for r in mat_rows if r["name"] == mat_name), None
-        )
+        mat_id = next((r["id"] for r in mat_rows if r["name"] == mat_name), None)
         if mat_id is None:
             continue
         table_data = get_material_table_data(provider, mat_id, compare_key)
@@ -243,9 +235,7 @@ def _render_material_comparison(
         if not data_rows or len(data_rows[0]) < 2:
             continue
         num_cols = len(data_rows[0])
-        x_idx, y_idx = get_curve_plot_axes(
-            compare_key, num_cols, mcc
-        )
+        x_idx, y_idx = get_curve_plot_axes(compare_key, num_cols, mcc)
         col_names = guess_table_column_names(compare_key, num_cols, mcc)
         for row in data_rows:
             entry: dict[str, Any] = {"material": mat_name}
@@ -263,9 +253,7 @@ def _render_material_comparison(
         x_idx, y_idx = get_curve_plot_axes(compare_key, num_cols, mcc)
 
         for mat_name in selected_mats:
-            mat_id = next(
-                (r["id"] for r in mat_rows if r["name"] == mat_name), None
-            )
+            mat_id = next((r["id"] for r in mat_rows if r["name"] == mat_name), None)
             if mat_id is None:
                 continue
             table_data = get_material_table_data(provider, mat_id, compare_key)
@@ -276,11 +264,14 @@ def _render_material_comparison(
                 continue
             x_vals = [row[x_idx] for row in data_rows]
             y_vals = [row[y_idx] for row in data_rows]
-            fig.add_trace(go.Scatter(
-                x=x_vals, y=y_vals,
-                mode="lines+markers",
-                name=mat_name,
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=x_vals,
+                    y=y_vals,
+                    mode="lines+markers",
+                    name=mat_name,
+                )
+            )
 
         x_label = col_names[x_idx] if x_idx < len(col_names) else "X"
         y_label = col_names[y_idx] if y_idx < len(col_names) else "Y"
@@ -310,7 +301,7 @@ def _render_material_comparison(
 
 
 def _render_material_usage(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> None:
     """物性-GOノード使用関係テーブルを表示"""
     import streamlit as st
@@ -327,11 +318,13 @@ def _render_material_usage(
     rows = []
     for item in usage:
         go_names = [g["name"] for g in item["go_nodes"]]
-        rows.append({
-            "物性名": item["material_name"],
-            "使用GOノード数": len(go_names),
-            "使用GOノード": ", ".join(go_names) if go_names else "（未使用）",
-        })
+        rows.append(
+            {
+                "物性名": item["material_name"],
+                "使用GOノード数": len(go_names),
+                "使用GOノード": ", ".join(go_names) if go_names else "（未使用）",
+            }
+        )
 
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
@@ -352,7 +345,7 @@ def _format_quality_dict(quality: dict[str, Any]) -> dict[str, str]:
 
 
 def _render_mesh_quality_summary(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> None:
     """メッシュ品質サマリーテーブルを表示"""
     import streamlit as st
@@ -388,7 +381,7 @@ def _render_mesh_quality_summary(
 
 
 def _render_elset_quality_summary(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> None:
     """Elset品質サマリーテーブルを表示"""
     import streamlit as st
@@ -420,7 +413,7 @@ def _render_elset_quality_summary(
 
 
 def _render_job_summary_page(
-    provider: "DashboardDataProvider",
+    provider: DashboardDataProvider,
 ) -> None:
     """Abaqusジョブサマリーページを表示"""
     import streamlit as st
@@ -465,6 +458,7 @@ def _render_job_summary_page(
 
     try:
         from services.dashboard.widgets import try_render_aggrid
+
         if not try_render_aggrid(df):
             st.dataframe(df, use_container_width=True, hide_index=True)
     except ImportError:
@@ -520,13 +514,13 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
     page_label = "物性一覧"
     connector_key = "abaqus"
 
-    def is_available(self, provider: "DashboardDataProvider") -> bool:
+    def is_available(self, provider: DashboardDataProvider) -> bool:
         """abaqus_materialノードが1つ以上存在するか判定"""
         return any(n.type == "abaqus_material" for n in provider.graph.nodes)
 
     def render_page(
         self,
-        provider: "DashboardDataProvider",
+        provider: DashboardDataProvider,
         dashboard_config: Any,
     ) -> None:
         """物性一覧ページをレンダリング"""
@@ -543,22 +537,19 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
     page_label = "ジョブサマリー"
     connector_key = "abaqus"
 
-    def is_available(self, provider: "DashboardDataProvider") -> bool:
+    def is_available(self, provider: DashboardDataProvider) -> bool:
         """ジョブ関連データが1つ以上存在するか判定"""
         for n in provider.graph.nodes:
             name_lower = n.name.lower()
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
-            if any(
-                k in n.properties
-                for k in ("analysis_status", "cpu_time", "wallclock_time")
-            ):
+            if any(k in n.properties for k in ("analysis_status", "cpu_time", "wallclock_time")):
                 return True
         return False
 
     def render_page(
         self,
-        provider: "DashboardDataProvider",
+        provider: DashboardDataProvider,
         dashboard_config: Any,
     ) -> None:
         """ジョブサマリーページをレンダリング"""

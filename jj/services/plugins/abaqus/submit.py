@@ -15,7 +15,6 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from services.parse import get_basename, get_index_and_version
 
@@ -92,9 +91,7 @@ class SubmitService:
                 if ver_i > ver_b:
                     basename_ver_dict[basename] = (filepath, ver_i)
             latest_inp_files = [i[0] for i in basename_ver_dict.values()]
-            inp_filepath_list = [
-                i for i in list(glob.glob("./go*.inp")) if i not in latest_inp_files
-            ]
+            inp_filepath_list = [i for i in list(glob.glob("./go*.inp")) if i not in latest_inp_files]
         else:
             # 明示指定がなければ go*.inp
             if inp_files is None and index is None and inp_files_versions is None:
@@ -118,11 +115,7 @@ class SubmitService:
         # version指定
         if inp_files_versions:
             if inp_filepath_list:
-                inp_filepath_list = [
-                    i
-                    for i in inp_filepath_list
-                    if any([f"v{j}" in i for j in inp_files_versions])
-                ]
+                inp_filepath_list = [i for i in inp_filepath_list if any([f"v{j}" in i for j in inp_files_versions])]
             else:
                 for ver in inp_files_versions:
                     inp_filepath_list += list(glob.glob(f"go_*.v{ver}.inp"))
@@ -219,10 +212,7 @@ class SubmitService:
         Returns:
             ジョブ一覧（ターゲット名とジョブ名のペア）
         """
-        return [
-            JobListItem(target=t, job_name=self.get_abq_job_name(t))
-            for t in targets
-        ]
+        return [JobListItem(target=t, job_name=self.get_abq_job_name(t)) for t in targets]
 
     # =========
     # JCFファイル生成
@@ -242,25 +232,20 @@ class SubmitService:
             inp_filepath_list = [inp_filepath_list]
         with open(jcf_filepath, "w") as f:
             f.write("#!/bin/bash\n")
-            f.write("#PBS -q %s\n" % (abq_class))
-            f.write(
-                "#PBS -l select=1:ncpus=%s:mpiprocs=%s:ngpus=1:abaqus=1\n"
-                % (ncpu, ncpu)
-            )
-            f.write("#PBS -N %s\n" % (job_name))
+            f.write(f"#PBS -q {abq_class}\n")
+            f.write(f"#PBS -l select=1:ncpus={ncpu}:mpiprocs={ncpu}:ngpus=1:abaqus=1\n")
+            f.write(f"#PBS -N {job_name}\n")
             f.write("#PBS -j oe\n")
             f.write("#PBS -m ae\n")
             f.write("\n")
-            f.write("CPU=%s\n" % (ncpu))
+            f.write(f"CPU={ncpu}\n")
             for i, ii in enumerate(inp_filepath_list):
-                f.write('DATA[%s]="%s"\n' % (i, ii))
+                f.write(f'DATA[{i}]="{ii}"\n')
             f.write("\n")
             f.write(f'PROG="{abq_command_path}"\n')
             f.write("\n")
             f.write('GPU="/usr1/etc/tools/get_gpu.pl"\n')
-            f.write(
-                'OPT="double interactive cpus=${CPU} gpus=1 usegpu=${GPU}"\n'
-            )
+            f.write('OPT="double interactive cpus=${CPU} gpus=1 usegpu=${GPU}"\n')
             f.write("\n")
             f.write("cd $PBS_O_WORKDIR\n")
             f.write('SCRATCH_DIR="/scratch/${PBS_JOBID}"\n')
@@ -285,17 +270,15 @@ class SubmitService:
             inp_filepath_list = [inp_filepath_list]
         with open(jcf_filepath, "w") as f:
             f.write("#!/bin/bash\n")
-            f.write("#PBS -q %s\n" % (abq_class))
-            f.write(
-                "#PBS -l select=1:ncpus=%s:mpiprocs=%s:abaqus=1\n" % (ncpu, ncpu)
-            )
-            f.write("#PBS -N %s\n" % (job_name))
+            f.write(f"#PBS -q {abq_class}\n")
+            f.write(f"#PBS -l select=1:ncpus={ncpu}:mpiprocs={ncpu}:abaqus=1\n")
+            f.write(f"#PBS -N {job_name}\n")
             f.write("#PBS -j oe\n")
             f.write("#PBS -m ae\n")
             f.write("\n")
-            f.write("CPU=%s\n" % (ncpu))
+            f.write(f"CPU={ncpu}\n")
             for i, ii in enumerate(inp_filepath_list):
-                f.write('DATA[%s]="%s"\n' % (i, ii))
+                f.write(f'DATA[{i}]="{ii}"\n')
             f.write("\n")
             f.write(f'PROG="{abq_command_path}"\n')
             f.write("\n")
@@ -348,9 +331,7 @@ class SubmitService:
         from modules.pyssh import ssh
 
         os.system(f"dos2unix {jcf_filepath}")
-        client = ssh.SSHClient(
-            [jcf_filepath], setting=ssh.SSH_SETTING(_hostname=hostname)
-        )
+        client = ssh.SSHClient([jcf_filepath], setting=ssh.SSH_SETTING(_hostname=hostname))
         client.put()
         client.execute_command(command, cd=True)
 
@@ -430,9 +411,7 @@ class SubmitService:
             if separate:
                 for inp in targets:
                     try:
-                        resolved_name = (
-                            job_name if job_name else self.get_abq_job_name(inp)
-                        )
+                        resolved_name = job_name if job_name else self.get_abq_job_name(inp)
                         self.write_jcf_and_execute(
                             use_gpu=use_gpu,
                             inp_filepath_list=[inp],
@@ -448,13 +427,9 @@ class SubmitService:
                         warnings.append(WarningItem(inp, repr(e)))
             else:
                 if len(targets) == 1:
-                    resolved_name = (
-                        job_name if job_name else self.get_abq_job_name(targets[0])
-                    )
+                    resolved_name = job_name if job_name else self.get_abq_job_name(targets[0])
                 else:
-                    resolved_name = (
-                        job_name if job_name else self.get_abq_job_name()
-                    )
+                    resolved_name = job_name if job_name else self.get_abq_job_name()
                 self.write_jcf_and_execute(
                     use_gpu=use_gpu,
                     inp_filepath_list=targets,
@@ -475,9 +450,7 @@ class SubmitService:
     # ファイル操作
     # =========
 
-    def run_files_get(
-        self, targets: list[str], host_name: str
-    ) -> tuple[int, list[WarningItem]]:
+    def run_files_get(self, targets: list[str], host_name: str) -> tuple[int, list[WarningItem]]:
         """ファイルをリモートから取得する"""
         warnings: list[WarningItem] = []
         script = str(self.tool_dirpath / "sget-single.ps1")
@@ -491,9 +464,7 @@ class SubmitService:
                 warnings.append(WarningItem(i, repr(e)))
         return (0 if not warnings else 1, warnings)
 
-    def run_files_put(
-        self, targets: list[str], host_name: str
-    ) -> tuple[int, list[WarningItem]]:
+    def run_files_put(self, targets: list[str], host_name: str) -> tuple[int, list[WarningItem]]:
         """ファイルをリモートに送信する"""
         warnings: list[WarningItem] = []
         script = str(self.tool_dirpath / "put.ps1")

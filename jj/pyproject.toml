@@ -19,9 +19,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# pymesh（メッシュ操作・解析モジュール）
+pymesh = [
+    "pandas>=2.0.0",
+    "chardet>=5.0.0",
+    "ftfy>=6.0.0",
+]
 # Abaqusプラグイン追加依存（メッシュ品質解析・データ分析用）
 abaqus = [
-    "pandas>=2.0.0",
+    "jj[pymesh]",
     "scipy>=1.10.0",
 ]
 # Obsidianプラグイン依存
@@ -69,7 +75,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,dev]",
+    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,dev]",
 ]
 
 # --------------------------------------------------
@@ -129,6 +135,9 @@ ignore = [
     "E501",   # line too long (formatterに任せる)
     "B008",   # do not perform function call in argument defaults (Pydantic/FastAPI互換)
     "SIM108", # use ternary (可読性の判断はケースバイケース)
+    "RUF001", # ambiguous unicode character in string (日本語文字列で意図的に使用)
+    "RUF002", # ambiguous unicode character in docstring (日本語docstringで意図的に使用)
+    "RUF003", # ambiguous unicode character in comment (日本語コメントで意図的に使用)
 ]
 
 [tool.ruff.lint.isort]

@@ -11,7 +11,6 @@ float値は桁数が大きい場合に指数表示（小数2桁）でフォー�
 
 from __future__ import annotations
 
-import json
 import math
 from datetime import datetime, timezone
 from typing import Any
@@ -73,6 +72,9 @@ class DashboardDataProvider:
             self._relations_by_node.setdefault(r.node1_id, []).append(r)
             self._relations_by_node.setdefault(r.node2_id, []).append(r)
 
+        # verbose_nameのvocab変換後キー名を特定（例: "表示名"）
+        self._verbose_name_key = self.vocab.get("verbose_name", "verbose_name")
+
     def get_go_table(
         self,
         filters: dict[str, Any] | None = None,
@@ -126,13 +128,15 @@ class DashboardDataProvider:
         for rel in self._relations_by_node.get(node_id, []):
             other_id = rel.node2_id if rel.node1_id == node_id else rel.node1_id
             other_node = self._node_by_id.get(other_id)
-            card["relations"].append({
-                "label": rel.label,
-                "direction": "outgoing" if rel.node1_id == node_id else "incoming",
-                "node_id": other_id,
-                "node_name": other_node.name if other_node else str(other_id),
-                "node_type": other_node.type if other_node else "unknown",
-            })
+            card["relations"].append(
+                {
+                    "label": rel.label,
+                    "direction": "outgoing" if rel.node1_id == node_id else "incoming",
+                    "node_id": other_id,
+                    "node_name": other_node.name if other_node else str(other_id),
+                    "node_type": other_node.type if other_node else "unknown",
+                }
+            )
 
         return card
 
@@ -173,6 +177,7 @@ class DashboardDataProvider:
 
             point: dict[str, Any] = {
                 "name": node.name,
+                self._verbose_name_key: self._get_display_name(node),
                 "id": node.id,
                 x_key: x_num,
                 y_key: y_num,
@@ -318,14 +323,16 @@ class DashboardDataProvider:
             if other_node is None:
                 continue
 
-            related.append({
-                "id": other_node.id,
-                "name": other_node.name,
-                "type": other_node.type,
-                "format": other_node.format,
-                "label": rel.label,
-                "direction": "outgoing" if rel.node1_id == node_id else "incoming",
-            })
+            related.append(
+                {
+                    "id": other_node.id,
+                    "name": other_node.name,
+                    "type": other_node.type,
+                    "format": other_node.format,
+                    "label": rel.label,
+                    "direction": "outgoing" if rel.node1_id == node_id else "incoming",
+                }
+            )
 
         return related
 
@@ -415,19 +422,19 @@ class DashboardDataProvider:
                 if fmt not in image_formats and ext not in image_formats:
                     continue
 
-                results.append({
-                    "go_node_id": go_node.id,
-                    "go_node_name": go_node.name,
-                    "image_node_id": output_node.id,
-                    "image_name": output_node.name,
-                    "image_path": path_str,
-                    "image_format": fmt or ext,
-                    "go_properties": {
-                        k: v
-                        for k, v in go_node.properties.items()
-                        if k not in ("path", "include_properties")
-                    },
-                })
+                results.append(
+                    {
+                        "go_node_id": go_node.id,
+                        "go_node_name": go_node.name,
+                        "image_node_id": output_node.id,
+                        "image_name": output_node.name,
+                        "image_path": path_str,
+                        "image_format": fmt or ext,
+                        "go_properties": {
+                            k: v for k, v in go_node.properties.items() if k not in ("path", "include_properties")
+                        },
+                    }
+                )
 
         return results
 
@@ -464,11 +471,7 @@ class DashboardDataProvider:
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
 
-            go_props = {
-                k: v
-                for k, v in node.properties.items()
-                if k not in ("path", "include_properties")
-            }
+            go_props = {k: v for k, v in node.properties.items() if k not in ("path", "include_properties")}
 
             for key, value in node.properties.items():
                 if key in ("path", "include_properties"):
@@ -476,13 +479,15 @@ class DashboardDataProvider:
                 # daily_notes dict内の画像パスを探索
                 if key == "daily_notes" and isinstance(value, dict):
                     self._extract_daily_note_images(
-                        results, node, value, go_props,
-                        image_extensions, daily_notes_dir,
+                        results,
+                        node,
+                        value,
+                        go_props,
+                        image_extensions,
+                        daily_notes_dir,
                     )
                     continue
-                self._extract_image_paths(
-                    results, node, key, value, go_props, image_extensions
-                )
+                self._extract_image_paths(results, node, key, value, go_props, image_extensions)
 
         return results
 
@@ -519,17 +524,17 @@ class DashboardDataProvider:
                     ext = candidate.rsplit(".", 1)[-1].lower()
                     if ext in image_extensions:
                         # daily note基準の相対パスをプロジェクトルート基準に変換
-                        resolved = posixpath.normpath(
-                            posixpath.join(daily_notes_dir, candidate)
+                        resolved = posixpath.normpath(posixpath.join(daily_notes_dir, candidate))
+                        results.append(
+                            {
+                                "go_node_id": node.id,
+                                "go_node_name": node.name,
+                                "property_key": f"daily:{date_key}:{key}",
+                                "image_path": resolved,
+                                "image_format": ext,
+                                "go_properties": go_props,
+                            }
                         )
-                        results.append({
-                            "go_node_id": node.id,
-                            "go_node_name": node.name,
-                            "property_key": f"daily:{date_key}:{key}",
-                            "image_path": resolved,
-                            "image_format": ext,
-                            "go_properties": go_props,
-                        })
 
     @staticmethod
     def _extract_image_paths(
@@ -552,14 +557,16 @@ class DashboardDataProvider:
                 continue
             ext = candidate.rsplit(".", 1)[-1].lower()
             if ext in image_extensions:
-                results.append({
-                    "go_node_id": node.id,
-                    "go_node_name": node.name,
-                    "property_key": key,
-                    "image_path": candidate,
-                    "image_format": ext,
-                    "go_properties": go_props,
-                })
+                results.append(
+                    {
+                        "go_node_id": node.id,
+                        "go_node_name": node.name,
+                        "property_key": key,
+                        "image_path": candidate,
+                        "image_format": ext,
+                        "go_properties": go_props,
+                    }
+                )
 
     def get_array_property_keys(self) -> list[str]:
         """go_ノードの配列型プロパティキーを返す
@@ -615,7 +622,8 @@ class DashboardDataProvider:
         if y_keys is None:
             prefix = x_key.split(".")[0] + "."
             y_keys = sorted(
-                k for k in node.properties
+                k
+                for k in node.properties
                 if k.startswith(prefix) and k != x_key and isinstance(node.properties[k], list)
             )
 
@@ -678,29 +686,56 @@ class DashboardDataProvider:
             if filters and not self._matches_filters(row, filters):
                 continue
 
-            results.append({
-                "node_id": node.id,
-                "name": node.name,
-                "index": node.properties.get("index", ""),
-                "version": node.properties.get("version", ""),
-                "x_values": x_vals,
-                "y_values": y_vals,
-                "properties": {
-                    k: v for k, v in node.properties.items()
-                    if k not in ("path", "include_properties")
-                    and not (isinstance(v, list) and "." in k)
-                },
-            })
+            display_name = self._get_display_name(node)
+            results.append(
+                {
+                    "node_id": node.id,
+                    "name": node.name,
+                    "display_name": display_name,
+                    "index": node.properties.get("index", ""),
+                    "version": node.properties.get("version", ""),
+                    "x_values": x_vals,
+                    "y_values": y_vals,
+                    "properties": {
+                        k: v
+                        for k, v in node.properties.items()
+                        if k not in ("path", "include_properties") and not (isinstance(v, list) and "." in k)
+                    },
+                }
+            )
 
         return results
 
     # ---- private ----
+
+    def _get_display_name(self, node: Node) -> str:
+        """ノードの表示名を取得（verbose_name/表示名 → name のフォールバック）
+
+        vocab変換後のverbose_nameキー（例: "表示名"）を優先的に探し、
+        見つからない場合はnode.nameを返す。
+
+        Args:
+            node: 対象ノード
+
+        Returns:
+            表示用の名前文字列
+        """
+        # vocab変換後のキー（例: "表示名"）で検索
+        display = node.properties.get(self._verbose_name_key)
+        if display:
+            return str(display)
+        # 変換前のキーでフォールバック
+        display = node.properties.get("verbose_name")
+        if display:
+            return str(display)
+        return node.name
 
     def _node_to_row(self, node: Node) -> dict[str, Any]:
         """ノードをテーブル行に変換（プロパティ展開、float指数表示対応）"""
         row: dict[str, Any] = {
             "id": node.id,
             "name": node.name,
+            self._verbose_name_key: self._get_display_name(node),
             "type": node.type,
             "format": node.format,
         }
@@ -719,10 +754,12 @@ class DashboardDataProvider:
                 continue
             other = self._node_by_id.get(rel.node2_id)
             if other:
-                related.append({
-                    "name": other.name,
-                    "relation": rel.label,
-                })
+                related.append(
+                    {
+                        "name": other.name,
+                        "relation": rel.label,
+                    }
+                )
         if related:
             row["related_files"] = related
 
@@ -741,9 +778,7 @@ class DashboardDataProvider:
             if isinstance(value, list):
                 if row_value not in value:
                     return False
-            elif isinstance(value, bool) or (
-                isinstance(value, str) and value.strip().lower() in ("true", "false")
-            ):
+            elif isinstance(value, bool) or (isinstance(value, str) and value.strip().lower() in ("true", "false")):
                 # bool/bool文字列の比較は正規化して行う
                 def _to_bool(v: Any) -> bool:
                     if isinstance(v, bool):

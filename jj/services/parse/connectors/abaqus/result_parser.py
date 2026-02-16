@@ -20,12 +20,8 @@ if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
 
 # 解析結果ファイルの成否判定用パターン
-_STA_SUCCESS_PATTERN = re.compile(
-    r"THE ANALYSIS HAS COMPLETED SUCCESSFULLY", re.IGNORECASE
-)
-_STA_NOT_COMPLETED_PATTERN = re.compile(
-    r"THE ANALYSIS HAS NOT BEEN COMPLETED", re.IGNORECASE
-)
+_STA_SUCCESS_PATTERN = re.compile(r"THE ANALYSIS HAS COMPLETED SUCCESSFULLY", re.IGNORECASE)
+_STA_NOT_COMPLETED_PATTERN = re.compile(r"THE ANALYSIS HAS NOT BEEN COMPLETED", re.IGNORECASE)
 _STA_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
 _STA_WARNING_PATTERN = re.compile(r"\*\*\*WARNING:\s*(.+)", re.IGNORECASE)
 _MSG_ERROR_PATTERN = re.compile(r"\*\*\*ERROR:\s*(.+)", re.IGNORECASE)
@@ -80,7 +76,7 @@ def parse_sta_file(sta_path: Path) -> dict[str, Any]:
     try:
         with sta_path.open("r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-    except (OSError, IOError):
+    except OSError:
         return result
 
     if _STA_SUCCESS_PATTERN.search(content):
@@ -105,7 +101,7 @@ def parse_msg_file(msg_path: Path) -> dict[str, Any]:
     try:
         with msg_path.open("r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-    except (OSError, IOError):
+    except OSError:
         return result
 
     for match in _MSG_ERROR_PATTERN.finditer(content):
@@ -125,21 +121,17 @@ def parse_dat_file(dat_path: Path) -> dict[str, Any]:
     try:
         with dat_path.open("r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-    except (OSError, IOError):
+    except OSError:
         return result
 
     num = r"([+-]?\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?)"
 
     # findallで全マッチを取得し、最後の値（最終サマリー）を採用
-    cpu_matches = re.findall(
-        rf"TOTAL\s+CPU\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE
-    )
+    cpu_matches = re.findall(rf"TOTAL\s+CPU\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE)
     if cpu_matches:
         result["cpu_time"] = float(cpu_matches[-1])
 
-    wall_matches = re.findall(
-        rf"WALL\s*CLOCK\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE
-    )
+    wall_matches = re.findall(rf"WALL\s*CLOCK\s+TIME\s*\(SEC\)\s*=\s*{num}", content, re.IGNORECASE)
     if wall_matches:
         result["wallclock_time"] = float(wall_matches[-1])
 

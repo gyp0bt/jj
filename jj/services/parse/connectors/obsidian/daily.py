@@ -78,9 +78,7 @@ _FILE_PROP_PATTERN = re.compile(
 )
 
 # Obsidianリンク形式 [[filename]] or [[path/to/filename|display]]
-_OBSIDIAN_LINK_PATTERN = re.compile(
-    r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]"
-)
+_OBSIDIAN_LINK_PATTERN = re.compile(r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]")
 
 # Obsidianリンク＋プロパティ形式
 # [[O-go_idx1.inp]]:備考:条件1
@@ -94,9 +92,7 @@ _OBSIDIAN_LINK_PROP_PATTERN = re.compile(
 _OBSIDIAN_PREFIX_PATTERN = re.compile(r"^O-(.+)$")
 
 # ファイルリンク値パターン: [[file.ext]] or [[file.ext|display]]
-_VALUE_LINK_PATTERN = re.compile(
-    r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]"
-)
+_VALUE_LINK_PATTERN = re.compile(r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]")
 
 # タグパターン #tag
 _TAG_PATTERN = re.compile(r"#([^\s#\[\]]+)")
@@ -106,11 +102,36 @@ _SECTION_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 # 既知のファイル拡張子
 _KNOWN_EXTENSIONS = {
-    ".inp", ".cdb", ".msh", ".modfem", ".dat", ".sta", ".msg",
-    ".odb", ".csv", ".json", ".yaml", ".xlsx", ".pptx", ".pdf",
-    ".png", ".gif", ".svg", ".html", ".txt", ".py", ".sh",
-    ".cas.h5", ".dat.h5", ".stp", ".step", ".catpart", ".dxf", ".dwg",
-    ".k", ".key",
+    ".inp",
+    ".cdb",
+    ".msh",
+    ".modfem",
+    ".dat",
+    ".sta",
+    ".msg",
+    ".odb",
+    ".csv",
+    ".json",
+    ".yaml",
+    ".xlsx",
+    ".pptx",
+    ".pdf",
+    ".png",
+    ".gif",
+    ".svg",
+    ".html",
+    ".txt",
+    ".py",
+    ".sh",
+    ".cas.h5",
+    ".dat.h5",
+    ".stp",
+    ".step",
+    ".catpart",
+    ".dxf",
+    ".dwg",
+    ".k",
+    ".key",
 }
 
 
@@ -125,7 +146,7 @@ def parse_daily_note(path: Path) -> DailyNote:
     """
     try:
         content = path.read_text(encoding="utf-8", errors="ignore")
-    except (OSError, IOError):
+    except OSError:
         return DailyNote(path=path, date=_extract_date(path))
 
     date = _extract_date(path)
@@ -166,12 +187,14 @@ def parse_daily_note(path: Path) -> DailyNote:
             # プロパティのパース: "key: value" or "備考: 最終版"
             props = _parse_inline_properties(rest)
 
-            file_references.append(DailyFileReference(
-                filename=filename,
-                section=section_name,
-                properties=props,
-                tags=tags_in_section,
-            ))
+            file_references.append(
+                DailyFileReference(
+                    filename=filename,
+                    section=section_name,
+                    properties=props,
+                    tags=tags_in_section,
+                )
+            )
 
         # リスト項目としてのファイル参照（- go_idx1.inp）
         for line in section_content.split("\n"):
@@ -183,11 +206,13 @@ def parse_daily_note(path: Path) -> DailyNote:
                     continue
                 # 純粋なファイル名参照
                 if _looks_like_file(item):
-                    file_references.append(DailyFileReference(
-                        filename=item,
-                        section=section_name,
-                        tags=tags_in_section,
-                    ))
+                    file_references.append(
+                        DailyFileReference(
+                            filename=item,
+                            section=section_name,
+                            tags=tags_in_section,
+                        )
+                    )
 
         # Obsidianリンク＋プロパティ形式の検出
         # [[O-go_idx1.inp]]:備考:条件1
@@ -213,12 +238,14 @@ def parse_daily_note(path: Path) -> DailyNote:
             if existing:
                 existing.properties.update(props)
             else:
-                file_references.append(DailyFileReference(
-                    filename=filename,
-                    section=section_name,
-                    properties=props,
-                    tags=tags_in_section,
-                ))
+                file_references.append(
+                    DailyFileReference(
+                        filename=filename,
+                        section=section_name,
+                        properties=props,
+                        tags=tags_in_section,
+                    )
+                )
 
         # Obsidianリンク形式のファイル参照（プロパティなし）
         for match in _OBSIDIAN_LINK_PATTERN.finditer(section_content):
@@ -226,14 +253,14 @@ def parse_daily_note(path: Path) -> DailyNote:
             raw_name = Path(link_target).name
             # O-プレフィックスを除去
             filename = _strip_obsidian_prefix(raw_name)
-            if _looks_like_file(filename):
-                # 重複チェック
-                if not any(r.filename == filename for r in file_references):
-                    file_references.append(DailyFileReference(
+            if _looks_like_file(filename) and not any(r.filename == filename for r in file_references):
+                file_references.append(
+                    DailyFileReference(
                         filename=filename,
                         section=section_name,
                         tags=tags_in_section,
-                    ))
+                    )
+                )
 
     # タグの重複除去
     unique_tags = list(dict.fromkeys(all_tags))
@@ -351,9 +378,7 @@ def _looks_like_file(text: str) -> bool:
             return True
     # 汎用的な拡張子チェック（1-6文字）
     parts = text.rsplit(".", 1)
-    if len(parts) == 2 and 1 <= len(parts[1]) <= 6 and parts[1].isalnum():
-        return True
-    return False
+    return bool(len(parts) == 2 and 1 <= len(parts[1]) <= 6 and parts[1].isalnum())
 
 
 def _strip_obsidian_prefix(filename: str) -> str:

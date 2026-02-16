@@ -39,17 +39,17 @@ from services.query.sort import (
 )
 
 __all__ = [
+    "OPERATORS",
+    "PROP_FILTER_PATTERN",
+    "apply_filters",
+    "apply_prop_filters",
+    "apply_saved_view_filters",
     # filters
     "is_truthy",
-    "apply_filters",
-    "apply_saved_view_filters",
-    "saved_view_filters_to_provider_filters",
-    "parse_prop_filters",
-    "apply_prop_filters",
     "node_prop_getter",
-    "PROP_FILTER_PATTERN",
-    "OPERATORS",
+    "parse_prop_filters",
+    "saved_view_filters_to_provider_filters",
+    "select_table_columns",
     # sort
     "sort_columns_by_vocab",
-    "select_table_columns",
 ]

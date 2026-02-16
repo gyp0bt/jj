@@ -8,11 +8,12 @@ FileParse クラスとレガシーな関数インターフェースを提供し�
 from __future__ import annotations
 
 import os
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-import re
-from typing import Generic, Iterable, TypeVar
+from typing import Generic, TypeVar
 
 DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".cas.h5",
@@ -41,7 +42,7 @@ DEFAULT_EXTENSIONS: tuple[str, ...] = (
 # これらのファイルは存在が認識されるが、グラフ上のNodeとしては生成されない
 NO_NODE_EXTENSIONS: tuple[str, ...] = (
     ".odb.json",  # ODBメタデータ（長い拡張子を先に評価）
-    ".odb",       # Abaqus ODBバイナリ
+    ".odb",  # Abaqus ODBバイナリ
 )
 
 FILE_TYPE_PREFIXES: tuple[tuple[str, str], ...] = (
@@ -74,9 +75,7 @@ class FileType(Enum):
 TFileParse = TypeVar("TFileParse", bound="FileParse")
 
 
-def _match_extension(
-    filename: str, extension_candidates: Iterable[str] | None = None
-) -> str:
+def _match_extension(filename: str, extension_candidates: Iterable[str] | None = None) -> str:
     candidates = tuple(extension_candidates or DEFAULT_EXTENSIONS)
     lower_name = filename.lower()
     for ext in sorted(candidates, key=len, reverse=True):
@@ -280,9 +279,7 @@ class FileParse:
             return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
         return ""
 
-    def get_file_group(
-        self, candidates: Iterable[str | Path] | None = None
-    ) -> FileGroup["FileParse"]:
+    def get_file_group(self, candidates: Iterable[str | Path] | None = None) -> FileGroup[FileParse]:
         file_type = self.get_file_type()
         index = self.get_index()
         targets = list(candidates) if candidates is not None else [self.true_file_path]
@@ -532,7 +529,7 @@ def get_index_and_version_legacy(inp_filepath: str) -> tuple[str, str]:
 
     inp_filepath_str, ext = get_basename_with_ext(inp_filepath)
     head = inp_filepath_str.split("_")[0]
-    inp_filepath_str = inp_filepath_str[len(head) + 1:]
+    inp_filepath_str = inp_filepath_str[len(head) + 1 :]
 
     # idx
     if inp_filepath_str.startswith("idx"):

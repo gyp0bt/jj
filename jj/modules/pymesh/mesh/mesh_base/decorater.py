@@ -12,9 +12,9 @@ from __future__ import annotations
 import atexit
 import functools
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict
-
+from typing import Any
 
 # プロセス内で共有するメソッド呼び出しカウンタ
 COUNTER: dict[str, int] = {}
@@ -53,10 +53,10 @@ class CountMethodsMeta(type):
         mcls,
         name: str,
         bases: tuple[type, ...],
-        namespace: Dict[str, Any],
+        namespace: dict[str, Any],
         **kwargs: Any,
     ):
-        new_namespace: Dict[str, Any] = {}
+        new_namespace: dict[str, Any] = {}
         for attr_name, value in namespace.items():
             # private / 特殊メソッドはスキップ
             if attr_name.startswith("_"):
@@ -87,7 +87,7 @@ def dump_counts() -> None:
     if OUTPUT_PATH.exists():
         try:
             with OUTPUT_PATH.open("r", encoding="utf-8") as f:
-                prev: Dict[str, int] = json.load(f)
+                prev: dict[str, int] = json.load(f)
         except Exception:
             prev = {}
     else:

@@ -9,9 +9,7 @@ API層（services/api）はこのサービスを経由してクエリ操作を�
 
 from __future__ import annotations
 
-from typing import Any
-
-from jj_types import GraphModel, Node
+from jj_types import Node
 from services.query.filters import (
     apply_prop_filters,
     node_prop_getter,
@@ -53,11 +51,7 @@ class QueryService:
             result = [n for n in result if n.type == type_filter]
 
         if active_filter is not None:
-            result = [
-                n
-                for n in result
-                if n.properties.get("active") == active_filter
-            ]
+            result = [n for n in result if n.properties.get("active") == active_filter]
 
         if name_filter is not None:
             name_lower = name_filter.lower()
@@ -66,9 +60,7 @@ class QueryService:
         if query_params:
             prop_filters = parse_prop_filters(query_params)
             if prop_filters:
-                result = apply_prop_filters(
-                    result, prop_filters, prop_getter=node_prop_getter
-                )
+                result = apply_prop_filters(result, prop_filters, prop_getter=node_prop_getter)
 
         return result
 

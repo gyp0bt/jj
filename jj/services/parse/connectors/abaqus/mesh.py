@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -33,7 +33,6 @@ def _safe_import_pymesh():
     システムの pymesh との競合を回避するため絶対パスインポートは使わない。
     """
     try:
-        from modules.pymesh.mesh import Mesher
         from modules.pymesh.mesh import mesher as create_mesher
         from modules.pymesh.misc.quality import get_element_quality
 
@@ -45,8 +44,8 @@ def _safe_import_pymesh():
 def extract_mesh_stats(
     inp_path: Path,
     verbose: bool = False,
-    cached_abq_data: Optional[Any] = None,
-) -> Optional[dict[str, Any]]:
+    cached_abq_data: Any | None = None,
+) -> dict[str, Any] | None:
     """Abaqus .inpファイルからメッシュ統計情報を抽出
 
     pymeshのMesherクラスを使ってメッシュデータを解析し、
@@ -81,9 +80,7 @@ def extract_mesh_stats(
         return None
 
     try:
-        mesh = create_mesher(
-            str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data
-        )
+        mesh = create_mesher(str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data)
     except Exception as e:
         logger.warning(f"pymesh failed to parse {inp_path}: {e}")
         return None
@@ -146,7 +143,7 @@ def extract_mesh_stats(
     return stats
 
 
-def _compute_quality_stats(mesh, get_element_quality) -> Optional[dict[str, Any]]:
+def _compute_quality_stats(mesh, get_element_quality) -> dict[str, Any] | None:
     """メッシュ品質統計を計算
 
     Args:
@@ -169,9 +166,7 @@ def _compute_quality_stats(mesh, get_element_quality) -> Optional[dict[str, Any]
         logger.debug("coord_array is None or empty, skipping quality computation")
         return None
 
-    logger.debug(
-        f"coord_array shape: {coord_array.shape if hasattr(coord_array, 'shape') else len(coord_array)}"
-    )
+    logger.debug(f"coord_array shape: {coord_array.shape if hasattr(coord_array, 'shape') else len(coord_array)}")
 
     quality_result: dict[str, Any] = {}
     modes = ["volume", "detJ", "aspect", "skewness"]
@@ -215,8 +210,8 @@ def _compute_quality_stats(mesh, get_element_quality) -> Optional[dict[str, Any]
 def extract_elset_quality_stats(
     inp_path: Path,
     verbose: bool = False,
-    cached_abq_data: Optional[Any] = None,
-) -> Optional[dict[str, dict[str, Any]]]:
+    cached_abq_data: Any | None = None,
+) -> dict[str, dict[str, Any]] | None:
     """Elsetごとのメッシュ品質統計を抽出
 
     各Elsetに属する要素のみを対象として品質メトリクスを計算する。
@@ -239,9 +234,7 @@ def extract_elset_quality_stats(
         return None
 
     try:
-        mesh = create_mesher(
-            str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data
-        )
+        mesh = create_mesher(str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data)
     except Exception as e:
         logger.warning(f"pymesh failed to parse {inp_path}: {e}")
         return None
@@ -266,9 +259,7 @@ def extract_elset_quality_stats(
         return None
 
     if len(all_labels) != len(coord_array):
-        logger.debug(
-            f"Label count ({len(all_labels)}) != coord_array count ({len(coord_array)})"
-        )
+        logger.debug(f"Label count ({len(all_labels)}) != coord_array count ({len(coord_array)})")
         return None
 
     # label → index のマッピング
@@ -383,13 +374,13 @@ def _parse_parameters(inp_path: Path) -> dict[str, str]:
                     key = key.strip()
                     value = value.strip()
                     # 文字列値のクォート除去
-                    if value.startswith('"') and value.endswith('"'):
-                        value = value[1:-1]
-                    elif value.startswith("'") and value.endswith("'"):
+                    if (value.startswith('"') and value.endswith('"')) or (
+                        value.startswith("'") and value.endswith("'")
+                    ):
                         value = value[1:-1]
                     if key:
                         params[key] = value
-    except (OSError, IOError):
+    except OSError:
         pass
 
     return params
@@ -459,7 +450,7 @@ def extract_material_elset_mapping(inp_path: Path) -> dict[str, list[str]]:
                             mapping[material_name] = []
                         if elset_name:
                             mapping[material_name].append(elset_name)
-    except (OSError, IOError):
+    except OSError:
         pass
 
     return mapping

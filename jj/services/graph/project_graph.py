@@ -10,9 +10,10 @@ AbstractFileParserサブクラスのapply()メソッドはProjectGraphを受け�
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
@@ -134,9 +135,7 @@ class ProjectGraph:
 
     def get_relations_for_node(self, node_id: int) -> list[Relation]:
         """ノードに関連するリレーションを取得"""
-        return [
-            r for r in self.relations if r.node1_id == node_id or r.node2_id == node_id
-        ]
+        return [r for r in self.relations if r.node1_id == node_id or r.node2_id == node_id]
 
     def get_relations_by_label(self, label: str) -> list[Relation]:
         """ラベルでリレーションをフィルタリング"""
@@ -175,11 +174,7 @@ class ProjectGraph:
     def remove_nodes(self, node_ids: set[int]) -> None:
         """指定IDのノードとそれに関わるリレーションを除去"""
         self.nodes = [n for n in self.nodes if n.id not in node_ids]
-        self.relations = [
-            r
-            for r in self.relations
-            if r.node1_id not in node_ids and r.node2_id not in node_ids
-        ]
+        self.relations = [r for r in self.relations if r.node1_id not in node_ids and r.node2_id not in node_ids]
         # インデックス再構築
         self._node_by_id = {n.id: n for n in self.nodes}
         self._node_by_path = {}
@@ -276,9 +271,7 @@ class ProjectGraph:
             parent_dir = file_path.parent.as_posix()
             if parent_dir == ".":
                 parent_dir = ""
-            dir_files[parent_dir].append(
-                ProjectFile(path=self.project_root / path_str, node=node)
-            )
+            dir_files[parent_dir].append(ProjectFile(path=self.project_root / path_str, node=node))
             # 親ディレクトリを再帰的に登録
             parts = Path(parent_dir).parts if parent_dir else ()
             for i in range(len(parts)):

@@ -70,9 +70,7 @@ class CacheProvider(Protocol):
         """
         ...
 
-    def save_timestamps(
-        self, project_root: Path, timestamps: dict[str, float]
-    ) -> Path:
+    def save_timestamps(self, project_root: Path, timestamps: dict[str, float]) -> Path:
         """パース時のファイルタイムスタンプを保存する
 
         Args:
@@ -84,9 +82,7 @@ class CacheProvider(Protocol):
         """
         ...
 
-    def load_plugin_data(
-        self, project_root: Path, namespace: str, file_path: str, expected_mtime: float
-    ) -> Any:
+    def load_plugin_data(self, project_root: Path, namespace: str, file_path: str, expected_mtime: float) -> Any:
         """プラグインキャッシュデータを読み込む
 
         Args:
@@ -100,9 +96,7 @@ class CacheProvider(Protocol):
         """
         ...
 
-    def save_plugin_data(
-        self, project_root: Path, namespace: str, file_path: str, data: Any, mtime: float
-    ) -> Path:
+    def save_plugin_data(self, project_root: Path, namespace: str, file_path: str, data: Any, mtime: float) -> Path:
         """プラグインキャッシュデータを永続化する
 
         Args:

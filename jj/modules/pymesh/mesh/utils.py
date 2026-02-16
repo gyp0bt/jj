@@ -1,6 +1,5 @@
-from typing import Dict, Tuple, Optional, Any, List, Callable, Literal
-from numpy.typing import NDArray, DTypeLike
 import numpy as np
+from numpy.typing import DTypeLike, NDArray
 
 
 def match_shell_clusters_by_geometory(
@@ -10,7 +9,7 @@ def match_shell_clusters_by_geometory(
     nodes_top: np.ndarray,
     node_tol: float = 1e-6,
     invalid_node: int = 0,
-) -> Tuple[NDArray[np.int64], Dict[int, int]]:
+) -> tuple[NDArray[np.int64], dict[int, int]]:
     """幾何形状に基づき、topクラスタをbottomクラスタに揃えた要素配列を構築する（3角・4角混在可）。
 
     前提:
@@ -53,32 +52,24 @@ def match_shell_clusters_by_geometory(
     if elems_bottom.shape[1] != elems_top.shape[1]:
         raise ValueError("bottom/top の要素配列の列数が異なります。")
 
-    n_elems_bottom, n_cols = elems_bottom.shape
+    n_elems_bottom, _n_cols = elems_bottom.shape
     n_elems_top, _ = elems_top.shape
 
     if n_elems_bottom != n_elems_top:
-        raise ValueError(
-            f"bottom/top の要素数が一致していません。({n_elems_bottom, n_elems_top})"
-        )
+        raise ValueError(f"bottom/top の要素数が一致していません。({n_elems_bottom, n_elems_top})")
 
     # --- 座標配列の準備 ---
     bottom_labels = np.asarray(nodes_bottom["label"], dtype=np.int64)
-    bottom_xyz = np.stack(
-        [nodes_bottom["x"], nodes_bottom["y"], nodes_bottom["z"]], axis=1
-    ).astype(float)
+    bottom_xyz = np.stack([nodes_bottom["x"], nodes_bottom["y"], nodes_bottom["z"]], axis=1).astype(float)
 
     top_labels = np.asarray(nodes_top["label"], dtype=np.int64)
-    top_xyz = np.stack([nodes_top["x"], nodes_top["y"], nodes_top["z"]], axis=1).astype(
-        float
-    )
+    top_xyz = np.stack([nodes_top["x"], nodes_top["y"], nodes_top["z"]], axis=1).astype(float)
 
     # label -> index
-    bottom_label_to_index: Dict[int, int] = {
-        int(lbl): int(i) for i, lbl in enumerate(bottom_labels)
-    }
+    bottom_label_to_index: dict[int, int] = {int(lbl): int(i) for i, lbl in enumerate(bottom_labels)}
 
     # --- bottom節点 -> top節点 を最近傍で決める（再利用なし） ---
-    bottom_to_top_node: Dict[int, int] = {}
+    bottom_to_top_node: dict[int, int] = {}
     used_top_indices: set[int] = set()
 
     for lbl_b, idx_b in bottom_label_to_index.items():
@@ -95,36 +86,29 @@ def match_shell_clusters_by_geometory(
             d = np.sqrt(dist2[idx_t])
             if d > node_tol:
                 raise ValueError(
-                    f"bottom節点 {lbl_b} に十分近い top節点がありません "
-                    f"(最近距離={d:.3e} > tol={node_tol:.3e})."
+                    f"bottom節点 {lbl_b} に十分近い top節点がありません (最近距離={d:.3e} > tol={node_tol:.3e})."
                 )
             chosen = int(idx_t)
             break
 
         if chosen is None:
-            raise ValueError(
-                f"bottom節点 {lbl_b} に対応可能な top節点が割り当てられません。"
-            )
+            raise ValueError(f"bottom節点 {lbl_b} に対応可能な top節点が割り当てられません。")
 
         used_top_indices.add(chosen)
         bottom_to_top_node[lbl_b] = int(top_labels[chosen])
 
     # --- top側: 有効節点集合 -> 要素インデックス の辞書 ---
-    top_node_set_to_elem_index: Dict[frozenset[int], int] = {}
+    top_node_set_to_elem_index: dict[frozenset[int], int] = {}
     for ei in range(n_elems_top):
         raw_nodes = elems_top[ei, 1:]
         valid_nodes = [int(n) for n in raw_nodes if int(n) != invalid_node]
 
         if len(valid_nodes) not in (3, 4):
-            raise ValueError(
-                f"top要素 {elems_top[ei,0]} の有効節点数 {len(valid_nodes)} が 3/4 以外です。"
-            )
+            raise ValueError(f"top要素 {elems_top[ei, 0]} の有効節点数 {len(valid_nodes)} が 3/4 以外です。")
 
         key = frozenset(valid_nodes)
         if key in top_node_set_to_elem_index:
-            raise ValueError(
-                "同じ節点集合を持つtop要素が複数あります。トポロジーが曖昧です。"
-            )
+            raise ValueError("同じ節点集合を持つtop要素が複数あります。トポロジーが曖昧です。")
         top_node_set_to_elem_index[key] = ei
 
     # --- bottom要素ごとに対応top要素を見つけ、局所順を揃えた配列を作る ---
@@ -136,26 +120,20 @@ def match_shell_clusters_by_geometory(
         bottom_nodes = [int(n) for n in raw_nodes if int(n) != invalid_node]
 
         if len(bottom_nodes) not in (3, 4):
-            raise ValueError(
-                f"bottom要素 {elems_bottom[ei,0]} の有効節点数 {len(bottom_nodes)} が 3/4 以外です。"
-            )
+            raise ValueError(f"bottom要素 {elems_bottom[ei, 0]} の有効節点数 {len(bottom_nodes)} が 3/4 以外です。")
 
         mapped_top_nodes = [bottom_to_top_node[nb] for nb in bottom_nodes]
         key = frozenset(mapped_top_nodes)
 
         if key not in top_node_set_to_elem_index:
-            raise ValueError(
-                f"bottom要素 {elems_bottom[ei,0]} に対応する top要素が見つかりません。"
-            )
+            raise ValueError(f"bottom要素 {elems_bottom[ei, 0]} に対応する top要素が見つかりません。")
 
         t_ei = top_node_set_to_elem_index[key]
         top_elem_label = elems_top[t_ei, 0]
 
         elems_top_matched[ei, 0] = top_elem_label
         # bottom の局所順に対応する top節点ラベルを詰める
-        elems_top_matched[ei, 1 : 1 + len(mapped_top_nodes)] = np.array(
-            mapped_top_nodes, dtype=np.int64
-        )
+        elems_top_matched[ei, 1 : 1 + len(mapped_top_nodes)] = np.array(mapped_top_nodes, dtype=np.int64)
         # 余りは invalid_node のまま
 
     return elems_top_matched, bottom_to_top_node
@@ -170,7 +148,7 @@ def extrude_between_topology_matched_shell_clusters(
     start_node_label: int,
     start_elem_label: int,
     invalid_node: int = 0,
-) -> Tuple[np.ndarray, NDArray[np.int64]]:
+) -> tuple[np.ndarray, NDArray[np.int64]]:
     """2つのシェルクラスタ間を押し出してソリッド要素を生成（3角/4角混在可）。
 
     想定:
@@ -217,23 +195,22 @@ def extrude_between_topology_matched_shell_clusters(
         raise ValueError("n_div は 1 以上にしてください。")
 
     n_elems, n_cols = elems_bottom.shape
-    node_cols = n_cols - 1
+    n_cols - 1
 
     # --- 節点ラベル → 座標 ---
-    bottom_label_to_coord: Dict[int, np.ndarray] = {
+    bottom_label_to_coord: dict[int, np.ndarray] = {
         int(lbl): np.array([float(x), float(y), float(z)], dtype=float)
         for lbl, x, y, z in zip(
             nodes_bottom["label"],
             nodes_bottom["x"],
             nodes_bottom["y"],
             nodes_bottom["z"],
+            strict=False,
         )
     }
-    top_label_to_coord: Dict[int, np.ndarray] = {
+    {
         int(lbl): np.array([float(x), float(y), float(z)], dtype=float)
-        for lbl, x, y, z in zip(
-            nodes_top["label"], nodes_top["x"], nodes_top["y"], nodes_top["z"]
-        )
+        for lbl, x, y, z in zip(nodes_top["label"], nodes_top["x"], nodes_top["y"], nodes_top["z"], strict=False)
     }
 
     # --- bottom側で実際に使われている有効節点の集合 ---
@@ -255,7 +232,7 @@ def extrude_between_topology_matched_shell_clusters(
     node_dtype = nodes_bottom.dtype
     new_nodes = np.empty(total_new_nodes, dtype=node_dtype)
 
-    layered_node_label: Dict[Tuple[int, int], int] = {}
+    layered_node_label: dict[tuple[int, int], int] = {}
     current_node_label = start_node_label
     idx = 0
 
@@ -281,10 +258,8 @@ def extrude_between_topology_matched_shell_clusters(
 
         # 近傍 top節点を探索
         # 注意: 規模が大きいならKD-treeを検討
-        top_labels_arr = nodes_top["label"].astype(np.int64)
-        top_xyz = np.stack(
-            [nodes_top["x"], nodes_top["y"], nodes_top["z"]], axis=1
-        ).astype(float)
+        nodes_top["label"].astype(np.int64)
+        top_xyz = np.stack([nodes_top["x"], nodes_top["y"], nodes_top["z"]], axis=1).astype(float)
         diff = top_xyz - pb
         dist2 = np.sum(diff * diff, axis=1)
         i_min = int(np.argmin(dist2))
@@ -327,26 +302,16 @@ def extrude_between_topology_matched_shell_clusters(
         n_nodes_shell = len(bottom_nodes)
 
         if n_nodes_shell not in (3, 4):
-            raise ValueError(
-                f"bottom要素 {elems_bottom[ei,0]} の有効節点数 {n_nodes_shell} が 3/4 以外です。"
-            )
+            raise ValueError(f"bottom要素 {elems_bottom[ei, 0]} の有効節点数 {n_nodes_shell} が 3/4 以外です。")
 
         for layer in range(n_div):
             # その層のbottom/top節点ラベルを取得
-            bottom_layer_labels = [
-                layered_node_label[(nb, layer)] for nb in bottom_nodes
-            ]
-            top_layer_labels = [
-                layered_node_label[(nb, layer + 1)] for nb in bottom_nodes
-            ]
+            bottom_layer_labels = [layered_node_label[(nb, layer)] for nb in bottom_nodes]
+            top_layer_labels = [layered_node_label[(nb, layer + 1)] for nb in bottom_nodes]
 
             if n_nodes_shell == 3:
                 # 三角プリズム: 6節点 + パディング2
-                solid_nodes = (
-                    bottom_layer_labels
-                    + top_layer_labels
-                    + [invalid_node, invalid_node]
-                )
+                solid_nodes = bottom_layer_labels + top_layer_labels + [invalid_node, invalid_node]
             else:
                 # 四角ヘキサ: 8節点
                 solid_nodes = bottom_layer_labels + top_layer_labels
@@ -363,7 +328,7 @@ def extrude_between_topology_matched_shell_clusters(
 def split_prism_and_hex(
     solid_elems: NDArray[np.int64],
     invalid_node: int = 0,
-) -> Tuple[NDArray[np.int64] | None, NDArray[np.int64] | None]:
+) -> tuple[NDArray[np.int64] | None, NDArray[np.int64] | None]:
     """三角柱要素と直方体要素を solid_elems から分解する.
 
     想定:
@@ -393,9 +358,7 @@ def split_prism_and_hex(
         ValueError: 有効節点数が 6 でも 8 でもない行が存在する場合。
     """
     if solid_elems.ndim != 2 or solid_elems.shape[1] < 2:
-        raise ValueError(
-            "solid_elems は少なくとも (n, 2) の2次元配列である必要があります。"
-        )
+        raise ValueError("solid_elems は少なくとも (n, 2) の2次元配列である必要があります。")
 
     # 節点部のみ取り出し
     node_part = solid_elems[:, 1:]  # shape (n_solid, <=8)
@@ -412,25 +375,19 @@ def split_prism_and_hex(
     others_idx = np.where((valid_counts != 6) & (valid_counts != 8))[0]
     if others_idx.size > 0:
         bad = others_idx[:5]
-        raise ValueError(
-            f"有効節点数が 6 でも 8 でもない要素が存在します。"
-            f" indices={bad}, counts={valid_counts[bad]}"
-        )
+        raise ValueError(f"有効節点数が 6 でも 8 でもない要素が存在します。 indices={bad}, counts={valid_counts[bad]}")
 
     if prism_idx.size > 0:
         # 三角柱: ラベル + 有効6節点のみ抽出
         prism_elems_label = solid_elems[prism_idx, [0]]  # (n_prism, 1)
         prism_nodes_all = node_part[prism_idx]  # (n_prism, 8)
         # 有効節点の位置だけ抜き出す（列順はそのまま）
-        prism_nodes_valid = prism_nodes_all[prism_nodes_all != invalid_node].reshape(
-            -1, 6
-        )
+        prism_nodes_valid = prism_nodes_all[prism_nodes_all != invalid_node].reshape(-1, 6)
         prism_elems = np.concatenate([prism_elems_label, prism_nodes_valid], axis=1)
     else:
         prism_elems = None
 
     if hex_idx.size > 0:
-
         # 直方体: もともと 8 節点すべて有効なので、そのまま
         hex_elems_label = solid_elems[hex_idx, [0]]  # (n_hex, 1)
         hex_nodes = node_part[hex_idx]  # (n_hex, 8)
@@ -442,9 +399,7 @@ def split_prism_and_hex(
     return prism_elems, hex_elems
 
 
-node_coord_array_dtype: DTypeLike = np.dtype(
-    [("label", "int32"), ("x", "float32"), ("y", "float32"), ("z", "float32")]
-)
+node_coord_array_dtype: DTypeLike = np.dtype([("label", "int32"), ("x", "float32"), ("y", "float32"), ("z", "float32")])
 
 
 def _area_normal_of_quad(p1, p2, p3, p4):
@@ -469,9 +424,7 @@ def _area_normal_of_quad(
     """四角形を2つの三角形に分解し、面積×法線ベクトルを合成"""
     n1 = np.cross(p2 - p1, p3 - p1)
     n2 = np.cross(p3 - p1, p4 - p1)
-    return (
-        n1 + n2
-    )  # 面積×法線（のはずだが、絶対値スケールは後で正規化するので実質方向だけ重要）
+    return n1 + n2  # 面積×法線（のはずだが、絶対値スケールは後で正規化するので実質方向だけ重要）
 
 
 def _compute_node_normals(
@@ -560,15 +513,11 @@ def extrude_quads_to_hex_centered_delta(
     assert elems.shape[1] in (4, 5), "elements_data must be shape (Ne,4) or (Ne,5)"
 
     node_coord_arr = np.asarray(node_coord_array)
-    assert (
-        node_coord_arr.dtype == node_coord_array_dtype
-    ), "node_coord_array dtype mismatch"
+    assert node_coord_arr.dtype == node_coord_array_dtype, "node_coord_array dtype mismatch"
     assert thickness is not None and thickness > 0.0, "thickness must be positive"
 
     labels = node_coord_arr["label"].astype(np.int32, copy=False)
-    xyz = np.column_stack(
-        [node_coord_arr["x"], node_coord_arr["y"], node_coord_arr["z"]]
-    ).astype(np.float64)
+    xyz = np.column_stack([node_coord_arr["x"], node_coord_arr["y"], node_coord_arr["z"]]).astype(np.float64)
 
     # --- 法線計算 ---
     # _compute_node_normals は QUAD/TRI 混在でも elems[:,1:] から読み取れればOKな前提

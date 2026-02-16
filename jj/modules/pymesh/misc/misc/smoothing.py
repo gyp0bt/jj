@@ -1,4 +1,3 @@
-from typing import List
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import cKDTree
@@ -26,7 +25,6 @@ def laplacian_smoothing(
     fixed_indices = np.where(fixed_indices)[0].tolist()
 
     for _ in range(n_iter):
-
         # KDTreeを使って近傍探索を高速化
         tree = cKDTree(points)
 
@@ -37,7 +35,7 @@ def laplacian_smoothing(
                 continue
 
             # k+1個の近傍を取得（自身を含むため）
-            distances, indices = tree.query(point, k=k + 1)
+            _distances, indices = tree.query(point, k=k + 1)
 
             # 自分自身を除いた近傍点のインデックスを取得
             neighbor_indices = indices[1:]

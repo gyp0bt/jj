@@ -315,19 +315,23 @@ def _add_diff_args(parser: argparse.ArgumentParser) -> None:
 
 
 # dashboard/serve の引数定義とランチャーは services/cli/launchers.py に分離
-from services.cli.launchers import (
+from services.cli.launchers import (  # noqa: E402
     add_dashboard_args as _add_dashboard_args,
+)
+from services.cli.launchers import (  # noqa: E402
     add_serve_args as _add_serve_args,
+)
+from services.cli.launchers import (  # noqa: E402
     run_dashboard as _launchers_run_dashboard,
+)
+from services.cli.launchers import (  # noqa: E402
     run_serve as _launchers_run_serve,
 )
 
 
 def _add_credential_args(parser: argparse.ArgumentParser) -> None:
     """credentialコマンドの引数を追加"""
-    cred_sub = parser.add_subparsers(
-        dest="credential_command", help="クレデンシャル操作"
-    )
+    cred_sub = parser.add_subparsers(dest="credential_command", help="クレデンシャル操作")
 
     # jj credential set
     set_parser = cred_sub.add_parser(
@@ -597,10 +601,10 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
             debug=debug,
         )
 
-        print(f"\n=== スキャン完了 ===")
+        print("\n=== スキャン完了 ===")
         print(f"ノード数: {result.summary['total_nodes']}")
         print(f"リレーション数: {result.summary['total_relations']}")
-        print(f"\nノードタイプ別:")
+        print("\nノードタイプ別:")
         for node_type, count in result.summary["nodes_by_type"].items():
             print(f"  {node_type}: {count}")
         print(f"\n保存先: {result.save_path}")
@@ -631,7 +635,7 @@ def _run_show(project_root: Path, args: argparse.Namespace) -> int:
             print("=== グラフサマリー ===")
             print(f"ノード数: {result.summary['total_nodes']}")
             print(f"リレーション数: {result.summary['total_relations']}")
-            print(f"\nノードタイプ別:")
+            print("\nノードタイプ別:")
             for node_type, count in result.summary["nodes_by_type"].items():
                 print(f"  {node_type}: {count}")
             return 0
@@ -845,7 +849,7 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                         print(f"  {prop_key}: {_format_prop_value(value)}")
             else:
                 # プロパティ表示（yamlソースをありのまま出力）
-                print(f"\n  プロパティ:")
+                print("\n  プロパティ:")
                 props_yaml = yaml.safe_dump(
                     dict(sorted(node.properties.items())),
                     allow_unicode=True,
@@ -863,15 +867,11 @@ def _run_info(project_root: Path, args: argparse.Namespace) -> int:
                     for rel in rels:
                         if rel.node1_id == node.id:
                             target = node_by_id.get(rel.node2_id)
-                            target_name = (
-                                target.name if target else f"ID:{rel.node2_id}"
-                            )
+                            target_name = target.name if target else f"ID:{rel.node2_id}"
                             print(f"    --{rel.label}--> {target_name}")
                         else:
                             source = node_by_id.get(rel.node1_id)
-                            source_name = (
-                                source.name if source else f"ID:{rel.node1_id}"
-                            )
+                            source_name = source.name if source else f"ID:{rel.node1_id}"
                             print(f"    <--{rel.label}-- {source_name}")
 
         return 0
@@ -887,13 +887,9 @@ def _format_prop_value(value: Any) -> str:
     float値は桁数が大きい場合に指数表示（小数2桁）にフォーマットする。
     """
     if isinstance(value, dict):
-        return yaml.safe_dump(
-            value, allow_unicode=True, default_flow_style=False
-        ).rstrip("\n")
+        return yaml.safe_dump(value, allow_unicode=True, default_flow_style=False).rstrip("\n")
     if isinstance(value, list):
-        return yaml.safe_dump(
-            value, allow_unicode=True, default_flow_style=False
-        ).rstrip("\n")
+        return yaml.safe_dump(value, allow_unicode=True, default_flow_style=False).rstrip("\n")
     if isinstance(value, float):
         abs_val = abs(value)
         if abs_val != 0 and (abs_val >= 1e4 or abs_val < 1e-2):
@@ -925,17 +921,17 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
 
         # 未指定の場合はインタラクティブに入力
         if uri is None:
-            uri = input(f"URI [bolt://localhost:7687]: ").strip()
+            uri = input("URI [bolt://localhost:7687]: ").strip()
             if not uri:
                 uri = "bolt://localhost:7687"
         if user is None:
-            user = input(f"ユーザー名 [neo4j]: ").strip()
+            user = input("ユーザー名 [neo4j]: ").strip()
             if not user:
                 user = "neo4j"
         if password is None:
             password = getpass.getpass("パスワード: ")
         if database is None:
-            database = input(f"データベース名 [neo4j]: ").strip()
+            database = input("データベース名 [neo4j]: ").strip()
             if not database:
                 database = "neo4j"
 

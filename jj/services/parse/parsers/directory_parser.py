@@ -159,11 +159,7 @@ class DirectoryRelationParser(AbstractFileParser):
             if dir_rel_path in handled_dir_paths:
                 continue
 
-            dirname = (
-                dir_rel_path.rsplit("/", 1)[-1]
-                if "/" in dir_rel_path
-                else dir_rel_path
-            )
+            dirname = dir_rel_path.rsplit("/", 1)[-1] if "/" in dir_rel_path else dir_rel_path
 
             dir_node = Node(
                 id=graph.next_node_id(),
@@ -215,9 +211,7 @@ class DirectoryRelationParser(AbstractFileParser):
         return graph
 
     @staticmethod
-    def _scan_directories(
-        graph: ProjectGraph, *, max_depth: int | None = None
-    ) -> list:
+    def _scan_directories(graph: ProjectGraph, *, max_depth: int | None = None) -> list:
         """命名規則に合致するディレクトリをスキャン
 
         Args:

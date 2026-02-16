@@ -1,4 +1,3 @@
-import __future__
 import numpy as np
 
 
@@ -69,9 +68,7 @@ def map_square01_to_disk_concentric(
     # b>0: theta = pi/2 - (pi/4)*(a/b)
     # b<0: theta = 3pi/2 - (pi/4)*(a/b)
     theta2 = (np.pi / 2.0) - (np.pi / 4.0) * (a2 / b2)
-    theta[mask2] = np.where(
-        b2 > 0.0, theta2, (3.0 * np.pi / 2.0) - (np.pi / 4.0) * (a2 / b2)
-    )
+    theta[mask2] = np.where(b2 > 0.0, theta2, (3.0 * np.pi / 2.0) - (np.pi / 4.0) * (a2 / b2))
 
     # 単位円盤 -> 任意中心・半径へ
     x_new = cx + radius * r * np.cos(theta)

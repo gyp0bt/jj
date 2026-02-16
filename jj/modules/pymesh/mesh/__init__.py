@@ -1,5 +1,5 @@
 from io import StringIO
-from typing import Any, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -8,12 +8,19 @@ from ..read_inp import ABQData, read_inp
 from .grandpa import BaseGrandpaComponent
 from .mesh import Mesher
 
+__all__ = [
+    "ABQData",
+    "Mesher",
+    "concat",
+    "mesher",
+]
+
 
 def mesher(
-    inp_filepath: Optional[str | List[str]],
+    inp_filepath: str | list[str] | None,
     verbose: bool = True,
     timeit_cutoff: float | None = None,
-    cached_abq_data: Optional[Any] = None,
+    cached_abq_data: Any | None = None,
 ) -> Mesher:
     """Mesherインスタンスを生成する
 
@@ -28,7 +35,7 @@ def mesher(
         class DebugMesher(Mesher, metaclass=TimeitMeta): ...
 
         instance = DebugMesher()
-        setattr(instance, "timeit_cutoff", timeit_cutoff)
+        instance.timeit_cutoff = timeit_cutoff
     else:
         instance = Mesher()
 
@@ -39,13 +46,12 @@ def mesher(
     for mesh_data_i, key in zip(
         (mesh_data.nodes, mesh_data.elements, mesh_data.nsets, mesh_data.elsets),
         ("nodes_data", "elements_data", "nset_data", "elset_data"),
+        strict=False,
     ):
         granpa = getattr(instance, key)
         granpa: BaseGrandpaComponent
         for k, parent_data in mesh_data_i.items():
-            if key in ["nset_data", "elset_data"] and any(
-                [isinstance(i, str) for i in parent_data.data]
-            ):
+            if key in ["nset_data", "elset_data"] and any([isinstance(i, str) for i in parent_data.data]):
                 labels = []
                 for i in parent_data.data:
                     if isinstance(i, int):
@@ -60,9 +66,7 @@ def mesher(
                             labels += instance.elset_data.get_labels(name=i)
                 parent_data.data = labels
 
-            granpa[k] = granpa.parent_class.from_array(
-                arr=parent_data.data, options=parent_data.options
-            )
+            granpa[k] = granpa.parent_class.from_array(arr=parent_data.data, options=parent_data.options)
     for _, surface_component in mesh_data.surfaces.items():
         instance.additional_string += "*SURFACE"
         for k, v in surface_component.options.items():
@@ -70,7 +74,7 @@ def mesher(
         instance.additional_string += "\n"
         # print(surface_component.data)
         df = pd.DataFrame(surface_component.data)
-        df[list(df.columns)[0]] = " " + df[list(df.columns)[0]].astype(str)
+        df[next(iter(df.columns))] = " " + df[next(iter(df.columns))].astype(str)
         csv_buffer: StringIO = StringIO()
         df.to_csv(
             csv_buffer,
@@ -86,7 +90,7 @@ def mesher(
     return instance
 
 
-def concat(mesh_list: List[Mesher]) -> Mesher:
+def concat(mesh_list: list[Mesher]) -> Mesher:
     mesh = Mesher()
     for mesh_i in mesh_list:
         for parent in mesh_i.iter_all_parents():

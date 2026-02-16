@@ -1,12 +1,10 @@
 # pymesh/mesh/mesh_base/core.py
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import (
     Any,
-    Iterable,
-    Iterator,
     Literal,
-    Optional,
     TypeVar,
 )
 
@@ -73,7 +71,7 @@ class CoreMesher:
             self.nset_data,
             self.elset_data,
         ]:
-            for key in data.keys():
+            for key in data:
                 text += f"\t- {data.parent_class.__name__}({key})\n"
         return text
 
@@ -91,9 +89,7 @@ class CoreMesher:
             self.nodes_data[name] = nodes
         return self.nodes_data[name]
 
-    def register_nodes(
-        self, name: str, arr: NDArray | list[tuple[float, ...]], add: bool = False
-    ) -> Nodes:
+    def register_nodes(self, name: str, arr: NDArray | list[tuple[float, ...]], add: bool = False) -> Nodes:
         if add:
             return self.add_nodes(name=name, arr=arr)
         else:
@@ -101,16 +97,16 @@ class CoreMesher:
             self.nodes_data[name] = nodes
             return nodes
 
-    def get_nodes_list(self, name: Optional[str | list[str]] = None) -> list[Nodes]:
+    def get_nodes_list(self, name: str | list[str] | None = None) -> list[Nodes]:
         return self.nodes_data.get_parents_list(name=name)
 
-    def iter_nodes(self, name: Optional[str | list[str]] = None) -> Iterable[Node]:
+    def iter_nodes(self, name: str | list[str] | None = None) -> Iterable[Node]:
         return self.nodes_data.iter_children(name=name)
 
     def get_node(self, label: int) -> Node:
         return self.nodes_data.get_child(label=label)
 
-    def get_nodes(self, name: Optional[str | list[str]] = None) -> dict[int, Node]:
+    def get_nodes(self, name: str | list[str] | None = None) -> dict[int, Node]:
         return self.nodes_data.get_children(name=name)
 
     def get_nodes_keys(self) -> list[str]:
@@ -119,17 +115,13 @@ class CoreMesher:
     # ----------------------------------
     # Elements basic
     # ----------------------------------
-    def add_elements(
-        self, name: str, type: str, arr: NDArray | list[tuple[float, ...]]
-    ) -> Elements:
+    def add_elements(self, name: str, type: str, arr: NDArray | list[tuple[float, ...]]) -> Elements:
         elset_key = self.get_elset_key_from_elset_and_type(elset=name, type=type)
         if self.elements_data.isin(name=elset_key):
             self.elements_data[elset_key].append_array(arr=arr)
         else:
             if arr is not None:
-                elements = Elements.from_array(
-                    arr=arr, options=dict(elset=name, type=type)
-                )
+                elements = Elements.from_array(arr=arr, options=dict(elset=name, type=type))
             else:
                 elements = Elements(options=dict(elset=name, type=type))
             self.elements_data[elset_key] = elements
@@ -159,20 +151,14 @@ class CoreMesher:
             self.elements_data[name] = elements
             return elements
 
-    def get_element_list(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[Elements]:
+    def get_element_list(self, name: str | list[str] | None = None) -> list[Elements]:
         return self.elements_data.get_parents_list(name=name)
 
-    def iter_elements_with_nodes(
-        self, name: Optional[str | list[str]] = None
-    ) -> Iterable[Element]:
+    def iter_elements_with_nodes(self, name: str | list[str] | None = None) -> Iterable[Element]:
         for elements in self.elements_data.get_parents_list(name=name):
             for element in elements.iter_children():
                 element: Element
-                element.nodes_list = [
-                    self.get_node(label=i) for i in element.node_id_list
-                ]
+                element.nodes_list = [self.get_node(label=i) for i in element.node_id_list]
                 yield element
 
     def get_element(self, label: int, with_nodes: bool = False) -> Element:
@@ -183,13 +169,11 @@ class CoreMesher:
 
         return element
 
-    def get_elements(
-        self, name: Optional[str | list[str]] = None
-    ) -> dict[int, Element]:
+    def get_elements(self, name: str | list[str] | None = None) -> dict[int, Element]:
         return self.elements_data.get_children(name=name)
 
     def get_elements_dict(
-        self, mode: Literal["type", "num_nodes"], name: Optional[str | list[str]] = None
+        self, mode: Literal["type", "num_nodes"], name: str | list[str] | None = None
     ) -> dict[str | int, list[Elements]]:
         """
         Elementsの辞書を取得
@@ -232,10 +216,10 @@ class CoreMesher:
             self.nset_data[name] = nset
             return nset
 
-    def get_nset_list(self, name: Optional[str | list[str]] = None) -> list[Nset]:
+    def get_nset_list(self, name: str | list[str] | None = None) -> list[Nset]:
         return self.nset_data.get_parents_list(name=name)
 
-    def iter_nset(self, name: Optional[str | list[str]] = None) -> Iterable[Node]:
+    def iter_nset(self, name: str | list[str] | None = None) -> Iterable[Node]:
         return self.nset_data.iter_children(name=name)
 
     def get_nset_keys(self) -> list[str]:
@@ -260,10 +244,10 @@ class CoreMesher:
             self.elset_data[name] = elset_data
             return elset_data
 
-    def get_elset_list(self, name: Optional[str | list[str]] = None) -> list[Elset]:
+    def get_elset_list(self, name: str | list[str] | None = None) -> list[Elset]:
         return self.elset_data.get_parents_list(name=name)
 
-    def iter_elset(self, name: Optional[str | list[str]] = None) -> Iterable[Element]:
+    def iter_elset(self, name: str | list[str] | None = None) -> Iterable[Element]:
         return self.elset_data.iter_children(name=name)
 
     def get_elset_keys(self) -> list[str]:
@@ -272,26 +256,20 @@ class CoreMesher:
     # ----------------------------------
     # get_node_labels
     # ----------------------------------
-    def get_node_labels(self, name: Optional[str | list[str]] = None) -> list[int]:
+    def get_node_labels(self, name: str | list[str] | None = None) -> list[int]:
         return self.nodes_data.get_labels(name=name)
 
-    def get_node_labels_with_nset(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[int]:
+    def get_node_labels_with_nset(self, name: str | list[str] | None = None) -> list[int]:
         return self.nset_data.get_labels(name=name)
 
-    def get_node_labels_with_elements(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[int]:
+    def get_node_labels_with_elements(self, name: str | list[str] | None = None) -> list[int]:
         node_label_set = set()
         elements_list = self.elements_data.get_parents_list(name=name)
         for elements_i in elements_list:
             node_label_set.update(elements_i.data[:, 1:].flatten().tolist())
         return list(node_label_set)
 
-    def get_node_labels_with_elset(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[int]:
+    def get_node_labels_with_elset(self, name: str | list[str] | None = None) -> list[int]:
         elset_labels_set = set()
         elset_list = self.elset_data.get_parents_list(name=name)
         for elset_i in elset_list:
@@ -301,24 +279,18 @@ class CoreMesher:
         node_label_set = set()
         elements_list = self.elements_data.get_parents_list()
         for elements_i in elements_list:
-            node_labels_i = (
-                elements_i.data[np.isin(elements_i.data[:, 0], elset_labels)][:, 1:]
-                .flatten()
-                .tolist()
-            )
+            node_labels_i = elements_i.data[np.isin(elements_i.data[:, 0], elset_labels)][:, 1:].flatten().tolist()
             node_label_set.update(node_labels_i)
         return list(node_label_set)
 
     def get_node_labels_with_element_labels(self, labels: list[int]) -> list[int]:
-        elements = self.get_element_array_with_labels(
-            labels=labels, allow_polymorphism=True, invalid_node=0
-        )
+        elements = self.get_element_array_with_labels(labels=labels, allow_polymorphism=True, invalid_node=0)
         node_label_list = list(set(elements[:, 1:].flatten().tolist()))
         node_label_list = [i for i in node_label_list if i != 0]
         return node_label_list
 
     def get_node_label_mapping_with_array(
-        self, name: Optional[str | list[str]] = None
+        self, name: str | list[str] | None = None
     ) -> tuple[dict[int, int], NodeCoordArray]:
         node_coord_arr = self.get_node_coord_array(name=name)
         if node_coord_arr is None:
@@ -333,7 +305,7 @@ class CoreMesher:
     def update_node_label_with_dict(
         self,
         node_label_mapping: dict[int, int],
-        updated_elements_name: Optional[str | list[str]] = None,
+        updated_elements_name: str | list[str] | None = None,
         skip_nodes: bool = False,
         skip_nset: bool = False,
         skip_elements: bool = False,
@@ -343,9 +315,7 @@ class CoreMesher:
                 if nodes.data is None:
                     continue
 
-                nodes.data["label"] = np.array(
-                    [node_label_mapping.get(i, i) for i in nodes.data["label"]]
-                )
+                nodes.data["label"] = np.array([node_label_mapping.get(i, i) for i in nodes.data["label"]])
 
         if not skip_nset:
             for nset in self.nset_data.values():
@@ -356,29 +326,20 @@ class CoreMesher:
                 nset.data = np.array(data)
 
         if not skip_elements:
-            for elements in self.elements_data.get_parents_list(
-                name=updated_elements_name
-            ):
+            for elements in self.elements_data.get_parents_list(name=updated_elements_name):
                 if is_empty_array(elements.data):
                     continue
 
                 elements.data[:, 1:] = np.array(
-                    [
-                        [node_label_mapping.get(i, i) for i in row]
-                        for row in elements.data[:, 1:]
-                    ]
+                    [[node_label_mapping.get(i, i) for i in row] for row in elements.data[:, 1:]]
                 )
 
     def update_element_label_with_dict(self, element_label_mapping: dict[int, int]):
         for elements in self.elements_data.values():
             labels = elements.data[:, 0]
             unique_labels = np.unique(labels)
-            valid_labels = cut_dup_numbers(
-                unique_labels, list(element_label_mapping.keys())
-            )
-            label_indices = {
-                label: np.where(labels == label)[0] for label in valid_labels
-            }
+            valid_labels = cut_dup_numbers(unique_labels, list(element_label_mapping.keys()))
+            label_indices = {label: np.where(labels == label)[0] for label in valid_labels}
             for label, indices in label_indices.items():
                 elements.data[:, 0][indices] = element_label_mapping[label]
 
@@ -390,15 +351,11 @@ class CoreMesher:
 
     def update_node_and_element_labels(self, init_labels: tuple[int, int] = (1, 1)):
         node_labels = self.get_node_labels()
-        node_label_mapping = {
-            ii: i + init_labels[0] for i, ii in enumerate(node_labels)
-        }
+        node_label_mapping = {ii: i + init_labels[0] for i, ii in enumerate(node_labels)}
         self.update_node_label_with_dict(node_label_mapping=node_label_mapping)
 
         element_labels = self.get_element_labels()
-        element_label_mapping = {
-            ii: i + init_labels[1] for i, ii in enumerate(element_labels)
-        }
+        element_label_mapping = {ii: i + init_labels[1] for i, ii in enumerate(element_labels)}
         self.update_element_label_with_dict(element_label_mapping=element_label_mapping)
 
     def renumber(self, init_labels: tuple[int, int] = (1, 1)):
@@ -407,33 +364,23 @@ class CoreMesher:
     # ----------------------------------
     # get_node_coord
     # ----------------------------------
-    def get_node_coord(
-        self, name: Optional[str | list[str]] = None
-    ) -> dict[int, np.ndarray]:
+    def get_node_coord(self, name: str | list[str] | None = None) -> dict[int, np.ndarray]:
         node_labels = self.get_node_labels(name=name)
         return self.get_node_coord_with_node_labels(node_labels=node_labels)
 
-    def get_node_coord_with_nset(
-        self, name: Optional[str | list[str]] = None
-    ) -> dict[int, np.ndarray]:
+    def get_node_coord_with_nset(self, name: str | list[str] | None = None) -> dict[int, np.ndarray]:
         node_labels = self.nset_data.get_labels(name=name)
         return self.get_node_coord_with_node_labels(node_labels=node_labels)
 
-    def get_node_coord_with_elements(
-        self, name: Optional[str | list[str]] = None
-    ) -> dict[int, np.ndarray]:
+    def get_node_coord_with_elements(self, name: str | list[str] | None = None) -> dict[int, np.ndarray]:
         node_labels = self.get_node_labels_with_elements(name=name)
         return self.get_node_coord_with_node_labels(node_labels=node_labels)
 
-    def get_node_coord_with_elset(
-        self, name: Optional[str | list[str]] = None
-    ) -> dict[int, np.ndarray]:
+    def get_node_coord_with_elset(self, name: str | list[str] | None = None) -> dict[int, np.ndarray]:
         node_labels = self.get_node_labels_with_elset(name=name)
         return self.get_node_coord_with_node_labels(node_labels=node_labels)
 
-    def get_node_coord_with_node_labels(
-        self, node_labels: list[int]
-    ) -> dict[int, np.ndarray]:
+    def get_node_coord_with_node_labels(self, node_labels: list[int]) -> dict[int, np.ndarray]:
         node_label_mapping, node_coord_arr = self.get_node_label_mapping_with_array()
         node_coord = {
             i: np.array(
@@ -447,23 +394,16 @@ class CoreMesher:
         }
         return node_coord
 
-    def get_node_coord_with_element_labels(
-        self, labels: list[int]
-    ) -> dict[int, np.ndarray]:
+    def get_node_coord_with_element_labels(self, labels: list[int]) -> dict[int, np.ndarray]:
         node_coord_array = self.get_node_coord_array_with_element_labels(labels=labels)
-        node_coord = {
-            int(i["label"]): np.array((i["x"], i["y"], i["z"]))
-            for i in node_coord_array
-        }
+        node_coord = {int(i["label"]): np.array((i["x"], i["y"], i["z"])) for i in node_coord_array}
         return node_coord
 
     # ----------------------------------
     # get_node_coord_array
     # ----------------------------------
 
-    def get_node_coord_array(
-        self, name: Optional[str | list[str]] = None
-    ) -> NodeCoordArray:
+    def get_node_coord_array(self, name: str | list[str] | None = None) -> NodeCoordArray:
         return self.nodes_data.get_array(name=name)
 
     def get_node_coord_array_with_labels(self, labels: list[int]) -> NodeCoordArray:
@@ -471,9 +411,7 @@ class CoreMesher:
         node_index = [node_label_mapping[i] for i in labels]
         return node_coord_arr[node_index]
 
-    def get_node_coord_array_with_element_labels(
-        self, labels: list[int]
-    ) -> NodeCoordArray:
+    def get_node_coord_array_with_element_labels(self, labels: list[int]) -> NodeCoordArray:
         node_label_mapping, node_coord_arr = self.get_node_label_mapping_with_array()
         node_labels = self.get_node_labels_with_element_labels(labels=labels)
         node_labels = [i for i in node_labels if i != 0]
@@ -485,9 +423,7 @@ class CoreMesher:
         node_coord_arr = node_coord_arr[unique_idx]
         return node_coord_arr
 
-    def get_node_coord_array_with_elements(
-        self, name: Optional[str | list[str]]
-    ) -> NodeCoordArray:
+    def get_node_coord_array_with_elements(self, name: str | list[str] | None) -> NodeCoordArray:
         node_label_mapping, node_coord_arr = self.get_node_label_mapping_with_array()
         node_labels = self.get_node_labels_with_elements(name=name)
 
@@ -499,9 +435,7 @@ class CoreMesher:
 
         return node_coord_arr
 
-    def get_node_coord_array_with_elset(
-        self, name: Optional[str | list[str]]
-    ) -> NodeCoordArray:
+    def get_node_coord_array_with_elset(self, name: str | list[str] | None) -> NodeCoordArray:
         node_label_mapping, node_coord_arr = self.get_node_label_mapping_with_array()
         node_labels = self.get_node_labels_with_elset(name=name)
         node_index = [node_label_mapping[i] for i in node_labels]
@@ -512,9 +446,7 @@ class CoreMesher:
 
         return node_coord_arr
 
-    def get_node_coord_array_with_nset(
-        self, name: Optional[str | list[str]] = None
-    ) -> NodeCoordArray:
+    def get_node_coord_array_with_nset(self, name: str | list[str] | None = None) -> NodeCoordArray:
         node_coord_arr = self.get_node_coord_array()
         node_labels = self.get_node_labels_with_nset(name=name)
         node_index = np.isin(node_coord_arr["label"], node_labels)
@@ -526,7 +458,7 @@ class CoreMesher:
         return node_coord_arr
 
     def get_node_coord_array_dict_with_elset(
-        self, name: Optional[str | list[str]] = None
+        self, name: str | list[str] | None = None
     ) -> dict[int, NDArray[np.float32]]:
         element_array = self.elset_data.get_array(name=name)
         if element_array is None:
@@ -534,9 +466,7 @@ class CoreMesher:
         element_array = element_array.tolist()
         element_array_dict = self.get_element_array_dict(mode="num_nodes")
 
-        new_element_array_dict = {
-            k: v[np.isin(v[:, 0], element_array)] for k, v in element_array_dict.items()
-        }
+        new_element_array_dict = {k: v[np.isin(v[:, 0], element_array)] for k, v in element_array_dict.items()}
         node_coord = self.get_node_coord_with_elset(name=name)
 
         element_node_coord_array_dict = {}
@@ -563,9 +493,7 @@ class CoreMesher:
     # ----------------------------------
     # get_node_coord_matrix
     # ----------------------------------
-    def get_node_coord_matrix(
-        self, name: Optional[str | list[str]] = None
-    ) -> np.ndarray:
+    def get_node_coord_matrix(self, name: str | list[str] | None = None) -> np.ndarray:
         arr = self.nodes_data.get_array(name=name)
         matrix = np.array([arr["label"], arr["x"], arr["y"], arr["z"]]).T
         return matrix
@@ -590,9 +518,7 @@ class CoreMesher:
         arr = self.get_node_coord_matrix_with_labels(labels=labels)
         return arr
 
-    def get_node_coord_matrix_with_element_labels(
-        self, labels: list[int]
-    ) -> np.ndarray:
+    def get_node_coord_matrix_with_element_labels(self, labels: list[int]) -> np.ndarray:
         labels = self.get_node_labels_with_element_labels(labels=labels)
         arr = self.get_node_coord_matrix_with_labels(labels=labels)
         return arr
@@ -600,9 +526,7 @@ class CoreMesher:
     # ----------------------------------
     # get_element_coord_matrix
     # ----------------------------------
-    def get_element_coord_matrix(
-        self, name: Optional[str | list[str]] = None
-    ) -> np.ndarray:
+    def get_element_coord_matrix(self, name: str | list[str] | None = None) -> np.ndarray:
         node_coord_arr = self.get_node_coord_matrix()
         if node_coord_arr is None:
             raise ValueError("nodeデータが不正")
@@ -621,9 +545,7 @@ class CoreMesher:
                 new_arr_i = np.array([node_label_mapping[j] for j in arr_i[1:]])
                 new_element_arr_i[i, 1:] = new_arr_i
 
-            element_coord_arr_i = node_coord_arr[:, 1:][new_element_arr_i[:, 1:]].mean(
-                axis=1
-            )
+            element_coord_arr_i = node_coord_arr[:, 1:][new_element_arr_i[:, 1:]].mean(axis=1)
 
             element_coord_arr_with_label_i = np.zeros((element_coord_arr_i.shape[0], 4))
             element_coord_arr_with_label_i[:, 0] = element_arr_i[:, 0]
@@ -652,9 +574,7 @@ class CoreMesher:
         arr = arr[np.isin(arr[:, 0], labels)]
         return arr
 
-    def get_element_coord_matrix_with_node_labels(
-        self, labels: list[int]
-    ) -> np.ndarray:
+    def get_element_coord_matrix_with_node_labels(self, labels: list[int]) -> np.ndarray:
         labels = self.get_element_labels_with_node_labels(labels)
         arr = self.get_element_coord_matrix_with_labels(labels=labels)
         return arr
@@ -674,9 +594,7 @@ class CoreMesher:
     # ----------------------------------
     def update_node_coord(self, node_coord: dict[int, np.ndarray]):
         data = [[k, v[0], v[1], v[2]] for k, v in node_coord.items()]
-        node_coord_array = np.array(
-            [tuple(i) for i in data], dtype=node_coord_array_dtype
-        )
+        node_coord_array = np.array([tuple(i) for i in data], dtype=node_coord_array_dtype)
         self.update_node_coord_with_array(node_coord_array)
 
     def update_node_coord_with_array(self, node_coord_array: NodeCoordArray):
@@ -687,37 +605,33 @@ class CoreMesher:
             sort_org_indices = np.argsort(node_coord_array_i["label"])
             sort_new_indices = np.argsort(node_coord_array["label"])
 
-            common_labels, org_match_indices, new_match_indices = np.intersect1d(
+            _common_labels, org_match_indices, new_match_indices = np.intersect1d(
                 node_coord_array_i["label"][sort_org_indices],
                 node_coord_array["label"][sort_new_indices],
                 return_indices=True,
             )
 
             for axis in ["x", "y", "z"]:
-                node_coord_array_i[axis][sort_org_indices[org_match_indices]] = (
-                    node_coord_array[axis][sort_new_indices[new_match_indices]]
-                )
+                node_coord_array_i[axis][sort_org_indices[org_match_indices]] = node_coord_array[axis][
+                    sort_new_indices[new_match_indices]
+                ]
             nodes_i.data = node_coord_array_i
 
     # ----------------------------------
     # get_element_labels
     # ----------------------------------
-    def get_element_labels_with_nodes(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[int]:
+    def get_element_labels_with_nodes(self, name: str | list[str] | None = None) -> list[int]:
         node_labels = self.get_node_labels(name)
         elem_labels = self.get_element_labels_with_node_labels(node_labels)
         return elem_labels
 
-    def get_element_labels_with_nset(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[int]:
+    def get_element_labels_with_nset(self, name: str | list[str] | None = None) -> list[int]:
         node_labels = self.get_node_labels_with_nset(name)
         elem_labels = self.get_element_labels_with_node_labels(node_labels)
         return elem_labels
 
     def get_element_labels_with_node_labels(
-        self, node_labels: list[int], name: Optional[str | list[str]] = None
+        self, node_labels: list[int], name: str | list[str] | None = None
     ) -> list[int] | None:
         element_data_arr = self.get_element_array(name=name)
         if element_data_arr is None:
@@ -728,12 +642,10 @@ class CoreMesher:
             mask |= np.isin(element_data_arr[:, col], node_labels)
         return [int(i) for i in element_data_arr[mask][:, 0]]
 
-    def get_element_labels_with_elset(
-        self, name: Optional[str | list[str]] = None
-    ) -> list[int]:
+    def get_element_labels_with_elset(self, name: str | list[str] | None = None) -> list[int]:
         return self.elset_data.get_labels(name=name)
 
-    def get_element_labels(self, name: Optional[str | list[str]] = None) -> list[int]:
+    def get_element_labels(self, name: str | list[str] | None = None) -> list[int]:
         """
         要素ラベルを取得
 
@@ -742,7 +654,7 @@ class CoreMesher:
         """
         elements_dict = self.get_element_array_dict(mode="num_nodes", name=name)
         labels = []
-        for key, elements_array_i in elements_dict.items():
+        for _key, elements_array_i in elements_dict.items():
             if not is_empty_array(elements_array_i):
                 labels += elements_array_i[:, 0].tolist()
         return labels
@@ -753,7 +665,7 @@ class CoreMesher:
 
     def get_element_array(
         self,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         allow_polymorphism: bool = True,
         invalid_node: int = 0,
     ) -> NDArray:
@@ -785,14 +697,8 @@ class CoreMesher:
             if not idx.any():
                 continue
 
-            if (
-                hit_num_nodes
-                and (num_nodes != hit_num_nodes[0])
-                and (not allow_polymorphism)
-            ):
-                raise UserWarning(
-                    f"異なる節点数を持つ要素を同時に取得できません ({hit_num_nodes[0]}, {num_nodes})"
-                )
+            if hit_num_nodes and (num_nodes != hit_num_nodes[0]) and (not allow_polymorphism):
+                raise UserWarning(f"異なる節点数を持つ要素を同時に取得できません ({hit_num_nodes[0]}, {num_nodes})")
 
             picked.append(arr[idx])  # ここで “上書き” じゃなく “蓄積”
             hit_num_nodes.append(num_nodes)
@@ -810,7 +716,7 @@ class CoreMesher:
 
     def get_element_array_with_elset(
         self,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
         allow_polymorphism: bool = True,
         invalid_node: int = 0,
     ) -> NDArray:
@@ -824,7 +730,7 @@ class CoreMesher:
     def get_element_array_dict(
         self,
         mode: Literal["type", "num_nodes"],
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
     ) -> dict[str | int, NDArray]:
         """
         要素配列の辞書を取得
@@ -851,9 +757,7 @@ class CoreMesher:
     # ----------------------------------
     # drop_element_coord
     # ----------------------------------
-    def get_element_coord(
-        self, name: Optional[str | list[str]]
-    ) -> dict[int, np.ndarray | tuple[float, float, float]]:
+    def get_element_coord(self, name: str | list[str] | None) -> dict[int, np.ndarray | tuple[float, float, float]]:
         element_coord_arr = self.get_element_coord_array(name=name)
         if element_coord_arr is None:
             raise ValueError(f"element({name})データが不正 {self.get_elements_keys()}")
@@ -867,9 +771,7 @@ class CoreMesher:
     # get_element_coord_array
     # ----------------------------------
 
-    def get_element_coord_array_with_elset(
-        self, name: Optional[str | list[str]]
-    ) -> NodeCoordArray:
+    def get_element_coord_array_with_elset(self, name: str | list[str] | None) -> NodeCoordArray:
         elset_list = self.elset_data.get_parents_list(name=name)
         labels = set()
         for elset in elset_list:
@@ -881,14 +783,10 @@ class CoreMesher:
         elements_coord_array = self.get_element_coord_array()
         if elements_coord_array is None:
             raise ValueError("elementデータが不正")
-        elements_coord_array = elements_coord_array[
-            np.isin(elements_coord_array["label"], labels)
-        ]
+        elements_coord_array = elements_coord_array[np.isin(elements_coord_array["label"], labels)]
         return elements_coord_array
 
-    def get_element_coord_array(
-        self, name: Optional[str | list[str]] = None
-    ) -> NodeCoordArray:
+    def get_element_coord_array(self, name: str | list[str] | None = None) -> NodeCoordArray:
         """
         節点座標から要素重心座標配列を取得
 
@@ -900,9 +798,7 @@ class CoreMesher:
         if node_coord_arr is None:
             raise ValueError("nodeデータが不正")
         node_label_mapping = {ii["label"]: i for i, ii in enumerate(node_coord_arr)}
-        node_coord_arr = np.column_stack(
-            (node_coord_arr["x"], node_coord_arr["y"], node_coord_arr["z"])
-        )
+        node_coord_arr = np.column_stack((node_coord_arr["x"], node_coord_arr["y"], node_coord_arr["z"]))
         element_array_dict = self.get_element_array_dict(mode="num_nodes")
         element_labels = self.get_element_labels(name=name)
         element_coord_arr_with_label = None
@@ -969,7 +865,7 @@ class CoreMesher:
 
     def get_element_node_coord_array(
         self,
-        name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
     ) -> NDArray[np.float32]:
         """要素ごとの節点座標配列を返す.
 
@@ -983,18 +879,12 @@ class CoreMesher:
                 allow_polymorphism=False,
             )
         except Exception as e:
-            raise UserWarning(
-                "Warning! 節点数の異なる要素を同時に取得はできません"
-            ) from e
+            raise UserWarning("Warning! 節点数の異なる要素を同時に取得はできません") from e
         node_coord = self.get_node_coord_with_elements(name=name)
 
-        return self._get_element_node_coord_array(
-            element_array=element_array, node_coord=node_coord
-        )
+        return self._get_element_node_coord_array(element_array=element_array, node_coord=node_coord)
 
-    def get_element_node_coord_array_with_labels(
-        self, labels: list[int]
-    ) -> NDArray[np.float32]:
+    def get_element_node_coord_array_with_labels(self, labels: list[int]) -> NDArray[np.float32]:
         """要素ごとの節点座標配列を返す.
 
         Args:
@@ -1010,9 +900,7 @@ class CoreMesher:
             raise UserWarning("節点数の異なる要素を同時に取得はできません") from e
         node_coord = self.get_node_coord_with_element_labels(labels=labels)
 
-        return self._get_element_node_coord_array(
-            element_array=element_array, node_coord=node_coord
-        )
+        return self._get_element_node_coord_array(element_array=element_array, node_coord=node_coord)
 
     # ----------------------------------
     # etc
@@ -1058,9 +946,7 @@ class CoreMesher:
 
     def set_element_fields(self, fields: dict[str, dict[str | int, float]]):
         for key, field in fields.items():
-            self.elements_data.fields[key] = ElementField(
-                name=key, field_scalars={int(k): v for k, v in field.items()}
-            )
+            self.elements_data.fields[key] = ElementField(name=key, field_scalars={int(k): v for k, v in field.items()})
 
     # ----------------------------------
     # drop_nodes
@@ -1083,8 +969,8 @@ class CoreMesher:
 
     def drop_nodes_with_name(
         self,
-        name: Optional[str | list[str]] = None,
-        except_name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
+        except_name: str | list[str] | None = None,
     ):
         self.nodes_data.drop_names(name=name, except_name=except_name)
 
@@ -1142,8 +1028,8 @@ class CoreMesher:
 
     def drop_elements_with_name(
         self,
-        name: Optional[str | list[str]] = None,
-        except_name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
+        except_name: str | list[str] | None = None,
         drop_unreferenced_nodes: bool = False,
     ):
         self.elements_data.drop_names(name=name, except_name=except_name)
@@ -1164,15 +1050,15 @@ class CoreMesher:
 
     def drop_elset_with_name(
         self,
-        name: Optional[str | list[str]] = None,
-        except_name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
+        except_name: str | list[str] | None = None,
     ):
         self.elset_data.drop_names(name=name, except_name=except_name)
 
     def drop_nset_with_name(
         self,
-        name: Optional[str | list[str]] = None,
-        except_name: Optional[str | list[str]] = None,
+        name: str | list[str] | None = None,
+        except_name: str | list[str] | None = None,
     ):
         self.nset_data.drop_names(name=name, except_name=except_name)
 
@@ -1227,9 +1113,7 @@ class CoreMesher:
             else:
                 child.data += increment
 
-    def drop_duplicated_elements(
-        self, name: Optional[str | list[str]] | None = None
-    ) -> None:
+    def drop_duplicated_elements(self, name: str | list[str] | None | None = None) -> None:
         """ノード構成が順不同で一致する要素を重複とみなし削除する.
 
         0列目をラベル、1列目以降を接続ノードとする要素配列を仮定。
@@ -1243,7 +1127,7 @@ class CoreMesher:
 
         dup_elem_labels: list[int] = []
 
-        for num_nodes, elements_list in elements_dict.items():
+        for _num_nodes, elements_list in elements_dict.items():
             if not elements_list:
                 continue
 
@@ -1263,7 +1147,7 @@ class CoreMesher:
             # idx_first: 各グループの「最初に出現した」行インデックス
             # inverse: 各行がどのグループに属するか (0..G-1)
             # counts: 各グループの要素数
-            keys, idx_first, inverse, counts = np.unique(
+            _keys, idx_first, inverse, counts = np.unique(
                 conn_sorted,
                 axis=0,
                 return_index=True,
@@ -1288,9 +1172,7 @@ class CoreMesher:
         node_data_array = self.get_node_coord_array()
         if node_data_array is None:
             raise ValueError("節点データが不正")
-        points = np.array(
-            [node_data_array["x"], node_data_array["y"], node_data_array["z"]]
-        ).T
+        points = np.array([node_data_array["x"], node_data_array["y"], node_data_array["z"]]).T
         tree = KDTree(points)
 
         to_remove = set()
@@ -1303,9 +1185,7 @@ class CoreMesher:
             for neighbor in neighbors:
                 if neighbor > i:
                     to_remove.add(node_data_array["label"][neighbor])
-                    node_label_mapping[node_data_array["label"][neighbor]] = (
-                        node_data_array["label"][i]
-                    )
+                    node_label_mapping[node_data_array["label"][neighbor]] = node_data_array["label"][i]
 
         self.update_node_label_with_dict(node_label_mapping=node_label_mapping)
         self.nodes_data.drop_labels(labels=list(to_remove))
@@ -1319,7 +1199,7 @@ class CoreMesher:
             labels = nodes.data["label"]
 
             # np.uniqueでラベルの一意な値とその最初の出現インデックスを取得
-            unique_labels, unique_indices = np.unique(labels, return_index=True)
+            _unique_labels, unique_indices = np.unique(labels, return_index=True)
 
             # 一意なインデックスに対応する行を取得
             nodes.data = nodes.data[np.sort(unique_indices)]
@@ -1357,32 +1237,28 @@ class CoreMesher:
         n_each_area: int | list[int] = 10,
         n_area: int = 3,
         axis: Literal["x", "y", "z"] = "z",
-        elset_key: Optional[str | list[str]] = None,
+        elset_key: str | list[str] | None = None,
         front_is_negative_side: bool = False,
         set_symmetory: bool = False,
-        exclude_front_nodes_for_symmetory_set: Optional[bool | list[bool]] = None,
-        efn: bool | list[bool] = [False],
+        exclude_front_nodes_for_symmetory_set: bool | list[bool] | None = None,
+        efn: bool | list[bool] | None = None,
     ):
+        if efn is None:
+            efn = [False]
         if isinstance(n_each_area, int):
             n_each_area = [n_each_area for _ in range(n_area)]
 
         if len(n_each_area) != n_area:
-            raise ValueError(
-                f"n_area must be equal to len(n_each_area), not '{n_area}' and '{n_each_area}'"
-            )
+            raise ValueError(f"n_area must be equal to len(n_each_area), not '{n_area}' and '{n_each_area}'")
 
         if exclude_front_nodes_for_symmetory_set is None:
             exclude_front_nodes_for_symmetory_set = efn
 
         if not isinstance(exclude_front_nodes_for_symmetory_set, list):
-            exclude_front_nodes_for_symmetory_set = [
-                exclude_front_nodes_for_symmetory_set for i in range(n_area)
-            ]
+            exclude_front_nodes_for_symmetory_set = [exclude_front_nodes_for_symmetory_set for i in range(n_area)]
 
         if len(exclude_front_nodes_for_symmetory_set) != n_area:
-            exclude_front_nodes_for_symmetory_set = [
-                exclude_front_nodes_for_symmetory_set[0] for i in range(n_area)
-            ]
+            exclude_front_nodes_for_symmetory_set = [exclude_front_nodes_for_symmetory_set[0] for i in range(n_area)]
 
         done_node = set()
         done_elem = set()
@@ -1436,9 +1312,7 @@ class CoreMesher:
             self.register_nset(name=f"gfront{i + 1}", arr=list(done_node_i), add=False)
             self.register_elset(name=f"gfront{i + 1}", arr=list(done_elem_i), add=False)
 
-        element_labels = np.setdiff1d(
-            np.array(list(org_element_labels)), np.array(list(done_elem))
-        ).tolist()
+        element_labels = np.setdiff1d(np.array(list(org_element_labels)), np.array(list(done_elem))).tolist()
         self.elset_data.drop_names("gmain")
         self.add_elset("gmain", arr=element_labels)
 
@@ -1448,16 +1322,16 @@ class CoreMesher:
             else:
                 exclude_node_labels = []
 
-            self.set_symmetory(
-                tol=tol, elset_key=elset_key, excluded_node_labels=exclude_node_labels
-            )
+            self.set_symmetory(tol=tol, elset_key=elset_key, excluded_node_labels=exclude_node_labels)
 
     def set_symmetory(
         self,
         tol: float = 1.0e-3,
-        elset_key: Optional[str | list[str]] = None,
-        excluded_node_labels: list[int] = [],
+        elset_key: str | list[str] | None = None,
+        excluded_node_labels: list[int] | None = None,
     ):
+        if excluded_node_labels is None:
+            excluded_node_labels = []
         node_coord_array = self.get_node_coord_array_with_elements(name=elset_key)
         elem_array_dict = self.get_element_array_dict(mode="num_nodes", name=elset_key)
 
@@ -1539,11 +1413,11 @@ class CoreMesher:
         axis: Literal["x", "y", "z"] = "z",
         n_iter: int = 1,
         ismin: bool = False,
-        done_node: Optional[set] = None,
-        done_elem: Optional[set] = None,
-        elset_key: Optional[str | list[str]] = None,
-        node_coord_array: Optional[NodeCoordArray] = None,
-        elem_array_dict: Optional[dict[str | int, NDArray]] = None,
+        done_node: set | None = None,
+        done_elem: set | None = None,
+        elset_key: str | list[str] | None = None,
+        node_coord_array: NodeCoordArray | None = None,
+        elem_array_dict: dict[str | int, NDArray] | None = None,
     ) -> tuple[list[int], list[int], NodeCoordArray, dict[str, NDArray]]:
         if done_node is None:
             done_node = set()
@@ -1560,22 +1434,17 @@ class CoreMesher:
         else:
             node_coord_array = node_coord_array.copy()
         if elem_array_dict is None:
-            elem_array_dict = self.get_element_array_dict(
-                mode="num_nodes", name=elset_key
-            )
+            elem_array_dict = self.get_element_array_dict(mode="num_nodes", name=elset_key)
         else:
             elem_array_dict = {k: v.copy() for k, v in elem_array_dict.items()}
 
         done_node = done_node.copy()
         done_elem = done_elem.copy()
 
-        for i in range(n_iter):
-            node_coord_array = node_coord_array[
-                ~np.isin(node_coord_array["label"], list(done_node))
-            ]
+        for _i in range(n_iter):
+            node_coord_array = node_coord_array[~np.isin(node_coord_array["label"], list(done_node))]
             elem_array_dict = {
-                k: elem_arr[~np.isin(elem_arr[:, 0], list(done_elem))]
-                for k, elem_arr in elem_array_dict.items()
+                k: elem_arr[~np.isin(elem_arr[:, 0], list(done_elem))] for k, elem_arr in elem_array_dict.items()
             }
 
             if len(node_coord_array) == 0:
@@ -1586,14 +1455,10 @@ class CoreMesher:
             else:
                 v = node_coord_array[axis].max()
 
-            node_labels_i = node_coord_array[np.abs(node_coord_array[axis] - v) < tol][
-                "label"
-            ].tolist()
+            node_labels_i = node_coord_array[np.abs(node_coord_array[axis] - v) < tol]["label"].tolist()
             elem_labels_i = []
             for elem_arr in elem_array_dict.values():
-                elem_labels_i += elem_arr[
-                    np.any(np.isin(elem_arr[:, 1:], node_labels_i), axis=1)
-                ][:, 0].tolist()
+                elem_labels_i += elem_arr[np.any(np.isin(elem_arr[:, 1:], node_labels_i), axis=1)][:, 0].tolist()
 
             done_node.update(node_labels_i)
             done_elem.update(elem_labels_i)

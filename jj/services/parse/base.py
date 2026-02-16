@@ -25,10 +25,11 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, Iterable, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -92,9 +93,7 @@ class FileType(Enum):
 TFileParse = TypeVar("TFileParse", bound="FileNameParser")
 
 
-def _match_extension(
-    filename: str, extension_candidates: Iterable[str] | None = None
-) -> str:
+def _match_extension(filename: str, extension_candidates: Iterable[str] | None = None) -> str:
     candidates = tuple(extension_candidates or DEFAULT_EXTENSIONS)
     lower_name = filename.lower()
     for ext in sorted(candidates, key=len, reverse=True):
@@ -303,23 +302,17 @@ class FileNameParser:
             return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
         return ""
 
-    def get_file_group(
-        self, candidates: Iterable[str | Path] | None = None
-    ) -> FileGroup["FileNameParser"]:
+    def get_file_group(self, candidates: Iterable[str | Path] | None = None) -> FileGroup[FileNameParser]:
         file_type = self.get_file_type()
         index = self.get_index()
         targets = list(candidates) if candidates is not None else [self.true_file_path]
         items: list[FileNameParser] = []
         for candidate in targets:
-            parser = FileNameParser(
-                candidate, extension_candidates=self.extension_candidates
-            )
+            parser = FileNameParser(candidate, extension_candidates=self.extension_candidates)
             if parser.get_file_type() == file_type and parser.get_index() == index:
                 items.append(parser)
         if self.true_file_path not in targets:
-            parser = FileNameParser(
-                self.true_file_path, extension_candidates=self.extension_candidates
-            )
+            parser = FileNameParser(self.true_file_path, extension_candidates=self.extension_candidates)
             if parser.get_file_type() == file_type and parser.get_index() == index:
                 items.append(parser)
         return FileGroup(tuple(items), file_type=file_type, index=index)

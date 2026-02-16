@@ -1,20 +1,18 @@
-from typing import Dict, Optional, Any, List, Tuple, Literal, Callable
-import numpy as np
-from collections import defaultdict
-from ..mesh import mesher, Mesher
+from typing import Literal
 
-from typing import Dict, Literal
 import numpy as np
 from scipy.spatial import KDTree
+
+from ..mesh import Mesher
 
 
 def get_space_averaged_field_value(
     mesh: "Mesher",
-    field: Dict[int, np.ndarray],
+    field: dict[int, np.ndarray],
     r: float,
-    name: Optional[str | List[str]] = None,
+    name: str | list[str] | None = None,
     mode: Literal["elem", "node"] = "elem",
-) -> Dict[int, np.ndarray]:
+) -> dict[int, np.ndarray]:
     """要素または節点フィールドの空間平均を KDTree で取る.
 
     半径 r の近傍内にある要素/節点のフィールド値を単純平均する。
@@ -39,18 +37,14 @@ def get_space_averaged_field_value(
     # --- 座標配列取得 ---
     match mode:
         case "elem":
-            coord_raw = mesh.get_element_coord_array(
-                name=name
-            )  # label, x, y, z を持つ想定
+            coord_raw = mesh.get_element_coord_array(name=name)  # label, x, y, z を持つ想定
         case "node":
             coord_raw = mesh.get_node_coord_array(name=name)
         case _:
             raise ValueError("mode must be 'elem' or 'node'")
 
     # (N, 4) = [label, x, y, z]
-    coord_arr = np.array(
-        [coord_raw["label"], coord_raw["x"], coord_raw["y"], coord_raw["z"]]
-    ).T
+    coord_arr = np.array([coord_raw["label"], coord_raw["x"], coord_raw["y"], coord_raw["z"]]).T
 
     labels = coord_arr[:, 0].astype(int)  # (N,)
     coords = coord_arr[:, 1:4].astype(float)  # (N, 3)
@@ -60,12 +54,12 @@ def get_space_averaged_field_value(
     if fields.ndim == 1:
         fields = fields.reshape(-1, 1)  # スカラーフィールドを (N, 1) に
 
-    n_points, n_comp = fields.shape
+    n_points, _n_comp = fields.shape
 
     # --- KDTree 構築 ---
     tree = KDTree(coords)
 
-    averaged: Dict[int, np.ndarray] = {}
+    averaged: dict[int, np.ndarray] = {}
 
     # 各点の近傍 index を取得して平均
     # query_ball_point は 1 点ずつでもベクトル化してもよいが、

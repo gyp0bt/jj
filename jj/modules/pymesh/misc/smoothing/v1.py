@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
@@ -26,7 +27,6 @@ def laplacian_smoothing(
     fixed_indices = np.where(fixed_indices)[0].tolist()
 
     for _ in range(n_iter):
-
         # KDTreeを使って近傍探索を高速化
         tree = KDTree(points)
 
@@ -37,7 +37,7 @@ def laplacian_smoothing(
                 continue
 
             # k+1個の近傍を取得（自身を含むため）
-            distances, indices = tree.query(point, k=k + 1)
+            _distances, indices = tree.query(point, k=k + 1)
 
             # 自分自身を除いた近傍点のインデックスを取得
             neighbor_indices = indices[1:]
@@ -83,9 +83,7 @@ def build_quads_from_labels(
         ValueError: label重複、未知label参照、要素が4節点でない等
     """
     if node_label_field not in node_coord_arr.dtype.names:
-        raise ValueError(
-            f'node_coord_arr に "{node_label_field}" フィールドがありません。'
-        )
+        raise ValueError(f'node_coord_arr に "{node_label_field}" フィールドがありません。')
 
     node_labels = np.asarray(node_coord_arr[node_label_field])
     if node_labels.ndim != 1:
@@ -98,9 +96,7 @@ def build_quads_from_labels(
     # 要素ラベル列の有無で節点ラベル部を切り出し
     if elem_has_elem_label:
         if elem_arr.shape[1] < 5:
-            raise ValueError(
-                "elem_has_elem_label=True の場合、elem_arr は少なくとも5列（elem + 4 nodes）が必要です。"
-            )
+            raise ValueError("elem_has_elem_label=True の場合、elem_arr は少なくとも5列（elem + 4 nodes）が必要です。")
         elem_node_labels = elem_arr[:, 1:5]
     else:
         if elem_arr.shape[1] < 4:
@@ -118,9 +114,7 @@ def build_quads_from_labels(
     order = np.argsort(node_labels_i)
     node_labels_sorted = node_labels_i[order]
     if np.any(node_labels_sorted[1:] == node_labels_sorted[:-1]):
-        dup = node_labels_sorted[1:][node_labels_sorted[1:] == node_labels_sorted[:-1]][
-            0
-        ]
+        dup = node_labels_sorted[1:][node_labels_sorted[1:] == node_labels_sorted[:-1]][0]
         raise ValueError(f"node label が重複しています: {int(dup)}")
 
     # searchsortedで一括マッピング
@@ -129,9 +123,7 @@ def build_quads_from_labels(
 
     # 範囲外チェック
     if np.any(idx_in_sorted < 0) or np.any(idx_in_sorted >= node_labels_sorted.size):
-        raise ValueError(
-            "elem_arr が node_coord_arr に存在しない節点labelを参照しています（範囲外）。"
-        )
+        raise ValueError("elem_arr が node_coord_arr に存在しない節点labelを参照しています（範囲外）。")
 
     # 一致チェック（searchsortedは“挿入位置”なので、実際に一致するか確認が必要）
     mapped_labels = node_labels_sorted[idx_in_sorted]
@@ -323,7 +315,7 @@ def area_preserving_laplacian_smoothing_quads(
         return np.any(sgn * signed_areas <= 0.0)
 
     # 最適化ループ（バックトラッキング付き）
-    E, g, areas = energy_and_grad(pts)
+    E, g, _areas = energy_and_grad(pts)
     step_now = step
     for _ in range(n_iter):
         if np.allclose(g[~fixed_mask], 0.0):
@@ -350,7 +342,7 @@ def area_preserving_laplacian_smoothing_quads(
             # エネルギーが下がれば採用
             if E2 < E:
                 pts = cand
-                E, g, areas = E2, g2, areas2
+                E, g, _areas = E2, g2, areas2
                 accepted = True
                 break
 
@@ -581,16 +573,11 @@ def smooth_minimize_area_error_quads(
             improved = False
 
         if verbose and (it % print_every == 0 or improved):
-            print(
-                f"iter {it:5d} | "
-                f"max_rel={max_rel*100:6.2f}% | "
-                f"rms={rms_rel*100:6.2f}% | "
-                f"step={step:.4g}"
-            )
+            print(f"iter {it:5d} | max_rel={max_rel * 100:6.2f}% | rms={rms_rel * 100:6.2f}% | step={step:.4g}")
 
         if max_rel <= stop_max_rel:
             if verbose:
-                print(f"iter {it:5d} | " f"max_rel={max_rel*100:6.2f}% | converged")
+                print(f"iter {it:5d} | max_rel={max_rel * 100:6.2f}% | converged")
             break
 
         step_now = step
@@ -601,9 +588,7 @@ def smooth_minimize_area_error_quads(
 
             if np.any(bnd_mask):
                 if allow_boundary_tangent:
-                    cand = project_to_circle_tangent_update(
-                        cand, pts, bnd_mask, center=center_xy, radius=radius
-                    )
+                    cand = project_to_circle_tangent_update(cand, pts, bnd_mask, center=center_xy, radius=radius)
                 else:
                     cx, cy = center_xy
                     c = np.array([cx, cy], dtype=np.float64)
@@ -629,7 +614,7 @@ def smooth_minimize_area_error_quads(
 
         if not accepted:
             if verbose:
-                print(f"iter {it:5d} | stalled " f"(step too small or barrier active)")
+                print(f"iter {it:5d} | stalled (step too small or barrier active)")
             break
 
     rel = (Aabs - A0) / A0

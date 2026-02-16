@@ -67,9 +67,7 @@ class ApiService:
             except Exception:
                 vocab = {}
                 units = {}
-            self._provider = DashboardDataProvider(
-                graph, vocab=vocab, units=units
-            )
+            self._provider = DashboardDataProvider(graph, vocab=vocab, units=units)
         return self._provider
 
     # --------------------------------------------------
@@ -104,9 +102,7 @@ class ApiService:
         provider = self._ensure_provider()
         return provider.get_node_card(node_id)
 
-    def get_related_files(
-        self, node_id: int, label: str | None = None
-    ) -> list[dict[str, Any]]:
+    def get_related_files(self, node_id: int, label: str | None = None) -> list[dict[str, Any]]:
         """関連ファイル/ノード一覧を返す
 
         Args:

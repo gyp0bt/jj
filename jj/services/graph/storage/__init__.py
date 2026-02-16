@@ -5,7 +5,7 @@ import json
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -28,7 +28,7 @@ class GraphStorage:
         storage_dir.mkdir(parents=True, exist_ok=True)
         return storage_dir
 
-    def _detect_existing_path(self, storage_dir: Path) -> Optional[Path]:
+    def _detect_existing_path(self, storage_dir: Path) -> Path | None:
         candidates = [
             storage_dir / "graph.yaml",
             storage_dir / "graph.yml",
@@ -39,9 +39,7 @@ class GraphStorage:
                 return path
         return None
 
-    def _resolve_path(
-        self, project_root: Path, filename: Optional[str] = None
-    ) -> Path:
+    def _resolve_path(self, project_root: Path, filename: str | None = None) -> Path:
         storage_dir = self._storage_dir(project_root)
         if filename:
             return storage_dir / filename
@@ -50,7 +48,7 @@ class GraphStorage:
             return existing
         return storage_dir / self.default_filename
 
-    def load(self, project_root: Path, filename: Optional[str] = None) -> GraphModel:
+    def load(self, project_root: Path, filename: str | None = None) -> GraphModel:
         path = self._resolve_path(project_root, filename)
         if not path.exists():
             return GraphModel.empty()
@@ -67,7 +65,7 @@ class GraphStorage:
         self,
         project_root: Path,
         graph: GraphModel,
-        filename: Optional[str] = None,
+        filename: str | None = None,
     ) -> Path:
         path = self._resolve_path(project_root, filename)
         data = self._dump_graph(graph)
@@ -79,7 +77,7 @@ class GraphStorage:
             return graph.model_dump()
         return graph.dict()  # type: ignore[no-any-return]
 
-    def _read_file(self, path: Path) -> Optional[dict[str, Any]]:
+    def _read_file(self, path: Path) -> dict[str, Any] | None:
         if path.suffix.lower() in {".yaml", ".yml"}:
             with path.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
@@ -130,9 +128,7 @@ class GraphStorage:
             pass
         return {}
 
-    def save_timestamps(
-        self, project_root: Path, timestamps: dict[str, float]
-    ) -> Path:
+    def save_timestamps(self, project_root: Path, timestamps: dict[str, float]) -> Path:
         """パース時のファイルタイムスタンプを保存する
 
         Args:
@@ -170,9 +166,7 @@ class GraphStorage:
         digest = hashlib.sha256(file_path.encode("utf-8")).hexdigest()[:16]
         return f"{digest}.pickle"
 
-    def load_plugin_data(
-        self, project_root: Path, namespace: str, file_path: str, expected_mtime: float
-    ) -> Any:
+    def load_plugin_data(self, project_root: Path, namespace: str, file_path: str, expected_mtime: float) -> Any:
         """プラグインキャッシュデータを読み込む
 
         キャッシュファイルが存在し、かつmtimeが一致する場合のみロードする。
@@ -212,9 +206,7 @@ class GraphStorage:
             logger.debug(f"Plugin cache load failed ({namespace}) for {file_path}: {e}")
             return None
 
-    def save_plugin_data(
-        self, project_root: Path, namespace: str, file_path: str, data: Any, mtime: float
-    ) -> Path:
+    def save_plugin_data(self, project_root: Path, namespace: str, file_path: str, data: Any, mtime: float) -> Path:
         """プラグインキャッシュデータをpickleでディスクに永続化
 
         Args:

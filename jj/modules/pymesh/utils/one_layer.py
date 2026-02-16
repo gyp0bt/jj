@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 
 from .. import Mesher
-from ..etypes import element_type_dict, ElementTypeGroup
+from ..etypes import ElementTypeGroup, element_type_dict
 
 
 def detect_one_layer_solids(mesh: Mesher) -> dict[str, Any]:
@@ -233,7 +233,7 @@ def detect_one_layer_tetra_by_groups(
     # id -> {'nodes': (n1,n2,n3), 'tet_idx': int, 'local_face': int, 'normal': np.ndarray}
     tetface_to_faceid: dict[tuple[int, int], int] = {}
 
-    for key, owners in face_map.items():
+    for _key, owners in face_map.items():
         if len(owners) != 1:
             # 共有面 = 内部面 → 外表面ではない
             continue
@@ -357,7 +357,7 @@ def detect_one_layer_tetra_by_groups(
     # ---------------------------
     one_layer_labels: set[int] = set()
 
-    for tet_idx, (label, nodes) in enumerate(tet_elems):
+    for tet_idx, (label, _nodes) in enumerate(tet_elems):
         # このtetの外表面が属するグループ一覧
         gset: set[int] = set()
         for local_face in range(4):

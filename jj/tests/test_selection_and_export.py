@@ -12,9 +12,8 @@ status-047/048で追加された機能のテスト:
 """
 
 import pytest
-from pathlib import Path
 
-from jj_types import GraphModel, Node, Relation
+from jj_types import GraphModel, Node
 
 
 # =========
@@ -119,9 +118,7 @@ class TestSearchNodesExtended:
         from services.service.info import InfoService
 
         service = InfoService(project_root=tmp_path)
-        result = service.search_nodes(
-            sample_graph, all_nodes=True, type_filter="Abaqusインプット"
-        )
+        result = service.search_nodes(sample_graph, all_nodes=True, type_filter="Abaqusインプット")
         assert len(result) == 3
         assert all(n.type == "Abaqusインプット" for n in result)
 
@@ -129,9 +126,7 @@ class TestSearchNodesExtended:
         from services.service.info import InfoService
 
         service = InfoService(project_root=tmp_path)
-        result = service.search_nodes(
-            sample_graph, all_nodes=True, type_filter="メッシュ"
-        )
+        result = service.search_nodes(sample_graph, all_nodes=True, type_filter="メッシュ")
         assert len(result) == 1
         assert result[0].name == "mesh"
 
@@ -312,9 +307,7 @@ class TestSearchNodesVocab:
         from services.service.info import InfoService
 
         service = InfoService(project_root=tmp_path)
-        result = service.search_nodes(
-            vocab_graph, index_filters=["1"], version_filters=["1"]
-        )
+        result = service.search_nodes(vocab_graph, index_filters=["1"], version_filters=["1"])
         assert len(result) == 2
         names = {n.name for n in result}
         assert "go_idx1.v1" in names
@@ -330,15 +323,24 @@ class TestSearchNodesActive:
         return GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1.v1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1.v1",
+                    format="inp",
                     properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1", "active": "true"},
                 ),
                 Node(
-                    id=2, type="go", name="go_idx1.v2", format="inp",
+                    id=2,
+                    type="go",
+                    name="go_idx1.v2",
+                    format="inp",
                     properties={"path": "old/go_idx1.v2.inp", "index": "1", "version": "2", "active": "false"},
                 ),
                 Node(
-                    id=3, type="go", name="go_idx2.v1", format="inp",
+                    id=3,
+                    type="go",
+                    name="go_idx2.v1",
+                    format="inp",
                     properties={"path": "go_idx2.v1.inp", "index": "2", "version": "1", "active": "true"},
                 ),
             ],
@@ -357,9 +359,7 @@ class TestSearchNodesActive:
         from services.service.info import InfoService
 
         service = InfoService(project_root=tmp_path)
-        result = service.search_nodes(
-            active_graph, index_filters=["1"], active_only=True
-        )
+        result = service.search_nodes(active_graph, index_filters=["1"], active_only=True)
         assert len(result) == 1
         assert result[0].name == "go_idx1.v1"
 
@@ -374,16 +374,17 @@ class TestCsvExportBom:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={"path": "go_idx1.inp", "応力": "100MPa"},
                 ),
             ],
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         raw = output_path.read_bytes()
         # UTF-8 BOM (EF BB BF) が先頭に付いていることを確認
         assert raw[:3] == b"\xef\xbb\xbf"
@@ -402,7 +403,10 @@ class TestJsonExportFlatten:
         return GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={
                         "path": "go_idx1.inp",
                         "stress": {"center": 0.5, "edge": 1.0},
@@ -415,10 +419,8 @@ class TestJsonExportFlatten:
     def test_json_no_flatten_by_default(self, nested_graph, tmp_path):
         import json as json_mod
 
-        service = __import__("services.service.info", fromlist=["InfoService"]).InfoService(
-            project_root=tmp_path
-        )
-        output_path, count = service.export_data(
+        service = __import__("services.service.info", fromlist=["InfoService"]).InfoService(project_root=tmp_path)
+        output_path, _count = service.export_data(
             nested_graph, "json", nodes=nested_graph.nodes, output_file="test.json"
         )
         data = json_mod.loads(output_path.read_text(encoding="utf-8"))
@@ -429,11 +431,12 @@ class TestJsonExportFlatten:
     def test_json_flatten_when_specified(self, nested_graph, tmp_path):
         import json as json_mod
 
-        service = __import__("services.service.info", fromlist=["InfoService"]).InfoService(
-            project_root=tmp_path
-        )
-        output_path, count = service.export_data(
-            nested_graph, "json", nodes=nested_graph.nodes, output_file="test.json",
+        service = __import__("services.service.info", fromlist=["InfoService"]).InfoService(project_root=tmp_path)
+        output_path, _count = service.export_data(
+            nested_graph,
+            "json",
+            nodes=nested_graph.nodes,
+            output_file="test.json",
             flatten=True,
         )
         data = json_mod.loads(output_path.read_text(encoding="utf-8"))
@@ -442,12 +445,8 @@ class TestJsonExportFlatten:
         assert data[0]["stress.center"] == 0.5
 
     def test_csv_always_flattens(self, nested_graph, tmp_path):
-        service = __import__("services.service.info", fromlist=["InfoService"]).InfoService(
-            project_root=tmp_path
-        )
-        output_path, count = service.export_data(
-            nested_graph, "csv", nodes=nested_graph.nodes, output_file="test.csv"
-        )
+        service = __import__("services.service.info", fromlist=["InfoService"]).InfoService(project_root=tmp_path)
+        output_path, _count = service.export_data(nested_graph, "csv", nodes=nested_graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         assert "stress.center" in content
 
@@ -484,7 +483,8 @@ class TestParseFullMode:
 class TestGraphConfigVocabMerge:
     def test_vocab_yaml_merged_into_graph_config(self, tmp_path):
         import yaml
-        from config import GraphConfig, get_config_dir
+
+        from config import GraphConfig
 
         config_dir = tmp_path / ".jj" / "config"
         config_dir.mkdir(parents=True)
@@ -540,6 +540,7 @@ class TestExportConfig:
 
     def test_graph_config_includes_export(self, tmp_path):
         import yaml
+
         from config import GraphConfig
 
         config_dir = tmp_path / ".jj" / "config"
@@ -568,7 +569,10 @@ class TestCsvExportUnits:
         return GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={"path": "go_idx1.inp", "応力": 100.5, "変位": 2.3},
                 ),
             ],
@@ -577,6 +581,7 @@ class TestCsvExportUnits:
 
     def test_csv_header_unit_format(self, unit_graph, tmp_path):
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -591,9 +596,7 @@ class TestCsvExportUnits:
             yaml.safe_dump(config_data, f, allow_unicode=True)
 
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            unit_graph, "csv", nodes=unit_graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(unit_graph, "csv", nodes=unit_graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         lines = content.strip().split("\n")
         header = lines[0]
@@ -605,6 +608,7 @@ class TestCsvExportUnits:
 
     def test_csv_row_unit_format(self, unit_graph, tmp_path):
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -619,9 +623,7 @@ class TestCsvExportUnits:
             yaml.safe_dump(config_data, f, allow_unicode=True)
 
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            unit_graph, "csv", nodes=unit_graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(unit_graph, "csv", nodes=unit_graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         lines = content.strip().split("\n")
         # 1行目: カラム名（単位なし）
@@ -640,6 +642,7 @@ class TestCsvExportUnits:
 class TestCsvExportColumns:
     def test_csv_columns_from_config(self, tmp_path):
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -655,16 +658,17 @@ class TestCsvExportColumns:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={"path": "go.inp", "応力": 100, "変位": 2.3, "dat_warning": "x"},
                 ),
             ],
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         header = content.strip().split("\n")[0]
         # 応力はある
@@ -676,6 +680,7 @@ class TestCsvExportColumns:
 
     def test_csv_columns_preserve_config_order(self, tmp_path):
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -691,16 +696,17 @@ class TestCsvExportColumns:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={"path": "go.inp", "応力": 100, "変位": 2.3},
                 ),
             ],
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         header = content.strip().split("\n")[0]
         # config順: 変位 → 応力
@@ -769,6 +775,7 @@ class TestCsvExportColumnsGlob:
     def test_csv_columns_glob_pattern(self, tmp_path):
         """csv-columnsでglobパターンが使える"""
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -784,7 +791,10 @@ class TestCsvExportColumnsGlob:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={
                         "path": "go.inp",
                         "stress.center": 100.5,
@@ -796,9 +806,7 @@ class TestCsvExportColumnsGlob:
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         header = content.strip().split("\n")[0]
         # stress.*にマッチするカラムはある
@@ -812,6 +820,7 @@ class TestCsvExportColumnsGlob:
     def test_csv_columns_glob_preserves_order(self, tmp_path):
         """globパターンでもconfig順が保持される"""
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -827,7 +836,10 @@ class TestCsvExportColumnsGlob:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={
                         "path": "go.inp",
                         "stress.center": 100,
@@ -838,9 +850,7 @@ class TestCsvExportColumnsGlob:
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         header = content.strip().split("\n")[0]
         idx_disp = header.index("displacement")
@@ -856,6 +866,7 @@ class TestCsvExportUnitsGlob:
     def test_units_glob_pattern_header_format(self, tmp_path):
         """unitsでglobパターンが使える（header形式）"""
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -872,7 +883,10 @@ class TestCsvExportUnitsGlob:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={
                         "path": "go.inp",
                         "stress.center": 100.5,
@@ -884,9 +898,7 @@ class TestCsvExportUnitsGlob:
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         header = content.strip().split("\n")[0]
         # globパターン stress* にマッチするカラムに単位が付く
@@ -900,6 +912,7 @@ class TestCsvExportUnitsGlob:
     def test_units_glob_pattern_row_format(self, tmp_path):
         """unitsでglobパターンが使える（row形式）"""
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -916,7 +929,10 @@ class TestCsvExportUnitsGlob:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={
                         "path": "go.inp",
                         "stress.center": 100.5,
@@ -927,9 +943,7 @@ class TestCsvExportUnitsGlob:
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         lines = content.strip().split("\n")
         # 1行目: カラム名（単位なし）
@@ -941,6 +955,7 @@ class TestCsvExportUnitsGlob:
     def test_units_exact_match_priority(self, tmp_path):
         """完全一致がglobパターンより優先される"""
         import yaml
+
         from services.service.info import InfoService
 
         config_dir = tmp_path / ".jj" / "config"
@@ -957,7 +972,10 @@ class TestCsvExportUnitsGlob:
         graph = GraphModel(
             nodes=[
                 Node(
-                    id=1, type="go", name="go_idx1", format="inp",
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
                     properties={
                         "path": "go.inp",
                         "stress.center": 100.5,
@@ -968,9 +986,7 @@ class TestCsvExportUnitsGlob:
             relations=[],
         )
         service = InfoService(project_root=tmp_path)
-        output_path, count = service.export_data(
-            graph, "csv", nodes=graph.nodes, output_file="test.csv"
-        )
+        output_path, _count = service.export_data(graph, "csv", nodes=graph.nodes, output_file="test.csv")
         content = output_path.read_text(encoding="utf-8-sig")
         header = content.strip().split("\n")[0]
         # stress.centerは完全一致でGPa

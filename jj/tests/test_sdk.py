@@ -11,8 +11,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
@@ -20,7 +18,7 @@ class TestSdkExports:
     """SDK公開APIのエクスポート確認"""
 
     def test_import_types(self):
-        from services.sdk import Node, Relation, GraphModel
+        from services.sdk import GraphModel, Node, Relation
 
         assert Node is not None
         assert Relation is not None
@@ -33,7 +31,7 @@ class TestSdkExports:
         assert ProjectGraph is not None
 
     def test_import_project_types(self):
-        from services.sdk import ProjectFile, ProjectDirectory, ProjectNonFileNode
+        from services.sdk import ProjectDirectory, ProjectFile, ProjectNonFileNode
 
         assert ProjectFile is not None
         assert ProjectDirectory is not None
@@ -60,8 +58,8 @@ class TestCacheProviderProtocol:
 
     def test_graph_storage_implements_protocol(self):
         """GraphStorageがCacheProviderプロトコルを満たすことを確認"""
-        from services.sdk.cache import CacheProvider
         from services.graph.storage import GraphStorage
+        from services.sdk.cache import CacheProvider
 
         storage = GraphStorage()
         assert isinstance(storage, CacheProvider)
@@ -83,8 +81,8 @@ class TestCacheProviderProtocol:
 
     def test_mock_cache_provider(self, tmp_path):
         """カスタムCacheProviderの実装テスト"""
-        from services.sdk.cache import CacheProvider
         from jj_types import GraphModel
+        from services.sdk.cache import CacheProvider
 
         class MockCacheProvider:
             def __init__(self):
@@ -123,39 +121,39 @@ class TestSdkTypes:
     """SDK経由の型がjj_typesと同一であることを確認"""
 
     def test_node_identity(self):
-        from services.sdk import Node
         from jj_types import Node as OrigNode
+        from services.sdk import Node
 
         assert Node is OrigNode
 
     def test_relation_identity(self):
-        from services.sdk import Relation
         from jj_types import Relation as OrigRelation
+        from services.sdk import Relation
 
         assert Relation is OrigRelation
 
     def test_graph_model_identity(self):
-        from services.sdk import GraphModel
         from jj_types import GraphModel as OrigGraphModel
+        from services.sdk import GraphModel
 
         assert GraphModel is OrigGraphModel
 
     def test_parser_identity(self):
-        from services.sdk import AbstractFileParser
         from services.parse.base import AbstractFileParser as OrigParser
+        from services.sdk import AbstractFileParser
 
         assert AbstractFileParser is OrigParser
 
     def test_exporter_identity(self):
-        from services.sdk import AbstractExporter
         from services.export import AbstractExporter as OrigExporter
+        from services.sdk import AbstractExporter
 
         assert AbstractExporter is OrigExporter
 
     def test_connector_identity(self):
-        from services.sdk import DashboardPageConnector
         from services.dashboard.connectors import (
             DashboardPageConnector as OrigConnector,
         )
+        from services.sdk import DashboardPageConnector
 
         assert DashboardPageConnector is OrigConnector

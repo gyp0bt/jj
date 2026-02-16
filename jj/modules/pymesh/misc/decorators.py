@@ -1,9 +1,8 @@
 import time
-
-import sys
 import types
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar, Any, cast, Type
+from typing import Any, TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -34,7 +33,6 @@ def timeit(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        import time
 
         start = time.perf_counter()
         try:
@@ -53,9 +51,7 @@ def timeit(func: Callable) -> Callable:
 class TimeitMeta(type):
     """クラスに生えているメソッド（継承分も含む）を全部 timeit でラップするメタクラス"""
 
-    def __new__(
-        mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]
-    ) -> Type[Any]:
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> type[Any]:
         # まず普通にクラスを作る
         cls = super().__new__(mcs, name, bases, namespace)
 

@@ -2,43 +2,28 @@
 押し出しメッシュを作成する
 """
 
+from typing import (
+    Literal,
+)
+
 import numpy as np
 from numpy import ndarray as NDArray
-from typing import (
-    Any,
-    Generator,
-    Iterable,
-    Callable,
-    Literal,
-    Optional,
-)
 from plotly import graph_objects as go
 
-from ..misc.smoothing import laplacian_smoothing
-
-
-from ..mesh.mesh import Mesher
-from ..mesh.grandpa import ElementsDict, NodesDict, NsetDict, ElsetDict
-from ..mesh.parent import Elements, Nodes, Nset, Elset
 from ..etypes import (
-    solid_element_type_list,
-    beam_element_type_list,
-    shell_element_type_list,
-    ElementTypeGroup,
     ElementType,
+    beam_element_type_list,
     element_type_dict,
+    shell_element_type_list,
 )
+from ..mesh.mesh import Mesher
+from ..mesh.parent import Elements, Nodes
 from ..typing import (
-    Coordinate,
-    NodeCoordArray,
-    node_coord_array_dtype,
     name_to_name_list,
 )
 
 
-def get_n_from_points_and_mesh_size(
-    p1: list[float], p2: list[float], mesh_size: float
-) -> int:
+def get_n_from_points_and_mesh_size(p1: list[float], p2: list[float], mesh_size: float) -> int:
     """
     2点間の距離っを計算し、メッシュサイズ分の分割数を返す
     Args:
@@ -64,10 +49,10 @@ def get_n_from_angle_radius_mesh_size(angle: float, r: float, mesh_size: float) 
     Returns:
         int: 分割数
     """
-    l = r * angle
-    if l < mesh_size:
+    arc_length = r * angle
+    if arc_length < mesh_size:
         return 1
-    return int(l / mesh_size) + 1
+    return int(arc_length / mesh_size) + 1
 
 
 def get_n_from_vector_array_mesh_size(vector_array: NDArray, mesh_size: float) -> int:
@@ -79,10 +64,10 @@ def get_n_from_vector_array_mesh_size(vector_array: NDArray, mesh_size: float) -
     Returns:
         int: 分割数
     """
-    l = np.linalg.norm(vector_array, axis=1).mean()
-    if l < mesh_size:
+    avg_length = np.linalg.norm(vector_array, axis=1).mean()
+    if avg_length < mesh_size:
         return 2
-    return int(l / mesh_size) + 1
+    return int(avg_length / mesh_size) + 1
 
 
 def get_line(p1: list[float], p2: list[float], n: int = 10) -> NDArray:
@@ -166,9 +151,7 @@ def get_line_with_fillet(
     return [line0, line1, line2]
 
 
-def get_element_type_list(
-    mesh: Mesher, elset_name: Optional[str | list[str]], mode: Literal["2d", "3d"]
-) -> list[str]:
+def get_element_type_list(mesh: Mesher, elset_name: str | list[str] | None, mode: Literal["2d", "3d"]) -> list[str]:
     element_type_list = set()
     elset_name_list = name_to_name_list(elset_name)
     for elset_name in elset_name_list:
@@ -179,11 +162,8 @@ def get_element_type_list(
                     raise ValueError(
                         f"Type of base elements must be one of {shell_element_type_list}, not {elements.type}"
                     )
-            elif mode == "2d":
-                if elements.type.upper() not in beam_element_type_list:
-                    raise ValueError(
-                        f"Type of base elements must be one of {beam_element_type_list}, not {elements.type}"
-                    )
+            elif mode == "2d" and elements.type.upper() not in beam_element_type_list:
+                raise ValueError(f"Type of base elements must be one of {beam_element_type_list}, not {elements.type}")
             element_type_list.add(elements.type)
 
     element_type_list = list(element_type_list)
@@ -215,18 +195,12 @@ def get_target_type(element_type_list: list[str], mode: Literal["2d", "3d"]) -> 
     target_element_type_list = list(target_element_type_list)
 
     if len(target_element_type_list) > 1:
-        raise ValueError(
-            f"Target element types must be same through all elements, not {target_element_type_list}"
-        )
+        raise ValueError(f"Target element types must be same through all elements, not {target_element_type_list}")
     return target_element_type_list[0]
 
 
-def prepair_target_element(
-    mesh: Mesher, target_elset_name: str, target_element_type: str
-) -> tuple[str, str]:
-    target_elset_key = mesh.get_elset_key_from_elset_and_type(
-        elset=target_elset_name, type=target_element_type
-    )
+def prepair_target_element(mesh: Mesher, target_elset_name: str, target_element_type: str) -> tuple[str, str]:
+    target_elset_key = mesh.get_elset_key_from_elset_and_type(elset=target_elset_name, type=target_element_type)
     if not mesh.elements_data.isin(target_elset_key):
         mesh.elements_data[target_elset_key] = Elements(
             data=np.array([]),
@@ -237,10 +211,8 @@ def prepair_target_element(
 
 
 def prepair_target_node(mesh: Mesher, target_nset_name: str) -> str:
-    if target_nset_name not in mesh.nodes_data.keys():
-        mesh.nodes_data[target_nset_name] = Nodes(
-            data=np.array([]), options=dict(nset=target_nset_name)
-        )
+    if target_nset_name not in mesh.nodes_data:
+        mesh.nodes_data[target_nset_name] = Nodes(data=np.array([]), options=dict(nset=target_nset_name))
     return target_nset_name
 
 
@@ -250,7 +222,7 @@ class ExtrudeLine:
     def __init__(
         self,
         mesh: Mesher,
-        base_elset_name: Optional[str | list[str]],
+        base_elset_name: str | list[str] | None,
         target_elset_name: str,
         target_nset_name: str = "global",
         return_frontier: bool = False,
@@ -260,9 +232,7 @@ class ExtrudeLine:
         element_type_list = get_element_type_list(mesh, base_elset_name, mode=self.mode)
         target_element_type = get_target_type(element_type_list, mode=self.mode)
 
-        target_elset_key, target_elset_name = prepair_target_element(
-            mesh, target_elset_name, target_element_type
-        )
+        target_elset_key, target_elset_name = prepair_target_element(mesh, target_elset_name, target_element_type)
         target_nset_name = prepair_target_node(mesh, target_nset_name)
         self.return_frontier = return_frontier
         self.mesh = mesh
@@ -277,33 +247,23 @@ class ExtrudeLine:
         max_elem_label = max_labels.elem
         init_node_label, init_elem_label = max_node_label + 1, max_elem_label + 1
 
-        base_node_coord_array = self.mesh.get_node_coord_array_with_elements(
-            name=self.elset_name_list
-        )
+        base_node_coord_array = self.mesh.get_node_coord_array_with_elements(name=self.elset_name_list)
 
         node_label_mapping = {
-            org_label: init_node_label + i
-            for i, org_label in enumerate(base_node_coord_array["label"])
+            org_label: init_node_label + i for i, org_label in enumerate(base_node_coord_array["label"])
         }
         self.mesh.update_node_label_with_dict(node_label_mapping=node_label_mapping)
 
         base_elements_array = self.mesh.get_element_array(name=self.elset_name_list)
 
-        base_elements_array[:, 0] = (
-            init_elem_label + np.arange(base_elements_array.shape[0]) + 1
-        )
-        base_node_coord_array = self.mesh.get_node_coord_array_with_elements(
-            name=self.elset_name_list
-        )
+        base_elements_array[:, 0] = init_elem_label + np.arange(base_elements_array.shape[0]) + 1
+        base_node_coord_array = self.mesh.get_node_coord_array_with_elements(name=self.elset_name_list)
 
         if node_array_order is not None:
             node_array_order = [node_label_mapping.get(i, 0) for i in node_array_order]
             if 0 in node_array_order:
-                raise ValueError(f"何かおかしい")
-            indices = [
-                np.where(base_node_coord_array["label"] == i)[0].item()
-                for i in node_array_order
-            ]
+                raise ValueError("何かおかしい")
+            indices = [np.where(base_node_coord_array["label"] == i)[0].item() for i in node_array_order]
             base_node_coord_array = base_node_coord_array[indices]
 
         self.init_node_label = init_node_label
@@ -314,9 +274,9 @@ class ExtrudeLine:
     def get_node_coord_array_i(
         self,
         i: int,
-        dx: Optional[float | NDArray] = None,
-        dy: Optional[float | NDArray] = None,
-        dz: Optional[float | NDArray] = None,
+        dx: float | NDArray | None = None,
+        dy: float | NDArray | None = None,
+        dz: float | NDArray | None = None,
     ) -> NDArray:
         node_coord_array_i = self.base_node_coord_array.copy()
         node_coord_array_i["label"] += self.base_node_coord_array.shape[0] * i
@@ -335,13 +295,9 @@ class ExtrudeLine:
 
     def get_element_coord_array_i(self, i: int) -> NDArray:
         element_array_i = self.base_elements_array.copy()
-        element_array_i[:, 0] += self.init_elem_label + element_array_i[:, 0].shape[
-            0
-        ] * (i - 1)
+        element_array_i[:, 0] += self.init_elem_label + element_array_i[:, 0].shape[0] * (i - 1)
         element_array_i[:, 1:] += self.base_node_coord_array.shape[0] * (i - 1)
-        target_node_label_array_i = (
-            element_array_i[:, 1:] + self.base_node_coord_array.shape[0]
-        )
+        target_node_label_array_i = element_array_i[:, 1:] + self.base_node_coord_array.shape[0]
         element_array_i = np.hstack((element_array_i, target_node_label_array_i))
         element_array_i[:, [-2, -1]] = element_array_i[:, [-1, -2]]
         element_array_i[:, [1, 2, 3, 4]] = element_array_i[:, [4, 3, 2, 1]]
@@ -360,7 +316,7 @@ class ExtrudeLine:
         vector_array: NDArray,
     ):
 
-        node_coord_array_list = [self.base_node_coord_array] + [
+        [self.base_node_coord_array] + [
             self.get_node_coord_array_i(
                 i=i + 1,
                 dx=vector_array[i, :, 0],
@@ -370,9 +326,7 @@ class ExtrudeLine:
             for i in range(n + 1)
         ]
 
-        element_coord_array_list = [
-            self.get_element_coord_array_i(i=i + 1) for i in range(n + 1)
-        ]
+        [self.get_element_coord_array_i(i=i + 1) for i in range(n + 1)]
 
     def extrude_until_position(
         self,
@@ -389,9 +343,7 @@ class ExtrudeLine:
             vector_array[:, 1] = y - self.base_node_coord_array["y"]
         if z is not None:
             vector_array[:, 2] = z - self.base_node_coord_array["z"]
-        self.extrude_with_vector_array(
-            n=n, vector_array=vector_array, drop_base_element=drop_base_element
-        )
+        self.extrude_with_vector_array(n=n, vector_array=vector_array, drop_base_element=drop_base_element)
 
     def extrude_with_vector_array(
         self,
@@ -400,9 +352,7 @@ class ExtrudeLine:
         drop_base_element: bool = True,
     ):
         vector_array = vector_array[np.newaxis, :, :]
-        scalars_expanded = np.linspace(0.0, 1.0, n + 2)[:, np.newaxis, np.newaxis][
-            1:, :, :
-        ]
+        scalars_expanded = np.linspace(0.0, 1.0, n + 2)[:, np.newaxis, np.newaxis][1:, :, :]
         vector_array = vector_array * scalars_expanded
 
         self.extrude(n=n, vector_array=vector_array)
@@ -417,13 +367,9 @@ class ExtrudeSurface(ExtrudeLine):
 
     def get_element_coord_array_i(self, i: int) -> NDArray:
         element_array_i = self.base_elements_array.copy()
-        element_array_i[:, 0] += self.init_elem_label + element_array_i[:, 0].shape[
-            0
-        ] * (i - 1)
+        element_array_i[:, 0] += self.init_elem_label + element_array_i[:, 0].shape[0] * (i - 1)
         element_array_i[:, 1:] += self.base_node_coord_array.shape[0] * (i - 1)
-        target_node_label_array_i = (
-            element_array_i[:, 1:] + self.base_node_coord_array.shape[0]
-        )
+        target_node_label_array_i = element_array_i[:, 1:] + self.base_node_coord_array.shape[0]
         element_array_i = np.hstack((element_array_i, target_node_label_array_i))
 
         self.mesh.add_elements(
@@ -464,10 +410,7 @@ def create_requtangular(
 
     mesh.add_nodes(name=target_nset_name, arr=node_data)
 
-    elem_data = [
-        [i + 1 + init_elem_label, node_data[i][0], node_data[i + 1][0]]
-        for i in range(len(node_data) - 1)
-    ]
+    elem_data = [[i + 1 + init_elem_label, node_data[i][0], node_data[i + 1][0]] for i in range(len(node_data) - 1)]
 
     mesh.add_elements(name="__ptmp", arr=np.array(elem_data), type=ElementType.B31.name)
 
@@ -477,9 +420,7 @@ def create_requtangular(
         target_elset_name=target_elset_name,
         target_nset_name=target_nset_name,
         node_array_order=node_labels.flatten().tolist(),
-    ).extrude_with_vector_array(
-        n=n[1], vector_array=vector_array, drop_base_element=True
-    )
+    ).extrude_with_vector_array(n=n[1], vector_array=vector_array, drop_base_element=True)
 
     return mesh
 
@@ -567,9 +508,7 @@ def __create_quater_circle2(
 
     theta_array = np.arctan2(node_coord_array["y"], node_coord_array["x"])
     org_theta_array = theta_array.copy()
-    theta_array[theta_array > np.pi / 4.0] = (
-        np.pi / 2.0 - theta_array[theta_array > np.pi / 4.0]
-    )
+    theta_array[theta_array > np.pi / 4.0] = np.pi / 2.0 - theta_array[theta_array > np.pi / 4.0]
     radius_array = np.sqrt(node_coord_array["x"] ** 2 + node_coord_array["y"] ** 2)
 
     def get_scale_array():
@@ -640,15 +579,13 @@ def create_quater_circle(
         target_nset_name="__ptmp",
     )
 
-    removed_node_labels = mesh.drop_duplicated_nodes(tol=float(r / np.mean(n) * 0.01))
+    mesh.drop_duplicated_nodes(tol=float(r / np.mean(n) * 0.01))
 
     node_coord_array = mesh.get_node_coord_array(name="__ptmp")
 
     theta_array = np.arctan2(node_coord_array["y"], node_coord_array["x"])
     org_theta_array = theta_array.copy()
-    theta_array[theta_array > np.pi / 4.0] = (
-        np.pi / 2.0 - theta_array[theta_array > np.pi / 4.0]
-    )
+    theta_array[theta_array > np.pi / 4.0] = np.pi / 2.0 - theta_array[theta_array > np.pi / 4.0]
     radius_array = np.sqrt(node_coord_array["x"] ** 2 + node_coord_array["y"] ** 2)
 
     def get_scale_array():
@@ -681,6 +618,3 @@ def create_quater_circle(
     mesh.add_nodes(name=target_nset_name, arr=mesh.nodes_data["__ptmp"].data)
     mesh.nodes_data.drop("__ptmp")
     return mesh
-
-
-

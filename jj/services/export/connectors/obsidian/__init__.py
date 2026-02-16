@@ -33,12 +33,12 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
-from jj_types import GraphModel, Node, Relation
-from config import GraphConfig, ObsidianExportConfig
+from config import GraphConfig
+from jj_types import GraphModel, Node
 from services.export import AbstractExporter
 
 
@@ -443,7 +443,7 @@ class ObsidianConnector:
         node: Node,
         includes: list[str] | None = None,
         overwrite: bool = False,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """ノードをObsidian mdファイルとして書き出し
 
         Args:
@@ -591,7 +591,7 @@ class ObsidianConnector:
         diff_summary = props.get("diff_summary", "")
         diff_details = props.get("diff_details", "")
         if diff_from and diff_summary and diff_summary != "差分なし":
-            content += f"\n## 前バージョンとの差分\n\n"
+            content += "\n## 前バージョンとの差分\n\n"
             content += f"比較元: {diff_from}\n\n"
             content += f"### サマリー\n\n{diff_summary}\n\n"
             if diff_details and diff_details != "差分なし":
@@ -604,14 +604,10 @@ class ObsidianConnector:
             diff_to_file = props.get("diff_to", "")
             has_diffs = props.get("has_diffs", False)
             if diff_from_file:
-                from_link = to_obsidian_link(
-                    Path(diff_from_file).name, self.config.obsidian_prefix
-                )
+                from_link = to_obsidian_link(Path(diff_from_file).name, self.config.obsidian_prefix)
                 content += f"- 旧バージョン: {from_link}\n"
             if diff_to_file:
-                to_link = to_obsidian_link(
-                    Path(diff_to_file).name, self.config.obsidian_prefix
-                )
+                to_link = to_obsidian_link(Path(diff_to_file).name, self.config.obsidian_prefix)
                 content += f"- 新バージョン: {to_link}\n"
             content += f"- 差分有無: {'あり' if has_diffs else 'なし'}\n"
 
@@ -626,9 +622,7 @@ class ObsidianConnector:
                 content += f"- 割り当て材料: {material}\n"
             source_file = props.get("source_file", "")
             if source_file:
-                source_link = to_obsidian_link(
-                    Path(source_file).name, self.config.obsidian_prefix
-                )
+                source_link = to_obsidian_link(Path(source_file).name, self.config.obsidian_prefix)
                 content += f"- ソースファイル: {source_link}\n"
             # 品質統計があれば表で表示
             quality = node.properties.get("quality", {})
@@ -648,10 +642,10 @@ class ObsidianConnector:
             # Dataview クエリ: Elsetと材料の関係を表示
             content += "\n### 関連材料（Dataview）\n\n"
             content += "```dataview\n"
-            content += "TABLE material AS \"材料\", element_count AS \"要素数\"\n"
-            content += "FROM \"notes/props/abaqus_elset\"\n"
+            content += 'TABLE material AS "材料", element_count AS "要素数"\n'
+            content += 'FROM "notes/props/abaqus_elset"\n'
             if material:
-                content += f"WHERE material = \"{material}\"\n"
+                content += f'WHERE material = "{material}"\n'
             content += "SORT element_count DESC\n"
             content += "```\n"
 
@@ -659,10 +653,10 @@ class ObsidianConnector:
         if node.type in ("go", "Abaqusインプット") and props.get("elsets"):
             content += "\n### 所属Elset一覧（Dataview）\n\n"
             content += "```dataview\n"
-            content += "TABLE element_count AS \"要素数\", material AS \"材料\"\n"
-            content += "FROM \"notes/props/abaqus_elset\"\n"
+            content += 'TABLE element_count AS "要素数", material AS "材料"\n'
+            content += 'FROM "notes/props/abaqus_elset"\n'
             node_name = f"{node.name}.{node.format}" if node.format else node.name
-            content += f"WHERE source_file = \"{node_name}\"\n"
+            content += f'WHERE source_file = "{node_name}"\n'
             content += "SORT file.name ASC\n"
             content += "```\n"
 
@@ -670,9 +664,9 @@ class ObsidianConnector:
         if node.type == "abaqus_material":
             content += "\n### 使用Elset（Dataview）\n\n"
             content += "```dataview\n"
-            content += "TABLE element_count AS \"要素数\", source_file AS \"ソースファイル\"\n"
-            content += "FROM \"notes/props/abaqus_elset\"\n"
-            content += f"WHERE material = \"{node.name}\"\n"
+            content += 'TABLE element_count AS "要素数", source_file AS "ソースファイル"\n'
+            content += 'FROM "notes/props/abaqus_elset"\n'
+            content += f'WHERE material = "{node.name}"\n'
             content += "SORT file.name ASC\n"
             content += "```\n"
 
@@ -696,9 +690,7 @@ class ObsidianConnector:
                 ver = node.properties.get(ver_key, "")
         return str(ver) if ver else ""
 
-    def _build_version_groups(
-        self, nodes: list[Node]
-    ) -> dict[tuple[str, str], list[Node]]:
+    def _build_version_groups(self, nodes: list[Node]) -> dict[tuple[str, str], list[Node]]:
         """type + index でノードをバージョン順にグループ化
 
         Returns:
@@ -726,9 +718,7 @@ class ObsidianConnector:
         except (ValueError, TypeError):
             return (1, str(ver))
 
-    def _build_parent_links(
-        self, version_groups: dict[tuple[str, str], list[Node]]
-    ) -> dict[int, str]:
+    def _build_parent_links(self, version_groups: dict[tuple[str, str], list[Node]]) -> dict[int, str]:
         """各ノードの親リンクを構築
 
         最新ver → notes/bases/{dir}/{type}_idx{index}.base への相対パスリンク
@@ -817,9 +807,7 @@ class ObsidianConnector:
             includes = None
             if node.id in parent_links:
                 includes = [parent_links[node.id]]
-            path = self.write_md_with_relations(
-                node, node_relations, includes=includes, overwrite=True
-            )
+            path = self.write_md_with_relations(node, node_relations, includes=includes, overwrite=True)
             if path:
                 written.append(path)
 
@@ -850,7 +838,7 @@ class ObsidianConnector:
         relations: list[tuple[str, str]],
         includes: list[str] | None = None,
         overwrite: bool = False,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """リレーション情報を含めてノードをObsidian mdファイルとして書き出し
 
         Args:
@@ -966,8 +954,7 @@ class ObsidianConnector:
         # 各ノードのプロパティキー集合
         key_sets = []
         for node in nodes:
-            keys = {k for k, v in node.properties.items()
-                    if k not in exclude_keys and not isinstance(v, (list, dict))}
+            keys = {k for k, v in node.properties.items() if k not in exclude_keys and not isinstance(v, (list, dict))}
             key_sets.append(keys)
         # 積集合
         common = key_sets[0]
@@ -1094,7 +1081,7 @@ class ObsidianConnector:
     def _write_elset_material_canvas(
         self,
         graph: GraphModel,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Elset-材料の関係をObsidian Canvas形式で出力
 
         Obsidian Canvasは.canvas拡張子のJSONファイルで、ノードとエッジを
@@ -1122,16 +1109,18 @@ class ObsidianConnector:
         material_positions: dict[str, str] = {}  # material_name -> canvas_node_id
         for i, mat_node in enumerate(material_nodes):
             node_id = f"mat_{mat_node.id}"
-            canvas_nodes.append({
-                "id": node_id,
-                "type": "file",
-                "file": str(self._get_canvas_md_path(mat_node)),
-                "x": i * 300,
-                "y": 0,
-                "width": 250,
-                "height": 60,
-                "color": "4",  # 緑系
-            })
+            canvas_nodes.append(
+                {
+                    "id": node_id,
+                    "type": "file",
+                    "file": str(self._get_canvas_md_path(mat_node)),
+                    "x": i * 300,
+                    "y": 0,
+                    "width": 250,
+                    "height": 60,
+                    "color": "4",  # 緑系
+                }
+            )
             material_positions[mat_node.name] = node_id
 
         # Elsetノードの配置（下段、材料ごとにグループ化）
@@ -1148,7 +1137,36 @@ class ObsidianConnector:
         for mat_name, elsets in material_groups.items():
             for j, elset_node in enumerate(elsets):
                 node_id = f"elset_{elset_node.id}"
-                canvas_nodes.append({
+                canvas_nodes.append(
+                    {
+                        "id": node_id,
+                        "type": "file",
+                        "file": str(self._get_canvas_md_path(elset_node)),
+                        "x": col * 300,
+                        "y": 200 + j * 80,
+                        "width": 250,
+                        "height": 60,
+                        "color": "1",  # 赤系
+                    }
+                )
+                # エッジ: elset -> material
+                canvas_edges.append(
+                    {
+                        "id": f"edge_{elset_node.id}_{mat_name}",
+                        "fromNode": node_id,
+                        "fromSide": "top",
+                        "toNode": material_positions[mat_name],
+                        "toSide": "bottom",
+                        "label": "uses_material",
+                    }
+                )
+            col += 1
+
+        # 未割り当てelset
+        for j, elset_node in enumerate(unassigned):
+            node_id = f"elset_{elset_node.id}"
+            canvas_nodes.append(
+                {
                     "id": node_id,
                     "type": "file",
                     "file": str(self._get_canvas_md_path(elset_node)),
@@ -1156,32 +1174,9 @@ class ObsidianConnector:
                     "y": 200 + j * 80,
                     "width": 250,
                     "height": 60,
-                    "color": "1",  # 赤系
-                })
-                # エッジ: elset -> material
-                canvas_edges.append({
-                    "id": f"edge_{elset_node.id}_{mat_name}",
-                    "fromNode": node_id,
-                    "fromSide": "top",
-                    "toNode": material_positions[mat_name],
-                    "toSide": "bottom",
-                    "label": "uses_material",
-                })
-            col += 1
-
-        # 未割り当てelset
-        for j, elset_node in enumerate(unassigned):
-            node_id = f"elset_{elset_node.id}"
-            canvas_nodes.append({
-                "id": node_id,
-                "type": "file",
-                "file": str(self._get_canvas_md_path(elset_node)),
-                "x": col * 300,
-                "y": 200 + j * 80,
-                "width": 250,
-                "height": 60,
-                "color": "6",  # 灰色系
-            })
+                    "color": "6",  # 灰色系
+                }
+            )
 
         canvas_data = {
             "nodes": canvas_nodes,
@@ -1200,7 +1195,7 @@ class ObsidianConnector:
     def _write_elset_material_go_canvas(
         self,
         graph: GraphModel,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Elset-材料-goの3層関係をObsidian Canvas形式で出力
 
         3層構造:
@@ -1248,16 +1243,18 @@ class ObsidianConnector:
         go_positions: dict[str, str] = {}  # source_filename -> canvas_node_id
         for i, (sf, go_node) in enumerate(referenced_go.items()):
             node_id = f"go_{go_node.id}"
-            canvas_nodes.append({
-                "id": node_id,
-                "type": "file",
-                "file": str(self._get_canvas_md_path(go_node)),
-                "x": i * 300,
-                "y": 0,
-                "width": 250,
-                "height": 60,
-                "color": "5",  # 青系
-            })
+            canvas_nodes.append(
+                {
+                    "id": node_id,
+                    "type": "file",
+                    "file": str(self._get_canvas_md_path(go_node)),
+                    "x": i * 300,
+                    "y": 0,
+                    "width": 250,
+                    "height": 60,
+                    "color": "5",  # 青系
+                }
+            )
             go_positions[sf] = node_id
             # name単体でもマッピング
             go_positions[go_node.name] = node_id
@@ -1266,16 +1263,18 @@ class ObsidianConnector:
         material_positions: dict[str, str] = {}  # material_name -> canvas_node_id
         for i, mat_node in enumerate(material_nodes):
             node_id = f"mat_{mat_node.id}"
-            canvas_nodes.append({
-                "id": node_id,
-                "type": "file",
-                "file": str(self._get_canvas_md_path(mat_node)),
-                "x": i * 300,
-                "y": 150,
-                "width": 250,
-                "height": 60,
-                "color": "4",  # 緑系
-            })
+            canvas_nodes.append(
+                {
+                    "id": node_id,
+                    "type": "file",
+                    "file": str(self._get_canvas_md_path(mat_node)),
+                    "x": i * 300,
+                    "y": 150,
+                    "width": 250,
+                    "height": 60,
+                    "color": "4",  # 緑系
+                }
+            )
             material_positions[mat_node.name] = node_id
 
         # 下段: Elsetノードの配置（Y=350〜）
@@ -1292,7 +1291,49 @@ class ObsidianConnector:
         for mat_name, elsets in material_groups.items():
             for j, elset_node in enumerate(elsets):
                 node_id = f"elset_{elset_node.id}"
-                canvas_nodes.append({
+                canvas_nodes.append(
+                    {
+                        "id": node_id,
+                        "type": "file",
+                        "file": str(self._get_canvas_md_path(elset_node)),
+                        "x": col * 300,
+                        "y": 350 + j * 80,
+                        "width": 250,
+                        "height": 60,
+                        "color": "1",  # 赤系
+                    }
+                )
+                # エッジ: elset -> material
+                canvas_edges.append(
+                    {
+                        "id": f"edge_{elset_node.id}_{mat_name}",
+                        "fromNode": node_id,
+                        "fromSide": "top",
+                        "toNode": material_positions[mat_name],
+                        "toSide": "bottom",
+                        "label": "uses_material",
+                    }
+                )
+                # エッジ: elset -> go (source_file)
+                sf = elset_node.properties.get("source_file", "")
+                if sf and sf in go_positions:
+                    canvas_edges.append(
+                        {
+                            "id": f"edge_go_{elset_node.id}_{sf}",
+                            "fromNode": node_id,
+                            "fromSide": "top",
+                            "toNode": go_positions[sf],
+                            "toSide": "bottom",
+                            "label": "defined_in",
+                        }
+                    )
+            col += 1
+
+        # 未割り当てelset
+        for j, elset_node in enumerate(unassigned):
+            node_id = f"elset_{elset_node.id}"
+            canvas_nodes.append(
+                {
                     "id": node_id,
                     "type": "file",
                     "file": str(self._get_canvas_md_path(elset_node)),
@@ -1300,54 +1341,22 @@ class ObsidianConnector:
                     "y": 350 + j * 80,
                     "width": 250,
                     "height": 60,
-                    "color": "1",  # 赤系
-                })
-                # エッジ: elset -> material
-                canvas_edges.append({
-                    "id": f"edge_{elset_node.id}_{mat_name}",
-                    "fromNode": node_id,
-                    "fromSide": "top",
-                    "toNode": material_positions[mat_name],
-                    "toSide": "bottom",
-                    "label": "uses_material",
-                })
-                # エッジ: elset -> go (source_file)
-                sf = elset_node.properties.get("source_file", "")
-                if sf and sf in go_positions:
-                    canvas_edges.append({
+                    "color": "6",  # 灰色系
+                }
+            )
+            # 未割り当てでもsource_fileがあればgoへのエッジ
+            sf = elset_node.properties.get("source_file", "")
+            if sf and sf in go_positions:
+                canvas_edges.append(
+                    {
                         "id": f"edge_go_{elset_node.id}_{sf}",
                         "fromNode": node_id,
                         "fromSide": "top",
                         "toNode": go_positions[sf],
                         "toSide": "bottom",
                         "label": "defined_in",
-                    })
-            col += 1
-
-        # 未割り当てelset
-        for j, elset_node in enumerate(unassigned):
-            node_id = f"elset_{elset_node.id}"
-            canvas_nodes.append({
-                "id": node_id,
-                "type": "file",
-                "file": str(self._get_canvas_md_path(elset_node)),
-                "x": col * 300,
-                "y": 350 + j * 80,
-                "width": 250,
-                "height": 60,
-                "color": "6",  # 灰色系
-            })
-            # 未割り当てでもsource_fileがあればgoへのエッジ
-            sf = elset_node.properties.get("source_file", "")
-            if sf and sf in go_positions:
-                canvas_edges.append({
-                    "id": f"edge_go_{elset_node.id}_{sf}",
-                    "fromNode": node_id,
-                    "fromSide": "top",
-                    "toNode": go_positions[sf],
-                    "toSide": "bottom",
-                    "label": "defined_in",
-                })
+                    }
+                )
 
         canvas_data = {
             "nodes": canvas_nodes,
@@ -1423,7 +1432,7 @@ class ObsidianConnector:
 
         return written
 
-    def _write_summary_note(self, graph: GraphModel) -> Optional[Path]:
+    def _write_summary_note(self, graph: GraphModel) -> Path | None:
         """プロジェクトサマリーノートを生成（Dataview/プラグイン前提）
 
         Obsidianプラグイン（Dataview, DB Folder等）がインストールされている前提で、
@@ -1493,8 +1502,8 @@ SORT file.name ASC
 
         # Canvas リンク
         content += "## Canvas\n\n"
-        content += f"- [[elset_material_map.canvas|Elset-材料マップ]]\n"
-        content += f"- [[elset_material_go_map.canvas|Elset-材料-go 3層マップ]]\n"
+        content += "- [[elset_material_map.canvas|Elset-材料マップ]]\n"
+        content += "- [[elset_material_go_map.canvas|Elset-材料-go 3層マップ]]\n"
 
         summary_path.write_text(content, encoding="utf-8")
         return summary_path
@@ -1521,9 +1530,7 @@ class ObsidianExporter(AbstractExporter):
         connector = ObsidianConnector(project_root=project_root)
         written = connector.export_graph(graph, overwrite=overwrite)
         # Vault初期化されたかどうかを判定
-        vault_initialized = any(
-            ".obsidian" in str(p) for p in written
-        )
+        vault_initialized = any(".obsidian" in str(p) for p in written)
         return {
             "written_paths": written,
             "count": len(written),
@@ -1553,4 +1560,3 @@ class ObsidianExporter(AbstractExporter):
             if len(written_paths) > 10:
                 lines.append(f"  ... 他 {len(written_paths) - 10} 件")
         return "\n".join(lines)
-

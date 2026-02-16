@@ -1,6 +1,5 @@
 from collections import defaultdict
 from enum import Enum
-from typing import Tuple, Optional
 
 
 class ElementTypeGroup(Enum):
@@ -58,21 +57,11 @@ class ElementType(Enum):
     R2D2 = (403, ElementTypeGroup.rigid_body, 2)
 
 
-solid_element_type_list = [
-    i.name for i in ElementType if i.value[1] == ElementTypeGroup.solid
-]
-shell_element_type_list = [
-    i.name for i in ElementType if i.value[1] == ElementTypeGroup.shell
-]
-beam_element_type_list = [
-    i.name for i in ElementType if i.value[1] == ElementTypeGroup.beam
-]
-truss_element_type_list = [
-    i.name for i in ElementType if i.value[1] == ElementTypeGroup.truss
-]
-connector_element_type_list = [
-    i.name for i in ElementType if i.value[1] == ElementTypeGroup.connector
-]
+solid_element_type_list = [i.name for i in ElementType if i.value[1] == ElementTypeGroup.solid]
+shell_element_type_list = [i.name for i in ElementType if i.value[1] == ElementTypeGroup.shell]
+beam_element_type_list = [i.name for i in ElementType if i.value[1] == ElementTypeGroup.beam]
+truss_element_type_list = [i.name for i in ElementType if i.value[1] == ElementTypeGroup.truss]
+connector_element_type_list = [i.name for i in ElementType if i.value[1] == ElementTypeGroup.connector]
 
 element_type_dict = {i.name: i.value for i in ElementType}
 
@@ -86,7 +75,7 @@ for i in ElementType:
 
 def get_element_type_info(
     type_name: str,
-) -> Optional[Tuple[int, ElementTypeGroup, int]]:
+) -> tuple[int, ElementTypeGroup, int] | None:
     """要素タイプ名から (id, group, num_nodes) を取得する.
 
     大文字/小文字どちらでもOKにする。
@@ -104,7 +93,7 @@ def get_element_type_info(
     return element_type_dict.get(key)
 
 
-def get_element_group(type_name: str) -> Optional[ElementTypeGroup]:
+def get_element_group(type_name: str) -> ElementTypeGroup | None:
     """要素タイプ名から ElementTypeGroup を取得する."""
     info = get_element_type_info(type_name)
     if info is None:
@@ -113,7 +102,7 @@ def get_element_group(type_name: str) -> Optional[ElementTypeGroup]:
     return group
 
 
-def get_element_num_nodes(type_name: str) -> Optional[int]:
+def get_element_num_nodes(type_name: str) -> int | None:
     """要素タイプ名から節点数を取得する."""
     info = get_element_type_info(type_name)
     if info is None:

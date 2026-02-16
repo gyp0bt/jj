@@ -5,14 +5,17 @@ import json
 import re
 import socket
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 from jj_types import GraphModel, Node, Relation
-
 from services.graph.storage import GraphStorage
+
+__all__ = [
+    "GraphModel",
+]
 
 
 @dataclass
@@ -54,18 +57,14 @@ class RunService:
         resolved_mode = mode or self._detect_mode(command, resolved_cwd)
         script_path = self._detect_script_path(command, resolved_cwd)
         properties = (
-            self._extract_properties(
-                script_path, self._extract_script_args(command, script_path)
-            )
+            self._extract_properties(script_path, self._extract_script_args(command, script_path))
             if script_path
             else {}
         )
 
         started_dt = datetime.now(timezone.utc)
         started_at = started_dt.isoformat()
-        before_snapshot = (
-            self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
-        )
+        before_snapshot = self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
 
         result = subprocess.run(
             command,
@@ -75,13 +74,9 @@ class RunService:
             check=False,
         )
 
-        after_snapshot = (
-            self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
-        )
+        after_snapshot = self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
         trace_files = (
-            self._diff_snapshot(before_snapshot, after_snapshot, resolved_cwd)
-            if resolved_mode == "script"
-            else []
+            self._diff_snapshot(before_snapshot, after_snapshot, resolved_cwd) if resolved_mode == "script" else []
         )
         finished_dt = datetime.now(timezone.utc)
         finished_at = finished_dt.isoformat()
@@ -181,9 +176,12 @@ class RunService:
     def _extract_script_args(self, command: list[str], script_path: Path) -> list[str]:
         if not command:
             return []
-        if command[0] in {"python", "python3"} and len(command) > 1:
-            if Path(command[1]).resolve() == script_path.resolve():
-                return command[2:]
+        if (
+            command[0] in {"python", "python3"}
+            and len(command) > 1
+            and Path(command[1]).resolve() == script_path.resolve()
+        ):
+            return command[2:]
         return command[1:]
 
     def _extract_props_block(self, text: str) -> dict[str, str]:
@@ -207,16 +205,10 @@ class RunService:
             props[key] = value
         return props
 
-    def _extract_arg_mappings(
-        self, text: str, args: list[str], props: dict[str, str]
-    ) -> dict[str, str]:
+    def _extract_arg_mappings(self, text: str, args: list[str], props: dict[str, str]) -> dict[str, str]:
         mapped: dict[str, str] = {}
-        py_matches = re.findall(
-            r"^\s*([A-Za-z_]\w*)\s*=\s*sys\.argv\[(\d+)\]", text, re.MULTILINE
-        )
-        sh_matches = re.findall(
-            r"^\s*([A-Za-z_]\w*)\s*=\s*\"?\$([0-9]+)\"?", text, re.MULTILINE
-        )
+        py_matches = re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*sys\.argv\[(\d+)\]", text, re.MULTILINE)
+        sh_matches = re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*\"?\$([0-9]+)\"?", text, re.MULTILINE)
         for name, idx_str in py_matches + sh_matches:
             idx = int(idx_str) - 1
             if 0 <= idx < len(args) and name not in props:
@@ -257,9 +249,7 @@ class RunService:
         next_id = max([n.id for n in graph.nodes], default=0) + 1
 
         # runノードを作成
-        script_name = (
-            result.script_path.name if result.script_path else " ".join(result.command)
-        )
+        script_name = result.script_path.name if result.script_path else " ".join(result.command)
         run_node = Node(
             id=next_id,
             type="run",

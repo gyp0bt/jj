@@ -24,22 +24,23 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from jj_types import Node
 from services.parse.base import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
 
 # 継承しないメタプロパティキー
-_SKIP_KEYS: frozenset[str] = frozenset({
-    "path",
-    "tags",
-    "active",
-    "verbose_name",
-    "date",
-    "index",
-    "version",
-})
+_SKIP_KEYS: frozenset[str] = frozenset(
+    {
+        "path",
+        "tags",
+        "active",
+        "verbose_name",
+        "date",
+        "index",
+        "version",
+    }
+)
 
 
 class MeshInheritParser(AbstractFileParser):

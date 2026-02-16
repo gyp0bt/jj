@@ -1,7 +1,8 @@
 import time
 import types
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 
 def timeit_methods(cutoff: float = 0.1) -> Any:
@@ -60,8 +61,6 @@ class TimeitMeta(type):
 
         for attr_name, attr_value in namespace.items():
             if isinstance(attr_value, (types.FunctionType, classmethod, staticmethod)):
-                original = attr_value
-
                 # method or staticmethod or classmethodの実体取得と再ラップ
                 if isinstance(attr_value, classmethod):
                     wrapped = classmethod(timeit(attr_value.__func__))
