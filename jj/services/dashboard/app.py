@@ -729,9 +729,9 @@ def _render_array_plot_page(
         st.info("Y軸を選択してください。")
         return
 
-    # 表示モード: 個別ノード or グリッド比較
+    # 表示モード: 全条件比較 or グリッド比較 or 個別ノード
     view_mode = st.radio(
-        "表示モード", ["グリッド比較", "個別ノード"], horizontal=True
+        "表示モード", ["全条件比較", "グリッド比較", "個別ノード"], horizontal=True
     )
 
     # 共有フィルタをprovider用のフィルタ辞書に変換
@@ -740,7 +740,12 @@ def _render_array_plot_page(
     # NG領域設定
     ng_regions = getattr(dashboard_config, "ng_regions", [])
 
-    if view_mode == "グリッド比較":
+    if view_mode == "全条件比較":
+        _render_array_overlay(
+            provider, x_key, y_keys,
+            filters=active_filters, ng_regions=ng_regions,
+        )
+    elif view_mode == "グリッド比較":
         _render_array_grid(
             provider, dashboard_config, x_key, y_keys,
             filters=active_filters, ng_regions=ng_regions,
@@ -750,6 +755,59 @@ def _render_array_plot_page(
             provider, x_key, y_keys,
             filters=active_filters, ng_regions=ng_regions,
         )
+
+
+def _render_array_overlay(
+    provider: DashboardDataProvider,
+    x_key: str,
+    y_keys: list[str],
+    filters: dict[str, Any] | None = None,
+    ng_regions: list[dict[str, Any]] | None = None,
+) -> None:
+    """全条件の配列データを凡例付きで同一グラフに重ね書き"""
+    for y_key in y_keys:
+        st.subheader(f"{y_key} vs {x_key}")
+        grid_data = provider.get_array_grid_data(x_key, y_key, filters=filters)
+        if not grid_data:
+            st.info(f"'{x_key}' と '{y_key}' のデータがありません。")
+            continue
+
+        grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
+
+        try:
+            import plotly.graph_objects as go
+
+            fig = go.Figure()
+            for item in grid_data:
+                idx_str = item.get("index", "")
+                ver_str = item.get("version", "")
+                label = item["name"]
+                if idx_str:
+                    label += f" (idx{idx_str}"
+                    if ver_str:
+                        label += f",v{ver_str}"
+                    label += ")"
+                fig.add_trace(go.Scatter(
+                    x=item["x_values"],
+                    y=item["y_values"],
+                    mode="lines+markers",
+                    name=label,
+                ))
+            if ng_regions:
+                _add_ng_regions_to_fig(fig, ng_regions)
+            fig.update_layout(
+                title=f"{y_key} vs {x_key}（全条件比較）",
+                xaxis_title=x_key.split(".")[-1],
+                yaxis_title=y_key.split(".")[-1],
+                height=600,
+                showlegend=True,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        except ImportError:
+            st.warning("plotlyが必要です: pip install plotly")
+
+        st.caption(f"データ数: {len(grid_data)}")
 
 
 def _render_array_grid(
@@ -1024,10 +1082,13 @@ def _render_gallery_output_images(
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
-    # グループ表示オプション
+    # グループ表示オプション（デフォルト: 最初の利用可能キー）
     group_keys = collect_group_keys(images, source="output")
+    group_options = ["なし"] + group_keys
+    default_group_idx = 1 if group_keys else 0
     group_by = st.sidebar.selectbox(
-        "グループ表示", ["なし"] + group_keys, key="_gallery_output_group"
+        "グループ表示", group_options, index=default_group_idx,
+        key="_gallery_output_group",
     )
 
     # NxMグリッド設定
@@ -1096,10 +1157,17 @@ def _render_gallery_property_images(
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
-    # グループ表示オプション
+    # グループ表示オプション（デフォルト: property_key でグループ化）
     group_keys = collect_group_keys(images, source="property")
+    group_options = ["なし"] + group_keys
+    # property_keyが利用可能な場合はデフォルトで選択
+    default_group_idx = 0
+    if "property_key" in group_keys:
+        default_group_idx = group_options.index("property_key")
+    elif group_keys:
+        default_group_idx = 1
     group_by = st.sidebar.selectbox(
-        "グループ表示（プロパティ）", ["なし"] + group_keys,
+        "グループ表示（プロパティ）", group_options, index=default_group_idx,
         key="_gallery_property_group",
     )
 
@@ -1486,7 +1554,7 @@ def _render_saved_array_plot(
     prefix = ap_config.get("prefix", "")
     x_key = ap_config.get("x", "")
     y_keys = ap_config.get("y", [])
-    mode = ap_config.get("mode", "grid")
+    mode = ap_config.get("mode", "overlay")
 
     if not x_key:
         # 接頭辞から自動決定
@@ -1547,6 +1615,12 @@ def _render_saved_array_plot(
                     st.plotly_chart(fig, use_container_width=True)
                 except ImportError:
                     st.warning("plotlyが必要です。")
+    elif mode == "overlay":
+        # 全条件比較（凡例付き同一グラフ）
+        _render_array_overlay(
+            provider, x_key, y_keys,
+            filters=filter_dict, ng_regions=ng_regions,
+        )
     else:
         # グリッド比較
         for y_key in y_keys:
