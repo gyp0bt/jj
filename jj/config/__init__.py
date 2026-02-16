@@ -150,9 +150,7 @@ class AppConfig:
     prefixes: PrefixesConfig
 
     @classmethod
-    def load(
-        cls, base_dir: Optional[Path] = None, hostname: Optional[str] = None
-    ) -> "AppConfig":
+    def load(cls, base_dir: Optional[Path] = None, hostname: Optional[str] = None) -> "AppConfig":
         ssh_config = load_ssh_config(base_dir=base_dir, hostname=hostname)
         vocab = load_vocab_config(base_dir=base_dir)
         extensions = load_extensions_config(base_dir=base_dir)
@@ -174,9 +172,7 @@ def load_vocab_config(base_dir: Optional[Path] = None) -> VocabConfig:
     return VocabConfig.from_dict(data)
 
 
-def load_ssh_config(
-    base_dir: Optional[Path] = None, hostname: Optional[str] = None
-) -> SSHConfig:
+def load_ssh_config(base_dir: Optional[Path] = None, hostname: Optional[str] = None) -> SSHConfig:
     path = find_ssh_config_path(base_dir)
     if path is None:
         raise throw_yaml_nonexistent_error("yaml定義が空です")
@@ -359,6 +355,7 @@ class PathTypeMapConfig:
 
     評価順序: より具体的なパターン（ワイルドカードが少ない、パスが長い）を先に評価
     """
+
     rules: list[tuple[list[str], dict[str, str]]]
 
     @classmethod
@@ -393,9 +390,7 @@ class PathTypeMapConfig:
                 if _match_path_pattern(path, pattern):
                     # ファイル名パターンも具体性でソート
                     sorted_file_patterns = sorted(
-                        type_map.items(),
-                        key=lambda x: _pattern_specificity(x[0]),
-                        reverse=True
+                        type_map.items(), key=lambda x: _pattern_specificity(x[0]), reverse=True
                     )
                     for file_pattern, file_type in sorted_file_patterns:
                         if fnmatch.fnmatch(filename, file_pattern):
@@ -406,6 +401,7 @@ class PathTypeMapConfig:
 @dataclass(frozen=True)
 class PathPropertyMapConfig:
     """path-property-map設定: パスパターンとプロパティのマッピング"""
+
     rules: list[tuple[list[str], dict[str, Any]]]
 
     @classmethod
@@ -434,6 +430,7 @@ class PathPropertyMapConfig:
 @dataclass(frozen=True)
 class PathTagMapConfig:
     """path-tag-map設定: パスパターンとタグのマッピング"""
+
     rules: list[tuple[list[str], str]]
 
     @classmethod
@@ -476,6 +473,7 @@ class TokenKeyMapConfig:
     token-key-mapに定義があれば 形状: hogehoge24 として扱われる。
     さらにvocabで hogehoge24: ほげほげ24 と定義があれば、形状: ほげほげ24 に最終変換される。
     """
+
     rules: dict[str, list[str]]  # key → list of token values
 
     @classmethod
@@ -501,6 +499,7 @@ class TokenKeyMapConfig:
 @dataclass(frozen=True)
 class IgnoreConfig:
     """ignore設定: 除外パターン（.gitignore相当）"""
+
     patterns: list[str]
 
     @classmethod
@@ -525,6 +524,7 @@ class IgnoreConfig:
 @dataclass(frozen=True)
 class FileRelationsConfig:
     """ファイル関係設定: 入力/結果/アセットファイルの拡張子マッピング"""
+
     input_extensions: frozenset[str]
     result_extensions: frozenset[str]
     asset_extensions: frozenset[str]
@@ -541,6 +541,7 @@ class FileRelationsConfig:
 @dataclass(frozen=True)
 class ObsidianVaultConfig:
     """Obsidian Vault設定（.obsidian/ディレクトリの自動生成内容）"""
+
     app: dict[str, Any]
     community_plugins: list[str]
     core_plugins: dict[str, bool]
@@ -548,39 +549,46 @@ class ObsidianVaultConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ObsidianVaultConfig":
         return cls(
-            app=data.get("app", {
-                "useMarkdownLinks": False,
-                "showFrontmatter": True,
-                "strictLineBreaks": False,
-                "readableLineLength": True,
-            }),
+            app=data.get(
+                "app",
+                {
+                    "useMarkdownLinks": False,
+                    "showFrontmatter": True,
+                    "strictLineBreaks": False,
+                    "readableLineLength": True,
+                },
+            ),
             community_plugins=data.get("community-plugins", ["dataview", "dbfolder"]),
-            core_plugins=data.get("core-plugins", {
-                "canvas": True,
-                "graph": True,
-                "outgoing-link": True,
-                "tag-pane": True,
-                "backlink": True,
-                "page-preview": True,
-                "file-explorer": True,
-                "global-search": True,
-                "switcher": True,
-                "markdown-importer": False,
-                "note-composer": True,
-                "command-palette": True,
-                "editor-status": True,
-                "bookmarks": True,
-                "outline": True,
-                "word-count": True,
-                "file-recovery": True,
-                "properties": True,
-            }),
+            core_plugins=data.get(
+                "core-plugins",
+                {
+                    "canvas": True,
+                    "graph": True,
+                    "outgoing-link": True,
+                    "tag-pane": True,
+                    "backlink": True,
+                    "page-preview": True,
+                    "file-explorer": True,
+                    "global-search": True,
+                    "switcher": True,
+                    "markdown-importer": False,
+                    "note-composer": True,
+                    "command-palette": True,
+                    "editor-status": True,
+                    "bookmarks": True,
+                    "outline": True,
+                    "word-count": True,
+                    "file-recovery": True,
+                    "properties": True,
+                },
+            ),
         )
 
 
 @dataclass(frozen=True)
 class ObsidianExportConfig:
     """Obsidianエクスポート設定"""
+
     notes_dir: str
     bases_dir: str
     prefix: str
@@ -605,6 +613,7 @@ class SavedViewConfig:
     dashboard.saved-viewsの各エントリに対応。
     フィルタ・プロット条件を保存し、ダッシュボードで順番に表示する。
     """
+
     name: str  # ビュー名
     view_type: str  # "table" | "plot" | "gallery" | "card" | "status" | "array_plot"
     filters: dict[str, Any]  # フィルタ条件
@@ -647,6 +656,7 @@ class SavedViewConfig:
 @dataclass(frozen=True)
 class DashboardConfig:
     """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・コネクタ固有設定"""
+
     table_columns: list[str] | None  # テーブルビュー表示カラム（globパターン対応、優先順位順）
     default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
     plot_x: str | None  # プロットデフォルトX軸
@@ -749,6 +759,7 @@ class DashboardConfig:
 @dataclass(frozen=True)
 class ExportConfig:
     """エクスポート設定: CSVカラム選択・単位マッピング"""
+
     csv_columns: list[str] | None
     units: dict[str, str]
     csv_unit_format: str  # "header" or "row"
@@ -783,16 +794,17 @@ class SolverProfileConfig:
 
     参照: docs/specs/multi-solver.md
     """
+
     name: str
-    source_unit: str           # "file" | "directory"
-    filename_pattern: str      # "standard" | "reversed" | "none"
+    source_unit: str  # "file" | "directory"
+    filename_pattern: str  # "standard" | "reversed" | "none"
     input_extensions: tuple[str, ...]
     result_extensions: tuple[str, ...]
-    result_filenames: tuple[str, ...]      # 拡張子なしの結果ファイル名
-    input_prefixes: tuple[str, ...]        # Flow-3D: prepin等
-    result_prefixes: tuple[str, ...]       # Flow-3D: flsgrf等
-    input_directories: tuple[str, ...]     # OpenFOAM: system等
-    result_directory_pattern: str          # OpenFOAM: 数字ディレクトリの正規表現
+    result_filenames: tuple[str, ...]  # 拡張子なしの結果ファイル名
+    input_prefixes: tuple[str, ...]  # Flow-3D: prepin等
+    result_prefixes: tuple[str, ...]  # Flow-3D: flsgrf等
+    input_directories: tuple[str, ...]  # OpenFOAM: system等
+    result_directory_pattern: str  # OpenFOAM: 数字ディレクトリの正規表現
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> "SolverProfileConfig":
@@ -801,9 +813,7 @@ class SolverProfileConfig:
             raise ValueError(f"source-unit must be 'file' or 'directory', got '{source_unit}'")
         filename_pattern = str(data.get("filename-pattern", "standard"))
         if filename_pattern not in ("standard", "reversed", "none"):
-            raise ValueError(
-                f"filename-pattern must be 'standard', 'reversed', or 'none', got '{filename_pattern}'"
-            )
+            raise ValueError(f"filename-pattern must be 'standard', 'reversed', or 'none', got '{filename_pattern}'")
         return cls(
             name=name,
             source_unit=source_unit,
@@ -841,6 +851,7 @@ class SolverDetectionConfig:
       "**/*.k | **/*.key": lsdyna
       "**/prepin.*": flow3d
     """
+
     rules: list[tuple[list[str], str]]  # (patterns, profile_name)
 
     @classmethod
@@ -865,6 +876,7 @@ class SolverDetectionConfig:
 @dataclass(frozen=True)
 class GraphConfig:
     """グラフ機能用の統合設定"""
+
     vocab: dict[str, str]
     path_type_map: PathTypeMapConfig
     path_property_map: PathPropertyMapConfig
@@ -880,6 +892,7 @@ class GraphConfig:
     include_search_depth: int  # *INCLUDEファイル探索の最大階層数（デフォルト5）
     cache_max_age_days: int  # プラグインキャッシュ保持期間（日数、デフォルト30）
     cache_max_count: int  # プラグインキャッシュ最大保持数（デフォルト100）
+    verbose_name_format: Optional[str]  # verbose_nameのフォーマットテンプレート（例: "条件{idx}(高さ{t},荷重{F})"）
     solver_profiles: dict[str, SolverProfileConfig]  # ソルバー別設定プロファイル
     solver_detection: SolverDetectionConfig  # ソルバー自動検出ルール
 
@@ -928,6 +941,10 @@ class GraphConfig:
         # ソルバー検出ルールの読み込み
         solver_detection = SolverDetectionConfig.from_dict(data.get("solver-detection", {}))
 
+        # verbose-name-format: フォーマットテンプレート
+        raw_vnf = data.get("verbose-name-format")
+        verbose_name_format = str(raw_vnf) if raw_vnf is not None else None
+
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -944,6 +961,7 @@ class GraphConfig:
             include_search_depth=include_depth,
             cache_max_age_days=cache_max_age,
             cache_max_count=cache_max_count,
+            verbose_name_format=verbose_name_format,
             solver_profiles=solver_profiles,
             solver_detection=solver_detection,
         )
@@ -999,8 +1017,7 @@ def _match_path_pattern(path: str, pattern: str) -> bool:
     if normalized_pattern.endswith("/"):
         dir_prefix = normalized_pattern  # 例: "reports/"
         dir_name = normalized_pattern.rstrip("/")  # 例: "reports"
-        return (normalized_path.startswith(dir_prefix) or
-                normalized_path == dir_name)
+        return normalized_path.startswith(dir_prefix) or normalized_path == dir_name
 
     # ** を含むパターン
     if normalized_pattern.startswith("**/") or normalized_pattern.startswith("**"):
@@ -1065,6 +1082,7 @@ def init_graph_config(base_dir: Optional[Path] = None, overwrite: bool = False) 
     default_path = get_default_config_path()
     if default_path.exists():
         import shutil
+
         shutil.copy2(default_path, config_path)
     else:
         # フォールバック: 辞書からyaml生成
