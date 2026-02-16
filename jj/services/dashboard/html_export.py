@@ -245,6 +245,7 @@ def generate_array_plot_html(
     filter_dict = saved_view_filters_to_provider_filters(filters) if filters else None
     ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
 
+    mode = ap_config.get("mode", "overlay")
     parts: list[str] = []
 
     try:
@@ -258,35 +259,67 @@ def generate_array_plot_html(
 
             parts.append(f"<h3>{y_key} vs {x_key}</h3>")
 
-            cols_per_row = getattr(dashboard_config, "gallery_columns", 4) if dashboard_config else 4
-            parts.append(f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">')
-
-            for item in grid_data:
+            if mode == "overlay":
+                # 全条件比較: 1グラフに全条件を凡例付きで重ね書き
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=item["x_values"],
-                    y=item["y_values"],
-                    mode="lines+markers",
-                    name=y_key,
-                ))
+                for item in grid_data:
+                    idx_str = item.get("index", "")
+                    ver_str = item.get("version", "")
+                    label = item["name"]
+                    if idx_str:
+                        label += f" (idx{idx_str}"
+                        if ver_str:
+                            label += f",v{ver_str}"
+                        label += ")"
+                    fig.add_trace(go.Scatter(
+                        x=item["x_values"],
+                        y=item["y_values"],
+                        mode="lines+markers",
+                        name=label,
+                    ))
                 if ng_regions:
                     _add_ng_regions_to_fig(fig, ng_regions)
-                title = item["name"]
-                idx_str = item.get("index", "")
-                if idx_str:
-                    title += f" (idx{idx_str})"
                 fig.update_layout(
-                    title=title,
+                    title=f"{y_key} vs {x_key}（全条件比較）",
                     xaxis_title=x_key.split(".")[-1],
                     yaxis_title=y_key.split(".")[-1],
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    height=300,
-                    showlegend=False,
+                    height=600,
+                    showlegend=True,
                 )
                 plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
                 parts.append(f'<div class="plotly-graph">{plot_html}</div>')
+            else:
+                # グリッド比較: 条件ごとに個別グラフ
+                cols_per_row = getattr(dashboard_config, "gallery_columns", 4) if dashboard_config else 4
+                parts.append(f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">')
 
-            parts.append("</div>")
+                for item in grid_data:
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(
+                        x=item["x_values"],
+                        y=item["y_values"],
+                        mode="lines+markers",
+                        name=y_key,
+                    ))
+                    if ng_regions:
+                        _add_ng_regions_to_fig(fig, ng_regions)
+                    title = item["name"]
+                    idx_str = item.get("index", "")
+                    if idx_str:
+                        title += f" (idx{idx_str})"
+                    fig.update_layout(
+                        title=title,
+                        xaxis_title=x_key.split(".")[-1],
+                        yaxis_title=y_key.split(".")[-1],
+                        margin=dict(l=20, r=20, t=40, b=20),
+                        height=300,
+                        showlegend=False,
+                    )
+                    plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
+                    parts.append(f'<div class="plotly-graph">{plot_html}</div>')
+
+                parts.append("</div>")
+
             parts.append(f'<p class="caption">データ数: {len(grid_data)}</p>')
 
     except ImportError:
