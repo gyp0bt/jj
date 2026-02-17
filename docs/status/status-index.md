@@ -33,6 +33,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [008](status-008.md) | 2026-02-16 | M2 | results/サブディレクトリのメタデータ抽出パーサー、go_inpへの結果キー割り当て | claude/extract-results-metadata-ILTKn |
 | [009](status-009.md) | 2026-02-17 | M2 | ダッシュボード改善: ライトテーマ・ビュー永続化・results除外ロジック | claude/dashboard-views-light-theme-3Dimf |
 | [010](status-010.md) | 2026-02-17 | M2 | ダッシュボード改善: verbose_name展開・グループ結線修正・プロット変数制御・グローバルカラム設定 | claude/fix-verbose-names-plot-LM8Nf |
+| [011](status-011.md) | 2026-02-17 | M2 | 表示名parse時移動・プロットスタイル制御・ギャラリーresult_keyグルーピング | claude/setup-project-docs-GNDw6 |
 
 ---
 
