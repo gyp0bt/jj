@@ -158,6 +158,7 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 | # | ドメイン | ファイル | 関連マイルストーン |
 |---|---------|---------|-------------------|
 | MS-01 | マルチソルバー対応 | [multi-solver.md](specs/multi-solver.md) | M1.5, M2 |
+| MS-02 | 解析結果ディレクトリ再構成 | [results-directory-restructure.md](specs/results-directory-restructure.md) | M2 |
 
 ### jjrv仕様書（`jjrv/docs/`）
 

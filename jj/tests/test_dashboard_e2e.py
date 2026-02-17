@@ -190,6 +190,302 @@ class TestDashboardAppTest:
 
 
 @pytest.mark.skipif(not HAS_APPTEST, reason="streamlit.testing.v1 not available")
+class TestDashboardPageNavigationE2E:
+    """ページ遷移E2Eテスト"""
+
+    def _run_app(self, project_root: Path) -> AppTest:
+        """テスト用にアプリを実行"""
+        import os
+
+        app_path = str(Path(__file__).resolve().parents[1] / "services" / "dashboard" / "app.py")
+        os.environ["JJ_PROJECT_ROOT"] = str(project_root)
+        try:
+            at = AppTest.from_file(app_path, default_timeout=30)
+            at.run()
+            return at
+        finally:
+            os.environ.pop("JJ_PROJECT_ROOT", None)
+
+    def test_navigate_to_saved_views_page(self, project_with_graph: Path):
+        """保存済みビューページへの遷移"""
+        at = self._run_app(project_with_graph)
+        assert not at.exception
+        radios = at.sidebar.radio
+        assert len(radios) >= 1
+        page_radio = radios[0]
+        assert "保存済みビュー" in page_radio.options
+        # 保存済みビューページを選択
+        page_radio.set_value("保存済みビュー")
+        at.run()
+        assert not at.exception
+
+    def test_navigate_to_connector_page(self, project_with_graph: Path):
+        """コネクターページへの遷移（物性一覧）"""
+        at = self._run_app(project_with_graph)
+        assert not at.exception
+        radios = at.sidebar.radio
+        assert len(radios) >= 1
+        page_radio = radios[0]
+        if "物性一覧" in page_radio.options:
+            page_radio.set_value("物性一覧")
+            at.run()
+            assert not at.exception
+
+    def test_navigate_to_mesh_quality_page(self, project_with_graph: Path):
+        """コネクターページへの遷移（メッシュ品質）"""
+        at = self._run_app(project_with_graph)
+        assert not at.exception
+        radios = at.sidebar.radio
+        assert len(radios) >= 1
+        page_radio = radios[0]
+        if "メッシュ品質" in page_radio.options:
+            page_radio.set_value("メッシュ品質")
+            at.run()
+            assert not at.exception
+
+    def test_navigate_to_job_summary_page(self, project_with_graph: Path):
+        """コネクターページへの遷移（ジョブサマリー）"""
+        at = self._run_app(project_with_graph)
+        assert not at.exception
+        radios = at.sidebar.radio
+        assert len(radios) >= 1
+        page_radio = radios[0]
+        if "ジョブサマリー" in page_radio.options:
+            page_radio.set_value("ジョブサマリー")
+            at.run()
+            assert not at.exception
+
+
+class TestDashboardFilterE2E:
+    """フィルタ操作テスト（Streamlit不要のユニットテスト）"""
+
+    def test_apply_chained_filters_global_only(self):
+        """グローバルフィルタのみ適用"""
+        from services.query.filters import apply_chained_filters
+
+        rows = [
+            {"type": "go", "active": True, "name": "a"},
+            {"type": "inp", "active": True, "name": "b"},
+            {"type": "go", "active": False, "name": "c"},
+        ]
+        result = apply_chained_filters(rows, {"type": "go"})
+        assert len(result) == 2
+        assert all(r["type"] == "go" for r in result)
+
+    def test_apply_chained_filters_global_and_local(self):
+        """グローバル+ローカルフィルタ適用"""
+        from services.query.filters import apply_chained_filters
+
+        rows = [
+            {"type": "go", "active": True, "name": "a"},
+            {"type": "go", "active": False, "name": "b"},
+            {"type": "inp", "active": True, "name": "c"},
+        ]
+        result = apply_chained_filters(rows, {"type": "go"}, {"active": True})
+        assert len(result) == 1
+        assert result[0]["name"] == "a"
+
+    def test_merge_filters_local_overrides_global(self):
+        """ローカルフィルタがグローバルを上書き"""
+        from services.query.filters import merge_filters
+
+        merged = merge_filters({"type": "go", "active": True}, {"type": "inp"})
+        assert merged == {"type": "inp", "active": True}
+
+    def test_merge_filters_multiple_local_keys(self):
+        """複数ローカルフィルタキーの処理"""
+        from services.query.filters import merge_filters
+
+        merged = merge_filters(
+            {"type": "go"},
+            {"active": True, "analysis_status": "COMPLETED"},
+        )
+        assert merged == {"type": "go", "active": True, "analysis_status": "COMPLETED"}
+
+
+class TestConnectorSavedViewUnit:
+    """コネクター保存済みビューのユニットテスト"""
+
+    def _make_provider(self):
+        """テスト用Providerを作成"""
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "analysis_status": "COMPLETED",
+                        "cpu_time": 123.4,
+                        "wallclock_time": 56.7,
+                        "mesh_element_count": 100,
+                        "mesh_node_count": 200,
+                        "mesh_quality": {
+                            "volume": {"min": 0.01, "max": 1.5, "mean": 0.8},
+                        },
+                        "active": True,
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx2_v1.inp",
+                        "analysis_status": "FAILED",
+                        "active": True,
+                    },
+                ),
+                Node(
+                    id=3,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={
+                        "elastic": [[210000.0, 0.3]],
+                        "plastic": [[200.0, 0.0], [300.0, 0.1]],
+                    },
+                ),
+                Node(
+                    id=4,
+                    type="abaqus_material",
+                    name="Aluminum",
+                    format="material",
+                    properties={
+                        "elastic": [[70000.0, 0.33]],
+                        "plastic": [[100.0, 0.0], [150.0, 0.05]],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        return DashboardDataProvider(graph)
+
+    def test_material_connector_saved_view_html_single(self):
+        """物性コネクター: 単一物性の保存済みビューHTML"""
+        import services.dashboard.connectors.abaqus
+        from config import DashboardConfig, SavedViewConfig
+
+        provider = self._make_provider()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "Steel詳細",
+                "type": "connector:物性一覧",
+                "connector_config": {"material_name": "Steel"},
+            }
+        )
+
+        connector = services.dashboard.connectors.abaqus.AbaqusMaterialPageConnector()
+        html = connector.generate_saved_view_html(provider, view, config)
+        assert "Steel" in html
+        assert "plastic" in html
+
+    def test_material_connector_saved_view_html_compare(self):
+        """物性コネクター: 比較モードの保存済みビューHTML"""
+        import services.dashboard.connectors.abaqus
+        from config import DashboardConfig, SavedViewConfig
+
+        provider = self._make_provider()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "物性比較",
+                "type": "connector:物性一覧",
+                "connector_config": {
+                    "compare_materials": ["Steel", "Aluminum"],
+                    "property_key": "plastic",
+                },
+            }
+        )
+
+        connector = services.dashboard.connectors.abaqus.AbaqusMaterialPageConnector()
+        html = connector.generate_saved_view_html(provider, view, config)
+        assert "物性比較" in html
+
+    def test_material_connector_saved_view_html_fallback(self):
+        """物性コネクター: connector_config未設定時はデフォルトHTML"""
+        import services.dashboard.connectors.abaqus
+        from config import DashboardConfig, SavedViewConfig
+
+        provider = self._make_provider()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "物性一覧デフォルト",
+                "type": "connector:物性一覧",
+            }
+        )
+
+        connector = services.dashboard.connectors.abaqus.AbaqusMaterialPageConnector()
+        html = connector.generate_saved_view_html(provider, view, config)
+        assert "物性テーブル" in html
+
+    def test_job_summary_connector_saved_view_html_filtered(self):
+        """ジョブサマリーコネクター: status_filterによるフィルタ"""
+        import services.dashboard.connectors.abaqus
+        from config import DashboardConfig, SavedViewConfig
+
+        provider = self._make_provider()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "完了ジョブ",
+                "type": "connector:ジョブサマリー",
+                "connector_config": {"status_filter": "COMPLETED"},
+            }
+        )
+
+        connector = services.dashboard.connectors.abaqus.AbaqusJobSummaryPageConnector()
+        html = connector.generate_saved_view_html(provider, view, config)
+        assert "COMPLETED" in html
+        assert "FAILED" not in html
+
+    def test_job_summary_connector_saved_view_html_go_name_filter(self):
+        """ジョブサマリーコネクター: go_nameフィルタ"""
+        import services.dashboard.connectors.abaqus
+        from config import DashboardConfig, SavedViewConfig
+
+        provider = self._make_provider()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "特定ジョブ",
+                "type": "connector:ジョブサマリー",
+                "connector_config": {"go_name": "go_idx1_v1"},
+            }
+        )
+
+        connector = services.dashboard.connectors.abaqus.AbaqusJobSummaryPageConnector()
+        html = connector.generate_saved_view_html(provider, view, config)
+        assert "go_idx1_v1" in html
+
+    def test_job_summary_connector_saved_view_no_match(self):
+        """ジョブサマリーコネクター: 条件不一致で空結果"""
+        import services.dashboard.connectors.abaqus
+        from config import DashboardConfig, SavedViewConfig
+
+        provider = self._make_provider()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "存在しないジョブ",
+                "type": "connector:ジョブサマリー",
+                "connector_config": {"status_filter": "RUNNING"},
+            }
+        )
+
+        connector = services.dashboard.connectors.abaqus.AbaqusJobSummaryPageConnector()
+        html = connector.generate_saved_view_html(provider, view, config)
+        assert "合致する" in html
+
+
+@pytest.mark.skipif(not HAS_APPTEST, reason="streamlit.testing.v1 not available")
 class TestDashboardHtmlExportE2E:
     """HTMLエクスポートのE2Eテスト"""
 
