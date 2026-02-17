@@ -40,10 +40,70 @@ class TablePage(PageComponent[TableViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        from services.dashboard.app import _render_table_page
+        import streamlit as st
+
+        from services.dashboard.query import apply_filters, select_table_columns
+        from services.dashboard.widgets import render_excel_download, render_shared_filters, try_render_aggrid
 
         vocab = kwargs.get("vocab") or {}
-        _render_table_page(provider, dashboard_config, vocab)
+
+        st.header("テーブルビュー")
+
+        rows = provider.get_go_table()
+        if not rows:
+            st.info("go_ ファイルが見つかりません。")
+            return
+
+        # 共有フィルタ（サイドバー描画 + 適用）
+        render_shared_filters(rows)
+        filtered = apply_filters(
+            rows,
+            type_filter=st.session_state.get("_filter_type", "すべて"),
+            status_filter=st.session_state.get("_filter_status", "すべて"),
+            active_only=st.session_state.get("_filter_active", False),
+        )
+
+        st.caption(f"{len(filtered)} / {len(rows)} 件")
+
+        if not filtered:
+            st.info("条件に一致するデータがありません。")
+            return
+
+        import pandas as pd
+
+        # verbose_nameキー
+        vn_key = provider._verbose_name_key
+
+        # related_filesはネストしているので除外
+        display_rows = []
+        for r in filtered:
+            row = {k: v for k, v in r.items() if k != "related_files"}
+            for k, v in row.items():
+                if isinstance(v, (dict, list)):
+                    row[k] = str(v)
+            display_rows.append(row)
+
+        df = pd.DataFrame(display_rows)
+
+        # nameカラムを表示名で置き換え（verbose_nameキーが存在する場合）
+        if vn_key in df.columns:
+            df["name"] = df[vn_key]
+
+        # config駆動カラム選択（vocab順ソート対応）
+        # グローバルカラム設定がある場合はそちらを優先
+        table_columns = getattr(dashboard_config, "table_columns", None)
+        if not table_columns and provider._global_columns:
+            table_columns = provider._global_columns
+        selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
+        if selected_cols:
+            df = df[[c for c in selected_cols if c in df.columns]]
+
+        # AgGridを試行、失敗時はst.dataframeにフォールバック
+        if not try_render_aggrid(df):
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # Excelダウンロードボタン
+        render_excel_download(df, "go_table")
 
     def render_saved_view(
         self,
@@ -52,7 +112,67 @@ class TablePage(PageComponent[TableViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        from services.dashboard.app import _render_saved_table
+        import streamlit as st
+
+        from services.dashboard.query import apply_saved_view_filters, select_table_columns
+        from services.dashboard.widgets import render_excel_download
 
         vocab = kwargs.get("vocab") or {}
-        _render_saved_table(provider, dashboard_config, view, vocab)
+
+        rows = provider.get_go_table()
+        if not rows:
+            st.info("go_ ファイルが見つかりません。")
+            return
+
+        # 保存済みフィルタを適用
+        filtered = apply_saved_view_filters(rows, view.filters)
+
+        st.caption(f"{len(filtered)} / {len(rows)} 件")
+        if not filtered:
+            st.info("条件に一致するデータがありません。")
+            return
+
+        import pandas as pd
+
+        # verbose_nameキー
+        vn_key = provider._verbose_name_key
+
+        display_rows = []
+        for r in filtered:
+            row = {k: v for k, v in r.items() if k != "related_files"}
+            for k, v in row.items():
+                if isinstance(v, (dict, list)):
+                    row[k] = str(v)
+            display_rows.append(row)
+
+        df = pd.DataFrame(display_rows)
+
+        # nameカラムを表示名で置き換え
+        if vn_key in df.columns:
+            df["name"] = df[vn_key]
+
+        # config駆動カラム選択（vocab順ソート対応）
+        # グローバルカラム設定がある場合はそちらを優先
+        table_columns = getattr(dashboard_config, "table_columns", None)
+        if not table_columns and provider._global_columns:
+            table_columns = provider._global_columns
+        selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
+        if selected_cols:
+            df = df[[c for c in selected_cols if c in df.columns]]
+
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # Excelダウンロードボタン
+        render_excel_download(df, f"saved_view_{view.name}")
+
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        view: SavedViewConfig,
+        dashboard_config: DashboardConfig,
+        **kwargs: Any,
+    ) -> str:
+        from services.dashboard.html_export import generate_table_html
+
+        vocab = kwargs.get("vocab")
+        return generate_table_html(provider, dashboard_config, view, vocab)
