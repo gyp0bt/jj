@@ -4155,3 +4155,56 @@ class TestExtractPathMetadata:
         result_key, props = extract_path_metadata("results/step0_frame5/go_idx1.v1_PEEQ_vmax0.1.png")
         assert result_key == "PEEQ"
         assert props["vmax"] == "0.1"
+
+
+# =========================================================================
+# プラグインレジストリ テスト
+# =========================================================================
+
+
+class TestPluginRegistry:
+    """プラグインレジストリとentry_points発見メカニズムのテスト"""
+
+    def test_load_all_plugins_is_idempotent(self):
+        """load_all_pluginsは複数回呼んでも安全"""
+        from services.sdk import load_all_plugins, reset_plugins
+
+        reset_plugins()
+        load_all_plugins()
+        load_all_plugins()  # 2回目は何もしない
+
+    def test_discover_entry_point_plugins_empty_group(self):
+        """存在しないグループに対してエラーを出さない"""
+        from services.sdk import discover_entry_point_plugins
+
+        # 存在しないグループでもエラーにならない
+        discover_entry_point_plugins("jj.nonexistent_group")
+
+    def test_builtin_plugins_registered(self):
+        """ビルトインプラグイン（abaqus, obsidian）が登録される"""
+        from services.sdk import load_all_plugins, reset_plugins
+
+        reset_plugins()
+        load_all_plugins()
+
+        from services.parse.base import get_parser_registry
+
+        registry = get_parser_registry()
+        cls_names = [cls.__name__ for cls in registry]
+        # Abaqusパーサーが登録されていること
+        assert any("Abaqus" in name for name in cls_names)
+
+    def test_plugin_sdk_exports(self):
+        """services.sdkが必要な公開APIをすべてエクスポートしている"""
+        from services.sdk import (  # noqa: F401
+            AbstractExporter,
+            AbstractFileParser,
+            CacheProvider,
+            DashboardPageConnector,
+            GraphModel,
+            Node,
+            ProjectDirectory,
+            ProjectFile,
+            ProjectGraph,
+            Relation,
+        )
