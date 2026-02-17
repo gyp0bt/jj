@@ -54,7 +54,12 @@ from services.dashboard.components import (  # noqa: E402
     get_view_type_options,
     load_dashboard_plugins,
 )
-from services.dashboard.connectors import get_connector_pages, render_connector_page  # noqa: E402
+from services.dashboard.connectors import (  # noqa: E402
+    get_connector_pages,
+    get_connector_view_type_options,
+    render_connector_page,
+    render_connector_saved_view,
+)
 from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
 from services.dashboard.html_export import generate_saved_views_html  # noqa: E402
 from services.dashboard.query import get_graph_mtime, is_truthy  # noqa: E402
@@ -387,16 +392,25 @@ def _render_saved_views_page(
             _render_view_edit_form(provider, project_root, dyn_idx, dynamic_views[dyn_idx])
             continue
 
-        # PageComponentレジストリからview_typeでディスパッチ
-        saved_component = get_page_component(view.view_type)
-        if saved_component is not None:
-            saved_component.render_saved_view(
+        # PageComponentレジストリまたはコネクターレジストリからview_typeでディスパッチ
+        if view.is_connector_view:
+            # コネクタービュー: connector:{page_label}
+            render_connector_saved_view(
+                view.connector_page_label,
                 provider,
                 view,
                 dashboard_config,
-                vocab=vocab,
-                project_root=project_root,
             )
+        else:
+            saved_component = get_page_component(view.view_type)
+            if saved_component is not None:
+                saved_component.render_saved_view(
+                    provider,
+                    view,
+                    dashboard_config,
+                    vocab=vocab,
+                    project_root=project_root,
+                )
 
     # HTMLエクスポート
     st.markdown("---")
@@ -446,11 +460,13 @@ def _render_view_add_form(
     """保存済みビューの新規追加フォーム"""
     with st.expander("ビューを追加", expanded=False):
         view_name = st.text_input("ビュー名", key="_add_view_name")
-        # ViewConfigレジストリからビュータイプ一覧を取得
+        # ViewConfigレジストリ + コネクタービュータイプの一覧
         type_options = get_view_type_options()
+        connector_type_options = get_connector_view_type_options(provider)
+        all_type_options = type_options + connector_type_options
         view_type = st.selectbox(
             "タイプ",
-            type_options,
+            all_type_options,
             key="_add_view_type",
         )
 
@@ -464,11 +480,21 @@ def _render_view_add_form(
         with fc3:
             f_active = st.checkbox("active", key="_add_view_f_active")
 
+        # ローカルフィルタ設定
+        st.markdown("**ローカルフィルタ（任意・ページ固有）**")
+        lfc1, lfc2 = st.columns(2)
+        with lfc1:
+            lf_key = st.text_input("プロパティキー", key="_add_view_lf_key")
+        with lfc2:
+            lf_value = st.text_input("値", key="_add_view_lf_value")
+
         # ViewConfigレジストリからビュータイプ固有の設定UIを描画
         type_specific_config: dict[str, Any] = {}
-        vc = get_view_config(view_type)
-        if vc is not None:
-            type_specific_config = vc.render_add_form(provider)
+        is_connector = view_type.startswith("connector:")
+        if not is_connector:
+            vc = get_view_config(view_type)
+            if vc is not None:
+                type_specific_config = vc.render_add_form(provider)
 
         if st.button("追加", key="_add_view_btn"):
             if not view_name:
@@ -482,13 +508,19 @@ def _render_view_add_form(
                 if f_active:
                     filters["active"] = True
 
+                local_filters: dict[str, Any] = {}
+                if lf_key and lf_value:
+                    local_filters[lf_key] = lf_value
+
                 new_view: dict[str, Any] = {
                     "name": view_name,
                     "type": view_type,
                     "filters": filters,
+                    "local_filters": local_filters,
                     "plot": type_specific_config.get("plot", {}),
                     "array_plot": type_specific_config.get("array_plot", {}),
                     "gallery": type_specific_config.get("gallery", {}),
+                    "connector_config": {},
                 }
                 st.session_state["_dynamic_views"].append(new_view)
                 if project_root is not None:

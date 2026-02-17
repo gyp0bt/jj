@@ -605,20 +605,41 @@ class ObsidianExportConfig:
         )
 
 
+_BUILTIN_VIEW_TYPES = frozenset({"table", "plot", "gallery", "card", "status", "array_plot"})
+_CONNECTOR_VIEW_PREFIX = "connector:"
+
+
 @dataclass(frozen=True)
 class SavedViewConfig:
     """保存済みビュー設定
 
     dashboard.saved-viewsの各エントリに対応。
     フィルタ・プロット条件を保存し、ダッシュボードで順番に表示する。
+
+    view_typeはビルトインタイプ（table, plot等）に加え、
+    "connector:{page_label}" 形式でコネクターページも指定可能。
     """
 
     name: str  # ビュー名
-    view_type: str  # "table" | "plot" | "gallery" | "card" | "status" | "array_plot"
-    filters: dict[str, Any]  # フィルタ条件
+    view_type: str  # "table" | "plot" | ... | "connector:{page_label}"
+    filters: dict[str, Any]  # グローバルフィルタ条件
+    local_filters: dict[str, Any]  # ローカルフィルタ条件（ページ/ビュー固有）
     plot: dict[str, str | None]  # プロット条件 {"x": ..., "y": ..., "color": ..., "chart_type": ...}
     gallery: dict[str, Any]  # ギャラリー条件 {"source": ..., "property_key": ..., "format": ...}
     array_plot: dict[str, Any]  # 配列プロット条件 {"prefix": ..., "x": ..., "y": [...], "mode": ...}
+    connector_config: dict[str, Any]  # コネクター固有設定（connector:*タイプ用）
+
+    @property
+    def is_connector_view(self) -> bool:
+        """コネクタービュータイプかどうかを判定"""
+        return self.view_type.startswith(_CONNECTOR_VIEW_PREFIX)
+
+    @property
+    def connector_page_label(self) -> str:
+        """コネクタービューのページラベルを返す（非コネクターの場合は空文字列）"""
+        if self.is_connector_view:
+            return self.view_type[len(_CONNECTOR_VIEW_PREFIX) :]
+        return ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SavedViewConfig:
@@ -626,13 +647,18 @@ class SavedViewConfig:
         if not name:
             raise ValueError("saved-views[].name is required")
         view_type = data.get("type", "table")
-        if view_type not in ("table", "plot", "gallery", "card", "status", "array_plot"):
+        # ビルトインタイプまたはconnector:プレフィックスを許可
+        if view_type not in _BUILTIN_VIEW_TYPES and not view_type.startswith(_CONNECTOR_VIEW_PREFIX):
             raise ValueError(
-                f"saved-views[].type must be one of: table, plot, gallery, card, status, array_plot (got '{view_type}')"
+                f"saved-views[].type must be one of: {', '.join(sorted(_BUILTIN_VIEW_TYPES))}, "
+                f"or 'connector:{{page_label}}' (got '{view_type}')"
             )
         filters = data.get("filters", {})
         if not isinstance(filters, dict):
             filters = {}
+        local_filters = data.get("local_filters", {})
+        if not isinstance(local_filters, dict):
+            local_filters = {}
         plot = data.get("plot", {})
         if not isinstance(plot, dict):
             plot = {}
@@ -642,13 +668,18 @@ class SavedViewConfig:
         array_plot = data.get("array_plot", {})
         if not isinstance(array_plot, dict):
             array_plot = {}
+        connector_config = data.get("connector_config", {})
+        if not isinstance(connector_config, dict):
+            connector_config = {}
         return cls(
             name=name,
             view_type=view_type,
             filters=filters,
+            local_filters=local_filters,
             plot=plot,
             gallery=gallery,
             array_plot=array_plot,
+            connector_config=connector_config,
         )
 
 

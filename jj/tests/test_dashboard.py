@@ -5071,3 +5071,309 @@ class TestFilterImagesByKeys:
         result = filter_images_by_keys(images, ["figure"], source="property")
         assert len(result) == 1
         assert result[0]["image_path"] == "b.png"
+
+
+# ====================================================================
+# SavedViewConfig コネクタータイプ拡張テスト
+# ====================================================================
+
+
+class TestSavedViewConfigConnectorType:
+    """SavedViewConfigのconnector:プレフィックス対応テスト"""
+
+    def test_connector_view_type_accepted(self):
+        """connector:{label}形式のview_typeが受け入れられる"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "物性ビュー",
+                "type": "connector:物性一覧",
+            }
+        )
+        assert view.view_type == "connector:物性一覧"
+        assert view.is_connector_view is True
+        assert view.connector_page_label == "物性一覧"
+
+    def test_builtin_view_type_not_connector(self):
+        """ビルトインview_typeはis_connector_view=False"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({"name": "テーブル", "type": "table"})
+        assert view.is_connector_view is False
+        assert view.connector_page_label == ""
+
+    def test_invalid_view_type_raises(self):
+        """不正なview_typeはValueErrorを送出"""
+        import pytest
+
+        from config import SavedViewConfig
+
+        with pytest.raises(ValueError, match="saved-views"):
+            SavedViewConfig.from_dict({"name": "不正", "type": "invalid_type"})
+
+    def test_local_filters_parsed(self):
+        """local_filtersがfrom_dictで正しく読み込まれる"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "フィルタ付きテーブル",
+                "type": "table",
+                "local_filters": {"analysis_status": "COMPLETED"},
+            }
+        )
+        assert view.local_filters == {"analysis_status": "COMPLETED"}
+
+    def test_local_filters_default_empty(self):
+        """local_filtersが未指定の場合は空辞書"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict({"name": "テスト", "type": "table"})
+        assert view.local_filters == {}
+
+    def test_connector_config_parsed(self):
+        """connector_configがfrom_dictで正しく読み込まれる"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "物性ビュー",
+                "type": "connector:物性一覧",
+                "connector_config": {"show_comparison": True},
+            }
+        )
+        assert view.connector_config == {"show_comparison": True}
+
+
+# ====================================================================
+# ローカルフィルター・チェーンフィルターテスト
+# ====================================================================
+
+
+class TestLocalFilterChain:
+    """merge_filters / apply_chained_filters テスト"""
+
+    def test_merge_filters_global_only(self):
+        """ローカルフィルタがない場合はグローバルのみ"""
+        from services.query.filters import merge_filters
+
+        result = merge_filters({"type": "go"})
+        assert result == {"type": "go"}
+
+    def test_merge_filters_local_overrides(self):
+        """ローカルフィルタがグローバルを上書き"""
+        from services.query.filters import merge_filters
+
+        result = merge_filters(
+            {"type": "go", "active": True},
+            {"active": False, "analysis_status": "COMPLETED"},
+        )
+        assert result == {"type": "go", "active": False, "analysis_status": "COMPLETED"}
+
+    def test_merge_filters_empty_local(self):
+        """空のローカルフィルタはグローバルのみ"""
+        from services.query.filters import merge_filters
+
+        result = merge_filters({"type": "go"}, {})
+        assert result == {"type": "go"}
+
+    def test_apply_chained_filters_global_only(self):
+        """グローバルフィルタのみ適用"""
+        from services.query.filters import apply_chained_filters
+
+        rows = [
+            {"type": "go", "name": "go_1", "analysis_status": "COMPLETED"},
+            {"type": "go", "name": "go_2", "analysis_status": "FAILED"},
+            {"type": "inp", "name": "inp_1", "analysis_status": "COMPLETED"},
+        ]
+        result = apply_chained_filters(rows, {"type": "go"})
+        assert len(result) == 2
+        assert all(r["type"] == "go" for r in result)
+
+    def test_apply_chained_filters_with_local(self):
+        """グローバル→ローカルの順で適用"""
+        from services.query.filters import apply_chained_filters
+
+        rows = [
+            {"type": "go", "name": "go_1", "analysis_status": "COMPLETED"},
+            {"type": "go", "name": "go_2", "analysis_status": "FAILED"},
+            {"type": "inp", "name": "inp_1", "analysis_status": "COMPLETED"},
+        ]
+        result = apply_chained_filters(
+            rows,
+            {"type": "go"},
+            {"analysis_status": "COMPLETED"},
+        )
+        assert len(result) == 1
+        assert result[0]["name"] == "go_1"
+
+
+# ====================================================================
+# コネクター保存ビューHTML生成テスト
+# ====================================================================
+
+
+class TestConnectorSavedViewHtml:
+    """コネクター保存ビューのHTML生成テスト"""
+
+    def test_connector_saved_view_html_generation(self):
+        """コネクター保存ビューのHTML断片が生成される"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from config import SavedViewConfig
+        from services.dashboard.connectors import generate_connector_saved_view_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={"elastic": [[210000.0, 0.3]]},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "物性保存ビュー",
+                "type": "connector:物性一覧",
+            }
+        )
+        html = generate_connector_saved_view_html("物性一覧", provider, view, None)
+        assert "物性テーブル" in html
+        assert "Steel" in html
+
+    def test_connector_saved_view_html_unregistered(self):
+        """未登録のページラベルでは空文字列を返す"""
+        from config import SavedViewConfig
+        from services.dashboard.connectors import generate_connector_saved_view_html
+
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "テスト",
+                "type": "connector:存在しないページ",
+            }
+        )
+        result = generate_connector_saved_view_html("存在しないページ", provider, view, None)
+        assert result == ""
+
+    def test_connector_saved_view_html_unavailable(self):
+        """利用不可のコネクターでは空文字列を返す"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from config import SavedViewConfig
+        from services.dashboard.connectors import generate_connector_saved_view_html
+
+        # abaqus_materialノードがないのでAbaqusMaterialPageConnectorは利用不可
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "テスト",
+                "type": "connector:物性一覧",
+            }
+        )
+        result = generate_connector_saved_view_html("物性一覧", provider, view, None)
+        assert result == ""
+
+    def test_generate_view_html_dispatches_connector(self):
+        """generate_view_htmlがコネクタービューを正しくディスパッチする"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from config import SavedViewConfig
+        from services.dashboard.html_export import generate_view_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Aluminum",
+                    format="material",
+                    properties={"elastic": [[70000.0, 0.33]]},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "物性HTMLビュー",
+                "type": "connector:物性一覧",
+            }
+        )
+        from pathlib import Path
+
+        html = generate_view_html(provider, Path("/tmp"), None, view)
+        assert "物性テーブル" in html
+        assert "Aluminum" in html
+
+    def test_get_connector_view_type_options(self):
+        """get_connector_view_type_optionsが利用可能なコネクタータイプを返す"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import get_connector_view_type_options
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"analysis_status": "COMPLETED"},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        options = get_connector_view_type_options(provider)
+        assert "connector:物性一覧" in options
+        assert "connector:ジョブサマリー" in options
+
+    def test_render_saved_view_default_delegates(self):
+        """基底クラスのrender_saved_viewがrender_pageに委譲する"""
+        from config import SavedViewConfig
+        from services.dashboard.connectors import DashboardPageConnector
+
+        called = {}
+
+        class TestConnector(DashboardPageConnector):
+            page_label = ""  # レジストリに登録しない
+
+            def render_page(self, provider, dashboard_config):
+                called["render_page"] = True
+
+        connector = TestConnector()
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict({"name": "test", "type": "table"})
+        connector.render_saved_view(provider, view, None)
+        assert called.get("render_page") is True
+
+    def test_generate_saved_view_html_default_delegates(self):
+        """基底クラスのgenerate_saved_view_htmlがgenerate_htmlに委譲する"""
+        from config import SavedViewConfig
+        from services.dashboard.connectors import DashboardPageConnector
+
+        class TestConnector(DashboardPageConnector):
+            page_label = ""  # レジストリに登録しない
+
+            def generate_html(self, provider, dashboard_config):
+                return "<p>test html</p>"
+
+        connector = TestConnector()
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        view = SavedViewConfig.from_dict({"name": "test", "type": "table"})
+        result = connector.generate_saved_view_html(provider, view, None)
+        assert result == "<p>test html</p>"
