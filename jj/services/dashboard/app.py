@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
+import yaml
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -97,6 +98,48 @@ def _get_project_root() -> Path:
         root = os.environ.get("JJ_PROJECT_ROOT", str(Path.cwd()))
         st.session_state["project_root"] = root
     return Path(st.session_state["project_root"])
+
+
+# ====================================================================
+# ビュー永続化（.jj/storage/saved-views.yaml）
+# ====================================================================
+
+_SAVED_VIEWS_FILENAME = "saved-views.yaml"
+
+
+def _saved_views_path(project_root: Path) -> Path:
+    """保存済みビューファイルのパスを返す"""
+    return project_root / ".jj" / "storage" / _SAVED_VIEWS_FILENAME
+
+
+def _load_persistent_views(project_root: Path) -> list[dict[str, Any]]:
+    """永続化されたビューをファイルから読み込む
+
+    .jj/storage/saved-views.yaml が存在しない場合は空リストを返す。
+    """
+    path = _saved_views_path(project_root)
+    if not path.exists():
+        return []
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return data
+    except Exception:
+        pass
+    return []
+
+
+def _save_persistent_views(project_root: Path, views: list[dict[str, Any]]) -> None:
+    """ビューをファイルに永続化する
+
+    .jj/storage/saved-views.yaml に書き出す。
+    """
+    path = _saved_views_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.dump(views, allow_unicode=True, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
 
 
 # ====================================================================
@@ -299,9 +342,8 @@ def main() -> None:
     # コネクターが提供するページを動的追加
     connector_pages = get_connector_pages(provider)
     page_options.extend(connector_pages)
-    saved_views = getattr(dashboard_config, "saved_views", [])
-    if saved_views:
-        page_options.append("保存済みビュー")
+    # 保存済みビューは常に表示（config定義 + 永続化ビュー）
+    page_options.append("保存済みビュー")
     page = st.sidebar.radio(
         "ページ",
         page_options,
@@ -1282,16 +1324,17 @@ def _render_saved_views_page(
 ) -> None:
     """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示
 
-    config.yamlからの静的ビューに加え、session_stateに保存された
-    動的ビューも表示する。動的ビューはUI上で追加・編集・削除が可能。
+    config.yamlからの静的ビューに加え、永続化された動的ビューも表示する。
+    動的ビューはUI上で追加・編集・削除が可能で、.jj/storage/saved-views.yaml
+    にファイル永続化される。
     """
     st.header("保存済みビュー")
 
     saved_views = list(getattr(dashboard_config, "saved_views", []))
 
-    # session_stateに保存された動的ビューを取得
+    # 永続化された動的ビューをファイルから読み込み（初回のみ）
     if "_dynamic_views" not in st.session_state:
-        st.session_state["_dynamic_views"] = []
+        st.session_state["_dynamic_views"] = _load_persistent_views(project_root)
     dynamic_views: list[dict[str, Any]] = st.session_state["_dynamic_views"]
 
     # 動的ビューをSavedViewConfigに変換
@@ -1326,6 +1369,7 @@ def _render_saved_views_page(
             with hcol3:
                 if st.button("削除", key=f"_del_dv_{dyn_idx}"):
                     st.session_state["_dynamic_views"].pop(dyn_idx)
+                    _save_persistent_views(project_root, st.session_state["_dynamic_views"])
                     st.rerun()
         else:
             st.subheader(f"{view.name}")
@@ -1334,7 +1378,7 @@ def _render_saved_views_page(
 
         # 動的ビュー編集フォーム
         if is_dynamic and st.session_state.get(f"_editing_dv_{dyn_idx}", False):
-            _render_view_edit_form(provider, dyn_idx, dynamic_views[dyn_idx])
+            _render_view_edit_form(provider, project_root, dyn_idx, dynamic_views[dyn_idx])
             continue
 
         if view.view_type == "table":
@@ -1356,7 +1400,7 @@ def _render_saved_views_page(
 
     # 新規ビュー追加セクション
     st.markdown("---")
-    _render_view_add_form(provider)
+    _render_view_add_form(provider, project_root)
 
 
 def _render_saved_table(
@@ -1704,6 +1748,7 @@ def _render_html_export_button(
 
 def _render_view_add_form(
     provider: DashboardDataProvider,
+    project_root: Path | None = None,
 ) -> None:
     """保存済みビューの新規追加フォーム"""
     with st.expander("ビューを追加", expanded=False):
@@ -1794,11 +1839,14 @@ def _render_view_add_form(
                     "gallery": gallery_config,
                 }
                 st.session_state["_dynamic_views"].append(new_view)
+                if project_root is not None:
+                    _save_persistent_views(project_root, st.session_state["_dynamic_views"])
                 st.rerun()
 
 
 def _render_view_edit_form(
     provider: DashboardDataProvider,
+    project_root: Path | None,
     dyn_idx: int,
     view_data: dict[str, Any],
 ) -> None:
@@ -1854,6 +1902,8 @@ def _render_view_edit_form(
                 view_data["type"] = view_type
                 view_data["filters"] = filters
                 st.session_state["_dynamic_views"][dyn_idx] = view_data
+                if project_root is not None:
+                    _save_persistent_views(project_root, st.session_state["_dynamic_views"])
                 st.session_state[f"_editing_dv_{dyn_idx}"] = False
                 st.rerun()
         with ec2:
