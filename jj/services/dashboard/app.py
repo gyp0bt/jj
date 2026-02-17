@@ -37,8 +37,22 @@ if _project_src not in sys.path:
 # コネクター自動登録（インポート時に__init_subclass__で登録される）
 import contextlib  # noqa: E402
 
+# PageComponent/ViewConfig自動登録（インポート時に__init_subclass__で登録される）
+import services.dashboard.components.array_plot  # noqa: E402
+import services.dashboard.components.card  # noqa: E402
+import services.dashboard.components.gallery  # noqa: E402
+import services.dashboard.components.plot  # noqa: E402
+import services.dashboard.components.status  # noqa: E402
+import services.dashboard.components.table  # noqa: E402
 import services.dashboard.connectors.abaqus  # noqa: F401, E402
 from jj_types import GraphModel  # noqa: E402
+from services.dashboard.components import (  # noqa: E402
+    get_page_component,
+    get_page_component_by_label,
+    get_page_labels,
+    get_view_config,
+    get_view_type_options,
+)
 from services.dashboard.connectors import get_connector_pages, render_connector_page  # noqa: E402
 from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
 from services.dashboard.html_export import (  # noqa: E402
@@ -52,6 +66,7 @@ from services.dashboard.query import (  # noqa: E402
     apply_saved_view_filters,
     collect_group_keys,
     extract_path_metadata,
+    filter_images_by_keys,
     get_graph_mtime,
     is_truthy,
     normalize_group_key,
@@ -342,15 +357,8 @@ def main() -> None:
     # 共有フィルタ初期化
     _init_shared_filters(dashboard_config.default_filters)
 
-    # ページ選択（コネクターページ + 保存済みビュー動的追加）
-    page_options = [
-        "テーブル",
-        "カード",
-        "プロット",
-        "配列プロット",
-        "ステータス",
-        "ギャラリー",
-    ]
+    # ページ選択（PageComponentレジストリ + コネクターページ + 保存済みビュー）
+    page_options = get_page_labels()
     # コネクターが提供するページを動的追加
     connector_pages = get_connector_pages(provider)
     page_options.extend(connector_pages)
@@ -369,18 +377,16 @@ def main() -> None:
     st.sidebar.metric("総リレーション数", len(graph.relations))
     st.sidebar.metric("go_ ファイル数", status["total"])
 
-    if page == "テーブル":
-        _render_table_page(provider, dashboard_config, vocab)
-    elif page == "カード":
-        _render_card_page(provider)
-    elif page == "プロット":
-        _render_plot_page(provider, dashboard_config)
-    elif page == "配列プロット":
-        _render_array_plot_page(provider, dashboard_config)
-    elif page == "ステータス":
-        _render_status_page(provider)
-    elif page == "ギャラリー":
-        _render_gallery_page(provider, project_root, dashboard_config)
+    # 共通kwargs（全PageComponentに渡す）
+    render_kwargs: dict[str, Any] = {
+        "vocab": vocab,
+        "project_root": project_root,
+    }
+
+    # PageComponentレジストリからディスパッチ
+    component = get_page_component_by_label(page)
+    if component is not None:
+        component.render_page(provider, dashboard_config, **render_kwargs)
     elif page == "保存済みビュー":
         _render_saved_views_page(provider, project_root, dashboard_config, vocab)
     elif page in connector_pages:
@@ -743,139 +749,40 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
 
     df = pd.DataFrame(data)
 
-    # NxMグリッド表示オプション
-    gallery_cols = getattr(dashboard_config, "gallery_columns", 5)
-    gallery_rows = getattr(dashboard_config, "gallery_rows", 4)
-    grid_mode = st.checkbox("グリッドモード（スクリーンショット用）", value=False)
-
     try:
         import plotly.express as px
 
-        if grid_mode:
-            # グリッドモード: 各データ点ごとに個別プロットをNxMグリッド配置
-            _render_plot_grid(
-                df,
-                x_key,
-                y_key,
-                color,
-                chart_type,
-                gallery_cols,
-                gallery_rows,
-                hover_name_col=vn_key,
-            )
-        else:
-            # 通常モード: 1つのプロット
-            fig = _create_plot_figure(
-                px,
-                df,
-                x_key,
-                y_key,
-                color,
-                chart_type,
-                hover_name_col=vn_key,
-            )
-            # NG領域塗りつぶし
-            ng_regions = getattr(dashboard_config, "ng_regions", [])
-            if ng_regions:
-                _add_ng_regions_to_fig(fig, ng_regions)
-            # グループ結線
-            if gl_key and gl_key in df.columns:
-                _add_group_lines_to_fig(fig, df, x_key, y_key, gl_key)
-            # 軸範囲設定を適用
-            x_range = _build_axis_range(x_min, x_max)
-            y_range = _build_axis_range(y_min, y_max)
-            if x_range:
-                fig.update_xaxes(range=x_range)
-            if y_range:
-                fig.update_yaxes(range=y_range)
-            # スタイル設定を適用
-            _apply_style_to_fig(fig, plot_style)
-            st.plotly_chart(fig, use_container_width=True)
+        fig = _create_plot_figure(
+            px,
+            df,
+            x_key,
+            y_key,
+            color,
+            chart_type,
+            hover_name_col=vn_key,
+        )
+        # NG領域塗りつぶし
+        ng_regions = getattr(dashboard_config, "ng_regions", [])
+        if ng_regions:
+            _add_ng_regions_to_fig(fig, ng_regions)
+        # グループ結線
+        if gl_key and gl_key in df.columns:
+            _add_group_lines_to_fig(fig, df, x_key, y_key, gl_key)
+        # 軸範囲設定を適用
+        x_range = _build_axis_range(x_min, x_max)
+        y_range = _build_axis_range(y_min, y_max)
+        if x_range:
+            fig.update_xaxes(range=x_range)
+        if y_range:
+            fig.update_yaxes(range=y_range)
+        # スタイル設定を適用
+        _apply_style_to_fig(fig, plot_style)
+        st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         # plotlyがない場合はStreamlit組み込みチャートを使用
         st.scatter_chart(df, x=x_key, y=y_key)
 
     st.caption(f"データ点数: {len(data)}")
-
-
-def _render_plot_grid(
-    df: pd.DataFrame,
-    x_key: str,
-    y_key: str,
-    color: str | None,
-    chart_type: str,
-    cols_per_row: int,
-    max_rows: int,
-    hover_name_col: str = "name",
-) -> None:
-    """プロットをNxMグリッドで表示（スクリーンショット向け）
-
-    色分けキーまたはnameごとに個別プロットを生成しグリッド配置する。
-    """
-    try:
-        import plotly.express as px
-    except ImportError:
-        st.warning("plotlyが必要です。")
-        return
-
-    # hover_name列の解決
-    hn = hover_name_col if hover_name_col in df.columns else "name"
-
-    # 色分けキーでグループ化、なければnameごと
-    group_key = color if color else "name"
-    if group_key not in df.columns:
-        st.plotly_chart(
-            _create_plot_figure(
-                px,
-                df,
-                x_key,
-                y_key,
-                color,
-                chart_type,
-                hover_name_col=hn,
-            ),
-            use_container_width=True,
-        )
-        return
-
-    groups = list(df.groupby(group_key))
-    max_plots = cols_per_row * max_rows
-    groups = groups[:max_plots]
-
-    for row_start in range(0, len(groups), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for col_idx, (group_name, group_df) in enumerate(groups[row_start : row_start + cols_per_row]):
-            with cols[col_idx]:
-                if chart_type == "散布図":
-                    fig = px.scatter(
-                        group_df,
-                        x=x_key,
-                        y=y_key,
-                        title=str(group_name),
-                        hover_name=hn if hn in group_df.columns else None,
-                    )
-                elif chart_type == "棒グラフ":
-                    fig = px.bar(
-                        group_df,
-                        x=hn if hn in group_df.columns else "name",
-                        y=y_key,
-                        title=str(group_name),
-                    )
-                else:
-                    fig = px.line(
-                        group_df,
-                        x=x_key,
-                        y=y_key,
-                        title=str(group_name),
-                        hover_name=hn if hn in group_df.columns else None,
-                        markers=True,
-                    )
-                fig.update_layout(
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    height=300,
-                    showlegend=False,
-                )
-                st.plotly_chart(fig, use_container_width=True)
 
 
 # ====================================================================
@@ -920,8 +827,8 @@ def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: A
         st.info("Y軸を選択してください。")
         return
 
-    # 表示モード: 全条件比較 or グリッド比較 or 個別ノード
-    view_mode = st.radio("表示モード", ["全条件比較", "グリッド比較", "個別ノード"], horizontal=True)
+    # 表示モード: 全条件比較 or 個別ノード
+    view_mode = st.radio("表示モード", ["全条件比較", "個別ノード"], horizontal=True)
 
     # 軸範囲設定（number_input）
     with st.expander("軸範囲設定", expanded=False):
@@ -960,18 +867,6 @@ def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: A
     if view_mode == "全条件比較":
         _render_array_overlay(
             provider,
-            x_key,
-            y_keys,
-            filters=active_filters,
-            ng_regions=ng_regions,
-            x_range=ap_x_range,
-            y_range=ap_y_range,
-            style=ap_style,
-        )
-    elif view_mode == "グリッド比較":
-        _render_array_grid(
-            provider,
-            dashboard_config,
             x_key,
             y_keys,
             filters=active_filters,
@@ -1044,73 +939,6 @@ def _render_array_overlay(
             if style:
                 _apply_style_to_fig(fig, style)
             st.plotly_chart(fig, use_container_width=True)
-
-        except ImportError:
-            st.warning("plotlyが必要です: pip install plotly")
-
-        st.caption(f"データ数: {len(grid_data)}")
-
-
-def _render_array_grid(
-    provider: DashboardDataProvider,
-    dashboard_config: Any,
-    x_key: str,
-    y_keys: list[str],
-    filters: dict[str, Any] | None = None,
-    ng_regions: list[dict[str, Any]] | None = None,
-    x_range: list[float] | None = None,
-    y_range: list[float] | None = None,
-    style: dict[str, int] | None = None,
-) -> None:
-    """配列データのグリッド比較表示（indexごとに並べる）"""
-    cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
-
-    for y_key in y_keys:
-        st.subheader(f"{y_key} vs {x_key}")
-        grid_data = provider.get_array_grid_data(x_key, y_key, filters=filters)
-        if not grid_data:
-            st.info(f"'{x_key}' と '{y_key}' のデータがありません。")
-            continue
-
-        # indexでソート
-        grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
-
-        try:
-            import plotly.graph_objects as go
-
-            for row_start in range(0, len(grid_data), cols_per_row):
-                cols = st.columns(cols_per_row)
-                for col_idx, item in enumerate(grid_data[row_start : row_start + cols_per_row]):
-                    with cols[col_idx]:
-                        fig = go.Figure()
-                        fig.add_trace(
-                            go.Scatter(
-                                x=item["x_values"],
-                                y=item["y_values"],
-                                mode="lines+markers",
-                                name=y_key,
-                            )
-                        )
-                        # NG領域塗りつぶし
-                        if ng_regions:
-                            _add_ng_regions_to_fig(fig, ng_regions)
-                        # display_nameがあれば優先使用
-                        title = item.get("display_name", item["name"])
-                        fig.update_layout(
-                            title=title,
-                            xaxis_title=x_key.split(".")[-1],
-                            yaxis_title=y_key.split(".")[-1],
-                            margin=dict(l=20, r=20, t=40, b=20),
-                            height=300,
-                            showlegend=False,
-                        )
-                        if x_range:
-                            fig.update_xaxes(range=x_range)
-                        if y_range:
-                            fig.update_yaxes(range=y_range)
-                        if style:
-                            _apply_style_to_fig(fig, style)
-                        st.plotly_chart(fig, use_container_width=True)
 
         except ImportError:
             st.warning("plotlyが必要です: pip install plotly")
@@ -1366,6 +1194,19 @@ def _render_gallery_output_images(
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
+    # フィルタ: キー名リスト指定（result_keyベース）
+    from services.dashboard.query import _extract_result_key_from_path
+
+    available_result_keys = sorted({_extract_result_key_from_path(img.get("image_path", "")) for img in images} - {""})
+    if available_result_keys:
+        selected_keys = st.sidebar.multiselect(
+            "result_keyフィルタ",
+            available_result_keys,
+            key="_gallery_output_key_filter",
+        )
+        if selected_keys:
+            images = filter_images_by_keys(images, selected_keys, source="output")
+
     # グループ表示オプション（デフォルト: 最初の利用可能キー）
     group_keys = collect_group_keys(images, source="output")
     group_options = ["なし", *group_keys]
@@ -1423,11 +1264,15 @@ def _render_gallery_property_images(
         )
         return
 
-    # キー別フィルタ
-    all_keys = sorted({img["property_key"] for img in images})
-    selected_key = st.sidebar.selectbox("プロパティキー", ["すべて", *all_keys])
-    if selected_key != "すべて":
-        images = [img for img in images if img["property_key"] == selected_key]
+    # キー名リスト指定フィルタ（multiselect、未選択時は全件表示）
+    all_keys = sorted({normalize_group_key(img["property_key"]) for img in images})
+    selected_keys = st.sidebar.multiselect(
+        "プロパティキー",
+        all_keys,
+        key="_gallery_property_key_filter",
+    )
+    if selected_keys:
+        images = filter_images_by_keys(images, selected_keys, source="property")
 
     # フォーマットフィルタ
     formats = sorted({img["image_format"] for img in images})
@@ -1599,18 +1444,16 @@ def _render_saved_views_page(
             _render_view_edit_form(provider, project_root, dyn_idx, dynamic_views[dyn_idx])
             continue
 
-        if view.view_type == "table":
-            _render_saved_table(provider, dashboard_config, view, vocab)
-        elif view.view_type == "plot":
-            _render_saved_plot(provider, view, dashboard_config)
-        elif view.view_type == "gallery":
-            _render_saved_gallery(provider, project_root, dashboard_config, view)
-        elif view.view_type == "card":
-            _render_saved_card(provider, view)
-        elif view.view_type == "status":
-            _render_status_page(provider)
-        elif view.view_type == "array_plot":
-            _render_saved_array_plot(provider, dashboard_config, view)
+        # PageComponentレジストリからview_typeでディスパッチ
+        saved_component = get_page_component(view.view_type)
+        if saved_component is not None:
+            saved_component.render_saved_view(
+                provider,
+                view,
+                dashboard_config,
+                vocab=vocab,
+                project_root=project_root,
+            )
 
     # HTMLエクスポート
     st.markdown("---")
@@ -1896,8 +1739,8 @@ def _render_saved_array_plot(
                     st.plotly_chart(fig, use_container_width=True)
                 except ImportError:
                     st.warning("plotlyが必要です。")
-    elif mode == "overlay":
-        # 全条件比較（凡例付き同一グラフ）
+    else:
+        # overlay（後方互換: gridモードもoverlay扱い）
         _render_array_overlay(
             provider,
             x_key,
@@ -1905,47 +1748,6 @@ def _render_saved_array_plot(
             filters=filter_dict,
             ng_regions=ng_regions,
         )
-    else:
-        # グリッド比較
-        for y_key in y_keys:
-            grid_data = provider.get_array_grid_data(x_key, y_key, filters=filter_dict)
-            if not grid_data:
-                continue
-            grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
-            cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
-            st.markdown(f"**{y_key} vs {x_key}**")
-            try:
-                import plotly.graph_objects as go
-
-                for row_start in range(0, len(grid_data), cols_per_row):
-                    cols = st.columns(cols_per_row)
-                    for col_idx, item in enumerate(grid_data[row_start : row_start + cols_per_row]):
-                        with cols[col_idx]:
-                            fig = go.Figure()
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=item["x_values"],
-                                    y=item["y_values"],
-                                    mode="lines+markers",
-                                    name=y_key,
-                                )
-                            )
-                            # NG領域塗りつぶし
-                            if ng_regions:
-                                _add_ng_regions_to_fig(fig, ng_regions)
-                            title = item.get("display_name", item["name"])
-                            fig.update_layout(
-                                title=title,
-                                xaxis_title=x_key.split(".")[-1],
-                                yaxis_title=y_key.split(".")[-1],
-                                margin=dict(l=20, r=20, t=40, b=20),
-                                height=300,
-                                showlegend=False,
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-            except ImportError:
-                st.warning("plotlyが必要です。")
-            st.caption(f"データ数: {len(grid_data)}")
 
 
 def _render_html_export_button(
@@ -1991,9 +1793,11 @@ def _render_view_add_form(
     """保存済みビューの新規追加フォーム"""
     with st.expander("ビューを追加", expanded=False):
         view_name = st.text_input("ビュー名", key="_add_view_name")
+        # ViewConfigレジストリからビュータイプ一覧を取得
+        type_options = get_view_type_options()
         view_type = st.selectbox(
             "タイプ",
-            ["table", "plot", "array_plot", "gallery", "card", "status"],
+            type_options,
             key="_add_view_type",
         )
 
@@ -2007,54 +1811,11 @@ def _render_view_add_form(
         with fc3:
             f_active = st.checkbox("active", key="_add_view_f_active")
 
-        # タイプ固有設定
-        plot_config: dict[str, Any] = {}
-        array_plot_config: dict[str, Any] = {}
-        gallery_config: dict[str, Any] = {}
-
-        if view_type == "plot":
-            st.markdown("**プロット設定**")
-            keys = provider.get_property_keys()
-            pc1, pc2, pc3 = st.columns(3)
-            with pc1:
-                px_key = st.selectbox("X軸", keys, key="_add_view_px") if keys else ""
-            with pc2:
-                py_key = st.selectbox("Y軸", keys, key="_add_view_py", index=min(1, len(keys) - 1)) if keys else ""
-            with pc3:
-                p_chart = st.selectbox("チャート", ["散布図", "棒グラフ", "線図"], key="_add_view_pchart")
-            plot_config = {"x": px_key, "y": py_key, "chart_type": p_chart}
-
-        elif view_type == "array_plot":
-            st.markdown("**配列プロット設定**")
-            array_keys = provider.get_array_property_keys()
-            if array_keys:
-                prefixes = sorted({k.split(".")[0] for k in array_keys})
-                ac1, ac2 = st.columns(2)
-                with ac1:
-                    ap_prefix = st.selectbox("プレフィックス", prefixes, key="_add_view_ap_prefix")
-                with ac2:
-                    ap_mode = st.selectbox("モード", ["grid", "single"], key="_add_view_ap_mode")
-                prefix_keys = [k for k in array_keys if k.startswith(ap_prefix + ".")]
-                ap_x = st.selectbox("X軸", prefix_keys, key="_add_view_ap_x") if prefix_keys else ""
-                ap_y_options = [k for k in prefix_keys if k != ap_x]
-                ap_y = st.multiselect("Y軸", ap_y_options, key="_add_view_ap_y")
-                array_plot_config = {
-                    "prefix": ap_prefix,
-                    "x": ap_x,
-                    "y": ap_y,
-                    "mode": ap_mode,
-                }
-
-        elif view_type == "gallery":
-            st.markdown("**ギャラリー設定**")
-            gc1, gc2 = st.columns(2)
-            with gc1:
-                g_source = st.selectbox("ソース", ["has_output", "property"], key="_add_view_gsrc")
-            with gc2:
-                g_format = st.text_input("フォーマット", key="_add_view_gfmt")
-            gallery_config = {"source": g_source}
-            if g_format:
-                gallery_config["format"] = g_format
+        # ViewConfigレジストリからビュータイプ固有の設定UIを描画
+        type_specific_config: dict[str, Any] = {}
+        vc = get_view_config(view_type)
+        if vc is not None:
+            type_specific_config = vc.render_add_form(provider)
 
         if st.button("追加", key="_add_view_btn"):
             if not view_name:
@@ -2072,9 +1833,9 @@ def _render_view_add_form(
                     "name": view_name,
                     "type": view_type,
                     "filters": filters,
-                    "plot": plot_config,
-                    "array_plot": array_plot_config,
-                    "gallery": gallery_config,
+                    "plot": type_specific_config.get("plot", {}),
+                    "array_plot": type_specific_config.get("array_plot", {}),
+                    "gallery": type_specific_config.get("gallery", {}),
                 }
                 st.session_state["_dynamic_views"].append(new_view)
                 if project_root is not None:
