@@ -519,6 +519,11 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
     """Abaqus物性一覧ページコネクター
 
     abaqus_materialノードが存在する場合にのみ「物性一覧」ページを提供する。
+
+    保存済みビュー（connector_config）で利用可能なキー:
+      - material_name: 表示する物性名（未指定時は全物性）
+      - property_key: カーブ表示するプロパティキー（例: "plastic"）
+      - compare_materials: 比較表示する物性名リスト
     """
 
     page_label = "物性一覧"
@@ -536,6 +541,31 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
         """物性一覧ページをレンダリング"""
         _render_material_page(provider, dashboard_config)
 
+    def render_saved_view(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> None:
+        """保存済みビュー: connector_configに基づいて物性カーブを表示
+
+        connector_config:
+          material_name: 特定物性のカーブを表示
+          property_key: 表示するプロパティキー
+          compare_materials: 比較する物性名リスト
+        """
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        mat_name = cc.get("material_name", "")
+        prop_key = cc.get("property_key", "")
+        compare_mats = cc.get("compare_materials", [])
+
+        if not mat_name and not compare_mats:
+            # connector_config未設定: デフォルトのrender_pageに委譲
+            self.render_page(provider, dashboard_config)
+            return
+
+        _render_material_saved_view(provider, dashboard_config, mat_name, prop_key, compare_mats)
+
     def generate_html(
         self,
         provider: DashboardDataProvider,
@@ -544,12 +574,33 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
         """物性一覧のHTML断片を生成"""
         return _generate_material_html(provider, dashboard_config)
 
+    def generate_saved_view_html(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> str:
+        """保存済みビューのHTML断片を生成"""
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        mat_name = cc.get("material_name", "")
+        prop_key = cc.get("property_key", "")
+        compare_mats = cc.get("compare_materials", [])
+
+        if not mat_name and not compare_mats:
+            return self.generate_html(provider, dashboard_config)
+
+        return _generate_material_saved_view_html(provider, dashboard_config, mat_name, prop_key, compare_mats)
+
 
 class AbaqusMeshQualityPageConnector(DashboardPageConnector):
     """Abaqusメッシュ品質ページコネクター
 
     go_ノードにメッシュ関連データ（mesh_element_count, mesh_quality等）が
     存在する場合に「メッシュ品質」ページを提供する。
+
+    保存済みビュー（connector_config）で利用可能なキー:
+      - go_name: 特定GOノードのメッシュ品質のみ表示
+      - show_elset: elset品質サマリーを表示するか（デフォルトTrue）
     """
 
     page_label = "メッシュ品質"
@@ -574,6 +625,23 @@ class AbaqusMeshQualityPageConnector(DashboardPageConnector):
         """メッシュ品質ページをレンダリング"""
         _render_mesh_quality_page(provider)
 
+    def render_saved_view(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> None:
+        """保存済みビュー: connector_configに基づいてメッシュ品質を表示"""
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        go_name = cc.get("go_name", "")
+        show_elset = cc.get("show_elset", True)
+
+        if not go_name and show_elset:
+            self.render_page(provider, dashboard_config)
+            return
+
+        _render_mesh_quality_saved_view(provider, go_name, show_elset)
+
     def generate_html(
         self,
         provider: DashboardDataProvider,
@@ -588,6 +656,10 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
 
     go_ノードにジョブ関連データ（analysis_status等）が存在する場合に
     「ジョブサマリー」ページを提供する。
+
+    保存済みビュー（connector_config）で利用可能なキー:
+      - status_filter: 解析ステータスでフィルタ（例: "COMPLETED"）
+      - go_name: 特定GOノードのジョブサマリーのみ表示
     """
 
     page_label = "ジョブサマリー"
@@ -611,6 +683,23 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
         """ジョブサマリーページをレンダリング"""
         _render_job_summary_page(provider)
 
+    def render_saved_view(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> None:
+        """保存済みビュー: connector_configに基づいてジョブサマリーを表示"""
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        status_filter = cc.get("status_filter", "")
+        go_name = cc.get("go_name", "")
+
+        if not status_filter and not go_name:
+            self.render_page(provider, dashboard_config)
+            return
+
+        _render_job_summary_saved_view(provider, status_filter, go_name)
+
     def generate_html(
         self,
         provider: DashboardDataProvider,
@@ -618,6 +707,278 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
     ) -> str:
         """ジョブサマリーのHTML断片を生成"""
         return _generate_job_summary_html(provider)
+
+    def generate_saved_view_html(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> str:
+        """保存済みビューのHTML断片を生成"""
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        status_filter = cc.get("status_filter", "")
+        go_name = cc.get("go_name", "")
+
+        if not status_filter and not go_name:
+            return self.generate_html(provider, dashboard_config)
+
+        return _generate_job_summary_saved_view_html(provider, status_filter, go_name)
+
+
+# ====================================================================
+# 保存済みビュー用描画関数（Streamlit依存）
+# ====================================================================
+
+
+def _render_material_saved_view(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    material_name: str,
+    property_key: str,
+    compare_materials: list[str],
+) -> None:
+    """物性一覧の保存済みビューをレンダリング
+
+    connector_configで指定された物性名・プロパティに絞った表示を行う。
+    compare_materialsが指定されている場合は比較表示。
+    """
+    import streamlit as st
+
+    # コネクタ固有configからmaterial-curve-columns取得
+    raw_mcc: dict[str, Any] = {}
+    if dashboard_config is not None:
+        get_fn = getattr(dashboard_config, "get_connector_config", None)
+        if get_fn is not None:
+            abq_cfg = get_fn("abaqus")
+            raw_mcc = abq_cfg.get("material-curve-columns", {})
+        else:
+            raw_mcc = getattr(dashboard_config, "material_curve_columns", None) or {}
+    mcc = parse_material_curve_columns(raw_mcc)
+
+    mat_rows = get_material_table(provider)
+    if not mat_rows:
+        st.info("abaqus_materialノードが見つかりません。")
+        return
+
+    if compare_materials:
+        # 比較モード: 指定された物性の特定プロパティカーブを重ね書き
+        import pandas as pd
+
+        if not property_key:
+            st.warning("compare_materialsを使用する場合はproperty_keyの指定が必要です。")
+            return
+
+        st.subheader(f"物性比較: {property_key}")
+
+        try:
+            import plotly.graph_objects as go
+
+            fig = go.Figure()
+            num_cols = 2
+            for mat_name_iter in compare_materials:
+                mat_id = next((r["id"] for r in mat_rows if r["name"] == mat_name_iter), None)
+                if mat_id is None:
+                    continue
+                table_data = get_material_table_data(provider, mat_id, property_key)
+                if table_data is None:
+                    continue
+                data_rows = table_data["data"]
+                if not data_rows or len(data_rows[0]) < 2:
+                    continue
+                num_cols = len(data_rows[0])
+                x_idx, y_idx = get_curve_plot_axes(property_key, num_cols, mcc)
+                x_vals = [row[x_idx] for row in data_rows]
+                y_vals = [row[y_idx] for row in data_rows]
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_vals,
+                        y=y_vals,
+                        mode="lines+markers",
+                        name=mat_name_iter,
+                    )
+                )
+
+            col_names = guess_table_column_names(property_key, num_cols, mcc)
+            x_idx, y_idx = get_curve_plot_axes(property_key, num_cols, mcc)
+            fig.update_layout(
+                xaxis_title=col_names[x_idx] if x_idx < len(col_names) else "X",
+                yaxis_title=col_names[y_idx] if y_idx < len(col_names) else "Y",
+                title=f"物性比較: {property_key}",
+                height=500,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        except ImportError:
+            st.warning("plotlyが必要です: pip install plotly")
+        return
+
+    # 単一物性モード: material_nameの詳細表示
+    mat_row = next((r for r in mat_rows if r["name"] == material_name), None)
+    if mat_row is None:
+        st.warning(f"物性 '{material_name}' が見つかりません。")
+        return
+
+    mat_id = mat_row["id"]
+
+    import pandas as pd
+
+    # 物性テーブル（1行）
+    st.subheader(f"物性: {material_name}")
+    display_row = {}
+    for k, v in mat_row.items():
+        if isinstance(v, (dict, list)):
+            display_row[k] = str(v)
+        else:
+            display_row[k] = v
+    df = pd.DataFrame([display_row])
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # プロパティカーブ
+    if property_key:
+        table_keys = [property_key]
+    else:
+        table_keys = get_material_table_keys(provider, mat_id)
+
+    for tk in table_keys:
+        table_data = get_material_table_data(provider, mat_id, tk)
+        if table_data is None:
+            continue
+        data_rows = table_data["data"]
+        if not data_rows or len(data_rows[0]) < 2:
+            continue
+
+        num_cols = len(data_rows[0])
+        col_names = guess_table_column_names(tk, num_cols, mcc)
+        x_idx, y_idx = get_curve_plot_axes(tk, num_cols, mcc)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            table_df = pd.DataFrame(data_rows, columns=col_names)
+            st.dataframe(table_df, use_container_width=True, hide_index=True)
+        with col2:
+            try:
+                import plotly.graph_objects as go
+
+                fig = go.Figure()
+                x_vals = [row[x_idx] for row in data_rows]
+                y_vals = [row[y_idx] for row in data_rows]
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_vals,
+                        y=y_vals,
+                        mode="lines+markers",
+                        name=tk,
+                    )
+                )
+                fig.update_layout(
+                    xaxis_title=col_names[x_idx] if x_idx < len(col_names) else "X",
+                    yaxis_title=col_names[y_idx] if y_idx < len(col_names) else "Y",
+                    title=f"{material_name} - {tk}",
+                    height=400,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                st.warning("plotlyが必要です: pip install plotly")
+
+
+def _render_mesh_quality_saved_view(
+    provider: DashboardDataProvider,
+    go_name: str,
+    show_elset: bool,
+) -> None:
+    """メッシュ品質の保存済みビューをレンダリング
+
+    go_nameフィルターとelset表示制御をサポート。
+    """
+    import streamlit as st
+
+    st.header("メッシュ品質")
+
+    # メッシュ品質サマリー（go_nameフィルタ）
+    mesh_rows = get_mesh_quality_summary(provider)
+    if go_name:
+        mesh_rows = [r for r in mesh_rows if r["go_name"] == go_name]
+
+    if mesh_rows:
+        import pandas as pd
+
+        st.subheader("メッシュ品質サマリー")
+        display_rows = []
+        for r in mesh_rows:
+            row: dict[str, Any] = {
+                "GOノード": r["go_name"],
+                "節点数": r["node_count"],
+                "要素数": r["element_count"],
+            }
+            etypes = r.get("element_types", {})
+            if isinstance(etypes, dict) and etypes:
+                row["要素タイプ"] = ", ".join(f"{k}:{v}" for k, v in etypes.items())
+            quality = r.get("quality", {})
+            if isinstance(quality, dict):
+                row.update(_format_quality_dict(quality))
+            display_rows.append(row)
+        df = pd.DataFrame(display_rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("メッシュ品質データがありません。")
+
+    # Elset品質サマリー
+    if show_elset:
+        st.markdown("---")
+        _render_elset_quality_summary(provider)
+
+
+def _render_job_summary_saved_view(
+    provider: DashboardDataProvider,
+    status_filter: str,
+    go_name: str,
+) -> None:
+    """ジョブサマリーの保存済みビューをレンダリング
+
+    status_filterとgo_nameによるフィルタリングをサポート。
+    """
+    import streamlit as st
+
+    st.header("Abaqusジョブサマリー")
+
+    job_rows = get_job_summary(provider)
+
+    # フィルタ適用
+    if status_filter:
+        job_rows = [r for r in job_rows if r.get("analysis_status") == status_filter]
+    if go_name:
+        job_rows = [r for r in job_rows if r["go_name"] == go_name]
+
+    if not job_rows:
+        st.info("条件に合致するジョブサマリーデータがありません。")
+        return
+
+    import pandas as pd
+
+    display_rows = []
+    for r in job_rows:
+        row: dict[str, Any] = {
+            "GOノード": r["go_name"],
+            "解析ステータス": r["analysis_status"],
+        }
+        if "cpu_time" in r:
+            row["CPU時間(sec)"] = r["cpu_time"]
+        if "wallclock_time" in r:
+            row["経過時間(sec)"] = r["wallclock_time"]
+        errors: list[str] = []
+        warnings: list[str] = []
+        for key in ("sta_errors", "msg_errors", "dat_errors"):
+            errors.extend(r.get(key, []))
+        for key in ("sta_warnings", "msg_warnings", "dat_warnings"):
+            warnings.extend(r.get(key, []))
+        if errors:
+            row["エラー数"] = len(errors)
+        if warnings:
+            row["警告数"] = len(warnings)
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.caption(f"ジョブ数: {len(job_rows)}")
 
 
 # ====================================================================
@@ -789,3 +1150,123 @@ def _generate_job_summary_html(
                 sections.append("</ul></div>")
 
     return "\n".join(sections)
+
+
+def _generate_material_saved_view_html(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    material_name: str,
+    property_key: str,
+    compare_materials: list[str],
+) -> str:
+    """物性一覧の保存済みビューHTML断片を生成"""
+    import pandas as pd
+
+    raw_mcc: dict[str, Any] = {}
+    if dashboard_config is not None:
+        get_fn = getattr(dashboard_config, "get_connector_config", None)
+        if get_fn is not None:
+            abq_cfg = get_fn("abaqus")
+            raw_mcc = abq_cfg.get("material-curve-columns", {})
+        else:
+            raw_mcc = getattr(dashboard_config, "material_curve_columns", None) or {}
+    mcc = parse_material_curve_columns(raw_mcc)
+
+    mat_rows = get_material_table(provider)
+    if not mat_rows:
+        return "<p>abaqus_materialノードが見つかりません。</p>"
+
+    sections: list[str] = []
+
+    if compare_materials and property_key:
+        sections.append(f"<h3>物性比較: {property_key}</h3>")
+        comparison_data: list[dict[str, Any]] = []
+        for mat_name_iter in compare_materials:
+            mat_id = next((r["id"] for r in mat_rows if r["name"] == mat_name_iter), None)
+            if mat_id is None:
+                continue
+            table_data = get_material_table_data(provider, mat_id, property_key)
+            if table_data is None:
+                continue
+            data_rows = table_data["data"]
+            if not data_rows:
+                continue
+            num_cols = len(data_rows[0])
+            col_names = guess_table_column_names(property_key, num_cols, mcc)
+            for row in data_rows:
+                entry: dict[str, Any] = {"material": mat_name_iter}
+                for ci, cn in enumerate(col_names):
+                    if ci < len(row):
+                        entry[cn] = row[ci]
+                comparison_data.append(entry)
+        if comparison_data:
+            csv_df = pd.DataFrame(comparison_data)
+            sections.append(csv_df.to_html(index=False, classes="dataframe"))
+    elif material_name:
+        mat_row = next((r for r in mat_rows if r["name"] == material_name), None)
+        if mat_row is None:
+            return f"<p>物性 '{material_name}' が見つかりません。</p>"
+        sections.append(f"<h3>物性: {material_name}</h3>")
+        display_row = {k: (str(v) if isinstance(v, (dict, list)) else v) for k, v in mat_row.items()}
+        df = pd.DataFrame([display_row])
+        sections.append(df.to_html(index=False, classes="dataframe"))
+
+        mat_id = mat_row["id"]
+        keys_to_show = [property_key] if property_key else get_material_table_keys(provider, mat_id)
+        for tk in keys_to_show:
+            table_data = get_material_table_data(provider, mat_id, tk)
+            if table_data is None:
+                continue
+            data_rows = table_data["data"]
+            if not data_rows or len(data_rows[0]) < 2:
+                continue
+            num_cols = len(data_rows[0])
+            col_names = guess_table_column_names(tk, num_cols, mcc)
+            table_df = pd.DataFrame(data_rows, columns=col_names)
+            sections.append(f"<h4>{tk}</h4>")
+            sections.append(table_df.to_html(index=False, classes="dataframe"))
+
+    return "\n".join(sections) if sections else ""
+
+
+def _generate_job_summary_saved_view_html(
+    provider: DashboardDataProvider,
+    status_filter: str,
+    go_name: str,
+) -> str:
+    """ジョブサマリーの保存済みビューHTML断片を生成"""
+    import pandas as pd
+
+    job_rows = get_job_summary(provider)
+    if status_filter:
+        job_rows = [r for r in job_rows if r.get("analysis_status") == status_filter]
+    if go_name:
+        job_rows = [r for r in job_rows if r["go_name"] == go_name]
+
+    if not job_rows:
+        return "<p>条件に合致するジョブサマリーデータがありません。</p>"
+
+    display_rows = []
+    for r in job_rows:
+        row: dict[str, Any] = {
+            "GOノード": r["go_name"],
+            "解析ステータス": r["analysis_status"],
+        }
+        if "cpu_time" in r:
+            row["CPU時間(sec)"] = r["cpu_time"]
+        if "wallclock_time" in r:
+            row["経過時間(sec)"] = r["wallclock_time"]
+        errors: list[str] = []
+        warnings: list[str] = []
+        for key in ("sta_errors", "msg_errors", "dat_errors"):
+            errors.extend(r.get(key, []))
+        for key in ("sta_warnings", "msg_warnings", "dat_warnings"):
+            warnings.extend(r.get(key, []))
+        if errors:
+            row["エラー数"] = len(errors)
+        if warnings:
+            row["警告数"] = len(warnings)
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    return df.to_html(index=False, classes="dataframe")
