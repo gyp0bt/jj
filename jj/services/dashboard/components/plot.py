@@ -28,14 +28,19 @@ class PlotViewConfig(ViewConfig):
 
         st.markdown("**プロット設定**")
         keys = provider.get_property_keys()
-        pc1, pc2, pc3 = st.columns(3)
+        vn_key = provider._verbose_name_key
+        pc1, pc2, pc3, pc4 = st.columns(4)
         with pc1:
             px_key = st.selectbox("X軸", keys, key="_add_view_px") if keys else ""
         with pc2:
             py_key = st.selectbox("Y軸", keys, key="_add_view_py", index=min(1, len(keys) - 1)) if keys else ""
         with pc3:
+            color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
+            p_color = st.selectbox("色分け", color_options, index=1, key="_add_view_pcolor")
+        with pc4:
             p_chart = st.selectbox("チャート", ["散布図", "棒グラフ", "線図"], key="_add_view_pchart")
-        return {"plot": {"x": px_key, "y": py_key, "chart_type": p_chart}}
+        color_val = p_color if p_color != "なし" else None
+        return {"plot": {"x": px_key, "y": py_key, "color": color_val, "chart_type": p_chart}}
 
 
 class PlotPage(PageComponent[PlotViewConfig]):

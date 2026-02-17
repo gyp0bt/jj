@@ -774,6 +774,65 @@ class TestMeshInheritParser:
         assert "verbose_name" not in go_node.properties  # メタキーは継承しない
         assert go_node.properties["custom_key"] == "value"  # カスタムキーは継承
 
+    def test_merges_mesh_dict_properties(self, config: GraphConfig):
+        """複数include先のメッシュ辞書プロパティがマージされる"""
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp"},
+            ),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_part1",
+                format="inp",
+                properties={
+                    "path": "mesh_part1.inp",
+                    "mesh_elset_summary": {"ELSET_A": 100, "ELSET_B": 200},
+                    "mesh_elset_quality": {"ELSET_A": {"quality": {"volume": {"mean": 0.5}}}},
+                    "mesh_element_types": {"C3D8": 300},
+                },
+            ),
+            Node(
+                id=3,
+                type="mesh",
+                name="mesh_part2",
+                format="inp",
+                properties={
+                    "path": "mesh_part2.inp",
+                    "mesh_elset_summary": {"ELSET_C": 150},
+                    "mesh_elset_quality": {"ELSET_C": {"quality": {"volume": {"mean": 0.7}}}},
+                    "mesh_element_types": {"C3D6": 150},
+                },
+            ),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+            Relation(id=2, label="includes", node1_id=1, node2_id=3),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = MeshInheritParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        # mesh_elset_summaryがマージされている
+        summary = go_node.properties["mesh_elset_summary"]
+        assert summary["ELSET_A"] == 100
+        assert summary["ELSET_B"] == 200
+        assert summary["ELSET_C"] == 150
+        # mesh_elset_qualityもマージされている
+        quality = go_node.properties["mesh_elset_quality"]
+        assert "ELSET_A" in quality
+        assert "ELSET_C" in quality
+        # mesh_element_typesもマージされている
+        elem_types = go_node.properties["mesh_element_types"]
+        assert elem_types["C3D8"] == 300
+        assert elem_types["C3D6"] == 150
+
 
 # ====================================================================
 # IncludesRelationParser テスト（ASSET_DIRベース）

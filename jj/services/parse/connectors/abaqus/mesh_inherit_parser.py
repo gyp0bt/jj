@@ -42,6 +42,16 @@ _SKIP_KEYS: frozenset[str] = frozenset(
     }
 )
 
+# 複数include先からマージする辞書型プロパティキー
+# 例: 2つのmeshファイルをincludeする場合、elset情報を統合する
+_MERGE_DICT_KEYS: frozenset[str] = frozenset(
+    {
+        "mesh_elset_summary",
+        "mesh_elset_quality",
+        "mesh_element_types",
+    }
+)
+
 
 class MeshInheritParser(AbstractFileParser):
     """go_*.inpにincludeされた全ファイルのプロパティを継承する
@@ -83,11 +93,14 @@ class MeshInheritParser(AbstractFileParser):
                 if child is None:
                     continue
 
-                # include先のプロパティを直下に追加（既存キーは上書きしない）
+                # include先のプロパティを直下に追加
                 for key, value in child.properties.items():
                     if key in skip_keys:
                         continue
                     if key not in node.properties:
                         node.properties[key] = value
+                    elif key in _MERGE_DICT_KEYS and isinstance(node.properties[key], dict) and isinstance(value, dict):
+                        # メッシュ関連の辞書プロパティは複数include先からマージ
+                        node.properties[key] = {**node.properties[key], **value}
 
         return graph

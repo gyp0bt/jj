@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from services.dashboard.components import PageComponent, ViewConfig
+from services.dashboard.data_provider import format_float_value
 
 if TYPE_CHECKING:
     from config import DashboardConfig, SavedViewConfig
@@ -74,13 +75,15 @@ class TablePage(PageComponent[TableViewConfig]):
         # verbose_nameキー
         vn_key = provider._verbose_name_key
 
-        # related_filesはネストしているので除外
+        # related_filesはネストしているので除外。float値は指数表記フォーマット。
         display_rows = []
         for r in filtered:
             row = {k: v for k, v in r.items() if k != "related_files"}
             for k, v in row.items():
                 if isinstance(v, (dict, list)):
                     row[k] = str(v)
+                elif isinstance(v, float) and not isinstance(v, bool):
+                    row[k] = format_float_value(v)
             display_rows.append(row)
 
         df = pd.DataFrame(display_rows)
@@ -143,6 +146,8 @@ class TablePage(PageComponent[TableViewConfig]):
             for k, v in row.items():
                 if isinstance(v, (dict, list)):
                     row[k] = str(v)
+                elif isinstance(v, float) and not isinstance(v, bool):
+                    row[k] = format_float_value(v)
             display_rows.append(row)
 
         df = pd.DataFrame(display_rows)
