@@ -4274,10 +4274,14 @@ class TestHtmlExportHelpers:
 
 
 class TestVerboseNameFormat:
-    """verbose_name_formatの動的展開テスト"""
+    """verbose_name表示テスト
 
-    def test_format_with_vocab_translated_keys(self):
-        """vocab変換後のキー名でフォーマットが展開される"""
+    verbose_name_formatの展開はparse時（DisplayNameParser）に行われる。
+    ダッシュボード側ではparse済みのverbose_nameプロパティを参照するだけ。
+    """
+
+    def test_display_name_from_precomputed_verbose_name(self):
+        """parse時に生成されたverbose_name（vocab変換後キー）が表示される"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -4289,6 +4293,7 @@ class TestVerboseNameFormat:
                         "path": "go_idx1_t20.inp",
                         "条件": "1",
                         "高さ": "20",
+                        "表示名": "条件1(高さ20)",
                     },
                 ),
             ],
@@ -4296,15 +4301,14 @@ class TestVerboseNameFormat:
         )
         provider = DashboardDataProvider(
             graph,
-            vocab={"idx": "条件", "t": "高さ"},
-            verbose_name_format="条件{条件}(高さ{高さ})",
+            vocab={"idx": "条件", "t": "高さ", "verbose_name": "表示名"},
         )
         rows = provider.get_go_table()
         assert len(rows) == 1
-        assert rows[0][provider._verbose_name_key] == "条件1(高さ20)"
+        assert rows[0]["表示名"] == "条件1(高さ20)"
 
-    def test_format_with_original_keys(self):
-        """vocab変換前のキー名でもフォーマットが展開される"""
+    def test_display_name_from_verbose_name_key(self):
+        """verbose_nameキー（vocab未変換）でも表示名が取得できる"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -4314,24 +4318,19 @@ class TestVerboseNameFormat:
                     format="inp",
                     properties={
                         "path": "go_idx1_t20.inp",
-                        "条件": "1",
-                        "高さ": "20",
+                        "verbose_name": "条件1(高さ20)",
                     },
                 ),
             ],
             relations=[],
         )
-        provider = DashboardDataProvider(
-            graph,
-            vocab={"idx": "条件", "t": "高さ"},
-            verbose_name_format="条件{idx}(高さ{t})",
-        )
+        provider = DashboardDataProvider(graph, vocab={})
         rows = provider.get_go_table()
         assert len(rows) == 1
-        assert rows[0][provider._verbose_name_key] == "条件1(高さ20)"
+        assert rows[0]["verbose_name"] == "条件1(高さ20)"
 
-    def test_format_missing_key_empty(self):
-        """存在しないキーは空文字に置換される"""
+    def test_no_verbose_name_falls_back_to_node_name(self):
+        """verbose_nameが無い場合はnameにフォールバック"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -4347,10 +4346,9 @@ class TestVerboseNameFormat:
         provider = DashboardDataProvider(
             graph,
             vocab={"idx": "条件"},
-            verbose_name_format="条件{条件}(高さ{高さ})",
         )
-        rows = provider.get_go_table()
-        assert rows[0][provider._verbose_name_key] == "条件1(高さ)"
+        display = provider._get_display_name(graph.nodes[0])
+        assert display == "go_a"
 
     def test_no_format_falls_back_to_verbose_name(self):
         """verbose_name_format未設定ではプロパティのverbose_nameにフォールバック"""
@@ -4507,8 +4505,8 @@ class TestDisplayNameInImages:
         assert "display_name" in images[0]
         assert images[0]["display_name"] == "go_a"
 
-    def test_display_name_uses_format(self):
-        """verbose_name_format設定時、画像のdisplay_nameにフォーマットが適用される"""
+    def test_display_name_uses_precomputed_verbose_name(self):
+        """parse時に生成されたverbose_nameが画像のdisplay_nameに使われる"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -4519,6 +4517,7 @@ class TestDisplayNameInImages:
                     properties={
                         "path": "a.inp",
                         "条件": "1",
+                        "verbose_name": "条件1",
                         "screenshot": "images/test.png",
                     },
                 ),
@@ -4528,7 +4527,6 @@ class TestDisplayNameInImages:
         provider = DashboardDataProvider(
             graph,
             vocab={"idx": "条件"},
-            verbose_name_format="条件{条件}",
         )
         images = provider.get_property_images()
         assert len(images) == 1

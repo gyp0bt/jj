@@ -10,6 +10,7 @@ services/query からの再エクスポートにより後方互換性を維持�
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -107,7 +108,166 @@ def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
             if k not in ("path", "include_properties"):
                 keys.add(k)
     result = sorted(keys)
+    # outputソースの場合はresult_key（パスベース）でのグルーピングも追加
+    if source == "output":
+        # 画像パスからresult_keyが抽出可能か確認
+        has_result_key = any(_extract_result_key_from_path(img.get("image_path", "")) for img in images)
+        if has_result_key:
+            result = ["result_key", *result]
     # propertyソースの場合はproperty_keyでのグルーピングも追加
     if source == "property":
         result = ["property_key", *result]
     return result
+
+
+# ====================================================================
+# 画像パスからのresult_key/プロパティ抽出
+# ====================================================================
+
+# パラメータトークンパターン（負の値対応）: vmax50.0, vmin-50.0, step0
+_PATH_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(-?\d+(?:\.\d+)?)$")
+
+# result_keyパターン（ダッシュ含む識別子）: S-S13, U-U3, PEEQ
+_PATH_RESULT_KEY_PATTERN = re.compile(r"^[A-Z][A-Za-z0-9]*(?:-[A-Z][A-Za-z0-9]*(?:\d+)?)?$")
+
+
+def _extract_result_key_from_path(path: str) -> str:
+    """画像パスからresult_keyを抽出
+
+    ファイル名からgo_basename部分を除去した残りのトークンから
+    result_keyパターン（S-S13, U-U3等）にマッチする部分を抽出する。
+
+    Args:
+        path: 画像ファイルパス
+
+    Returns:
+        result_key文字列（抽出できない場合は空文字）
+    """
+    normalized = path.replace("\\", "/")
+    filename = normalized.rsplit("/", 1)[-1] if "/" in normalized else normalized
+
+    # 拡張子を除去
+    if "." in filename:
+        filename_no_ext = filename.rsplit(".", 1)[0]
+    else:
+        return ""
+
+    # go_プレフィックスを持つbasenameの後のトークンを解析
+    # go_で始まる部分の終端を探す（バージョン.vNを含む）
+    tokens = filename_no_ext.split("_")
+
+    # go_basenameの終端を特定（go_idx1.v3 等）
+    start_idx = 0
+    for i, token in enumerate(tokens):
+        if i == 0 and token.lower().startswith("go"):
+            start_idx = i + 1
+            continue
+        if i == start_idx and token.lower().startswith("idx"):
+            start_idx = i + 1
+            continue
+        break
+
+    # 残りのトークンからresult_keyを探す
+    for token in tokens[start_idx:]:
+        if _PATH_RESULT_KEY_PATTERN.fullmatch(token) and not _PATH_PROP_PATTERN.fullmatch(token):
+            return token
+
+    return ""
+
+
+def extract_path_metadata(path: str) -> tuple[str, dict[str, str]]:
+    """画像パスからresult_keyとプロパティを抽出
+
+    パス例: results/contours/go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13.png
+    戻り値: ("S-S13", {"vmax": "50.0", "vmin": "-50.0", "step": "0", "frame": "10"})
+
+    負の値はハイフン記法（vmin-50.0）で表現する。
+    ハイフンの使い分け:
+    - パラメータの負の値: [A-Za-z]+ の直後に -数字 → 負の数値
+    - result_keyのセパレータ: [A-Z] の直後に -[A-Z] → result_key内ダッシュ
+
+    Args:
+        path: 画像ファイルパス
+
+    Returns:
+        (result_key, properties_dict)
+        抽出できない場合は ("", {})
+    """
+    normalized = path.replace("\\", "/")
+    filename = normalized.rsplit("/", 1)[-1] if "/" in normalized else normalized
+
+    # 拡張子を除去
+    if "." in filename:
+        filename_no_ext = filename.rsplit(".", 1)[0]
+    else:
+        return "", {}
+
+    # go_basename部分をスキップ
+    tokens = filename_no_ext.split("_")
+
+    # go_basenameの終端を特定
+    start_idx = 0
+    for i, token in enumerate(tokens):
+        # go_ の先頭部分（go, go.v3, idx1, idx1.v3）
+        # ドット区切りのバージョンを含むトークンをチェック
+        base_token = token.split(".")[0].lower()
+        if i == 0 and base_token.startswith("go"):
+            start_idx = i + 1
+            continue
+        if i <= start_idx and base_token.startswith("idx"):
+            start_idx = i + 1
+            continue
+        break
+
+    result_key = ""
+    props: dict[str, str] = {}
+
+    # ディレクトリ名からもプロパティを抽出
+    parts = normalized.split("/")
+    for part in parts[:-1]:
+        dir_tokens = part.split("_")
+        for dt in dir_tokens:
+            m = _PATH_PROP_PATTERN.fullmatch(dt)
+            if m:
+                props[m.group(1)] = m.group(2)
+
+    # ファイル名トークンの解析
+    for token in tokens[start_idx:]:
+        # パラメータパターン（vmax50.0, vmin-50.0, step0等）
+        m = _PATH_PROP_PATTERN.fullmatch(token)
+        if m:
+            props[m.group(1)] = m.group(2)
+            continue
+        # result_keyパターン（S-S13, U-U3, PEEQ等）
+        if _PATH_RESULT_KEY_PATTERN.fullmatch(token) and not result_key:
+            result_key = token
+            continue
+
+    return result_key, props
+
+
+def group_images_by_result_key(
+    images: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """画像をresult_keyでグルーピング
+
+    同じresult_keyかつ同じプロパティセット（順不同）の画像をグループ化する。
+
+    Args:
+        images: 画像情報のリスト
+
+    Returns:
+        {result_key: [画像情報, ...], ...}
+        result_keyが空の画像は "(その他)" にまとめる
+    """
+    from collections import OrderedDict
+
+    groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+
+    for img in images:
+        path = img.get("image_path", "")
+        result_key, _props = extract_path_metadata(path)
+        gk = result_key if result_key else "(その他)"
+        groups.setdefault(gk, []).append(img)
+
+    return dict(groups)

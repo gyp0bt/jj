@@ -3703,3 +3703,287 @@ class TestResultsMetadataParserRealData:
         assert len(entries) == 2
         steps = {e["step"] for e in entries}
         assert steps == {"0", "1"}
+
+
+# ====================================================================
+# ResultsMetadataParser 負の値対応テスト
+# ====================================================================
+
+
+class TestResultsMetadataParserNegativeValues:
+    """ResultsMetadataParser の負の値対応テスト"""
+
+    def test_negative_vmin_parsed(self, config: GraphConfig, tmp_path: Path):
+        """vmin-50.0 が vmin="-50.0" として解析される"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v3",
+                format="inp",
+                properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13",
+                format="png",
+                properties={"path": "results/contours/go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        png_node = result.get_node_by_id(2)
+        assert png_node is not None
+        assert png_node.properties["vmax"] == "50.0"
+        assert png_node.properties["vmin"] == "-50.0"
+        assert png_node.properties["step"] == "0"
+        assert png_node.properties["frame"] == "10"
+        assert png_node.properties["result_key"] == "S-S13"
+
+    def test_negative_value_in_results_entry(self, config: GraphConfig, tmp_path: Path):
+        """go_ノードのresultsエントリに負の値が正しく格納される"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v3",
+                format="inp",
+                properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13",
+                format="png",
+                properties={"path": "results/contours/go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node is not None
+        entries = go_node.properties.get("results.S-S13", [])
+        assert len(entries) == 1
+        assert entries[0]["vmin"] == "-50.0"
+        assert entries[0]["vmax"] == "50.0"
+
+
+# ====================================================================
+# DisplayNameParser テスト
+# ====================================================================
+
+
+class TestDisplayNameParser:
+    """DisplayNameParser のテスト"""
+
+    def test_verbose_name_format_applied(self, config: GraphConfig, tmp_path: Path):
+        """verbose_name_formatテンプレートがgo_ノードに適用される"""
+        from services.parse.parsers.display_name_parser import DisplayNameParser
+
+        config_data = {
+            "vocab": {},
+            "verbose-name-format": "条件{idx}(高さ{t})",
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb"],
+                "asset-extensions": [".cdb"],
+            },
+        }
+        cfg = GraphConfig.from_dict(config_data)
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_t20",
+                format="inp",
+                properties={"path": "go_idx1_t20.inp", "idx": "1", "t": "20"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=cfg, project_root=tmp_path)
+        result = DisplayNameParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node is not None
+        assert go_node.properties["verbose_name"] == "条件1(高さ20)"
+
+    def test_verbose_name_format_with_vocab(self, config: GraphConfig, tmp_path: Path):
+        """vocab変換後のキー名でもフォーマットが展開される"""
+        from services.parse.parsers.display_name_parser import DisplayNameParser
+
+        config_data = {
+            "vocab": {"idx": "条件", "t": "高さ", "verbose_name": "表示名"},
+            "verbose-name-format": "条件{idx}(高さ{t})",
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb"],
+                "asset-extensions": [".cdb"],
+            },
+        }
+        cfg = GraphConfig.from_dict(config_data)
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_t20",
+                format="inp",
+                properties={"path": "go_idx1_t20.inp", "条件": "1", "高さ": "20"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=cfg, project_root=tmp_path)
+        result = DisplayNameParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node is not None
+        # vocab変換後のキー（表示名）に格納される
+        assert go_node.properties["表示名"] == "条件1(高さ20)"
+
+    def test_no_format_skips(self, config: GraphConfig, tmp_path: Path):
+        """verbose_name_format未設定ではスキップされる"""
+        from services.parse.parsers.display_name_parser import DisplayNameParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "idx": "1"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = DisplayNameParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node is not None
+        assert "verbose_name" not in go_node.properties
+
+    def test_missing_key_replaced_with_empty(self, config: GraphConfig, tmp_path: Path):
+        """存在しないキーは空文字に置換される"""
+        from services.parse.parsers.display_name_parser import DisplayNameParser
+
+        config_data = {
+            "vocab": {"idx": "条件"},
+            "verbose-name-format": "条件{条件}(高さ{高さ})",
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb"],
+                "asset-extensions": [".cdb"],
+            },
+        }
+        cfg = GraphConfig.from_dict(config_data)
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_a",
+                format="inp",
+                properties={"path": "a.inp", "条件": "1"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=cfg, project_root=tmp_path)
+        result = DisplayNameParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        assert go_node is not None
+        assert go_node.properties["verbose_name"] == "条件1(高さ)"
+
+    def test_non_go_nodes_skipped(self, config: GraphConfig, tmp_path: Path):
+        """go_以外のノードはスキップされる"""
+        from services.parse.parsers.display_name_parser import DisplayNameParser
+
+        config_data = {
+            "vocab": {},
+            "verbose-name-format": "名前{idx}",
+            "file-relations": {
+                "input-extensions": [".inp"],
+                "result-extensions": [".odb"],
+                "asset-extensions": [".cdb"],
+            },
+        }
+        cfg = GraphConfig.from_dict(config_data)
+        nodes = [
+            Node(
+                id=1,
+                type="unknown",
+                name="mesh_idx1",
+                format="inp",
+                properties={"path": "mesh_idx1.inp", "idx": "1"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=cfg, project_root=tmp_path)
+        result = DisplayNameParser().apply(graph)
+
+        mesh_node = result.get_node_by_id(1)
+        assert mesh_node is not None
+        assert "verbose_name" not in mesh_node.properties
+
+
+# ====================================================================
+# 画像パスメタデータ抽出テスト
+# ====================================================================
+
+
+class TestExtractPathMetadata:
+    """extract_path_metadata の単体テスト"""
+
+    def test_extract_result_key_and_props(self):
+        """パスからresult_keyとプロパティが正しく抽出される"""
+        from services.dashboard.query import extract_path_metadata
+
+        result_key, props = extract_path_metadata(
+            "results/contours/go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13.png"
+        )
+        assert result_key == "S-S13"
+        assert props["vmax"] == "50.0"
+        assert props["vmin"] == "-50.0"
+        assert props["step"] == "0"
+        assert props["frame"] == "10"
+
+    def test_extract_result_key_without_negative(self):
+        """負の値がないパスも正しく抽出される"""
+        from services.dashboard.query import extract_path_metadata
+
+        result_key, props = extract_path_metadata("results/step0_frame10/go_idx1.v1_S-S33_vmax10.0_vmin5.0.png")
+        assert result_key == "S-S33"
+        assert props["vmax"] == "10.0"
+        assert props["vmin"] == "5.0"
+
+    def test_extract_from_directory_tokens(self):
+        """ディレクトリ名からもプロパティが抽出される"""
+        from services.dashboard.query import extract_path_metadata
+
+        result_key, props = extract_path_metadata("results/step0_frame10/go_idx1.v1_S-S33_vmax10.0.png")
+        assert result_key == "S-S33"
+        assert props["step"] == "0"
+        assert props["frame"] == "10"
+        assert props["vmax"] == "10.0"
+
+    def test_no_result_key(self):
+        """result_keyがない場合は空文字を返す"""
+        from services.dashboard.query import extract_path_metadata
+
+        result_key, _props = extract_path_metadata("go_idx1.v1_vmax10.0.png")
+        assert result_key == ""
+
+    def test_empty_path(self):
+        """空パスの場合は空を返す"""
+        from services.dashboard.query import extract_path_metadata
+
+        result_key, props = extract_path_metadata("")
+        assert result_key == ""
+        assert props == {}
+
+    def test_peeq_result_key(self):
+        """PEEQ（ダッシュなし）のresult_keyが抽出される"""
+        from services.dashboard.query import extract_path_metadata
+
+        result_key, props = extract_path_metadata("results/step0_frame5/go_idx1.v1_PEEQ_vmax0.1.png")
+        assert result_key == "PEEQ"
+        assert props["vmax"] == "0.1"

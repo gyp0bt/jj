@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import fnmatch
 import math
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -53,11 +52,14 @@ class DashboardDataProvider:
 
     GraphModelを受け取り、各ビューに最適化したデータ構造を返す。
 
+    表示名（verbose_name）はparse時にDisplayNameParserが生成・格納済みのため、
+    ダッシュボード側ではverbose_nameプロパティを参照するだけでよい。
+
     Args:
         graph: 対象のGraphModel
         vocab: config.vocabマッピング（キー/値の翻訳用）
         units: config.export.unitsマッピング（カラム名への単位付加用）
-        verbose_name_format: verbose_nameのフォーマットテンプレート（例: "条件{idx}(高さ{t})"）
+        verbose_name_format: 廃止済み（後方互換のため残置、parse時に処理される）
         global_columns: グローバルカラム設定（globパターン対応、export.csv-columnsから昇格）
     """
 
@@ -72,7 +74,7 @@ class DashboardDataProvider:
         self.graph = graph
         self.vocab = vocab or {}
         self.units = units or {}
-        self._verbose_name_format = verbose_name_format
+        self._verbose_name_format = verbose_name_format  # 後方互換のため保持
         self._global_columns = global_columns
         self._node_by_id: dict[int, Node] = {n.id: n for n in graph.nodes}
         self._relations_by_node: dict[int, list[Relation]] = {}
@@ -734,10 +736,10 @@ class DashboardDataProvider:
     def _get_display_name(self, node: Node) -> str:
         """ノードの表示名を取得
 
+        parse時にDisplayNameParserが生成したverbose_nameプロパティを参照する。
         優先順位:
-        1. verbose_name_formatが設定されている場合、ノードプロパティから動的に生成
-        2. verbose_nameプロパティ（vocab変換後キー → 変換前キー）
-        3. node.name
+        1. verbose_nameプロパティ（vocab変換後キー → 変換前キー）
+        2. node.name
 
         Args:
             node: 対象ノード
@@ -745,12 +747,6 @@ class DashboardDataProvider:
         Returns:
             表示用の名前文字列
         """
-        # verbose_name_formatが設定されている場合、動的に生成
-        if self._verbose_name_format:
-            result = self._apply_verbose_name_format(node)
-            if result:
-                return result
-
         # vocab変換後のキー（例: "表示名"）で検索
         display = node.properties.get(self._verbose_name_key)
         if display:
@@ -760,46 +756,6 @@ class DashboardDataProvider:
         if display:
             return str(display)
         return node.name
-
-    def _apply_verbose_name_format(self, node: Node) -> str:
-        """verbose_name_formatテンプレートをノードプロパティで展開
-
-        テンプレート内の{キー名}をプロパティ値で置換する。
-        vocabの変換前・変換後どちらのキー名でも参照可能。
-        存在しないキーは空文字に置換される。
-
-        Args:
-            node: 対象ノード
-
-        Returns:
-            フォーマット適用後の表示名（フォーマットがない場合は空文字列）
-        """
-        fmt = self._verbose_name_format
-        if not fmt:
-            return ""
-
-        # プロパティ値の辞書を構築
-        values: dict[str, str] = {}
-        for key, value in node.properties.items():
-            if key in ("path", "include_properties"):
-                continue
-            if isinstance(value, (list, dict)):
-                continue
-            values[key] = str(value)
-
-        # vocab変換前のキー名でも参照可能にする
-        # （例: {idx}と書いてあるが、propsでは"条件"キーになっている場合）
-        for orig_key, translated_key in self.vocab.items():
-            if translated_key in values and orig_key not in values:
-                values[orig_key] = values[translated_key]
-        # vocab変換後のキーでも参照可能にする
-        # （例: {高さ}と書いてあるが、propsでは"t"キーになっている場合）
-        for orig_key, translated_key in self.vocab.items():
-            if orig_key in values and translated_key not in values:
-                values[translated_key] = values[orig_key]
-
-        safe_values = defaultdict(str, values)
-        return fmt.format_map(safe_values)
 
     def get_filtered_property_keys(self) -> list[str]:
         """グローバルカラム設定でフィルタされたプロパティキー一覧
