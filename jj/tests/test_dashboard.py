@@ -4531,3 +4531,200 @@ class TestDisplayNameInImages:
         images = provider.get_property_images()
         assert len(images) == 1
         assert images[0]["display_name"] == "条件1"
+
+
+# ====================================================================
+# PageComponent / ViewConfig レジストリテスト
+# ====================================================================
+
+
+class TestPageComponentRegistry:
+    """PageComponentの__init_subclass__レジストリが正しく動作するテスト"""
+
+    def test_all_builtin_pages_registered(self):
+        """6つの組み込みページが全てレジストリに登録されている"""
+        # コンポーネントモジュールをインポートして登録をトリガー
+        import services.dashboard.components.array_plot
+        import services.dashboard.components.card
+        import services.dashboard.components.gallery
+        import services.dashboard.components.plot
+        import services.dashboard.components.status
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import PageComponent
+
+        expected_keys = {"table", "card", "plot", "array_plot", "status", "gallery"}
+        actual_keys = set(PageComponent._registry.keys())
+        assert expected_keys.issubset(actual_keys), f"Missing: {expected_keys - actual_keys}"
+
+    def test_page_labels_not_empty(self):
+        """全てのPageComponentがpage_labelを持つ"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import PageComponent
+
+        for key, cls in PageComponent._registry.items():
+            assert cls.page_label, f"PageComponent '{key}' has empty page_label"
+
+    def test_get_page_labels(self):
+        """get_page_labels()が全ページのラベルを返す"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import get_page_labels
+
+        labels = get_page_labels()
+        assert "テーブル" in labels
+        assert "プロット" in labels
+        assert "ギャラリー" in labels
+
+    def test_get_page_component(self):
+        """get_page_component()で各ページのインスタンスを取得できる"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import PageComponent, get_page_component
+
+        for key in PageComponent._registry:
+            component = get_page_component(key)
+            assert component is not None, f"get_page_component('{key}') returned None"
+            assert component.page_key == key
+
+    def test_get_page_component_by_label(self):
+        """get_page_component_by_label()でラベルからインスタンスを取得できる"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import get_page_component_by_label
+
+        component = get_page_component_by_label("テーブル")
+        assert component is not None
+        assert component.page_key == "table"
+
+    def test_get_page_component_unknown_returns_none(self):
+        """未登録のpage_keyに対してNoneが返る"""
+        from services.dashboard.components import get_page_component
+
+        assert get_page_component("nonexistent") is None
+
+    def test_page_component_has_get_view_config(self):
+        """PageComponentインスタンスからget_view_config()で対応するViewConfigを取得できる"""
+        import services.dashboard.components.plot  # noqa: F401
+        from services.dashboard.components import get_page_component
+
+        component = get_page_component("plot")
+        assert component is not None
+        vc = component.get_view_config()
+        assert vc is not None
+        assert vc.view_type == "plot"
+
+
+class TestViewConfigRegistry:
+    """ViewConfigの__init_subclass__レジストリが正しく動作するテスト"""
+
+    def test_all_builtin_view_configs_registered(self):
+        """6つの組み込みViewConfigが全てレジストリに登録されている"""
+        import services.dashboard.components.array_plot
+        import services.dashboard.components.card
+        import services.dashboard.components.gallery
+        import services.dashboard.components.plot
+        import services.dashboard.components.status
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import ViewConfig
+
+        expected_types = {"table", "card", "plot", "array_plot", "status", "gallery"}
+        actual_types = set(ViewConfig._registry.keys())
+        assert expected_types.issubset(actual_types), f"Missing: {expected_types - actual_types}"
+
+    def test_get_view_config(self):
+        """get_view_config()で各ビュータイプのインスタンスを取得できる"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import ViewConfig, get_view_config
+
+        for vt in ViewConfig._registry:
+            vc = get_view_config(vt)
+            assert vc is not None, f"get_view_config('{vt}') returned None"
+            assert vc.view_type == vt
+
+    def test_get_view_type_options(self):
+        """get_view_type_options()が全ビュータイプを返す"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import get_view_type_options
+
+        options = get_view_type_options()
+        assert "table" in options
+        assert "plot" in options
+
+    def test_page_key_matches_view_type(self):
+        """PageComponentのpage_keyとViewConfigのview_typeが1:1対応する"""
+        import services.dashboard.components.array_plot
+        import services.dashboard.components.card
+        import services.dashboard.components.gallery
+        import services.dashboard.components.plot
+        import services.dashboard.components.status
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import PageComponent, ViewConfig
+
+        for key in PageComponent._registry:
+            assert key in ViewConfig._registry, f"PageComponent '{key}' has no matching ViewConfig"
+
+
+# ====================================================================
+# filter_images_by_keys テスト
+# ====================================================================
+
+
+class TestFilterImagesByKeys:
+    """filter_images_by_keysのテスト"""
+
+    def test_no_filter_returns_all(self):
+        """allowed_keys=NoneまたはNone時は全件返す"""
+        from services.dashboard.query import filter_images_by_keys
+
+        images = [
+            {"image_path": "results/S-S13/step0/img.png"},
+            {"image_path": "results/U-U3/step0/img.png"},
+        ]
+        result = filter_images_by_keys(images, None, source="output")
+        assert len(result) == 2
+
+    def test_empty_filter_returns_all(self):
+        """allowed_keys=[]の場合は全件返す"""
+        from services.dashboard.query import filter_images_by_keys
+
+        images = [
+            {"image_path": "results/S-S13/step0/img.png"},
+        ]
+        result = filter_images_by_keys(images, [], source="output")
+        assert len(result) == 1
+
+    def test_filter_output_by_result_key(self):
+        """outputソースでresult_keyによるフィルタが機能する"""
+        from services.dashboard.query import filter_images_by_keys
+
+        # _extract_result_key_from_pathはファイル名トークンからresult_keyを抽出
+        images = [
+            {"image_path": "results/go_idx1_S-S13.png"},
+            {"image_path": "results/go_idx1_U-U3.png"},
+            {"image_path": "results/go_idx1_PEEQ.png"},
+        ]
+        result = filter_images_by_keys(images, ["S-S13"], source="output")
+        assert len(result) == 1
+        assert "S-S13" in result[0]["image_path"]
+
+    def test_filter_output_multiple_keys(self):
+        """複数キーのフィルタが機能する"""
+        from services.dashboard.query import filter_images_by_keys
+
+        images = [
+            {"image_path": "results/go_idx1_S-S13.png"},
+            {"image_path": "results/go_idx1_U-U3.png"},
+            {"image_path": "results/go_idx1_PEEQ.png"},
+        ]
+        result = filter_images_by_keys(images, ["S-S13", "PEEQ"], source="output")
+        assert len(result) == 2
+
+    def test_filter_property_by_key(self):
+        """propertyソースでproperty_keyによるフィルタが機能する"""
+        from services.dashboard.query import filter_images_by_keys
+
+        images = [
+            {"property_key": "screenshot", "image_path": "a.png"},
+            {"property_key": "daily:2026-01-01:figure", "image_path": "b.png"},
+            {"property_key": "thumbnail", "image_path": "c.png"},
+        ]
+        result = filter_images_by_keys(images, ["figure"], source="property")
+        assert len(result) == 1
+        assert result[0]["image_path"] == "b.png"
