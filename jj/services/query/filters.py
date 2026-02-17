@@ -113,6 +113,60 @@ def saved_view_filters_to_provider_filters(
 
 
 # ====================================================================
+# グローバル + ローカルフィルタ結合
+# ====================================================================
+
+
+def merge_filters(
+    global_filters: dict[str, Any],
+    local_filters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """グローバルフィルタとローカルフィルタをマージ
+
+    ローカルフィルタはグローバルフィルタを上書き（AND結合の代わりに
+    ローカル優先でマージ）する。ローカルフィルタが空の場合は
+    グローバルフィルタのみ返す。
+
+    Args:
+        global_filters: グローバルフィルタ条件
+        local_filters: ローカルフィルタ条件（オプショナル）
+
+    Returns:
+        マージ済みフィルタ条件
+    """
+    if not local_filters:
+        return dict(global_filters) if global_filters else {}
+    merged = dict(global_filters) if global_filters else {}
+    merged.update(local_filters)
+    return merged
+
+
+def apply_chained_filters(
+    rows: list[dict[str, Any]],
+    global_filters: dict[str, Any],
+    local_filters: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """グローバル→ローカルの順でフィルタを適用
+
+    グローバルフィルタで絞り込んだ結果に対し、さらにローカルフィルタを
+    適用する。ローカルフィルタはオプショナルで、指定しない場合は
+    グローバルフィルタのみ適用される。
+
+    Args:
+        rows: フィルタ対象の全行データ
+        global_filters: グローバルフィルタ条件
+        local_filters: ローカルフィルタ条件（オプショナル）
+
+    Returns:
+        フィルタ適用後の行データ
+    """
+    filtered = apply_saved_view_filters(rows, global_filters)
+    if local_filters:
+        filtered = apply_saved_view_filters(filtered, local_filters)
+    return filtered
+
+
+# ====================================================================
 # プロパティ条件式フィルタ（props.KEY.OPERATOR=VALUE）
 # ====================================================================
 

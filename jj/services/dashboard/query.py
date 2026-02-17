@@ -18,9 +18,11 @@ from typing import Any
 # services/query からの再エクスポート（後方互換）
 # ==================================================================
 from services.query.filters import (  # noqa: F401
+    apply_chained_filters,
     apply_filters,
     apply_saved_view_filters,
     is_truthy,
+    merge_filters,
     saved_view_filters_to_provider_filters,
 )
 from services.query.sort import (  # noqa: F401

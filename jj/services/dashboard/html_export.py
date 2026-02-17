@@ -113,8 +113,8 @@ def generate_view_html(
 ) -> str:
     """個別ビューのHTML断片を生成
 
-    PageComponentレジストリを使用してビュータイプに応じたHTML生成を
-    ディスパッチする。レジストリに登録されていないビュータイプは空文字列を返す。
+    PageComponentレジストリまたはコネクターレジストリを使用して
+    ビュータイプに応じたHTML生成をディスパッチする。
 
     Args:
         provider: DashboardDataProvider
@@ -126,6 +126,17 @@ def generate_view_html(
     Returns:
         HTML断片文字列
     """
+    # コネクタービューの場合はコネクターレジストリからディスパッチ
+    if getattr(view, "is_connector_view", False):
+        from services.dashboard.connectors import generate_connector_saved_view_html
+
+        return generate_connector_saved_view_html(
+            view.connector_page_label,
+            provider,
+            view,
+            dashboard_config,
+        )
+
     from services.dashboard.components import get_page_component
 
     component = get_page_component(view.view_type)

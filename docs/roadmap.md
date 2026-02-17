@@ -81,6 +81,24 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 | 描画ロジックのコンポーネント移動 | app.py 70%削減（1920→569行） | [013](status/status-013.md) |
 | HTMLエクスポートのレジストリ統合 | generate_view_html()レジストリベース化 | [013](status/status-013.md) |
 | プラグインローダー | jj.dashboard_pages エントリーポイント対応 | [013](status/status-013.md) |
+| コネクターページのビュー保存対応 | render_saved_view + ConnectorViewConfig | [017](status/status-017.md) |
+| フィルター階層化（グローバル+ローカル） | apply_local_filters + per-page filter chain | [017](status/status-017.md) |
+
+### ダッシュボード横断要件
+
+> **原則**: コネクターページを含む全てのページはビュー保存およびHTMLエクスポート機能を持つこと。フィルターロジックはグローバルフィルターに加えてオプショナルでローカルフィルターを持てること。
+
+**ビュー保存/HTMLエクスポート**:
+- PageComponentは既にrender_saved_view() + generate_html()で対応済み
+- DashboardPageConnectorも同等のインターフェースを持ち、SavedViewConfig経由で保存・復元できること
+- SavedViewConfigのview_typeに`connector:{page_label}`形式を追加
+- HTMLエクスポートは保存済みビュー + コネクタービュー + 全ページを統合出力
+
+**フィルター階層化**:
+- **グローバルフィルター**: サイドバーで設定し、全ページ/ビューに適用（type, analysis_status, active）
+- **ローカルフィルター**: 各ページ/ビュー固有のフィルタ（SavedViewConfig.filtersに加え、connector固有フィルタ）
+- 適用順: グローバルフィルター → ローカルフィルター（AND結合）
+- ローカルフィルターはオプショナル（定義しない場合はグローバルフィルターのみ適用）
 
 ---
 
