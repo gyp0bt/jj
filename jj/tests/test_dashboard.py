@@ -2510,6 +2510,126 @@ class TestDashboardPageConnector:
         result = render_connector_page("存在しないページ", provider, None)
         assert result is False
 
+    def test_connector_generate_html_default(self):
+        """基底クラスのgenerate_htmlはデフォルトで空文字列を返す"""
+        from services.dashboard.connectors import DashboardPageConnector
+
+        connector = DashboardPageConnector()
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        result = connector.generate_html(provider, None)
+        assert result == ""
+
+    def test_material_connector_generate_html(self):
+        """物性一覧コネクターがHTMLを生成できる"""
+        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={"elastic": [[210000.0, 0.3]]},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        connector = AbaqusMaterialPageConnector()
+        html = connector.generate_html(provider, None)
+        assert "物性テーブル" in html
+        assert "Steel" in html
+
+    def test_mesh_quality_connector_generate_html(self):
+        """メッシュ品質コネクターがHTMLを生成できる"""
+        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "mesh_node_count": 100,
+                        "mesh_element_count": 50,
+                        "mesh_element_types": {"C3D8": 50},
+                        "mesh_quality": {
+                            "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
+                        },
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        connector = AbaqusMeshQualityPageConnector()
+        html = connector.generate_html(provider, None)
+        assert "メッシュ品質サマリー" in html
+        assert "go_idx1_v1" in html
+
+    def test_job_summary_connector_generate_html(self):
+        """ジョブサマリーコネクターがHTMLを生成できる"""
+        from services.dashboard.connectors.abaqus import AbaqusJobSummaryPageConnector
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "analysis_status": "COMPLETED",
+                        "cpu_time": 100.5,
+                        "wallclock_time": 50.2,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        connector = AbaqusJobSummaryPageConnector()
+        html = connector.generate_html(provider, None)
+        assert "COMPLETED" in html
+        assert "go_idx1_v1" in html
+
+    def test_generate_connector_pages_html(self):
+        """generate_connector_pages_htmlが利用可能なコネクターのHTMLを返す"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import generate_connector_pages_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={"elastic": [[210000.0, 0.3]]},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "analysis_status": "COMPLETED",
+                        "cpu_time": 100.5,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        results = generate_connector_pages_html(provider, None)
+        labels = [label for label, _ in results]
+        assert "物性一覧" in labels
+        assert "ジョブサマリー" in labels
+
 
 # ====================================================================
 # _parse_material_curve_columns テスト

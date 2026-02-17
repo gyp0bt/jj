@@ -101,7 +101,7 @@ def extract_mesh_stats(
 
         # 要素タイプ別の集計
         element_types: dict[str, int] = {}
-        for key in mesh.elements_data:
+        for key in list(mesh.elements_data.keys()):
             elements = mesh.elements_data[key]
             # keyは "name,type=C3D8" のような形式
             elem_type = "unknown"
@@ -123,7 +123,7 @@ def extract_mesh_stats(
     # Elset要約
     try:
         elset_summary: dict[str, int] = {}
-        for name in mesh.elset_data:
+        for name in list(mesh.elset_data.keys()):
             elset = mesh.elset_data[name]
             count = len(elset.data) if hasattr(elset, "data") else 0
             elset_summary[name] = count
@@ -143,8 +143,43 @@ def extract_mesh_stats(
     return stats
 
 
+def _compute_quality_for_coord_array(
+    coord_array: np.ndarray,
+    get_element_quality,
+    modes: list[str],
+) -> dict[str, np.ndarray]:
+    """単一の座標配列に対して品質メトリクスを計算
+
+    同一ノード数の要素群に対して品質計算を実行する。
+    バッチ計算が失敗した場合は個別モードにフォールバック。
+
+    Args:
+        coord_array: (Ne, Nn, 3)形状の座標配列
+        get_element_quality: 品質計算関数
+        modes: 計算するモードのリスト
+
+    Returns:
+        {モード名: np.ndarray} の辞書
+    """
+    try:
+        return get_element_quality(coord_array, mode=modes)
+    except Exception as e:
+        logger.debug(f"Batch quality computation failed: {e}, trying individual modes")
+        quality: dict[str, np.ndarray] = {}
+        for mode in modes:
+            try:
+                q = get_element_quality(coord_array, mode=[mode])
+                quality.update(q)
+            except Exception as e2:
+                logger.debug(f"Quality mode '{mode}' failed: {e2}")
+        return quality
+
+
 def _compute_quality_stats(mesh, get_element_quality) -> dict[str, Any] | None:
     """メッシュ品質統計を計算
+
+    要素タイプ（ノード数）別にグルーピングして品質を計算し、
+    結果を集約する。これにより要素タイプ混在時でも品質計算が可能。
 
     Args:
         mesh: Mesherインスタンス
@@ -156,33 +191,53 @@ def _compute_quality_stats(mesh, get_element_quality) -> dict[str, Any] | None:
     if get_element_quality is None:
         return None
 
-    try:
-        coord_array = mesh.get_element_node_coord_array()
-    except Exception as e:
-        logger.debug(f"get_element_node_coord_array failed: {e}")
-        return None
-
-    if coord_array is None or len(coord_array) == 0:
-        logger.debug("coord_array is None or empty, skipping quality computation")
-        return None
-
-    logger.debug(f"coord_array shape: {coord_array.shape if hasattr(coord_array, 'shape') else len(coord_array)}")
-
-    quality_result: dict[str, Any] = {}
     modes = ["volume", "detJ", "aspect", "skewness"]
 
+    # 要素タイプ（ノード数）別にグルーピング
     try:
-        quality = get_element_quality(coord_array, mode=modes)
+        element_array_dict = mesh.get_element_array_dict(mode="num_nodes")
     except Exception as e:
-        # 全モードでの計算が失敗した場合、個別に試す
-        logger.debug(f"Batch quality computation failed: {e}, trying individual modes")
-        quality = {}
-        for mode in modes:
-            try:
-                q = get_element_quality(coord_array, mode=[mode])
-                quality.update(q)
-            except Exception as e2:
-                logger.debug(f"Quality mode '{mode}' failed: {e2}")
+        logger.debug(f"get_element_array_dict failed: {e}")
+        return None
+
+    if not element_array_dict:
+        logger.debug("No element data available, skipping quality computation")
+        return None
+
+    # 全ノード座標を取得
+    try:
+        node_coord = mesh.get_node_coord_with_elements()
+    except Exception as e:
+        logger.debug(f"get_node_coord_with_elements failed: {e}")
+        return None
+
+    # ノード数別に品質計算し、結果を集約
+    aggregated: dict[str, list[np.ndarray]] = {}
+
+    for num_nodes, element_array in element_array_dict.items():
+        try:
+            coord_array = mesh._get_element_node_coord_array(
+                element_array=element_array,
+                node_coord=node_coord,
+            )
+        except Exception as e:
+            logger.debug(f"coord_array build failed for {num_nodes}-node elements: {e}")
+            continue
+
+        if coord_array is None or len(coord_array) == 0:
+            continue
+
+        logger.debug(f"Computing quality for {num_nodes}-node elements: shape={coord_array.shape}")
+
+        quality = _compute_quality_for_coord_array(coord_array, get_element_quality, modes)
+        for mode_key, arr in quality.items():
+            if isinstance(arr, np.ndarray) and len(arr) > 0:
+                if mode_key not in aggregated:
+                    aggregated[mode_key] = []
+                aggregated[mode_key].append(arr)
+
+    if not aggregated:
+        return None
 
     metric_name_map = {
         "volume": "volume",
@@ -191,18 +246,17 @@ def _compute_quality_stats(mesh, get_element_quality) -> dict[str, Any] | None:
         "skewness": "skewness",
     }
 
+    quality_result: dict[str, Any] = {}
     for mode_key, display_name in metric_name_map.items():
-        if mode_key in quality:
-            arr = quality[mode_key]
-            if isinstance(arr, np.ndarray) and len(arr) > 0:
-                # NaNを除外して統計計算
-                valid = arr[~np.isnan(arr)]
-                if len(valid) > 0:
-                    quality_result[display_name] = {
-                        "min": float(np.min(valid)),
-                        "max": float(np.max(valid)),
-                        "mean": float(np.mean(valid)),
-                    }
+        if mode_key in aggregated:
+            merged = np.concatenate(aggregated[mode_key])
+            valid = merged[~np.isnan(merged)]
+            if len(valid) > 0:
+                quality_result[display_name] = {
+                    "min": float(np.min(valid)),
+                    "max": float(np.max(valid)),
+                    "mean": float(np.mean(valid)),
+                }
 
     return quality_result if quality_result else None
 
@@ -215,6 +269,8 @@ def extract_elset_quality_stats(
     """Elsetごとのメッシュ品質統計を抽出
 
     各Elsetに属する要素のみを対象として品質メトリクスを計算する。
+    要素タイプ（ノード数）別にグルーピングして計算するため、
+    要素タイプ混在時でも正しく動作する。
 
     Args:
         inp_path: .inpファイルのパス
@@ -242,45 +298,55 @@ def extract_elset_quality_stats(
     if get_element_quality is None:
         return None
 
-    # 全要素の座標配列を取得
-    try:
-        coord_array = mesh.get_element_node_coord_array()
-    except Exception as e:
-        logger.debug(f"get_element_node_coord_array failed: {e}")
-        return None
-
-    if coord_array is None or len(coord_array) == 0:
-        return None
-
-    # 全要素のラベルリスト（座標配列と同じ順序）
-    try:
-        all_labels = list(mesh.get_element_labels())
-    except Exception:
-        return None
-
-    if len(all_labels) != len(coord_array):
-        logger.debug(f"Label count ({len(all_labels)}) != coord_array count ({len(coord_array)})")
-        return None
-
-    # label → index のマッピング
-    label_to_idx: dict[int, int] = {}
-    for i, lbl in enumerate(all_labels):
-        label_to_idx[int(lbl)] = i
-
-    # 全要素の品質を一括計算
     modes = ["volume", "detJ", "aspect", "skewness"]
-    try:
-        quality = get_element_quality(coord_array, mode=modes)
-    except Exception:
-        quality = {}
-        for mode in modes:
-            try:
-                q = get_element_quality(coord_array, mode=[mode])
-                quality.update(q)
-            except Exception:
-                pass
 
-    if not quality:
+    # 要素タイプ（ノード数）別にグルーピング
+    try:
+        element_array_dict = mesh.get_element_array_dict(mode="num_nodes")
+    except Exception as e:
+        logger.debug(f"get_element_array_dict failed: {e}")
+        return None
+
+    if not element_array_dict:
+        return None
+
+    # 全ノード座標を取得
+    try:
+        node_coord = mesh.get_node_coord_with_elements()
+    except Exception as e:
+        logger.debug(f"get_node_coord_with_elements failed: {e}")
+        return None
+
+    # ノード数別に品質計算し、label → quality値のマッピングを構築
+    # {mode_key: {label: value}} の構造
+    label_quality: dict[str, dict[int, float]] = {}
+
+    for num_nodes, element_array in element_array_dict.items():
+        try:
+            coord_array = mesh._get_element_node_coord_array(
+                element_array=element_array,
+                node_coord=node_coord,
+            )
+        except Exception as e:
+            logger.debug(f"coord_array build failed for {num_nodes}-node elements: {e}")
+            continue
+
+        if coord_array is None or len(coord_array) == 0:
+            continue
+
+        quality = _compute_quality_for_coord_array(coord_array, get_element_quality, modes)
+
+        # element_array[:, 0]がラベル列
+        labels = element_array[:, 0].tolist()
+        for mode_key, arr in quality.items():
+            if not isinstance(arr, np.ndarray) or len(arr) != len(labels):
+                continue
+            if mode_key not in label_quality:
+                label_quality[mode_key] = {}
+            for lbl, val in zip(labels, arr, strict=True):
+                label_quality[mode_key][int(lbl)] = float(val)
+
+    if not label_quality:
         return None
 
     metric_name_map = {
@@ -292,41 +358,33 @@ def extract_elset_quality_stats(
 
     result: dict[str, dict[str, Any]] = {}
 
-    for name in mesh.elset_data:
+    for name in list(mesh.elset_data.keys()):
         elset = mesh.elset_data[name]
         elset_labels = elset.data if hasattr(elset, "data") else []
-        if not elset_labels:
+        if not hasattr(elset_labels, "__len__") or len(elset_labels) == 0:
             continue
 
-        # elset要素のインデックスを取得
-        indices = []
-        for lbl in elset_labels:
-            idx = label_to_idx.get(int(lbl))
-            if idx is not None:
-                indices.append(idx)
-
-        if not indices:
-            result[name] = {"element_count": len(elset_labels)}
-            continue
-
-        elset_entry: dict[str, Any] = {"element_count": len(indices)}
+        elset_entry: dict[str, Any] = {"element_count": len(elset_labels)}
         elset_quality: dict[str, Any] = {}
 
         for mode_key, display_name in metric_name_map.items():
-            if mode_key not in quality:
+            if mode_key not in label_quality:
                 continue
-            arr = quality[mode_key]
-            if not isinstance(arr, np.ndarray) or len(arr) == 0:
-                continue
+            mode_map = label_quality[mode_key]
 
-            # elset要素のみ抽出
-            subset = arr[indices]
-            valid = subset[~np.isnan(subset)]
-            if len(valid) > 0:
+            # elset要素の品質値を収集
+            values = []
+            for lbl in elset_labels:
+                val = mode_map.get(int(lbl))
+                if val is not None and not np.isnan(val):
+                    values.append(val)
+
+            if values:
+                arr = np.array(values)
                 elset_quality[display_name] = {
-                    "min": float(np.min(valid)),
-                    "max": float(np.max(valid)),
-                    "mean": float(np.mean(valid)),
+                    "min": float(np.min(arr)),
+                    "max": float(np.max(arr)),
+                    "mean": float(np.mean(arr)),
                 }
 
         if elset_quality:

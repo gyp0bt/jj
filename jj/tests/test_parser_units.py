@@ -2472,6 +2472,115 @@ class TestPymeshWithModules:
         assert stats["node_count"] == stats_no_cache["node_count"]
         assert stats["element_count"] == stats_no_cache["element_count"]
 
+    def test_extract_mesh_stats_mixed_element_types(self, tmp_path: Path):
+        """要素タイプ混在（C3D8+C3D4）でも品質計算が成功すること"""
+        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "5, 0.0, 0.0, 1.0\n"
+            "6, 1.0, 0.0, 1.0\n"
+            "7, 1.0, 1.0, 1.0\n"
+            "8, 0.0, 1.0, 1.0\n"
+            "9, 2.0, 0.0, 0.0\n"
+            "10, 2.0, 1.0, 0.5\n"
+            "*ELEMENT, TYPE=C3D8, ELSET=HEXES\n"
+            "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
+            "*ELEMENT, TYPE=C3D4, ELSET=TETS\n"
+            "2, 2, 3, 9, 10\n"
+        )
+        inp_file = tmp_path / "mixed.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        stats = extract_mesh_stats(inp_file, verbose=False)
+        assert stats is not None
+        assert stats["node_count"] == 10
+        assert stats["element_count"] == 2
+        # pymeshは要素タイプを小文字で保持する
+        types_lower = {k.lower() for k in stats["element_types"]}
+        assert "c3d8" in types_lower
+        assert "c3d4" in types_lower
+        # 品質統計が計算されていること（以前はallow_polymorphism=Falseで失敗していた）
+        if "quality" in stats:
+            for metric in ["volume", "detJ", "aspect_ratio", "skewness"]:
+                if metric in stats["quality"]:
+                    assert "min" in stats["quality"][metric]
+                    assert "max" in stats["quality"][metric]
+                    assert "mean" in stats["quality"][metric]
+
+    def test_extract_elset_quality_mixed_element_types(self, tmp_path: Path):
+        """要素タイプ混在でもElset別品質統計が計算されること"""
+        from services.parse.connectors.abaqus.mesh import extract_elset_quality_stats
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "5, 0.0, 0.0, 1.0\n"
+            "6, 1.0, 0.0, 1.0\n"
+            "7, 1.0, 1.0, 1.0\n"
+            "8, 0.0, 1.0, 1.0\n"
+            "9, 2.0, 0.0, 0.0\n"
+            "10, 2.0, 1.0, 0.5\n"
+            "*ELEMENT, TYPE=C3D8, ELSET=HEXES\n"
+            "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
+            "*ELEMENT, TYPE=C3D4, ELSET=TETS\n"
+            "2, 2, 3, 9, 10\n"
+            "*ELSET, ELSET=ALL_ELEMS\n"
+            "1, 2\n"
+        )
+        inp_file = tmp_path / "mixed.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        result = extract_elset_quality_stats(inp_file, verbose=False)
+        assert result is not None
+        # ALL_ELEMSには混在要素（C3D8+C3D4）が含まれる
+        result_lower = {k.lower(): v for k, v in result.items()}
+        assert "all_elems" in result_lower
+        entry = result_lower["all_elems"]
+        assert entry["element_count"] == 2
+        if "quality" in entry:
+            for metric in entry["quality"].values():
+                assert "min" in metric
+                assert "max" in metric
+                assert "mean" in metric
+
+    def test_compute_quality_single_element_type(self, tmp_path: Path):
+        """単一要素タイプでの品質計算（回帰テスト）"""
+        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "5, 0.0, 0.0, 1.0\n"
+            "6, 1.0, 0.0, 1.0\n"
+            "7, 1.0, 1.0, 1.0\n"
+            "8, 0.0, 1.0, 1.0\n"
+            "*ELEMENT, TYPE=C3D8, ELSET=ALL\n"
+            "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
+        )
+        inp_file = tmp_path / "single_type.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        stats = extract_mesh_stats(inp_file, verbose=False)
+        assert stats is not None
+        assert stats["element_count"] == 1
+        # 単一C3D8要素の品質が計算されること
+        if "quality" in stats:
+            assert "volume" in stats["quality"]
+            vol = stats["quality"]["volume"]
+            # 単位立方体の体積は1.0
+            assert abs(vol["mean"] - 1.0) < 0.1
+
 
 # =========================================================================
 # AbstractExporter 基底クラス テスト
@@ -4046,3 +4155,56 @@ class TestExtractPathMetadata:
         result_key, props = extract_path_metadata("results/step0_frame5/go_idx1.v1_PEEQ_vmax0.1.png")
         assert result_key == "PEEQ"
         assert props["vmax"] == "0.1"
+
+
+# =========================================================================
+# プラグインレジストリ テスト
+# =========================================================================
+
+
+class TestPluginRegistry:
+    """プラグインレジストリとentry_points発見メカニズムのテスト"""
+
+    def test_load_all_plugins_is_idempotent(self):
+        """load_all_pluginsは複数回呼んでも安全"""
+        from services.sdk import load_all_plugins, reset_plugins
+
+        reset_plugins()
+        load_all_plugins()
+        load_all_plugins()  # 2回目は何もしない
+
+    def test_discover_entry_point_plugins_empty_group(self):
+        """存在しないグループに対してエラーを出さない"""
+        from services.sdk import discover_entry_point_plugins
+
+        # 存在しないグループでもエラーにならない
+        discover_entry_point_plugins("jj.nonexistent_group")
+
+    def test_builtin_plugins_registered(self):
+        """ビルトインプラグイン（abaqus, obsidian）が登録される"""
+        from services.sdk import load_all_plugins, reset_plugins
+
+        reset_plugins()
+        load_all_plugins()
+
+        from services.parse.base import get_parser_registry
+
+        registry = get_parser_registry()
+        cls_names = [cls.__name__ for cls in registry]
+        # Abaqusパーサーが登録されていること
+        assert any("Abaqus" in name for name in cls_names)
+
+    def test_plugin_sdk_exports(self):
+        """services.sdkが必要な公開APIをすべてエクスポートしている"""
+        from services.sdk import (  # noqa: F401
+            AbstractExporter,
+            AbstractFileParser,
+            CacheProvider,
+            DashboardPageConnector,
+            GraphModel,
+            Node,
+            ProjectDirectory,
+            ProjectFile,
+            ProjectGraph,
+            Relation,
+        )

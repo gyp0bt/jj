@@ -38,6 +38,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [013](status-013.md) | 2026-02-17 | M2 | PageComponent描画ロジック移動・HTMLエクスポート統合・プラグインローダー | claude/execute-status-todos-GIwd1 |
 | [014](status-014.md) | 2026-02-17 | M2 | バグ修正4件: verbose_name・浮動小数点表記・動的ビュー入力・メッシュ継承 | claude/execute-status-todos-CISAk |
 | [015](status-015.md) | 2026-02-17 | M2 | メッシュ品質ダッシュボードを独立ページに分離 | claude/separate-mesh-quality-dashboard-lXtf4 |
+| [016](status-016.md) | 2026-02-17 | M2 | status-015 TODO実行: メッシュ品質修正・コネクターHTML統合・E2Eテスト・プラグイン実例 | claude/execute-status-todos-L25fw |
 
 ---
 

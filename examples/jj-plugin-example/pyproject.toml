@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jj-plugin-example"
+version = "0.1.0"
+description = "jjプラグインの外部パッケージ実例"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jj",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+# ====================================================================
+# entry_points設定
+# jjはこの設定を使ってプラグインを自動発見・登録する
+# ====================================================================
+
+# メインプラグイン登録（register()関数が呼ばれる）
+[project.entry-points."jj.plugins"]
+example_solver = "jj_plugin_example:register"
+
+# 個別のパーサー登録（モジュールインポートで__init_subclass__が発動）
+[project.entry-points."jj.parsers"]
+example_parser = "jj_plugin_example.parser"
+
+# 個別のダッシュボードコネクター登録
+[project.entry-points."jj.dashboard_connectors"]
+example_dashboard = "jj_plugin_example.dashboard"
+
+[tool.setuptools.packages.find]
+where = ["src"]

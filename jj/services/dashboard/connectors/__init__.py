@@ -82,6 +82,24 @@ class DashboardPageConnector:
         """
         raise NotImplementedError
 
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> str:
+        """ページのHTML断片を生成（HTMLエクスポート用）
+
+        Streamlit非依存。サブクラスがオーバーライドする。
+
+        Args:
+            provider: DashboardDataProvider
+            dashboard_config: DashboardConfig
+
+        Returns:
+            HTML断片文字列。未対応の場合は空文字列。
+        """
+        return ""
+
 
 def get_connector_pages(
     provider: DashboardDataProvider,
@@ -123,3 +141,27 @@ def render_connector_page(
     connector = cls()
     connector.render_page(provider, dashboard_config)
     return True
+
+
+def generate_connector_pages_html(
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+) -> list[tuple[str, str]]:
+    """利用可能なコネクターページのHTML断片を生成
+
+    Args:
+        provider: DashboardDataProvider
+        dashboard_config: DashboardConfig
+
+    Returns:
+        (ページラベル, HTML断片) のリスト。HTML未対応のコネクターは除外。
+    """
+    results: list[tuple[str, str]] = []
+    for label, cls in DashboardPageConnector._registry.items():
+        connector = cls()
+        if not connector.is_available(provider):
+            continue
+        html = connector.generate_html(provider, dashboard_config)
+        if html:
+            results.append((label, html))
+    return results
