@@ -101,6 +101,8 @@ def run_dashboard(project_root: Path, args: argparse.Namespace) -> int:
         str(app_path),
         "--server.port",
         str(port),
+        "--theme.base",
+        "light",
     ]
 
     if no_browser:

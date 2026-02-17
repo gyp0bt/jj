@@ -31,6 +31,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [006](status-006.md) | 2026-02-16 | M2 | ダッシュボード表示改善: 配列プロット全条件比較モード、ギャラリーデフォルトグループ表示 | claude/fix-dashboard-display-CcLtb |
 | [007](status-007.md) | 2026-02-16 | M2 | ダッシュボード表示名改善: verbose-name-format、vocab表示名、pymesh依存グループ | claude/setup-coding-standards-YyPx7 |
 | [008](status-008.md) | 2026-02-16 | M2 | results/サブディレクトリのメタデータ抽出パーサー、go_inpへの結果キー割り当て | claude/extract-results-metadata-ILTKn |
+| [009](status-009.md) | 2026-02-17 | M2 | ダッシュボード改善: ライトテーマ・ビュー永続化・results除外ロジック | claude/dashboard-views-light-theme-3Dimf |
 
 ---
 
