@@ -40,6 +40,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [015](status-015.md) | 2026-02-17 | M2 | メッシュ品質ダッシュボードを独立ページに分離 | claude/separate-mesh-quality-dashboard-lXtf4 |
 | [016](status-016.md) | 2026-02-17 | M2 | status-015 TODO実行: メッシュ品質修正・コネクターHTML統合・E2Eテスト・プラグイン実例 | claude/execute-status-todos-L25fw |
 | [017](status-017.md) | 2026-02-17 | M2 | ビュー保存/HTMLエクスポート横断対応・フィルター階層化 | claude/view-save-html-export-zhqFA |
+| [018](status-018.md) | 2026-02-17 | M2 | status-017 TODO実行: 設計仕様書・コネクター保存ビュー・ローカルフィルタ拡張・テスト拡充・CI統合 | claude/execute-status-todos-S8s5u |
 
 ---
 
