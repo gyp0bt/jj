@@ -4266,3 +4266,270 @@ class TestHtmlExportHelpers:
         _add_group_lines_to_fig(fig, df, "x", "y", "group")
         # 各グループ1点のみなので結線なし
         assert len(fig.data) == 0
+
+
+# ====================================================================
+# verbose_name_format動的展開テスト
+# ====================================================================
+
+
+class TestVerboseNameFormat:
+    """verbose_name_formatの動的展開テスト"""
+
+    def test_format_with_vocab_translated_keys(self):
+        """vocab変換後のキー名でフォーマットが展開される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_t20",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_t20.inp",
+                        "条件": "1",
+                        "高さ": "20",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(
+            graph,
+            vocab={"idx": "条件", "t": "高さ"},
+            verbose_name_format="条件{条件}(高さ{高さ})",
+        )
+        rows = provider.get_go_table()
+        assert len(rows) == 1
+        assert rows[0][provider._verbose_name_key] == "条件1(高さ20)"
+
+    def test_format_with_original_keys(self):
+        """vocab変換前のキー名でもフォーマットが展開される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_t20",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_t20.inp",
+                        "条件": "1",
+                        "高さ": "20",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(
+            graph,
+            vocab={"idx": "条件", "t": "高さ"},
+            verbose_name_format="条件{idx}(高さ{t})",
+        )
+        rows = provider.get_go_table()
+        assert len(rows) == 1
+        assert rows[0][provider._verbose_name_key] == "条件1(高さ20)"
+
+    def test_format_missing_key_empty(self):
+        """存在しないキーは空文字に置換される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_a",
+                    format="inp",
+                    properties={"path": "a.inp", "条件": "1"},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(
+            graph,
+            vocab={"idx": "条件"},
+            verbose_name_format="条件{条件}(高さ{高さ})",
+        )
+        rows = provider.get_go_table()
+        assert rows[0][provider._verbose_name_key] == "条件1(高さ)"
+
+    def test_no_format_falls_back_to_verbose_name(self):
+        """verbose_name_format未設定ではプロパティのverbose_nameにフォールバック"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_a",
+                    format="inp",
+                    properties={"path": "a.inp", "verbose_name": "テスト表示名"},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        assert rows[0]["verbose_name"] == "テスト表示名"
+
+
+# ====================================================================
+# get_filtered_property_keysテスト
+# ====================================================================
+
+
+class TestGetFilteredPropertyKeys:
+    """get_filtered_property_keysのテスト"""
+
+    def test_no_filter_returns_all(self, provider: DashboardDataProvider):
+        """global_columns未設定では全キーを返す"""
+        all_keys = provider.get_property_keys()
+        filtered = provider.get_filtered_property_keys()
+        assert all_keys == filtered
+
+    def test_glob_pattern_filter(self):
+        """globパターンでフィルタされる"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_a",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "stress_max": 100,
+                        "stress_min": 50,
+                        "displacement": 1.0,
+                        "temperature": 300,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph, global_columns=["stress*", "temperature"])
+        filtered = provider.get_filtered_property_keys()
+        assert "stress_max" in filtered
+        assert "stress_min" in filtered
+        assert "temperature" in filtered
+        assert "displacement" not in filtered
+
+
+# ====================================================================
+# get_plot_data extra_keysテスト
+# ====================================================================
+
+
+class TestGetPlotDataExtraKeys:
+    """get_plot_dataのextra_keysテスト"""
+
+    def test_extra_keys_included(self):
+        """extra_keysで指定したキーがデータに含まれる"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "x_val": "1.0",
+                        "y_val": "2.0",
+                        "group_key": "A",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        data = provider.get_plot_data("x_val", "y_val", extra_keys=["group_key"])
+        assert len(data) == 1
+        assert data[0]["group_key"] == "A"
+
+    def test_extra_keys_without_param(self):
+        """extra_keys未指定ではgroup_keyが含まれない"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "x_val": "1.0",
+                        "y_val": "2.0",
+                        "group_key": "A",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        data = provider.get_plot_data("x_val", "y_val")
+        assert len(data) == 1
+        assert "group_key" not in data[0]
+
+
+# ====================================================================
+# display_name in images テスト
+# ====================================================================
+
+
+class TestDisplayNameInImages:
+    """画像データにdisplay_nameが含まれるテスト"""
+
+    def test_output_images_have_display_name(self, provider: DashboardDataProvider):
+        """get_output_imagesの結果にdisplay_nameが含まれる"""
+        images = provider.get_output_images()
+        for img in images:
+            assert "display_name" in img
+
+    def test_property_images_have_display_name(self):
+        """get_property_imagesの結果にdisplay_nameが含まれる"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_a",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "screenshot": "images/test.png",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        images = provider.get_property_images()
+        assert len(images) == 1
+        assert "display_name" in images[0]
+        assert images[0]["display_name"] == "go_a"
+
+    def test_display_name_uses_format(self):
+        """verbose_name_format設定時、画像のdisplay_nameにフォーマットが適用される"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1",
+                    format="inp",
+                    properties={
+                        "path": "a.inp",
+                        "条件": "1",
+                        "screenshot": "images/test.png",
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(
+            graph,
+            vocab={"idx": "条件"},
+            verbose_name_format="条件{条件}",
+        )
+        images = provider.get_property_images()
+        assert len(images) == 1
+        assert images[0]["display_name"] == "条件1"

@@ -177,7 +177,18 @@ def generate_plot_html(
     if not x_key or not y_key:
         return "<p>プロット設定にx/yが指定されていません。</p>"
 
-    data = provider.get_plot_data(x_key, y_key, color_key=color)
+    # グループ結線キーをextra_keysに含める
+    group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
+    extra_keys: list[str] = []
+    if group_line_key:
+        extra_keys.append(group_line_key)
+
+    # colorが未設定の場合、デフォルトで表示名を使用
+    vn_key = provider._verbose_name_key
+    if not color:
+        color = vn_key
+
+    data = provider.get_plot_data(x_key, y_key, color_key=color, extra_keys=extra_keys)
     if view.filters:
         all_rows = provider.get_go_table()
         filtered_rows = apply_saved_view_filters(all_rows, view.filters)
@@ -192,11 +203,10 @@ def generate_plot_html(
         import plotly.express as px
 
         df = pd.DataFrame(data)
-        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type)
+        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type, hover_name_col=vn_key)
         ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
-        group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
         if group_line_key and group_line_key in df.columns:
             _add_group_lines_to_fig(fig, df, x_key, y_key, group_line_key)
 

@@ -309,6 +309,8 @@ def main() -> None:
 
     # config読み込み
     dashboard_config = None
+    verbose_name_format = None
+    global_columns: list[str] | None = None
     try:
         from config import DashboardConfig, GraphConfig
 
@@ -316,6 +318,9 @@ def main() -> None:
         vocab = config.vocab
         units = config.export.units
         dashboard_config = config.dashboard
+        verbose_name_format = config.verbose_name_format
+        # export.csv-columnsをグローバル設定として昇格（dashboard + exportで共有）
+        global_columns = config.export.csv_columns
     except Exception:
         vocab = {}
         units = {}
@@ -325,7 +330,13 @@ def main() -> None:
 
         dashboard_config = DashboardConfig.from_dict({})
 
-    provider = DashboardDataProvider(graph, vocab=vocab, units=units)
+    provider = DashboardDataProvider(
+        graph,
+        vocab=vocab,
+        units=units,
+        verbose_name_format=verbose_name_format,
+        global_columns=global_columns,
+    )
 
     # 共有フィルタ初期化
     _init_shared_filters(dashboard_config.default_filters)
@@ -410,6 +421,9 @@ def _render_table_page(
 
     import pandas as pd
 
+    # verbose_nameキー
+    vn_key = provider._verbose_name_key
+
     # related_filesはネストしているので除外
     display_rows = []
     for r in filtered:
@@ -422,8 +436,15 @@ def _render_table_page(
 
     df = pd.DataFrame(display_rows)
 
+    # nameカラムを表示名で置き換え（verbose_nameキーが存在する場合）
+    if vn_key in df.columns:
+        df["name"] = df[vn_key]
+
     # config駆動カラム選択（vocab順ソート対応）
+    # グローバルカラム設定がある場合はそちらを優先
     table_columns = getattr(dashboard_config, "table_columns", None)
+    if not table_columns and provider._global_columns:
+        table_columns = provider._global_columns
     selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
@@ -558,11 +579,31 @@ def _render_card_page(provider: DashboardDataProvider) -> None:
 # ====================================================================
 
 
+def _build_axis_range(
+    axis_min: float | None,
+    axis_max: float | None,
+) -> list[float] | None:
+    """軸範囲をplotly用の[min, max]リストに変換
+
+    Args:
+        axis_min: 軸最小値（Noneで自動）
+        axis_max: 軸最大値（Noneで自動）
+
+    Returns:
+        [min, max]リスト。両方Noneの場合はNone（自動範囲）。
+    """
+    if axis_min is not None or axis_max is not None:
+        return [axis_min if axis_min is not None else 0, axis_max if axis_max is not None else 0]
+    return None
+
+
 def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) -> None:
     """プロットビュー: プロパティの散布図/棒グラフ"""
     st.header("プロットビュー")
 
-    keys = provider.get_property_keys()
+    # グローバルカラム設定がある場合はフィルタ済みキーを使用
+    all_keys = provider.get_property_keys()
+    keys = provider.get_filtered_property_keys()
     if not keys:
         st.info("プロット可能なプロパティがありません。")
         return
@@ -579,22 +620,56 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
     if plot_y and plot_y in keys:
         y_default_idx = keys.index(plot_y)
 
+    # verbose_nameキー
+    vn_key = provider._verbose_name_key
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         x_key = st.selectbox("X軸", keys, index=x_default_idx)
     with col2:
         y_key = st.selectbox("Y軸", keys, index=y_default_idx)
     with col3:
-        color_options = ["なし", *keys]
-        color_key = st.selectbox("色分け", color_options, index=0)
+        # 色分けオプション: デフォルトで表示名を選択
+        color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
+        color_default_idx = 1  # デフォルト: 表示名で色分け
+        color_key = st.selectbox("色分け", color_options, index=color_default_idx)
     with col4:
         chart_type = st.selectbox("チャートタイプ", ["散布図", "棒グラフ", "線図"])
 
     if not x_key or not y_key:
         return
 
+    # グループ結線設定
+    group_line_key = getattr(dashboard_config, "group_line_key", None)
+    group_line_options = ["なし"] + [k for k in all_keys if k != x_key and k != y_key]
+    col_gl1, _col_gl2 = st.columns(2)
+    with col_gl1:
+        gl_default = 0
+        if group_line_key and group_line_key in group_line_options:
+            gl_default = group_line_options.index(group_line_key)
+        selected_group_line = st.selectbox("グループ結線キー", group_line_options, index=gl_default)
+
+    # 軸範囲設定（number_input）
+    with st.expander("軸範囲設定", expanded=False):
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            x_min = st.number_input("X最小", value=None, key="_plot_x_min", format="%g")
+        with rc2:
+            x_max = st.number_input("X最大", value=None, key="_plot_x_max", format="%g")
+        with rc3:
+            y_min = st.number_input("Y最小", value=None, key="_plot_y_min", format="%g")
+        with rc4:
+            y_max = st.number_input("Y最大", value=None, key="_plot_y_max", format="%g")
+
     color = color_key if color_key != "なし" else None
-    data = provider.get_plot_data(x_key, y_key, color_key=color)
+
+    # グループ結線キーをextra_keysに追加してデータに含める
+    gl_key = selected_group_line if selected_group_line != "なし" else None
+    extra_keys: list[str] = []
+    if gl_key:
+        extra_keys.append(gl_key)
+
+    data = provider.get_plot_data(x_key, y_key, color_key=color, extra_keys=extra_keys)
 
     if not data:
         st.warning(f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。")
@@ -609,21 +684,8 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
     gallery_rows = getattr(dashboard_config, "gallery_rows", 4)
     grid_mode = st.checkbox("グリッドモード（スクリーンショット用）", value=False)
 
-    # グループ結線設定
-    group_line_key = getattr(dashboard_config, "group_line_key", None)
-    group_line_options = ["なし"] + [k for k in keys if k != x_key and k != y_key]
-    col_gl1, _col_gl2 = st.columns(2)
-    with col_gl1:
-        gl_default = 0
-        if group_line_key and group_line_key in group_line_options:
-            gl_default = group_line_options.index(group_line_key)
-        selected_group_line = st.selectbox("グループ結線キー", group_line_options, index=gl_default)
-
     try:
         import plotly.express as px
-
-        # verbose_nameキーをhover名に使用
-        vn_key = provider._verbose_name_key
 
         if grid_mode:
             # グリッドモード: 各データ点ごとに個別プロットをNxMグリッド配置
@@ -653,9 +715,15 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
             if ng_regions:
                 _add_ng_regions_to_fig(fig, ng_regions)
             # グループ結線
-            gl_key = selected_group_line if selected_group_line != "なし" else None
             if gl_key and gl_key in df.columns:
                 _add_group_lines_to_fig(fig, df, x_key, y_key, gl_key)
+            # 軸範囲設定を適用
+            x_range = _build_axis_range(x_min, x_max)
+            y_range = _build_axis_range(y_min, y_max)
+            if x_range:
+                fig.update_xaxes(range=x_range)
+            if y_range:
+                fig.update_yaxes(range=y_range)
             st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         # plotlyがない場合はStreamlit組み込みチャートを使用
@@ -1276,20 +1344,14 @@ def _render_image_grid(
         cols = st.columns(cols_per_row)
         for col_idx, img_info in enumerate(images[row_start : row_start + cols_per_row]):
             with cols[col_idx]:
-                # ヘッダー情報
+                # ヘッダー情報（表示名を優先使用）
+                display_name = img_info.get("display_name", img_info["go_node_name"])
                 if source == "output":
-                    st.markdown(f"**{img_info['go_node_name']}**")
-                    props = img_info["go_properties"]
-                    prop_lines = []
-                    for key in ("index", "version", "type", "analysis_status"):
-                        if key in props:
-                            prop_lines.append(f"{key}: {props[key]}")
-                    if prop_lines:
-                        st.caption(" | ".join(prop_lines))
+                    st.markdown(f"**{display_name}**")
                     image_path_str = img_info["image_path"]
                     caption = img_info["image_name"]
                 else:
-                    st.markdown(f"**{img_info['go_node_name']}**")
+                    st.markdown(f"**{display_name}**")
                     st.caption(f"key: {img_info['property_key']}")
                     image_path_str = img_info["image_path"]
                     caption = f"{img_info['property_key']}: {Path(image_path_str).name}"
@@ -1425,6 +1487,9 @@ def _render_saved_table(
 
     import pandas as pd
 
+    # verbose_nameキー
+    vn_key = provider._verbose_name_key
+
     display_rows = []
     for r in filtered:
         row = {k: v for k, v in r.items() if k != "related_files"}
@@ -1435,8 +1500,15 @@ def _render_saved_table(
 
     df = pd.DataFrame(display_rows)
 
+    # nameカラムを表示名で置き換え
+    if vn_key in df.columns:
+        df["name"] = df[vn_key]
+
     # config駆動カラム選択（vocab順ソート対応）
+    # グローバルカラム設定がある場合はそちらを優先
     table_columns = getattr(dashboard_config, "table_columns", None)
+    if not table_columns and provider._global_columns:
+        table_columns = provider._global_columns
     selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
@@ -1463,7 +1535,18 @@ def _render_saved_plot(
         st.warning("プロット設定にx/yが指定されていません。")
         return
 
-    data = provider.get_plot_data(x_key, y_key, color_key=color)
+    # グループ結線キーをextra_keysに含める
+    group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
+    extra_keys: list[str] = []
+    if group_line_key:
+        extra_keys.append(group_line_key)
+
+    # colorが未設定の場合、デフォルトで表示名を使用
+    vn_key = provider._verbose_name_key
+    if not color:
+        color = vn_key
+
+    data = provider.get_plot_data(x_key, y_key, color_key=color, extra_keys=extra_keys)
 
     # 保存済みフィルタを適用（名前ベースでフィルタ）
     if view.filters:
@@ -1483,13 +1566,12 @@ def _render_saved_plot(
     try:
         import plotly.express as px
 
-        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type)
+        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type, hover_name_col=vn_key)
         # NG領域塗りつぶし
         ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
         # グループ結線
-        group_line_key = getattr(dashboard_config, "group_line_key", None) if dashboard_config else None
         if group_line_key and group_line_key in df.columns:
             _add_group_lines_to_fig(fig, df, x_key, y_key, group_line_key)
         st.plotly_chart(fig, use_container_width=True)
