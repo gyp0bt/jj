@@ -51,6 +51,7 @@ from services.dashboard.query import (  # noqa: E402
     apply_filters,
     apply_saved_view_filters,
     collect_group_keys,
+    extract_path_metadata,
     get_graph_mtime,
     is_truthy,
     normalize_group_key,
@@ -597,6 +598,53 @@ def _build_axis_range(
     return None
 
 
+def _build_style_config(
+    marker_size: int | None,
+    line_width: int | None,
+    font_size: int | None,
+) -> dict[str, int]:
+    """スタイル設定を辞書にまとめる
+
+    Args:
+        marker_size: マーカーサイズ（Noneでデフォルト）
+        line_width: 線幅（Noneでデフォルト）
+        font_size: フォントサイズ（Noneでデフォルト）
+
+    Returns:
+        設定値の辞書（値がNoneのキーは除外）
+    """
+    style: dict[str, int] = {}
+    if marker_size is not None:
+        style["marker_size"] = int(marker_size)
+    if line_width is not None:
+        style["line_width"] = int(line_width)
+    if font_size is not None:
+        style["font_size"] = int(font_size)
+    return style
+
+
+def _apply_style_to_fig(fig: Any, style: dict[str, int]) -> None:
+    """スタイル設定をplotly Figureに適用
+
+    Args:
+        fig: plotly Figure
+        style: _build_style_configの戻り値
+    """
+    if not style:
+        return
+    if "marker_size" in style:
+        fig.update_traces(marker=dict(size=style["marker_size"]))
+    if "line_width" in style:
+        fig.update_traces(line=dict(width=style["line_width"]))
+    if "font_size" in style:
+        fig.update_layout(
+            font=dict(size=style["font_size"]),
+            title_font=dict(size=style["font_size"] + 2),
+            xaxis=dict(title_font=dict(size=style["font_size"])),
+            yaxis=dict(title_font=dict(size=style["font_size"])),
+        )
+
+
 def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) -> None:
     """プロットビュー: プロパティの散布図/棒グラフ"""
     st.header("プロットビュー")
@@ -661,6 +709,22 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
         with rc4:
             y_max = st.number_input("Y最大", value=None, key="_plot_y_max", format="%g")
 
+    # スタイル設定
+    with st.expander("スタイル設定", expanded=False):
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            plot_marker_size = st.number_input(
+                "マーカーサイズ", value=None, min_value=1, max_value=50, key="_plot_marker_size"
+            )
+        with sc2:
+            plot_line_width = st.number_input("線幅", value=None, min_value=1, max_value=20, key="_plot_line_width")
+        with sc3:
+            plot_font_size = st.number_input(
+                "フォントサイズ", value=None, min_value=6, max_value=48, key="_plot_font_size"
+            )
+
+    plot_style = _build_style_config(plot_marker_size, plot_line_width, plot_font_size)
+
     color = color_key if color_key != "なし" else None
 
     # グループ結線キーをextra_keysに追加してデータに含める
@@ -724,6 +788,8 @@ def _render_plot_page(provider: DashboardDataProvider, dashboard_config: Any) ->
                 fig.update_xaxes(range=x_range)
             if y_range:
                 fig.update_yaxes(range=y_range)
+            # スタイル設定を適用
+            _apply_style_to_fig(fig, plot_style)
             st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         # plotlyがない場合はStreamlit組み込みチャートを使用
@@ -857,6 +923,34 @@ def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: A
     # 表示モード: 全条件比較 or グリッド比較 or 個別ノード
     view_mode = st.radio("表示モード", ["全条件比較", "グリッド比較", "個別ノード"], horizontal=True)
 
+    # 軸範囲設定（number_input）
+    with st.expander("軸範囲設定", expanded=False):
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            ax_x_min = st.number_input("X最小", value=None, key="_ap_x_min", format="%g")
+        with rc2:
+            ax_x_max = st.number_input("X最大", value=None, key="_ap_x_max", format="%g")
+        with rc3:
+            ax_y_min = st.number_input("Y最小", value=None, key="_ap_y_min", format="%g")
+        with rc4:
+            ax_y_max = st.number_input("Y最大", value=None, key="_ap_y_max", format="%g")
+
+    # スタイル設定
+    with st.expander("スタイル設定", expanded=False):
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            ap_marker_size = st.number_input(
+                "マーカーサイズ", value=None, min_value=1, max_value=50, key="_ap_marker_size"
+            )
+        with sc2:
+            ap_line_width = st.number_input("線幅", value=None, min_value=1, max_value=20, key="_ap_line_width")
+        with sc3:
+            ap_font_size = st.number_input("フォントサイズ", value=None, min_value=6, max_value=48, key="_ap_font_size")
+
+    ap_x_range = _build_axis_range(ax_x_min, ax_x_max)
+    ap_y_range = _build_axis_range(ax_y_min, ax_y_max)
+    ap_style = _build_style_config(ap_marker_size, ap_line_width, ap_font_size)
+
     # 共有フィルタをprovider用のフィルタ辞書に変換
     active_filters = _get_active_filters()
 
@@ -870,6 +964,9 @@ def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: A
             y_keys,
             filters=active_filters,
             ng_regions=ng_regions,
+            x_range=ap_x_range,
+            y_range=ap_y_range,
+            style=ap_style,
         )
     elif view_mode == "グリッド比較":
         _render_array_grid(
@@ -879,6 +976,9 @@ def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: A
             y_keys,
             filters=active_filters,
             ng_regions=ng_regions,
+            x_range=ap_x_range,
+            y_range=ap_y_range,
+            style=ap_style,
         )
     else:
         _render_array_single(
@@ -887,6 +987,9 @@ def _render_array_plot_page(provider: DashboardDataProvider, dashboard_config: A
             y_keys,
             filters=active_filters,
             ng_regions=ng_regions,
+            x_range=ap_x_range,
+            y_range=ap_y_range,
+            style=ap_style,
         )
 
 
@@ -896,6 +999,9 @@ def _render_array_overlay(
     y_keys: list[str],
     filters: dict[str, Any] | None = None,
     ng_regions: list[dict[str, Any]] | None = None,
+    x_range: list[float] | None = None,
+    y_range: list[float] | None = None,
+    style: dict[str, int] | None = None,
 ) -> None:
     """全条件の配列データを凡例付きで同一グラフに重ね書き"""
     for y_key in y_keys:
@@ -931,6 +1037,12 @@ def _render_array_overlay(
                 height=600,
                 showlegend=True,
             )
+            if x_range:
+                fig.update_xaxes(range=x_range)
+            if y_range:
+                fig.update_yaxes(range=y_range)
+            if style:
+                _apply_style_to_fig(fig, style)
             st.plotly_chart(fig, use_container_width=True)
 
         except ImportError:
@@ -946,6 +1058,9 @@ def _render_array_grid(
     y_keys: list[str],
     filters: dict[str, Any] | None = None,
     ng_regions: list[dict[str, Any]] | None = None,
+    x_range: list[float] | None = None,
+    y_range: list[float] | None = None,
+    style: dict[str, int] | None = None,
 ) -> None:
     """配列データのグリッド比較表示（indexごとに並べる）"""
     cols_per_row = getattr(dashboard_config, "gallery_columns", 4)
@@ -989,6 +1104,12 @@ def _render_array_grid(
                             height=300,
                             showlegend=False,
                         )
+                        if x_range:
+                            fig.update_xaxes(range=x_range)
+                        if y_range:
+                            fig.update_yaxes(range=y_range)
+                        if style:
+                            _apply_style_to_fig(fig, style)
                         st.plotly_chart(fig, use_container_width=True)
 
         except ImportError:
@@ -1003,6 +1124,9 @@ def _render_array_single(
     y_keys: list[str],
     filters: dict[str, Any] | None = None,
     ng_regions: list[dict[str, Any]] | None = None,
+    x_range: list[float] | None = None,
+    y_range: list[float] | None = None,
+    style: dict[str, int] | None = None,
 ) -> None:
     """配列データの個別ノード表示（複数Y軸重ね書き）"""
     rows = provider.get_go_table()
@@ -1074,6 +1198,12 @@ def _render_array_single(
             yaxis_title="値",
             height=500,
         )
+        if x_range:
+            fig.update_xaxes(range=x_range)
+        if y_range:
+            fig.update_yaxes(range=y_range)
+        if style:
+            _apply_style_to_fig(fig, style)
         st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         st.warning("plotlyが必要です: pip install plotly")
@@ -1168,11 +1298,37 @@ def _render_gallery_grouped(
         cols_per_row: 1行あたりの列数
         project_root: プロジェクトルート
         source: "output" or "property"
-        group_key: グループ化に使用するキー（go_propertiesのキー名 or "property_key"）
+        group_key: グループ化に使用するキー
+            - "property_key": プロパティキーでグルーピング
+            - "result_key": 画像パスからresult_keyを抽出してグルーピング
+            - その他: go_propertiesのキー名でグルーピング
     """
     from collections import OrderedDict
 
-    groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    if group_key == "result_key":
+        # 画像パスからresult_keyとプロパティを抽出してグルーピング
+        groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+        for img in images:
+            path = img.get("image_path", "")
+            result_key, _props = extract_path_metadata(path)
+            gk = result_key if result_key else "(その他)"
+            groups.setdefault(gk, []).append(img)
+
+        for group_name, group_images in groups.items():
+            # グループ内の画像からプロパティ情報を表示
+            st.subheader(f"result_key: {group_name}")
+            # 代表的なプロパティを表示
+            sample_path = group_images[0].get("image_path", "")
+            _, sample_props = extract_path_metadata(sample_path)
+            if sample_props:
+                prop_str = ", ".join(f"{k}={v}" for k, v in sorted(sample_props.items()))
+                st.caption(f"{len(group_images)} 件 | {prop_str}")
+            else:
+                st.caption(f"{len(group_images)} 件")
+            _render_image_grid(group_images, cols_per_row, project_root, source=source)
+        return
+
+    groups_ord: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
     for img in images:
         if group_key == "property_key":
             # property_keyでグルーピング（daily:日付:キー → キー部分のみ）
@@ -1181,9 +1337,9 @@ def _render_gallery_grouped(
         else:
             # go_propertiesのキーでグルーピング
             gk = str(img.get("go_properties", {}).get(group_key, "（未設定）"))
-        groups.setdefault(gk, []).append(img)
+        groups_ord.setdefault(gk, []).append(img)
 
-    for group_name, group_images in groups.items():
+    for group_name, group_images in groups_ord.items():
         st.subheader(f"{group_key}: {group_name}")
         st.caption(f"{len(group_images)} 件")
         _render_image_grid(group_images, cols_per_row, project_root, source=source)
