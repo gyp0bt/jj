@@ -1,7 +1,9 @@
-"""Abaqus物性一覧ダッシュボードコネクター（描画層）
+"""Abaqusダッシュボードコネクター（描画層）
 
-Abaqus専用のダッシュボードページ「物性一覧」を提供するコネクター。
-abaqus_materialノードの物性テーブル表示とカーブプロットを行う。
+Abaqus専用のダッシュボードページを提供するコネクター群。
+- 「物性一覧」: abaqus_materialノードの物性テーブル表示とカーブプロット
+- 「メッシュ品質」: go_ノードおよびelsetの品質サマリー
+- 「ジョブサマリー」: 解析ステータス・エラー・警告の集約
 
 DashboardPageConnector.__init_subclass__により自動登録される。
 
@@ -160,14 +162,6 @@ def _render_material_page(
     # 物性使用関係セクション
     st.markdown("---")
     _render_material_usage(provider)
-
-    # メッシュ品質サマリーセクション
-    st.markdown("---")
-    _render_mesh_quality_summary(provider)
-
-    # Elset品質サマリーセクション
-    st.markdown("---")
-    _render_elset_quality_summary(provider)
 
 
 def _render_material_comparison(
@@ -412,6 +406,22 @@ def _render_elset_quality_summary(
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
+def _render_mesh_quality_page(
+    provider: DashboardDataProvider,
+) -> None:
+    """メッシュ品質ビュー: go_ノードおよびelsetの品質サマリーを表示"""
+    import streamlit as st
+
+    st.header("メッシュ品質")
+
+    # メッシュ品質サマリーセクション
+    _render_mesh_quality_summary(provider)
+
+    # Elset品質サマリーセクション
+    st.markdown("---")
+    _render_elset_quality_summary(provider)
+
+
 def _render_job_summary_page(
     provider: DashboardDataProvider,
 ) -> None:
@@ -525,6 +535,36 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
     ) -> None:
         """物性一覧ページをレンダリング"""
         _render_material_page(provider, dashboard_config)
+
+
+class AbaqusMeshQualityPageConnector(DashboardPageConnector):
+    """Abaqusメッシュ品質ページコネクター
+
+    go_ノードにメッシュ関連データ（mesh_element_count, mesh_quality等）が
+    存在する場合に「メッシュ品質」ページを提供する。
+    """
+
+    page_label = "メッシュ品質"
+    connector_key = "abaqus"
+
+    def is_available(self, provider: DashboardDataProvider) -> bool:
+        """メッシュ関連データが1つ以上存在するか判定"""
+        for n in provider.graph.nodes:
+            name_lower = n.name.lower()
+            if not (name_lower.startswith("go_") or name_lower == "go"):
+                continue
+            if any(k in n.properties for k in ("mesh_quality", "mesh_element_count", "mesh_node_count")):
+                return True
+        # elsetノードの品質データも確認
+        return any(n.type == "abaqus_elset" and "quality" in n.properties for n in provider.graph.nodes)
+
+    def render_page(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> None:
+        """メッシュ品質ページをレンダリング"""
+        _render_mesh_quality_page(provider)
 
 
 class AbaqusJobSummaryPageConnector(DashboardPageConnector):

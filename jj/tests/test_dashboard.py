@@ -2386,6 +2386,121 @@ class TestDashboardPageConnector:
         pages = get_connector_pages(provider)
         assert "物性一覧" not in pages
 
+    def test_mesh_quality_connector_registered(self):
+        """AbaqusMeshQualityPageConnectorがレジストリに登録されている"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import DashboardPageConnector
+
+        assert "メッシュ品質" in DashboardPageConnector._registry
+
+    def test_mesh_quality_connector_key(self):
+        """AbaqusMeshQualityPageConnectorのconnector_keyが設定されている"""
+        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+
+        assert AbaqusMeshQualityPageConnector.connector_key == "abaqus"
+
+    def test_mesh_quality_available_with_mesh_data(self):
+        """メッシュデータがあるgo_ノードがある場合にメッシュ品質ページが利用可能"""
+        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"mesh_element_count": 100, "mesh_node_count": 50},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        connector = AbaqusMeshQualityPageConnector()
+        assert connector.is_available(provider) is True
+
+    def test_mesh_quality_available_with_elset_quality(self):
+        """elset品質データがある場合にメッシュ品質ページが利用可能"""
+        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_elset",
+                    name="ELSET1",
+                    format="elset",
+                    properties={"quality": {"jacobian": {"min": 0.5, "max": 1.0}}},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        connector = AbaqusMeshQualityPageConnector()
+        assert connector.is_available(provider) is True
+
+    def test_mesh_quality_not_available_without_data(self):
+        """メッシュ関連データがない場合はメッシュ品質ページが利用不可"""
+        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        connector = AbaqusMeshQualityPageConnector()
+        assert connector.is_available(provider) is False
+
+    def test_mesh_quality_page_in_connector_pages(self):
+        """メッシュデータがある場合にget_connector_pagesで返される"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import get_connector_pages
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"mesh_element_count": 100},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        pages = get_connector_pages(provider)
+        assert "メッシュ品質" in pages
+
+    def test_material_page_excludes_mesh_quality(self):
+        """物性一覧ページにメッシュ品質セクションが含まれないことを確認
+
+        メッシュ品質は独立ページに分離されたため、物性一覧には含まれない。
+        """
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import get_connector_pages
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"mesh_element_count": 100},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        pages = get_connector_pages(provider)
+        # 両方が独立ページとして存在する
+        assert "物性一覧" in pages
+        assert "メッシュ品質" in pages
+
     def test_render_connector_page_unregistered(self):
         """未登録のページラベルではFalseを返す"""
         from services.dashboard.connectors import render_connector_page
