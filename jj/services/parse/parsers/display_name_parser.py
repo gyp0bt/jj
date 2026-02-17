@@ -46,10 +46,12 @@ class DisplayNameParser(AbstractFileParser):
 
         for node in graph.nodes:
             name_lower = node.name.lower()
+            print(name_lower)
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
 
             display_name = _apply_verbose_name_format(verbose_name_format, node.properties, vocab)
+            print(name_lower, display_name)
             if display_name:
                 node.properties[vn_key] = display_name
 

@@ -427,8 +427,9 @@ def _create_plot_figure(
     """
     # hover_name列がdfに存在しなければ"name"にフォールバック
     hn = hover_name_col if hover_name_col in df.columns else "name"
+
     if chart_type == "散布図":
-        return px.scatter(
+        fig = px.scatter(
             df,
             x=x_key,
             y=y_key,
@@ -437,7 +438,7 @@ def _create_plot_figure(
             title=f"{y_key} vs {x_key}",
         )
     elif chart_type == "棒グラフ":
-        return px.bar(
+        fig = px.bar(
             df,
             x=hn if hn in df.columns else "name",
             y=y_key,
@@ -445,7 +446,7 @@ def _create_plot_figure(
             title=f"{y_key} by name",
         )
     else:
-        return px.line(
+        fig = px.line(
             df,
             x=x_key,
             y=y_key,
@@ -454,6 +455,25 @@ def _create_plot_figure(
             title=f"{y_key} vs {x_key}",
             markers=True,
         )
+
+    # マーカーサイズをデフォルトで16に設定
+    fig.update_traces(marker=dict(size=16))
+
+    # フォントサイズ・色のデフォルト設定
+    fig.update_layout(
+        title_font=dict(size=24, color="black"),
+        font=dict(color="black"),
+        legend=dict(font=dict(size=16, color="black")),
+    )
+    fig.update_xaxes(
+        title_font=dict(size=20, color="black"),
+        tickfont=dict(size=20, color="black"),
+    )
+    fig.update_yaxes(
+        title_font=dict(size=20, color="black"),
+        tickfont=dict(size=20, color="black"),
+    )
+    return fig
 
 
 def _add_ng_regions_to_fig(fig: Any, ng_regions: list[dict[str, Any]]) -> None:

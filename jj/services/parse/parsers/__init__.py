@@ -27,6 +27,8 @@ from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
 from services.parse.parsers.version_parser import VersionRelationParser
 from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
+from services.parse.parsers.display_name_parser import DisplayNameParser
+
 # MeshInheritParserはstatus-088でAbaqusプラグインに移動。
 # services.plugins.abaqus.register() 経由で自動登録される。
 

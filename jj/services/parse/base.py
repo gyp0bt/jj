@@ -402,6 +402,7 @@ def parse(graph: ProjectGraph, *, full_mode: bool = False, debug: bool = False) 
     node_count = len(graph.nodes) or 1  # ゼロ除算防止
 
     for parser_cls in sorted_parsers:
+        print(parser_cls.__name__)
         if parser_cls.requires_full and not full_mode:
             continue
 

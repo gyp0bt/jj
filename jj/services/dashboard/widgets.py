@@ -261,9 +261,20 @@ def apply_style_to_fig(fig: Any, style: dict[str, int]) -> None:
     if "line_width" in style:
         fig.update_traces(line=dict(width=style["line_width"]))
     if "font_size" in style:
+        font_sz = style["font_size"]
+        # title: 24/20 倍、legend: 16/20 倍
+        title_font_sz = int(round(font_sz * 24 / 20))
+        legend_font_sz = int(round(font_sz * 16 / 20))
         fig.update_layout(
-            font=dict(size=style["font_size"]),
-            title_font=dict(size=style["font_size"] + 2),
-            xaxis=dict(title_font=dict(size=style["font_size"])),
-            yaxis=dict(title_font=dict(size=style["font_size"])),
+            font=dict(size=font_sz),
+            title_font=dict(size=title_font_sz),
+            legend=dict(font=dict(size=legend_font_sz)),
+            xaxis=dict(
+                title_font=dict(size=font_sz),
+                tickfont=dict(size=font_sz),
+            ),
+            yaxis=dict(
+                title_font=dict(size=font_sz),
+                tickfont=dict(size=font_sz),
+            ),
         )

@@ -62,3 +62,6 @@ jj/.jj/storage/
 
 # Test-generated .jj directories
 **/.jj/storage/
+
+notes
+.obsidian

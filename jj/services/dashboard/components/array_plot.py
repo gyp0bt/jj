@@ -320,9 +320,25 @@ def _render_array_overlay(
             if ng_regions:
                 _add_ng_regions_to_fig(fig, ng_regions)
             fig.update_layout(
-                title=f"{y_key} vs {x_key}（全条件比較）",
-                xaxis_title=x_key.split(".")[-1],
-                yaxis_title=y_key.split(".")[-1],
+                title=dict(
+                    text=f"{y_key} vs {x_key}（全条件比較）",
+                    font=dict(size=24, color="black"),
+                ),
+                xaxis=dict(
+                    title=dict(
+                        text=x_key.split(".")[-1],
+                        font=dict(size=20, color="black"),
+                    ),
+                    tickfont=dict(size=20, color="black"),
+                ),
+                yaxis=dict(
+                    title=dict(
+                        text=y_key.split(".")[-1],
+                        font=dict(size=20, color="black"),
+                    ),
+                    tickfont=dict(size=20, color="black"),
+                ),
+                legend=dict(font=dict(size=16, color="black")),
                 height=600,
                 showlegend=True,
             )
@@ -419,10 +435,28 @@ def _render_array_single(
         # NG領域塗りつぶし
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
+
+        # 軸ラベル・軸数値・凡例の文字色を黒、フォントサイズを20に設定
         fig.update_layout(
-            title=f"{selected}",
-            xaxis_title=x_key.split(".")[-1],
-            yaxis_title="値",
+            title=dict(
+                text=f"{selected}",
+                font=dict(size=24, color="black"),
+            ),
+            xaxis=dict(
+                title=dict(
+                    text=x_key.split(".")[-1],
+                    font=dict(size=20, color="black"),
+                ),
+                tickfont=dict(size=20, color="black"),
+            ),
+            yaxis=dict(
+                title=dict(
+                    text="値",
+                    font=dict(size=20, color="black"),
+                ),
+                tickfont=dict(size=20, color="black"),
+            ),
+            legend=dict(font=dict(size=16, color="black")),
             height=500,
         )
         if x_range:
