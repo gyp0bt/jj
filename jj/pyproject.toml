@@ -100,6 +100,9 @@ hfss = "services.plugins.hfss:register"
 # jj.exporters グループ: 個別エクスポーターの登録
 # [project.entry-points."jj.exporters"]
 
+# jj.dashboard_pages グループ: PageComponent/ViewConfigの登録（外部プラグイン用）
+# [project.entry-points."jj.dashboard_pages"]
+
 # jj.dashboard_connectors グループ: 個別ダッシュボードコネクターの登録
 # [project.entry-points."jj.dashboard_connectors"]
 
