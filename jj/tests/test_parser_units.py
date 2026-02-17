@@ -345,8 +345,47 @@ class TestEnrichmentOnlyFilter:
         result = EnrichmentOnlyFilter().apply(graph)
         assert len(result.nodes) == 2
 
-    def test_results_direct_file_removed(self, config: GraphConfig):
-        """results/直下のファイルは除外される"""
+    def test_results_direct_file_same_props_removed(self, config: GraphConfig):
+        """results/直下でgo_inpと同じプロパティ（追加パラメータなし）のファイルは除外される"""
+        from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_RF3",
+                format="csv",
+                properties={"path": "results/go_idx1_RF3.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = EnrichmentOnlyFilter().apply(graph)
+        assert len(result.nodes) == 1
+        assert result.nodes[0].format == "inp"
+
+    def test_results_direct_file_extra_params_preserved(self, config: GraphConfig):
+        """results/直下でgo_inpと異なるプロパティ（追加パラメータあり）のファイルは残す"""
+        from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
+
+        nodes = [
+            Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp"}),
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1_RF3_step0",
+                format="csv",
+                properties={"path": "results/go_idx1_RF3_step0.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config)
+        result = EnrichmentOnlyFilter().apply(graph)
+        assert len(result.nodes) == 2
+        formats = {n.format for n in result.nodes}
+        assert formats == {"inp", "csv"}
+
+    def test_results_direct_file_no_go_match_removed(self, config: GraphConfig):
+        """results/直下でgo_inpとマッチしないファイルは除外される"""
         from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 
         nodes = [
@@ -361,6 +400,7 @@ class TestEnrichmentOnlyFilter:
         ]
         graph = _make_graph(nodes, config=config)
         result = EnrichmentOnlyFilter().apply(graph)
+        # stressはresult_keyなのでパラメータなし → 除外される
         assert len(result.nodes) == 1
         assert result.nodes[0].format == "inp"
 
