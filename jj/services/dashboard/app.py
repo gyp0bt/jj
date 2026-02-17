@@ -480,13 +480,29 @@ def _render_view_add_form(
         with fc3:
             f_active = st.checkbox("active", key="_add_view_f_active")
 
-        # ローカルフィルタ設定
+        # ローカルフィルタ設定（複数キー/値ペア対応）
         st.markdown("**ローカルフィルタ（任意・ページ固有）**")
-        lfc1, lfc2 = st.columns(2)
-        with lfc1:
-            lf_key = st.text_input("プロパティキー", key="_add_view_lf_key")
-        with lfc2:
-            lf_value = st.text_input("値", key="_add_view_lf_value")
+        if "_add_lf_count" not in st.session_state:
+            st.session_state["_add_lf_count"] = 1
+        lf_count: int = st.session_state["_add_lf_count"]
+        lf_pairs: list[tuple[str, str]] = []
+        for lfi in range(lf_count):
+            lfc1, lfc2 = st.columns(2)
+            with lfc1:
+                lf_key = st.text_input("プロパティキー", key=f"_add_view_lf_key_{lfi}")
+            with lfc2:
+                lf_value = st.text_input("値", key=f"_add_view_lf_value_{lfi}")
+            if lf_key and lf_value:
+                lf_pairs.append((lf_key, lf_value))
+        lf_btn1, lf_btn2 = st.columns(2)
+        with lf_btn1:
+            if st.button("フィルタ追加", key="_add_lf_more"):
+                st.session_state["_add_lf_count"] = lf_count + 1
+                st.rerun()
+        with lf_btn2:
+            if lf_count > 1 and st.button("フィルタ削除", key="_remove_lf"):
+                st.session_state["_add_lf_count"] = max(1, lf_count - 1)
+                st.rerun()
 
         # ViewConfigレジストリからビュータイプ固有の設定UIを描画
         type_specific_config: dict[str, Any] = {}
@@ -509,8 +525,8 @@ def _render_view_add_form(
                     filters["active"] = True
 
                 local_filters: dict[str, Any] = {}
-                if lf_key and lf_value:
-                    local_filters[lf_key] = lf_value
+                for lf_k, lf_v in lf_pairs:
+                    local_filters[lf_k] = lf_v
 
                 new_view: dict[str, Any] = {
                     "name": view_name,
@@ -525,6 +541,8 @@ def _render_view_add_form(
                 st.session_state["_dynamic_views"].append(new_view)
                 if project_root is not None:
                     _save_persistent_views(project_root, st.session_state["_dynamic_views"])
+                # フィルタカウントをリセット
+                st.session_state["_add_lf_count"] = 1
                 st.rerun()
 
 
@@ -571,6 +589,43 @@ def _render_view_edit_form(
                 key=f"_edit_f_active_{dyn_idx}",
             )
 
+        # ローカルフィルタ設定（複数ペア対応）
+        st.markdown("**ローカルフィルタ**")
+        existing_local_filters = view_data.get("local_filters", {})
+        lf_count_key = f"_edit_lf_count_{dyn_idx}"
+        if lf_count_key not in st.session_state:
+            st.session_state[lf_count_key] = max(1, len(existing_local_filters))
+        edit_lf_count: int = st.session_state[lf_count_key]
+        existing_lf_items = list(existing_local_filters.items())
+        edit_lf_pairs: list[tuple[str, str]] = []
+        for lfi in range(edit_lf_count):
+            default_key = existing_lf_items[lfi][0] if lfi < len(existing_lf_items) else ""
+            default_val = str(existing_lf_items[lfi][1]) if lfi < len(existing_lf_items) else ""
+            lfc1, lfc2 = st.columns(2)
+            with lfc1:
+                elk = st.text_input(
+                    "プロパティキー",
+                    value=default_key,
+                    key=f"_edit_lf_key_{dyn_idx}_{lfi}",
+                )
+            with lfc2:
+                elv = st.text_input(
+                    "値",
+                    value=default_val,
+                    key=f"_edit_lf_val_{dyn_idx}_{lfi}",
+                )
+            if elk and elv:
+                edit_lf_pairs.append((elk, elv))
+        elf_btn1, elf_btn2 = st.columns(2)
+        with elf_btn1:
+            if st.button("フィルタ追加", key=f"_edit_lf_more_{dyn_idx}"):
+                st.session_state[lf_count_key] = edit_lf_count + 1
+                st.rerun()
+        with elf_btn2:
+            if edit_lf_count > 1 and st.button("フィルタ削除", key=f"_edit_lf_remove_{dyn_idx}"):
+                st.session_state[lf_count_key] = max(1, edit_lf_count - 1)
+                st.rerun()
+
         ec1, ec2 = st.columns(2)
         with ec1:
             if st.button("保存", key=f"_edit_save_{dyn_idx}"):
@@ -582,9 +637,14 @@ def _render_view_edit_form(
                 if f_active:
                     filters["active"] = True
 
+                local_filters: dict[str, Any] = {}
+                for lf_k, lf_v in edit_lf_pairs:
+                    local_filters[lf_k] = lf_v
+
                 view_data["name"] = view_name
                 view_data["type"] = view_type
                 view_data["filters"] = filters
+                view_data["local_filters"] = local_filters
                 st.session_state["_dynamic_views"][dyn_idx] = view_data
                 if project_root is not None:
                     _save_persistent_views(project_root, st.session_state["_dynamic_views"])
