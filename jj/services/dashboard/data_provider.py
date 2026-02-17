@@ -11,7 +11,9 @@ float値は桁数が大きい場合に指数表示（小数2桁）でフォー�
 
 from __future__ import annotations
 
+import fnmatch
 import math
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -55,6 +57,8 @@ class DashboardDataProvider:
         graph: 対象のGraphModel
         vocab: config.vocabマッピング（キー/値の翻訳用）
         units: config.export.unitsマッピング（カラム名への単位付加用）
+        verbose_name_format: verbose_nameのフォーマットテンプレート（例: "条件{idx}(高さ{t})"）
+        global_columns: グローバルカラム設定（globパターン対応、export.csv-columnsから昇格）
     """
 
     def __init__(
@@ -62,10 +66,14 @@ class DashboardDataProvider:
         graph: GraphModel,
         vocab: dict[str, str] | None = None,
         units: dict[str, str] | None = None,
+        verbose_name_format: str | None = None,
+        global_columns: list[str] | None = None,
     ) -> None:
         self.graph = graph
         self.vocab = vocab or {}
         self.units = units or {}
+        self._verbose_name_format = verbose_name_format
+        self._global_columns = global_columns
         self._node_by_id: dict[int, Node] = {n.id: n for n in graph.nodes}
         self._relations_by_node: dict[int, list[Relation]] = {}
         for r in graph.relations:
@@ -145,6 +153,7 @@ class DashboardDataProvider:
         x_key: str,
         y_key: str,
         color_key: str | None = None,
+        extra_keys: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """プロット用データ（数値プロパティのみ）
 
@@ -152,6 +161,7 @@ class DashboardDataProvider:
             x_key: X軸プロパティキー
             y_key: Y軸プロパティキー
             color_key: 色分けプロパティキー
+            extra_keys: 追加で含めるプロパティキー（グループ結線キー等）
 
         Returns:
             プロット用データポイントのリスト
@@ -185,6 +195,12 @@ class DashboardDataProvider:
 
             if color_key:
                 point[color_key] = node.properties.get(color_key, "")
+
+            # 追加キー（グループ結線キー等）をデータに含める
+            if extra_keys:
+                for ek in extra_keys:
+                    if ek not in point:
+                        point[ek] = node.properties.get(ek, "")
 
             points.append(point)
 
@@ -426,6 +442,7 @@ class DashboardDataProvider:
                     {
                         "go_node_id": go_node.id,
                         "go_node_name": go_node.name,
+                        "display_name": self._get_display_name(go_node),
                         "image_node_id": output_node.id,
                         "image_name": output_node.name,
                         "image_path": path_str,
@@ -472,6 +489,7 @@ class DashboardDataProvider:
                 continue
 
             go_props = {k: v for k, v in node.properties.items() if k not in ("path", "include_properties")}
+            display_name = self._get_display_name(node)
 
             for key, value in node.properties.items():
                 if key in ("path", "include_properties"):
@@ -481,13 +499,14 @@ class DashboardDataProvider:
                     self._extract_daily_note_images(
                         results,
                         node,
+                        display_name,
                         value,
                         go_props,
                         image_extensions,
                         daily_notes_dir,
                     )
                     continue
-                self._extract_image_paths(results, node, key, value, go_props, image_extensions)
+                self._extract_image_paths(results, node, display_name, key, value, go_props, image_extensions)
 
         return results
 
@@ -495,6 +514,7 @@ class DashboardDataProvider:
     def _extract_daily_note_images(
         results: list[dict[str, Any]],
         node: Node,
+        display_name: str,
         daily_notes: dict[str, Any],
         go_props: dict[str, Any],
         image_extensions: set[str],
@@ -529,6 +549,7 @@ class DashboardDataProvider:
                             {
                                 "go_node_id": node.id,
                                 "go_node_name": node.name,
+                                "display_name": display_name,
                                 "property_key": f"daily:{date_key}:{key}",
                                 "image_path": resolved,
                                 "image_format": ext,
@@ -540,6 +561,7 @@ class DashboardDataProvider:
     def _extract_image_paths(
         results: list[dict[str, Any]],
         node: Node,
+        display_name: str,
         key: str,
         value: Any,
         go_props: dict[str, Any],
@@ -561,6 +583,7 @@ class DashboardDataProvider:
                     {
                         "go_node_id": node.id,
                         "go_node_name": node.name,
+                        "display_name": display_name,
                         "property_key": key,
                         "image_path": candidate,
                         "image_format": ext,
@@ -709,10 +732,12 @@ class DashboardDataProvider:
     # ---- private ----
 
     def _get_display_name(self, node: Node) -> str:
-        """ノードの表示名を取得（verbose_name/表示名 → name のフォールバック）
+        """ノードの表示名を取得
 
-        vocab変換後のverbose_nameキー（例: "表示名"）を優先的に探し、
-        見つからない場合はnode.nameを返す。
+        優先順位:
+        1. verbose_name_formatが設定されている場合、ノードプロパティから動的に生成
+        2. verbose_nameプロパティ（vocab変換後キー → 変換前キー）
+        3. node.name
 
         Args:
             node: 対象ノード
@@ -720,6 +745,12 @@ class DashboardDataProvider:
         Returns:
             表示用の名前文字列
         """
+        # verbose_name_formatが設定されている場合、動的に生成
+        if self._verbose_name_format:
+            result = self._apply_verbose_name_format(node)
+            if result:
+                return result
+
         # vocab変換後のキー（例: "表示名"）で検索
         display = node.properties.get(self._verbose_name_key)
         if display:
@@ -729,6 +760,67 @@ class DashboardDataProvider:
         if display:
             return str(display)
         return node.name
+
+    def _apply_verbose_name_format(self, node: Node) -> str:
+        """verbose_name_formatテンプレートをノードプロパティで展開
+
+        テンプレート内の{キー名}をプロパティ値で置換する。
+        vocabの変換前・変換後どちらのキー名でも参照可能。
+        存在しないキーは空文字に置換される。
+
+        Args:
+            node: 対象ノード
+
+        Returns:
+            フォーマット適用後の表示名（フォーマットがない場合は空文字列）
+        """
+        fmt = self._verbose_name_format
+        if not fmt:
+            return ""
+
+        # プロパティ値の辞書を構築
+        values: dict[str, str] = {}
+        for key, value in node.properties.items():
+            if key in ("path", "include_properties"):
+                continue
+            if isinstance(value, (list, dict)):
+                continue
+            values[key] = str(value)
+
+        # vocab変換前のキー名でも参照可能にする
+        # （例: {idx}と書いてあるが、propsでは"条件"キーになっている場合）
+        for orig_key, translated_key in self.vocab.items():
+            if translated_key in values and orig_key not in values:
+                values[orig_key] = values[translated_key]
+        # vocab変換後のキーでも参照可能にする
+        # （例: {高さ}と書いてあるが、propsでは"t"キーになっている場合）
+        for orig_key, translated_key in self.vocab.items():
+            if orig_key in values and translated_key not in values:
+                values[translated_key] = values[orig_key]
+
+        safe_values = defaultdict(str, values)
+        return fmt.format_map(safe_values)
+
+    def get_filtered_property_keys(self) -> list[str]:
+        """グローバルカラム設定でフィルタされたプロパティキー一覧
+
+        global_columnsが設定されている場合はglobパターンでフィルタした結果を返す。
+        未設定の場合はget_property_keys()と同じ結果を返す。
+
+        Returns:
+            フィルタ済みキーリスト
+        """
+        all_keys = self.get_property_keys()
+        if not self._global_columns:
+            return all_keys
+        filtered: list[str] = []
+        seen: set[str] = set()
+        for pattern in self._global_columns:
+            for k in all_keys:
+                if k not in seen and fnmatch.fnmatch(k, pattern):
+                    filtered.append(k)
+                    seen.add(k)
+        return filtered
 
     def _node_to_row(self, node: Node) -> dict[str, Any]:
         """ノードをテーブル行に変換（プロパティ展開、float指数表示対応）"""
