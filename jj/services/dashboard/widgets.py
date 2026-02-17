@@ -263,8 +263,8 @@ def apply_style_to_fig(fig: Any, style: dict[str, int]) -> None:
     if "font_size" in style:
         font_sz = style["font_size"]
         # title: 24/20 倍、legend: 16/20 倍
-        title_font_sz = int(round(font_sz * 24 / 20))
-        legend_font_sz = int(round(font_sz * 16 / 20))
+        title_font_sz = round(font_sz * 24 / 20)
+        legend_font_sz = round(font_sz * 16 / 20)
         fig.update_layout(
             font=dict(size=font_sz),
             title_font=dict(size=title_font_sz),

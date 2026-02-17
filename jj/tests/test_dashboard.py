@@ -3950,9 +3950,7 @@ class TestAbaqusQueryModule:
             relations=[],
         )
         # vocab: verbose_name → 表示名
-        provider = DashboardDataProvider(
-            graph, vocab={"verbose_name": "表示名"}
-        )
+        provider = DashboardDataProvider(graph, vocab={"verbose_name": "表示名"})
         rows = get_material_table(provider)
         assert len(rows) == 1
         assert rows[0]["verbose_name"] == "鋼材 S235"
@@ -4000,9 +3998,7 @@ class TestAbaqusQueryModule:
             ],
             relations=[],
         )
-        provider = DashboardDataProvider(
-            graph, vocab={"verbose_name": "表示名"}
-        )
+        provider = DashboardDataProvider(graph, vocab={"verbose_name": "表示名"})
         rows = get_material_table(provider)
         assert len(rows) == 1
         # verbose_name列に値がある
