@@ -3900,6 +3900,88 @@ class TestAbaqusQueryModule:
         # スカラ値はそのまま
         assert steel["density"] == 7.85e-9
 
+    def test_get_material_table_verbose_name_with_vocab(self):
+        """vocab変換後のキーでverbose_nameを取得できる"""
+        from services.dashboard.connectors.abaqus_query import get_material_table
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel_S235",
+                    format="material",
+                    properties={
+                        "表示名": "鋼材 S235",
+                        "elastic": [[210000.0, 0.3]],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        # vocab: verbose_name → 表示名
+        provider = DashboardDataProvider(
+            graph, vocab={"verbose_name": "表示名"}
+        )
+        rows = get_material_table(provider)
+        assert len(rows) == 1
+        assert rows[0]["verbose_name"] == "鋼材 S235"
+
+    def test_get_material_table_verbose_name_fallback(self):
+        """vocab未設定時は元のverbose_nameキーで取得"""
+        from services.dashboard.connectors.abaqus_query import get_material_table
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel_S235",
+                    format="material",
+                    properties={
+                        "verbose_name": "鋼材 S235",
+                        "elastic": [[210000.0, 0.3]],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = get_material_table(provider)
+        assert len(rows) == 1
+        assert rows[0]["verbose_name"] == "鋼材 S235"
+
+    def test_get_material_table_excludes_vocab_verbose_name_key(self):
+        """vocab変換後のverbose_nameキーがプロパティ列に重複表示されない"""
+        from services.dashboard.connectors.abaqus_query import get_material_table
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="abaqus_material",
+                    name="Steel_S235",
+                    format="material",
+                    properties={
+                        "表示名": "鋼材 S235",
+                        "density": 7.85e-9,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(
+            graph, vocab={"verbose_name": "表示名"}
+        )
+        rows = get_material_table(provider)
+        assert len(rows) == 1
+        # verbose_name列に値がある
+        assert rows[0]["verbose_name"] == "鋼材 S235"
+        # 表示名キーがプロパティ列として重複しない
+        assert "表示名" not in rows[0]
+        # density はそのまま含まれる
+        assert rows[0]["density"] == 7.85e-9
+
     # ---- get_material_table_data ----
 
     def test_get_material_table_data(self, material_provider):

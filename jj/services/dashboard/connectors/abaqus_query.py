@@ -77,8 +77,8 @@ def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
         if node.type != "abaqus_material":
             continue
 
-        # verbose_name = vocab変換された材料名
-        verbose_name = node.properties.get("verbose_name", "")
+        # verbose_name: vocab変換後のキー → 変換前のキーでフォールバック
+        verbose_name = node.properties.get(provider._verbose_name_key, "") or node.properties.get("verbose_name", "")
         # assigned_elsets = 割り当てelset名リスト（vocab変換）
         raw_elsets = node.properties.get("assigned_elsets", [])
         if isinstance(raw_elsets, str):
@@ -92,6 +92,7 @@ def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
             "assigned_elsets": assigned_elsets_str,
         }
 
+        vn_key = provider._verbose_name_key
         for key, value in node.properties.items():
             # 除外キー: 内部情報・タグ・既出
             if key in (
@@ -100,6 +101,7 @@ def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
                 "source_file",
                 "tags",
                 "verbose_name",
+                vn_key,
                 "assigned_elsets",
                 "keywords",
             ):
