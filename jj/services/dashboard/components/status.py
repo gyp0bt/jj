@@ -40,9 +40,7 @@ class StatusPage(PageComponent[StatusViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        from services.dashboard.app import _render_status_page
-
-        _render_status_page(provider)
+        self._render_status(provider)
 
     def render_saved_view(
         self,
@@ -51,6 +49,63 @@ class StatusPage(PageComponent[StatusViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        from services.dashboard.app import _render_status_page
+        self._render_status(provider)
 
-        _render_status_page(provider)
+    def _render_status(self, provider: DashboardDataProvider) -> None:
+        """ステータスモニター: 実行ステータス一覧"""
+        import streamlit as st
+
+        st.header("ステータスモニター")
+
+        status = provider.get_status_summary()
+
+        # サマリーメトリクス
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("合計", status["total"])
+        col2.metric("完了", status["completed"])
+        col3.metric("失敗", status["failed"])
+        col4.metric("不明", status["unknown"])
+
+        st.markdown("---")
+
+        items = status["items"]
+        if not items:
+            st.info("go_ ファイルが見つかりません。")
+            return
+
+        # ステータス別に分類
+        completed_items = [i for i in items if i["analysis_status"] == "completed"]
+        failed_items = [i for i in items if i["analysis_status"] == "failed"]
+        unknown_items = [i for i in items if i["analysis_status"] not in ("completed", "failed")]
+
+        if failed_items:
+            st.subheader("❌ 失敗")
+            import pandas as pd
+
+            df = pd.DataFrame(failed_items)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+        if unknown_items:
+            st.subheader("❓ 不明 / 実行中")
+            import pandas as pd
+
+            df = pd.DataFrame(unknown_items)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+        if completed_items:
+            st.subheader("✅ 完了")
+            import pandas as pd
+
+            df = pd.DataFrame(completed_items)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        view: SavedViewConfig,
+        dashboard_config: DashboardConfig,
+        **kwargs: Any,
+    ) -> str:
+        from services.dashboard.html_export import generate_status_html
+
+        return generate_status_html(provider)

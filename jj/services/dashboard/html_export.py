@@ -104,6 +104,9 @@ def generate_view_html(
 ) -> str:
     """個別ビューのHTML断片を生成
 
+    PageComponentレジストリを使用してビュータイプに応じたHTML生成を
+    ディスパッチする。レジストリに登録されていないビュータイプは空文字列を返す。
+
     Args:
         provider: DashboardDataProvider
         project_root: プロジェクトルート
@@ -114,16 +117,17 @@ def generate_view_html(
     Returns:
         HTML断片文字列
     """
-    if view.view_type == "table":
-        return generate_table_html(provider, dashboard_config, view, vocab)
-    elif view.view_type == "plot":
-        return generate_plot_html(provider, view, dashboard_config)
-    elif view.view_type == "array_plot":
-        return generate_array_plot_html(provider, dashboard_config, view)
-    elif view.view_type == "status":
-        return generate_status_html(provider)
-    elif view.view_type == "card":
-        return generate_card_html(provider, view)
+    from services.dashboard.components import get_page_component
+
+    component = get_page_component(view.view_type)
+    if component is not None:
+        return component.generate_html(
+            provider,
+            view,
+            dashboard_config,
+            vocab=vocab,
+            project_root=project_root,
+        )
     return ""
 
 

@@ -131,6 +131,28 @@ class PageComponent(Generic[VC]):
         """
         raise NotImplementedError
 
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        view: SavedViewConfig,
+        dashboard_config: DashboardConfig,
+        **kwargs: Any,
+    ) -> str:
+        """保存済みビューのHTML断片を生成（HTMLエクスポート用）
+
+        Streamlit非依存。各サブクラスがhtml_export関数に委譲する。
+
+        Args:
+            provider: DashboardDataProvider
+            view: SavedViewConfig
+            dashboard_config: DashboardConfig
+            **kwargs: 追加パラメータ（vocab, project_root等）
+
+        Returns:
+            HTML断片文字列。未対応の場合は空文字列。
+        """
+        return ""
+
 
 # ====================================================================
 # レジストリアクセス関数
@@ -174,3 +196,51 @@ def get_view_config(view_type: str) -> ViewConfig | None:
 def get_view_type_options() -> list[str]:
     """登録済みビュータイプの一覧を返す"""
     return list(ViewConfig._registry.keys())
+
+
+# ====================================================================
+# エントリーポイント経由のプラグインローダー
+# ====================================================================
+
+_plugins_loaded = False
+
+
+def load_dashboard_plugins() -> None:
+    """jj.dashboard_pagesエントリーポイントからプラグインをロード
+
+    外部パッケージがPageComponent/ViewConfigのサブクラスを
+    entry_point経由で登録できるようにする。
+
+    エントリーポイントの値はモジュールパス（インポートするだけで
+    __init_subclass__により自動登録される）。
+
+    グループ名: ``jj.dashboard_pages``
+
+    pyproject.toml例::
+
+        [project.entry-points."jj.dashboard_pages"]
+        my_solver = "my_package.dashboard.pages"
+
+    一度だけロードされ、2回目以降の呼び出しはスキップする。
+    """
+    global _plugins_loaded
+    if _plugins_loaded:
+        return
+    _plugins_loaded = True
+
+    try:
+        from importlib.metadata import entry_points
+
+        eps = entry_points()
+        # Python 3.12+ ではeps.select()が使える
+        if hasattr(eps, "select"):
+            dashboard_eps = eps.select(group="jj.dashboard_pages")
+        else:
+            # Python 3.10-3.11 フォールバック
+            dashboard_eps = eps.get("jj.dashboard_pages", [])
+
+        for ep in dashboard_eps:
+            with __import__("contextlib").suppress(Exception):
+                ep.load()
+    except Exception:
+        pass

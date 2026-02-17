@@ -71,6 +71,17 @@ M2: マルチソルバー検証（検証環境確保後に実施）
 | OpenFOAM | `services/plugins/openfoam/` | ディレクトリ=1計算、タイムステップディレクトリ | [マルチソルバー仕様書 §OpenFOAM](specs/multi-solver.md#openfoam) |
 | CalculiX | `services/plugins/calculix/` | .inp互換だがAbaqusサブセット | [マルチソルバー仕様書 §CalculiX](specs/multi-solver.md#calculix) |
 
+### ダッシュボードアーキテクチャ
+
+PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整備済み。
+
+| タスク | 成果物 | status |
+|--------|--------|--------|
+| PageComponent[ViewConfig]パターン導入 | 基底クラス + 6ビューコンポーネント | [012](status/status-012.md) |
+| 描画ロジックのコンポーネント移動 | app.py 70%削減（1920→569行） | [013](status/status-013.md) |
+| HTMLエクスポートのレジストリ統合 | generate_view_html()レジストリベース化 | [013](status/status-013.md) |
+| プラグインローダー | jj.dashboard_pages エントリーポイント対応 | [013](status/status-013.md) |
+
 ---
 
 ## M3: Neo4j統合パイプライン
