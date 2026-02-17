@@ -34,8 +34,9 @@ _INFO_ONLY_DIRECTORIES: frozenset[str] = frozenset({"results"})
 # ディレクトリ名からキー値ペアを抽出するパターン（例: step0 → step=0, frame10 → frame=10）
 _DIR_PROP_PATTERN = re.compile(r"([A-Za-z]+)(\d+)")
 
-# ファイル名のパラメータトークン（浮動小数点対応）: vmax10.0 → vmax=10.0
-_FLOAT_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(\d+(?:\.\d+)?)$")
+# ファイル名のパラメータトークン（浮動小数点対応、負の値対応）:
+# vmax10.0 → vmax=10.0, vmin-50.0 → vmin=-50.0
+_FLOAT_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(-?\d+(?:\.\d+)?)$")
 
 # 結果キーパターン（ダッシュ含む識別子）: S-S33, U-U3, PEEQ 等
 _RESULT_KEY_PATTERN = re.compile(r"^[A-Z][A-Za-z0-9]*(?:-[A-Z][A-Za-z0-9]*(?:\d+)?)?$")
