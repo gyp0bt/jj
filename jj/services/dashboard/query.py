@@ -91,6 +91,45 @@ def normalize_group_key(key: str) -> str:
     return key
 
 
+def filter_images_by_keys(
+    images: list[dict[str, Any]],
+    allowed_keys: list[str] | None = None,
+    source: str = "output",
+) -> list[dict[str, Any]]:
+    """画像リストをキー名のリストでフィルタリングする
+
+    allowed_keysが指定された場合、画像のresult_key（outputソース）
+    またはproperty_key（propertyソース）がリストに含まれるもののみ返す。
+
+    Args:
+        images: 画像情報のリスト
+        allowed_keys: 許可するキー名のリスト（Noneの場合はフィルタなし）
+        source: "output" or "property"
+
+    Returns:
+        フィルタ済み画像リスト
+    """
+    if not allowed_keys:
+        return images
+
+    allowed_set = set(allowed_keys)
+    result = []
+
+    for img in images:
+        if source == "output":
+            # result_keyベースのフィルタ（パスから抽出）
+            rk = _extract_result_key_from_path(img.get("image_path", ""))
+            if (rk and rk in allowed_set) or (not rk and "(その他)" in allowed_set):
+                result.append(img)
+        elif source == "property":
+            # property_keyベースのフィルタ
+            pk = normalize_group_key(img.get("property_key", ""))
+            if pk in allowed_set:
+                result.append(img)
+
+    return result
+
+
 def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
     """画像リストからグループ化に利用できるキーを収集
 
