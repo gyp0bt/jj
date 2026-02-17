@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from services.dashboard.data_provider import format_float_value
+
 if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
 
@@ -114,7 +116,8 @@ def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
             # dict/listはスキップ（内部データ）
             if isinstance(value, (dict, list)):
                 continue
-            row[key] = value
+            # float値は桁数が大きい場合に指数表記
+            row[key] = format_float_value(value) if isinstance(value, float) else value
 
         rows.append(row)
 

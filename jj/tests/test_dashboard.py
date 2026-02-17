@@ -3897,8 +3897,8 @@ class TestAbaqusQueryModule:
         assert steel["plastic"] == "配列"
         # 1行2要素 → "val0(val1)"
         assert steel["elastic"] == "210000.0(0.3)"
-        # スカラ値はそのまま
-        assert steel["density"] == 7.85e-9
+        # スカラ値は指数表記でフォーマット
+        assert steel["density"] == "7.85e-09"
 
     def test_get_material_table_verbose_name_with_vocab(self):
         """vocab変換後のキーでverbose_nameを取得できる"""
@@ -3979,8 +3979,8 @@ class TestAbaqusQueryModule:
         assert rows[0]["verbose_name"] == "鋼材 S235"
         # 表示名キーがプロパティ列として重複しない
         assert "表示名" not in rows[0]
-        # density はそのまま含まれる
-        assert rows[0]["density"] == 7.85e-9
+        # density は指数表記でフォーマット
+        assert rows[0]["density"] == "7.85e-09"
 
     # ---- get_material_table_data ----
 
