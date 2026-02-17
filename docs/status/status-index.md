@@ -34,6 +34,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [009](status-009.md) | 2026-02-17 | M2 | ダッシュボード改善: ライトテーマ・ビュー永続化・results除外ロジック | claude/dashboard-views-light-theme-3Dimf |
 | [010](status-010.md) | 2026-02-17 | M2 | ダッシュボード改善: verbose_name展開・グループ結線修正・プロット変数制御・グローバルカラム設定 | claude/fix-verbose-names-plot-LM8Nf |
 | [011](status-011.md) | 2026-02-17 | M2 | 表示名parse時移動・プロットスタイル制御・ギャラリーresult_keyグルーピング | claude/setup-project-docs-GNDw6 |
+| [012](status-012.md) | 2026-02-17 | M2 | PageComponent[ViewConfig]パターン導入・グリッドビュー廃止・ギャラリーキーフィルタ | claude/fix-iteration-logic-REVGc |
 
 ---
 
