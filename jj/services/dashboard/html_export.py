@@ -56,6 +56,15 @@ def generate_saved_views_html(
                 f"</div>"
             )
 
+    # コネクターページのHTML断片を追加
+    from services.dashboard.connectors import generate_connector_pages_html
+
+    connector_sections = generate_connector_pages_html(provider, dashboard_config)
+    for label, html in connector_sections:
+        sections.append(
+            f'<div class="view-section"><h2>{label}</h2><p class="view-type">タイプ: コネクターページ</p>{html}</div>'
+        )
+
     body = "\n<hr>\n".join(sections)
     project_name = project_root.name if project_root else "jj"
 

@@ -536,6 +536,14 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
         """物性一覧ページをレンダリング"""
         _render_material_page(provider, dashboard_config)
 
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> str:
+        """物性一覧のHTML断片を生成"""
+        return _generate_material_html(provider, dashboard_config)
+
 
 class AbaqusMeshQualityPageConnector(DashboardPageConnector):
     """Abaqusメッシュ品質ページコネクター
@@ -566,6 +574,14 @@ class AbaqusMeshQualityPageConnector(DashboardPageConnector):
         """メッシュ品質ページをレンダリング"""
         _render_mesh_quality_page(provider)
 
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> str:
+        """メッシュ品質のHTML断片を生成"""
+        return _generate_mesh_quality_html(provider)
+
 
 class AbaqusJobSummaryPageConnector(DashboardPageConnector):
     """Abaqusジョブサマリーページコネクター
@@ -594,3 +610,182 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
     ) -> None:
         """ジョブサマリーページをレンダリング"""
         _render_job_summary_page(provider)
+
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> str:
+        """ジョブサマリーのHTML断片を生成"""
+        return _generate_job_summary_html(provider)
+
+
+# ====================================================================
+# HTML生成関数（Streamlit非依存）
+# ====================================================================
+
+
+def _generate_material_html(
+    provider: DashboardDataProvider,
+    dashboard_config: Any = None,
+) -> str:
+    """物性一覧のHTML断片を生成"""
+    import pandas as pd
+
+    mat_rows = get_material_table(provider)
+    if not mat_rows:
+        return "<p>abaqus_materialノードが見つかりません。</p>"
+
+    display_rows = []
+    for r in mat_rows:
+        row = {}
+        for k, v in r.items():
+            if isinstance(v, (dict, list)):
+                row[k] = str(v)
+            else:
+                row[k] = v
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    sections = [
+        "<h3>物性テーブル</h3>",
+        f'<p class="caption">物性数: {len(mat_rows)}</p>',
+        df.to_html(index=False, classes="dataframe"),
+    ]
+
+    # 物性使用関係
+    usage = get_material_usage(provider)
+    if usage:
+        usage_rows = []
+        for item in usage:
+            go_names = [g["name"] for g in item["go_nodes"]]
+            usage_rows.append(
+                {
+                    "物性名": item["material_name"],
+                    "使用GOノード数": len(go_names),
+                    "使用GOノード": ", ".join(go_names) if go_names else "（未使用）",
+                }
+            )
+        usage_df = pd.DataFrame(usage_rows)
+        sections.append("<h3>物性使用関係</h3>")
+        sections.append(usage_df.to_html(index=False, classes="dataframe"))
+
+    return "\n".join(sections)
+
+
+def _generate_mesh_quality_html(
+    provider: DashboardDataProvider,
+) -> str:
+    """メッシュ品質のHTML断片を生成"""
+    import pandas as pd
+
+    sections: list[str] = []
+
+    # メッシュ品質サマリー
+    mesh_rows = get_mesh_quality_summary(provider)
+    if mesh_rows:
+        display_rows = []
+        for r in mesh_rows:
+            row: dict[str, Any] = {
+                "GOノード": r["go_name"],
+                "節点数": r["node_count"],
+                "要素数": r["element_count"],
+            }
+            etypes = r.get("element_types", {})
+            if isinstance(etypes, dict) and etypes:
+                row["要素タイプ"] = ", ".join(f"{k}:{v}" for k, v in etypes.items())
+            quality = r.get("quality", {})
+            if isinstance(quality, dict):
+                row.update(_format_quality_dict(quality))
+            display_rows.append(row)
+        df = pd.DataFrame(display_rows)
+        sections.append("<h3>メッシュ品質サマリー</h3>")
+        sections.append(df.to_html(index=False, classes="dataframe"))
+
+    # Elset品質サマリー
+    elset_rows = get_elset_quality_summary(provider)
+    if elset_rows:
+        display_rows = []
+        for r in elset_rows:
+            row = {
+                "Elset名": r["elset_name"],
+                "メッシュソース": r.get("mesh_source", ""),
+                "要素数": r["element_count"],
+                "材料": r.get("material", ""),
+            }
+            quality = r.get("quality", {})
+            if isinstance(quality, dict):
+                row.update(_format_quality_dict(quality))
+            display_rows.append(row)
+        df = pd.DataFrame(display_rows)
+        sections.append("<h3>Elset品質サマリー</h3>")
+        sections.append(df.to_html(index=False, classes="dataframe"))
+
+    return "\n".join(sections) if sections else ""
+
+
+def _generate_job_summary_html(
+    provider: DashboardDataProvider,
+) -> str:
+    """ジョブサマリーのHTML断片を生成"""
+    import pandas as pd
+
+    job_rows = get_job_summary(provider)
+    if not job_rows:
+        return "<p>ジョブサマリーデータがありません。</p>"
+
+    display_rows = []
+    for r in job_rows:
+        row: dict[str, Any] = {
+            "GOノード": r["go_name"],
+            "解析ステータス": r["analysis_status"],
+        }
+        if "cpu_time" in r:
+            row["CPU時間(sec)"] = r["cpu_time"]
+        if "wallclock_time" in r:
+            row["経過時間(sec)"] = r["wallclock_time"]
+        errors: list[str] = []
+        warnings: list[str] = []
+        for key in ("sta_errors", "msg_errors", "dat_errors"):
+            errors.extend(r.get(key, []))
+        for key in ("sta_warnings", "msg_warnings", "dat_warnings"):
+            warnings.extend(r.get(key, []))
+        if errors:
+            row["エラー数"] = len(errors)
+        if warnings:
+            row["警告数"] = len(warnings)
+        display_rows.append(row)
+
+    df = pd.DataFrame(display_rows)
+    sections = [
+        f'<p class="caption">ジョブ数: {len(job_rows)}</p>',
+        df.to_html(index=False, classes="dataframe"),
+    ]
+
+    # エラー・警告詳細
+    for r in job_rows:
+        all_errors: list[str] = []
+        all_warnings: list[str] = []
+        for key in ("sta_errors", "msg_errors", "dat_errors"):
+            src = key.split("_")[0]
+            for e in r.get(key, []):
+                all_errors.append(f"[{src}] {e}")
+        for key in ("sta_warnings", "msg_warnings", "dat_warnings"):
+            src = key.split("_")[0]
+            for w in r.get(key, []):
+                all_warnings.append(f"[{src}] {w}")
+
+        if all_errors or all_warnings:
+            sections.append(f"<h4>{r['go_name']}</h4>")
+            if all_errors:
+                sections.append(f'<div style="color:#dc2626">エラー ({len(all_errors)}件):<ul>')
+                for e in all_errors:
+                    sections.append(f"<li>{e}</li>")
+                sections.append("</ul></div>")
+            if all_warnings:
+                sections.append(f'<div style="color:#d97706">警告 ({len(all_warnings)}件):<ul>')
+                for w in all_warnings:
+                    sections.append(f"<li>{w}</li>")
+                sections.append("</ul></div>")
+
+    return "\n".join(sections)
