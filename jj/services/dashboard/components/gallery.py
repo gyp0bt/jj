@@ -28,14 +28,24 @@ class GalleryViewConfig(ViewConfig):
         import streamlit as st
 
         st.markdown("**ギャラリー設定**")
-        gc1, gc2 = st.columns(2)
+        gc1, gc2, gc3 = st.columns(3)
         with gc1:
             g_source = st.selectbox("ソース", ["has_output", "property"], key="_add_view_gsrc")
         with gc2:
             g_format = st.text_input("フォーマット", key="_add_view_gfmt")
+        with gc3:
+            # propertyソース時のキー指定
+            if g_source == "property":
+                prop_images = provider.get_property_images()
+                prop_keys = sorted({img["property_key"] for img in prop_images if img.get("property_key")})
+                g_prop_key = st.selectbox("プロパティキー", ["（すべて）", *prop_keys], key="_add_view_gpkey")
+            else:
+                g_prop_key = "（すべて）"
         gallery_config: dict[str, Any] = {"source": g_source}
         if g_format:
             gallery_config["format"] = g_format
+        if g_prop_key and g_prop_key != "（すべて）":
+            gallery_config["property_key"] = g_prop_key
         return {"gallery": gallery_config}
 
 

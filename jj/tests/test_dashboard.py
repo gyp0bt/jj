@@ -3438,6 +3438,36 @@ class TestDynamicViews:
         assert view.view_type == "plot"
         assert view.plot["x"] == "RF3"
 
+    def test_dynamic_view_plot_with_color(self):
+        """プロットタイプの動的ビューに色分けキーが含まれる"""
+        from config import SavedViewConfig
+
+        view_data = {
+            "name": "色分けプロット",
+            "type": "plot",
+            "filters": {},
+            "plot": {"x": "RF3", "y": "temperature", "color": "表示名", "chart_type": "散布図"},
+            "array_plot": {},
+            "gallery": {},
+        }
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.plot["color"] == "表示名"
+
+    def test_dynamic_view_gallery_with_property_key(self):
+        """ギャラリータイプの動的ビューにproperty_keyが含まれる"""
+        from config import SavedViewConfig
+
+        view_data = {
+            "name": "プロパティギャラリー",
+            "type": "gallery",
+            "filters": {},
+            "plot": {},
+            "array_plot": {},
+            "gallery": {"source": "property", "property_key": "screenshot"},
+        }
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.gallery["property_key"] == "screenshot"
+
     def test_dynamic_view_array_plot_type(self):
         """配列プロットタイプの動的ビュー"""
         from config import SavedViewConfig
