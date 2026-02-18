@@ -261,16 +261,15 @@ def _compute_quality_stats(mesh, get_element_quality) -> dict[str, Any] | None:
     return quality_result if quality_result else None
 
 
-def extract_elset_quality_stats(
+def extract_element_quality_stats(
     inp_path: Path,
     verbose: bool = False,
     cached_abq_data: Any | None = None,
 ) -> dict[str, dict[str, Any]] | None:
-    """Elsetごとのメッシュ品質統計を抽出
+    """*ELEMENTキーワードブロック（要素タイプ）ごとのメッシュ品質統計を抽出
 
-    各Elsetに属する要素のみを対象として品質メトリクスを計算する。
-    要素タイプ（ノード数）別にグルーピングして計算するため、
-    要素タイプ混在時でも正しく動作する。
+    各*ELEMENTキーワードで定義された要素グループごとに品質メトリクスを計算する。
+    キーは要素タイプ名（C3D8, C3D10等）。
 
     Args:
         inp_path: .inpファイルのパス
@@ -278,12 +277,12 @@ def extract_elset_quality_stats(
         cached_abq_data: キャッシュ済みABQData
 
     Returns:
-        {Elset名: {element_count: int, quality: {...}}} の辞書。
+        {要素タイプ名: {element_count: int, quality: {...}}} の辞書。
         pymesh未導入やパース失敗時はNone。
     """
     create_mesher, get_element_quality = _safe_import_pymesh()
     if create_mesher is None:
-        logger.debug("pymesh not available, skipping elset quality stats")
+        logger.debug("pymesh not available, skipping element quality stats")
         return None
 
     if not inp_path.exists() or not str(inp_path).lower().endswith(".inp"):
@@ -318,7 +317,6 @@ def extract_elset_quality_stats(
         return None
 
     # ノード数別に品質計算し、label → quality値のマッピングを構築
-    # {mode_key: {label: value}} の構造
     label_quality: dict[str, dict[int, float]] = {}
 
     for num_nodes, element_array in element_array_dict.items():
@@ -336,7 +334,6 @@ def extract_elset_quality_stats(
 
         quality = _compute_quality_for_coord_array(coord_array, get_element_quality, modes)
 
-        # element_array[:, 0]がラベル列
         labels = element_array[:, 0].tolist()
         for mode_key, arr in quality.items():
             if not isinstance(arr, np.ndarray) or len(arr) != len(labels):
@@ -356,42 +353,175 @@ def extract_elset_quality_stats(
         "skewness": "skewness",
     }
 
+    # *ELEMENTキーワードブロック（要素タイプ）ごとに品質を集計
     result: dict[str, dict[str, Any]] = {}
 
-    for name in list(mesh.elset_data.keys()):
-        elset = mesh.elset_data[name]
-        elset_labels = elset.data if hasattr(elset, "data") else []
-        if not hasattr(elset_labels, "__len__") or len(elset_labels) == 0:
+    for key in list(mesh.elements_data.keys()):
+        elements = mesh.elements_data[key]
+        # 要素タイプ名を取得
+        elem_type = "unknown"
+        if hasattr(elements, "options") and "type" in elements.options:
+            elem_type = elements.options["type"]
+        elif ",type=" in key:
+            elem_type = key.split(",type=")[-1]
+
+        elem_labels = elements.data if hasattr(elements, "data") else []
+        if not hasattr(elem_labels, "__len__") or len(elem_labels) == 0:
             continue
 
-        elset_entry: dict[str, Any] = {"element_count": len(elset_labels)}
-        elset_quality: dict[str, Any] = {}
+        # ラベルリストを取得（elements.dataがarrayの場合は先頭列）
+        if hasattr(elem_labels, "ndim") and elem_labels.ndim == 2:
+            label_list = elem_labels[:, 0].tolist()
+        else:
+            label_list = list(elem_labels)
+
+        elem_entry: dict[str, Any] = {"element_count": len(label_list)}
+        elem_quality: dict[str, Any] = {}
 
         for mode_key, display_name in metric_name_map.items():
             if mode_key not in label_quality:
                 continue
             mode_map = label_quality[mode_key]
 
-            # elset要素の品質値を収集
             values = []
-            for lbl in elset_labels:
+            for lbl in label_list:
                 val = mode_map.get(int(lbl))
                 if val is not None and not np.isnan(val):
                     values.append(val)
 
             if values:
                 arr = np.array(values)
-                elset_quality[display_name] = {
+                elem_quality[display_name] = {
                     "min": float(np.min(arr)),
                     "max": float(np.max(arr)),
                     "mean": float(np.mean(arr)),
                 }
 
-        if elset_quality:
-            elset_entry["quality"] = elset_quality
-        result[name] = elset_entry
+        if elem_quality:
+            elem_entry["quality"] = elem_quality
+
+        # 同じ要素タイプが複数の*ELEMENTブロックに分散している場合はマージ
+        if elem_type in result:
+            existing = result[elem_type]
+            existing["element_count"] += elem_entry["element_count"]
+            if "quality" in elem_entry and "quality" not in existing:
+                existing["quality"] = elem_entry["quality"]
+        else:
+            result[elem_type] = elem_entry
 
     return result if result else None
+
+
+def extract_mesh_topology_groups(
+    inp_path: Path,
+    verbose: bool = False,
+    cached_abq_data: Any | None = None,
+) -> list[list[str]] | None:
+    """メッシュトポロジーを解析し、ノード共有で接続された要素集団を抽出
+
+    要素間のノード共有関係をUnion-Findで解析し、連結成分（メッシュ整合集団）を
+    特定する。各集団に属するelset名をリストにまとめて返す。
+
+    Args:
+        inp_path: .inpファイルのパス
+        verbose: 詳細ログを出力するか
+        cached_abq_data: キャッシュ済みABQData
+
+    Returns:
+        [[elset_a, elset_b], [elset_c]] のようなelsetグループのリスト。
+        各グループ内のelsetは同じメッシュ整合集団に属する。
+        pymesh未導入やパース失敗時はNone。
+    """
+    create_mesher, _ = _safe_import_pymesh()
+    if create_mesher is None:
+        logger.debug("pymesh not available, skipping mesh topology analysis")
+        return None
+
+    if not inp_path.exists() or not str(inp_path).lower().endswith(".inp"):
+        return None
+
+    try:
+        mesh = create_mesher(str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data)
+    except Exception as e:
+        logger.warning(f"pymesh failed to parse {inp_path}: {e}")
+        return None
+
+    # elsetが無ければスキップ
+    if not mesh.elset_data or len(mesh.elset_data) == 0:
+        return None
+
+    # Union-Find実装
+    parent: dict[int, int] = {}
+
+    def find(x: int) -> int:
+        while parent.get(x, x) != x:
+            parent[x] = parent.get(parent[x], parent[x])  # path compression
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    # 要素のノード接続情報からUnion-Findを構築
+    # node_id → 最初のelement_labelのマッピング
+    node_to_first_elem: dict[int, int] = {}
+
+    for key in list(mesh.elements_data.keys()):
+        elements = mesh.elements_data[key]
+        if not hasattr(elements, "data") or elements.data is None:
+            continue
+        data = elements.data
+        if not hasattr(data, "ndim") or data.ndim != 2:
+            continue
+
+        for row in data:
+            elem_label = int(row[0])
+            parent.setdefault(elem_label, elem_label)
+            # ノードIDは列1以降
+            for node_id in row[1:]:
+                nid = int(node_id)
+                if nid == 0:
+                    continue  # パディングされたゼロをスキップ
+                if nid in node_to_first_elem:
+                    union(elem_label, node_to_first_elem[nid])
+                else:
+                    node_to_first_elem[nid] = elem_label
+
+    # 各要素のグループIDを確定
+    elem_to_group: dict[int, int] = {}
+    for elem_label in parent:
+        elem_to_group[elem_label] = find(elem_label)
+
+    # 各elsetがどのグループに属するかを判定
+    # elset内の要素が複数グループにまたがる場合は最初のグループに帰属
+    elset_group: dict[str, int] = {}
+    for name in list(mesh.elset_data.keys()):
+        elset = mesh.elset_data[name]
+        elset_labels = elset.data if hasattr(elset, "data") else []
+        if not hasattr(elset_labels, "__len__") or len(elset_labels) == 0:
+            continue
+        # elsetの最初の要素のグループIDを使用
+        for lbl in elset_labels:
+            gid = elem_to_group.get(int(lbl))
+            if gid is not None:
+                elset_group[name] = gid
+                break
+
+    if not elset_group:
+        return None
+
+    # グループIDごとにelset名を集約
+    from collections import defaultdict
+
+    group_elsets: dict[int, list[str]] = defaultdict(list)
+    for name, gid in elset_group.items():
+        group_elsets[gid].append(name)
+
+    # ソートして返す
+    result = [sorted(elsets) for elsets in group_elsets.values()]
+    return sorted(result, key=lambda x: x[0]) if result else None
 
 
 def _parse_parameters(inp_path: Path) -> dict[str, str]:

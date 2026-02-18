@@ -146,7 +146,7 @@ def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
     for img in images:
         props = img.get("go_properties", {})
         for k in props:
-            if k not in ("path", "include_properties"):
+            if k != "path":
                 keys.add(k)
     result = sorted(keys)
     # outputソースの場合はresult_key（パスベース）でのグルーピングも追加

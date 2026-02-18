@@ -33,6 +33,7 @@ from services.parse.connectors.abaqus import (
     evaluate_expressions,
     format_diff_blocks_markdown,
     format_diff_summary_table,
+    format_diff_unified_markdown,
     generate_diff_props,
     read_inp,
 )
@@ -575,16 +576,51 @@ class TestDiffAbqBlocks:
         md = format_diff_blocks_markdown(diffs)
         assert isinstance(md, str)
 
+    def test_format_diff_unified_markdown(self, tmp_path):
+        """unified diff形式の+/-マークダウンが正しく生成されること"""
+        content1 = textwrap.dedent("""\
+            *STEP, NAME=Step-1
+            *STATIC
+            1., 1., 1e-05, 1.
+            *BOUNDARY
+            FIX, 1, 3
+            *END STEP
+        """)
+        content2 = textwrap.dedent("""\
+            *STEP, NAME=Step-1
+            *STATIC
+            0.5, 1., 1e-05, 0.5
+            *BOUNDARY
+            FIX, 1, 6
+            *END STEP
+        """)
+        f1 = tmp_path / "ud1.inp"
+        f2 = tmp_path / "ud2.inp"
+        f1.write_text(content1, encoding="utf-8")
+        f2.write_text(content2, encoding="utf-8")
+
+        abq1 = read_inp(f1, verbose=False)
+        abq2 = read_inp(f2, verbose=False)
+        diffs = diff_abq_blocks(abq1, abq2)
+        unified = format_diff_unified_markdown(diffs)
+        assert isinstance(unified, str)
+        assert "```diff" in unified
+        # 変更がある場合は+/-行が存在する
+        if diffs:
+            assert "+" in unified or "-" in unified
+
     def test_no_diff_returns_message(self):
         """差分がない場合は適切なメッセージを返すこと"""
         assert format_diff_summary_table([]) == "差分なし"
         assert format_diff_blocks_markdown([]) == "差分なし"
+        assert format_diff_unified_markdown([]) == "差分なし"
 
     def test_generate_diff_props(self, simple_inp):
         """generate_diff_props()が辞書を返すこと"""
         result = generate_diff_props(str(simple_inp), str(simple_inp), verbose=False)
         assert "diff_summary" in result
         assert "diff_details" in result
+        assert "diff_unified" in result
 
 
 # ==========================

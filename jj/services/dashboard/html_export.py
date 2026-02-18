@@ -410,7 +410,7 @@ def generate_card_html(
     if card is None:
         return ""
 
-    props = {k: v for k, v in card["properties"].items() if k not in ("path", "include_properties")}
+    props = {k: v for k, v in card["properties"].items() if k != "path"}
     props_flat = {}
     for k, v in props.items():
         if isinstance(v, (dict, list)):

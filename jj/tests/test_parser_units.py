@@ -445,7 +445,6 @@ class TestRootDirectoryParser:
         dir_nodes = [n for n in result.nodes if n.format == "directory"]
         assert len(dir_nodes) == 1
         assert dir_nodes[0].properties["path"] == "."
-        assert "root" in dir_nodes[0].properties["tags"]
 
     def test_contains_relation_for_root_files(self, config: GraphConfig):
         from services.parse.parsers.directory_parser import RootDirectoryParser
@@ -667,8 +666,8 @@ class TestMeshInheritParser:
         assert go_node.properties["mesh_node_count"] == 1000
         assert go_node.properties["mesh_element_count"] == 500
 
-    def test_does_not_overwrite_existing_keys(self, config: GraphConfig):
-        """go_*が既に持っているキーは上書きしない"""
+    def test_prefix_escaping_on_key_conflict(self, config: GraphConfig):
+        """キー競合時に「{child_name}:{key}」接頭辞付きで保存される"""
         from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
@@ -678,7 +677,7 @@ class TestMeshInheritParser:
                 name="go_idx1",
                 format="inp",
                 properties={"path": "go_idx1.inp", "index": "1", "version": "1", "t": "100"},
-            ),  # go_*が持つ値を優先
+            ),
             Node(
                 id=2,
                 type="mesh",
@@ -694,7 +693,10 @@ class TestMeshInheritParser:
         result = MeshInheritParser().apply(graph)
 
         go_node = result.get_node_by_id(1)
-        assert go_node.properties["t"] == "100"  # 上書きされない
+        # go_*自身の値が優先される
+        assert go_node.properties["t"] == "100"
+        # 競合キーは「{child_name}:{key}」接頭辞付きで保存
+        assert go_node.properties["mesh_t50_v1:t"] == "50"
 
     def test_inherits_from_all_includes(self, config: GraphConfig):
         """mesh_*だけでなく全include先からプロパティを継承する"""
@@ -794,7 +796,7 @@ class TestMeshInheritParser:
                 properties={
                     "path": "mesh_part1.inp",
                     "mesh_elset_summary": {"ELSET_A": 100, "ELSET_B": 200},
-                    "mesh_elset_quality": {"ELSET_A": {"quality": {"volume": {"mean": 0.5}}}},
+                    "mesh_element_quality": {"C3D8": {"element_count": 300, "quality": {"volume": {"mean": 0.5}}}},
                     "mesh_element_types": {"C3D8": 300},
                 },
             ),
@@ -806,7 +808,7 @@ class TestMeshInheritParser:
                 properties={
                     "path": "mesh_part2.inp",
                     "mesh_elset_summary": {"ELSET_C": 150},
-                    "mesh_elset_quality": {"ELSET_C": {"quality": {"volume": {"mean": 0.7}}}},
+                    "mesh_element_quality": {"C3D6": {"element_count": 150, "quality": {"volume": {"mean": 0.7}}}},
                     "mesh_element_types": {"C3D6": 150},
                 },
             ),
@@ -824,10 +826,10 @@ class TestMeshInheritParser:
         assert summary["ELSET_A"] == 100
         assert summary["ELSET_B"] == 200
         assert summary["ELSET_C"] == 150
-        # mesh_elset_qualityもマージされている
-        quality = go_node.properties["mesh_elset_quality"]
-        assert "ELSET_A" in quality
-        assert "ELSET_C" in quality
+        # mesh_element_qualityもマージされている
+        quality = go_node.properties["mesh_element_quality"]
+        assert "C3D8" in quality
+        assert "C3D6" in quality
         # mesh_element_typesもマージされている
         elem_types = go_node.properties["mesh_element_types"]
         assert elem_types["C3D8"] == 300
@@ -1272,6 +1274,7 @@ class TestAbaqusDiffParser:
         assert diff_node.properties["diff_to"] == "go_idx1_v2.inp"
         assert "diff_summary" in diff_node.properties
         assert "diff_details" in diff_node.properties
+        assert "diff_unified" in diff_node.properties
 
         # diff_from/diff_to relationが作成される
         diff_from_rels = [r for r in result.relations if r.label == "diff_from"]
@@ -1650,11 +1653,11 @@ class TestIncludeSearchDepthConfig:
             GraphConfig.from_dict({"vocab": {}, "include-search-depth": -1})
 
 
-class TestElsetQualityStats:
-    """Elsetごとの品質統計テスト"""
+class TestElementQualityStats:
+    """*ELEMENTキーワードブロック（要素タイプ）ごとの品質統計テスト"""
 
-    def test_elset_quality_property_on_elset_node(self, config: GraphConfig):
-        """mesh_elset_qualityからelsetノードにqualityが付与される"""
+    def test_elset_node_created_without_quality(self, config: GraphConfig):
+        """elsetノードが作成される（qualityは要素タイプ別のため個別elsetにはない）"""
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
@@ -1667,17 +1670,11 @@ class TestElsetQualityStats:
                     "path": "go_idx1.inp",
                     "index": "1",
                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
-                    "mesh_elset_quality": {
-                        "BODY": {
-                            "element_count": 100,
+                    "mesh_element_quality": {
+                        "C3D8": {
+                            "element_count": 150,
                             "quality": {
                                 "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
-                            },
-                        },
-                        "SKIN": {
-                            "element_count": 50,
-                            "quality": {
-                                "volume": {"min": 0.2, "max": 0.8, "mean": 0.4},
                             },
                         },
                     },
@@ -1688,13 +1685,13 @@ class TestElsetQualityStats:
         result = AbaqusElsetParser().apply(graph)
 
         elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
-        assert "quality" in elset_nodes["BODY"].properties
-        assert elset_nodes["BODY"].properties["quality"]["volume"]["mean"] == 0.5
-        assert "quality" in elset_nodes["SKIN"].properties
-        assert elset_nodes["SKIN"].properties["quality"]["volume"]["mean"] == 0.4
+        assert "BODY" in elset_nodes
+        assert "SKIN" in elset_nodes
+        assert elset_nodes["BODY"].properties["element_count"] == 100
+        assert elset_nodes["SKIN"].properties["element_count"] == 50
 
-    def test_elset_quality_from_include_child(self, config: GraphConfig):
-        """include先からもelset品質統計が統合される"""
+    def test_elset_from_include_child(self, config: GraphConfig):
+        """include先のelsetもノード化される"""
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
@@ -1707,14 +1704,6 @@ class TestElsetQualityStats:
                 properties={
                     "path": "mesh_t50.inp",
                     "mesh_elset_summary": {"PART_A": 200},
-                    "mesh_elset_quality": {
-                        "PART_A": {
-                            "element_count": 200,
-                            "quality": {
-                                "aspect_ratio": {"min": 1.0, "max": 3.0, "mean": 1.5},
-                            },
-                        },
-                    },
                 },
             ),
         ]
@@ -1725,8 +1714,8 @@ class TestElsetQualityStats:
         result = AbaqusElsetParser().apply(graph)
 
         elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
-        assert "quality" in elset_nodes["PART_A"].properties
-        assert elset_nodes["PART_A"].properties["quality"]["aspect_ratio"]["mean"] == 1.5
+        assert "PART_A" in elset_nodes
+        assert elset_nodes["PART_A"].properties["element_count"] == 200
 
 
 class TestIncludesParserCache:
@@ -2232,6 +2221,142 @@ class TestTimestampPersistence:
         assert loaded == {}
 
 
+class TestMeshTopologyGroups:
+    """extract_mesh_topology_groups のテスト"""
+
+    def test_single_connected_group(self, tmp_path: Path):
+        """ノード共有で全要素が1つの連結成分を形成"""
+        from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
+
+        # *ELSETは*ELEMENTのELSET=とは別に定義する
+        # （pymeshはELSET=を要素ブロック名に使い、elset_dataには格納しない）
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "5, 2.0, 0.0, 0.0\n"
+            "6, 2.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4\n"
+            "1, 1, 2, 3, 4\n"
+            "2, 2, 5, 6, 3\n"
+            "*ELSET, ELSET=PART_A\n"
+            "1\n"
+            "*ELSET, ELSET=PART_B\n"
+            "2\n"
+        )
+        inp_file = tmp_path / "connected.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        result = extract_mesh_topology_groups(inp_file, verbose=False)
+        assert result is not None
+        # ノード2,3を共有するので1つのグループ
+        assert len(result) == 1
+        assert sorted(result[0]) == ["part_a", "part_b"]
+
+    def test_two_disconnected_groups(self, tmp_path: Path):
+        """ノード非共有で2つの独立した連結成分"""
+        from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "5, 10.0, 0.0, 0.0\n"
+            "6, 11.0, 0.0, 0.0\n"
+            "7, 11.0, 1.0, 0.0\n"
+            "8, 10.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4\n"
+            "1, 1, 2, 3, 4\n"
+            "2, 5, 6, 7, 8\n"
+            "*ELSET, ELSET=BODY\n"
+            "1\n"
+            "*ELSET, ELSET=SKIN\n"
+            "2\n"
+        )
+        inp_file = tmp_path / "disconnected.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        result = extract_mesh_topology_groups(inp_file, verbose=False)
+        assert result is not None
+        assert len(result) == 2
+        group_names = [sorted(g) for g in result]
+        assert ["body"] in group_names
+        assert ["skin"] in group_names
+
+    def test_no_elsets_returns_none(self, tmp_path: Path):
+        """elsetが定義されていない場合はNone"""
+        from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "*ELEMENT, TYPE=CPS4\n"
+            "1, 1, 2, 3, 4\n"
+        )
+        inp_file = tmp_path / "no_elset.inp"
+        inp_file.write_text(content, encoding="utf-8")
+
+        result = extract_mesh_topology_groups(inp_file, verbose=False)
+        assert result is None
+
+    def test_topology_groups_assigned_to_node(self, tmp_path: Path, config: GraphConfig):
+        """AbaqusMeshParserがmesh_topology_groupsをノードに付与する"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        content = (
+            "*NODE, NSET=ALL\n"
+            "1, 0.0, 0.0, 0.0\n"
+            "2, 1.0, 0.0, 0.0\n"
+            "3, 1.0, 1.0, 0.0\n"
+            "4, 0.0, 1.0, 0.0\n"
+            "5, 0.0, 0.0, 1.0\n"
+            "6, 1.0, 0.0, 1.0\n"
+            "7, 1.0, 1.0, 1.0\n"
+            "8, 0.0, 1.0, 1.0\n"
+            "*ELEMENT, TYPE=C3D8\n"
+            "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
+            "*ELSET, ELSET=BODY\n"
+            "1\n"
+        )
+        (tmp_path / "go_idx1_v1.inp").write_text(content, encoding="utf-8")
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1_v1",
+                format="inp",
+                properties={"path": "go_idx1_v1.inp", "index": "1", "version": "1"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+
+        # キャッシュを投入してread_inp()のネットワーク呼び出しを避ける
+        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+
+        abq_data = abq_read_inp(str(tmp_path / "go_idx1_v1.inp"), verbose=False)
+        graph.set_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp"), abq_data)
+
+        result = AbaqusMeshParser().apply(graph)
+        node = result.nodes[0]
+
+        # mesh_topology_groupsが付与されていること
+        assert "mesh_topology_groups" in node.properties
+        groups = node.properties["mesh_topology_groups"]
+        assert isinstance(groups, list)
+        assert len(groups) >= 1
+        # bodyがいずれかのグループに含まれる（pymeshは小文字化する）
+        all_elsets = [name for group in groups for name in group]
+        assert "body" in all_elsets
+
+
 class TestMeshParserCache:
     """AbaqusMeshParserのキャッシュ機能テスト"""
 
@@ -2512,9 +2637,9 @@ class TestPymeshWithModules:
                     assert "max" in stats["quality"][metric]
                     assert "mean" in stats["quality"][metric]
 
-    def test_extract_elset_quality_mixed_element_types(self, tmp_path: Path):
-        """要素タイプ混在でもElset別品質統計が計算されること"""
-        from services.parse.connectors.abaqus.mesh import extract_elset_quality_stats
+    def test_extract_element_quality_mixed_element_types(self, tmp_path: Path):
+        """要素タイプ混在でも*ELEMENTキーワード別品質統計が計算されること"""
+        from services.parse.connectors.abaqus.mesh import extract_element_quality_stats
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2532,24 +2657,24 @@ class TestPymeshWithModules:
             "1, 1, 2, 3, 4, 5, 6, 7, 8\n"
             "*ELEMENT, TYPE=C3D4, ELSET=TETS\n"
             "2, 2, 3, 9, 10\n"
-            "*ELSET, ELSET=ALL_ELEMS\n"
-            "1, 2\n"
         )
         inp_file = tmp_path / "mixed.inp"
         inp_file.write_text(content, encoding="utf-8")
 
-        result = extract_elset_quality_stats(inp_file, verbose=False)
+        result = extract_element_quality_stats(inp_file, verbose=False)
         assert result is not None
-        # ALL_ELEMSには混在要素（C3D8+C3D4）が含まれる
+        # 要素タイプ別にキーが生成される
         result_lower = {k.lower(): v for k, v in result.items()}
-        assert "all_elems" in result_lower
-        entry = result_lower["all_elems"]
-        assert entry["element_count"] == 2
-        if "quality" in entry:
-            for metric in entry["quality"].values():
-                assert "min" in metric
-                assert "max" in metric
-                assert "mean" in metric
+        assert "c3d8" in result_lower
+        assert "c3d4" in result_lower
+        assert result_lower["c3d8"]["element_count"] == 1
+        assert result_lower["c3d4"]["element_count"] == 1
+        for entry in result_lower.values():
+            if "quality" in entry:
+                for metric in entry["quality"].values():
+                    assert "min" in metric
+                    assert "max" in metric
+                    assert "mean" in metric
 
     def test_compute_quality_single_element_type(self, tmp_path: Path):
         """単一要素タイプでの品質計算（回帰テスト）"""

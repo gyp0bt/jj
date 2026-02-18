@@ -202,16 +202,11 @@ class AbaqusInpParser(AbstractFileParser):
                 properties: dict[str, Any] = {
                     "source_file": node.properties.get("path", ""),
                     "keywords": mat["keywords"],
-                    "tags": list(mat_tags),
                     **translated_props,
                 }
 
                 if verbose_name and verbose_name != mat_name:
                     properties["verbose_name"] = verbose_name
-                    # verbose_nameの各部分をタグに追加
-                    for vt in verbose_name.split("_"):
-                        if vt and vt not in properties["tags"]:
-                            properties["tags"].append(vt)
 
                 for keyword, data in mat["properties"].items():
                     properties[keyword] = data
@@ -246,7 +241,7 @@ class AbaqusInpParser(AbstractFileParser):
         mat_nodes: list[Node],
         mat_relations: list[Relation],
     ) -> None:
-        """material.inpのverbose_nameに含まれる材料名を設定しタグ化"""
+        """material.inpのverbose_nameに含まれる材料名を設定"""
         source_materials: dict[int, list[str]] = defaultdict(list)
         for rel in mat_relations:
             if rel.label == "defined_in":
@@ -269,12 +264,6 @@ class AbaqusInpParser(AbstractFileParser):
             vn_parts = [type_name, *mat_names]
             verbose_name = "_".join(vn_parts)
             node.properties["verbose_name"] = verbose_name
-
-            tags = node.properties.get("tags", [])
-            for part in vn_parts:
-                if part and part not in tags:
-                    tags.append(part)
-            node.properties["tags"] = tags
 
 
 class AbaqusMaterialAssignmentParser(AbstractFileParser):
@@ -452,10 +441,6 @@ class AbaqusElsetParser(AbstractFileParser):
                 src_summary = src_node.properties.get("mesh_elset_summary", {})
                 if not isinstance(src_summary, dict):
                     continue
-                src_quality = src_node.properties.get("mesh_elset_quality", {})
-                if not isinstance(src_quality, dict):
-                    src_quality = {}
-
                 for elset_name in sorted(src_summary.keys()):
                     elset_props: dict[str, Any] = {
                         "verbose_name": elset_name,
@@ -465,12 +450,6 @@ class AbaqusElsetParser(AbstractFileParser):
 
                     # elset別element数
                     elset_props["element_count"] = src_summary[elset_name]
-
-                    # elset別品質統計
-                    if elset_name in src_quality:
-                        eq = src_quality[elset_name]
-                        if isinstance(eq, dict) and "quality" in eq:
-                            elset_props["quality"] = eq["quality"]
 
                     # 材料割り当て
                     assigned_material_name = elset_to_material.get(elset_name)

@@ -304,7 +304,6 @@ class TestGetPropertyKeys:
         """内部キー（path等）は除外される"""
         keys = provider.get_property_keys()
         assert "path" not in keys
-        assert "include_properties" not in keys
 
     def test_includes_property_keys(self, provider: DashboardDataProvider):
         """主要プロパティキーが含まれる"""
@@ -704,7 +703,6 @@ class TestGetOutputImages:
         images = provider.get_output_images()
         for img in images:
             assert "path" not in img["go_properties"]
-            assert "include_properties" not in img["go_properties"]
 
     def test_nonexistent_node_id(self, provider: DashboardDataProvider):
         """存在しないnode_idでは空リスト"""
@@ -4015,11 +4013,10 @@ class TestQueryModule:
         from services.dashboard.query import collect_group_keys
 
         images = [
-            {"go_properties": {"path": "a.inp", "include_properties": [], "index": "1"}},
+            {"go_properties": {"path": "a.inp", "index": "1"}},
         ]
         result = collect_group_keys(images, "output")
         assert "path" not in result
-        assert "include_properties" not in result
         assert "index" in result
 
     def test_collect_group_keys_empty(self):

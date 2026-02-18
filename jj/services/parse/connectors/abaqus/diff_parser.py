@@ -94,6 +94,7 @@ class AbaqusDiffParser(AbstractFileParser):
             diff_abq_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,
+            format_diff_unified_markdown,
         )
 
         input_extensions = graph.config.file_relations.input_extensions
@@ -161,9 +162,11 @@ class AbaqusDiffParser(AbstractFileParser):
                     if has_diffs:
                         diff_props["diff_summary"] = format_diff_summary_table(diffs)
                         diff_props["diff_details"] = format_diff_blocks_markdown(diffs)
+                        diff_props["diff_unified"] = format_diff_unified_markdown(diffs)
                     else:
                         diff_props["diff_summary"] = "差分なし"
                         diff_props["diff_details"] = "差分なし"
+                        diff_props["diff_unified"] = "差分なし"
 
                     diff_node = Node(
                         id=graph.next_node_id(),

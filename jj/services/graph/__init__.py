@@ -122,7 +122,7 @@ class GraphService:
         parser = FileParse(file_path)
         file_type = parser.get_file_type()
         props = parser.get_props()
-        tags = parser.get_tags()
+        extra_tokens = parser.get_tags()  # 非プロパティトークン（verbose_name構築用）
 
         # 相対パスを安全に生成（Windows対応）
         rel_path = self._safe_relative_path(file_path)
@@ -134,9 +134,6 @@ class GraphService:
 
         # path-property-mapからプロパティを取得
         config_props = self.config.path_property_map.get_properties(rel_path)
-
-        # path-tag-mapからタグを取得
-        config_tags = self.config.path_tag_map.get_tags(rel_path)
 
         # token-key-mapの適用: 生トークンに対してマッチングし、
         # マッチしたトークンは指定キーのプロパティに変換。
@@ -151,9 +148,9 @@ class GraphService:
                 parsed = _parse_prop_token_static(token)
                 if parsed:
                     props.pop(parsed[0], None)
-                # タグからも除去
-                if token in tags:
-                    tags.remove(token)
+                # extra_tokensからも除去
+                if token in extra_tokens:
+                    extra_tokens.remove(token)
                 # token-key-mapのキーで全トークンを値として設定
                 props[mapped_key] = token
                 token_key_mapped_keys.add(mapped_key)
@@ -176,7 +173,6 @@ class GraphService:
             "path": rel_path,
             "index": parser.get_index(),
             "version": parser.get_version(),
-            "tags": tags + config_tags,
             "active": active,
             **translated_props,
             **config_props,  # 設定からのプロパティが優先
@@ -206,20 +202,11 @@ class GraphService:
             raw_name,
             resolved_type,
             translated_props,
-            tags + config_tags,
+            extra_tokens,
             token_key_mapped_keys=token_key_mapped_keys,
         )
         if verbose_name and verbose_name != raw_name:
             properties["verbose_name"] = verbose_name
-
-        # verbose_nameを"_"でsplitしてタグに追加
-        if verbose_name:
-            verbose_tags = [t for t in verbose_name.split("_") if t]
-            existing_tags = properties.get("tags", [])
-            for vt in verbose_tags:
-                if vt not in existing_tags:
-                    existing_tags.append(vt)
-            properties["tags"] = existing_tags
 
         return Node(
             id=self._next_node_id(),
@@ -234,7 +221,7 @@ class GraphService:
         raw_name: str,
         resolved_type: str,
         translated_props: dict[str, Any],
-        tags: list[str],
+        extra_tokens: list[str],
         token_key_mapped_keys: set[str] | None = None,
     ) -> str:
         """config vocabで変換した後の表示名を生成
@@ -254,7 +241,7 @@ class GraphService:
             raw_name: 生のbasename
             resolved_type: 解決済みタイプ
             translated_props: vocab変換済みプロパティ
-            tags: タグリスト
+            extra_tokens: ファイル名から抽出した非プロパティトークン
             token_key_mapped_keys: token-key-mapで設定されたキーのセット
 
         Returns:
@@ -290,10 +277,10 @@ class GraphService:
             else:
                 parts.append(f"{key}{value}")
 
-        # タグを追加
-        for tag in tags:
-            translated_tag = vocab.get(tag, tag)
-            parts.append(translated_tag)
+        # 非プロパティトークンを追加
+        for token in extra_tokens:
+            translated_token = vocab.get(token, token)
+            parts.append(translated_token)
 
         return "_".join(parts)
 

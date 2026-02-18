@@ -1838,6 +1838,74 @@ def format_diff_blocks_markdown(diffs: list[BlockDiff]) -> str:
     return "\n".join(lines)
 
 
+def _format_dict_lines(d: dict[str, Any] | None, prefix: str) -> list[str]:
+    """辞書をキー単位で+/-表記の行に変換する"""
+    if d is None:
+        return []
+    lines = []
+    for key, value in sorted(d.items()):
+        val_str = str(value)
+        # 長い値は1行にまとめる
+        lines.append(f"{prefix} {key}: {val_str}")
+    return lines
+
+
+def format_diff_unified_markdown(diffs: list[BlockDiff]) -> str:
+    """BlockDiffのリストから+/-形式のunified diff風Markdownを生成
+
+    追加行は "+" 、削除行は "-" で表示し、変更箇所を視覚的に示す。
+    既存のformat_diff_blocks_markdown()の補完として使用する。
+
+    Args:
+        diffs: BlockDiffのリスト
+
+    Returns:
+        +/-形式のunified diff風Markdown文字列
+    """
+    if not diffs:
+        return "差分なし"
+
+    lines: list[str] = []
+
+    for diff in diffs:
+        lines.append(f"## {diff.location}")
+        lines.append("")
+
+        if diff.left is None and diff.right is not None:
+            # 追加: 右側のみ
+            lines.append("```diff")
+            for line in _format_dict_lines(diff.right, "+"):
+                lines.append(line)
+            lines.append("```")
+        elif diff.right is None and diff.left is not None:
+            # 削除: 左側のみ
+            lines.append("```diff")
+            for line in _format_dict_lines(diff.left, "-"):
+                lines.append(line)
+            lines.append("```")
+        elif diff.left is not None and diff.right is not None:
+            # 変更: 共通キーの差分を表示
+            all_keys = sorted(set(list(diff.left.keys()) + list(diff.right.keys())))
+            lines.append("```diff")
+            for key in all_keys:
+                left_val = diff.left.get(key)
+                right_val = diff.right.get(key)
+                if left_val == right_val:
+                    lines.append(f"  {key}: {left_val}")
+                elif left_val is None:
+                    lines.append(f"+ {key}: {right_val}")
+                elif right_val is None:
+                    lines.append(f"- {key}: {left_val}")
+                else:
+                    lines.append(f"- {key}: {left_val}")
+                    lines.append(f"+ {key}: {right_val}")
+            lines.append("```")
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def generate_diff_props(
     inp_filepath1: str,
     inp_filepath2: str,
@@ -1860,5 +1928,10 @@ def generate_diff_props(
 
     summary_table = format_diff_summary_table(diffs)
     details_markdown = format_diff_blocks_markdown(diffs)
+    unified_markdown = format_diff_unified_markdown(diffs)
 
-    return {"diff_summary": summary_table, "diff_details": details_markdown}
+    return {
+        "diff_summary": summary_table,
+        "diff_details": details_markdown,
+        "diff_unified": unified_markdown,
+    }

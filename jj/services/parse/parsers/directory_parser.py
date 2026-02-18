@@ -65,13 +65,8 @@ class DirectoryRelationParser(AbstractFileParser):
             dirname = dir_path.name
             parser = FileParse(dirname)
 
-            dir_tags = parser.get_tags()
-            if "root.directory" not in dir_tags:
-                dir_tags.append("root.directory")
-
             dir_props: dict[str, Any] = {
                 "path": rel_path,
-                "tags": dir_tags,
             }
             idx_val = parser.get_index()
             ver_val = parser.get_version()
@@ -168,7 +163,6 @@ class DirectoryRelationParser(AbstractFileParser):
                 format="directory",
                 properties={
                     "path": dir_rel_path,
-                    "tags": ["root.directory"],
                 },
             )
             graph.add_node(dir_node)
@@ -279,7 +273,6 @@ class RootDirectoryParser(AbstractFileParser):
             format="directory",
             properties={
                 "path": ".",
-                "tags": ["root", "directory"],
                 "verbose_name": project_name,
             },
         )

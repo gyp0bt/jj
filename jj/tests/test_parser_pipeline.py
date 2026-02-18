@@ -211,7 +211,6 @@ class TestPipelineIntegration:
             assert "path" in props
             assert "index" in props
             assert "version" in props
-            assert "tags" in props
 
     def test_go_node_has_abaqus_parameters(self, graph: GraphModel):
         """go_idx1.v3.inp は *PARAMETER から s_coh 等を抽出済み"""

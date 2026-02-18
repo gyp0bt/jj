@@ -80,7 +80,7 @@ def _apply_verbose_name_format(
     # プロパティ値の辞書を構築
     values: dict[str, str] = {}
     for key, value in properties.items():
-        if key in ("path", "include_properties"):
+        if key == "path":
             continue
         if isinstance(value, (list, dict)):
             continue

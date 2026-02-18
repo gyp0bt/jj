@@ -99,9 +99,7 @@ def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
             # 除外キー: 内部情報・タグ・既出
             if key in (
                 "path",
-                "include_properties",
                 "source_file",
-                "tags",
                 "verbose_name",
                 vn_key,
                 "assigned_elsets",

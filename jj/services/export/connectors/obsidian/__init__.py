@@ -393,29 +393,21 @@ class ObsidianConnector:
         real_path = props.get("path", "")
         props["file"] = real_path.replace("\\", "/") if real_path else ""
 
-        # タグの拡充: タイプ、材料名などをtags listに追加
-        # '_'を含むタグは単語ごとに分離する
-        existing_tags = props.get("tags", [])
-        if not isinstance(existing_tags, list):
-            existing_tags = [existing_tags] if existing_tags else []
-        # 既存タグを'_'で分割して展開
-        split_tags: list[str] = []
-        for t in existing_tags:
-            split_tags.extend(_split_tag(str(t)))
-        existing_tags = split_tags
+        # タグの構築: タイプ、材料名からObsidian用タグを生成
+        obsidian_tags: list[str] = []
         # タイプをタグに追加（'_'で分割）
         if node.type:
             for t in _split_tag(node.type):
-                if t not in existing_tags:
-                    existing_tags.append(t)
+                if t not in obsidian_tags:
+                    obsidian_tags.append(t)
         # 材料名をタグに追加
         materials = props.get("materials", [])
         if isinstance(materials, list):
             for m in materials:
                 tag = f"material/{m}"
-                if tag not in existing_tags:
-                    existing_tags.append(tag)
-        props["tags"] = existing_tags
+                if tag not in obsidian_tags:
+                    obsidian_tags.append(tag)
+        props["tags"] = obsidian_tags
 
         # includesはObsidianリンク形式に変換
         # 相対パス（'/'を含む）はそのまま[[path]]形式、ファイル名は従来のO-プレフィックス形式
@@ -504,7 +496,6 @@ class ObsidianConnector:
         content += f"- フォーマット: {node.format}\n"
 
         # タグ情報を#tagname形式で出力
-        tags = node.properties.get("tags", [])
         node_type_tag = node.type
         materials = node.properties.get("materials", [])
         verbose_name = node.properties.get("verbose_name", "")
@@ -513,11 +504,6 @@ class ObsidianConnector:
         # タイプタグ（'_'で分割）
         for t in _split_tag(node_type_tag):
             tag_items.append(f"#{t}")
-        # ファイルタグ（'_'で分割）
-        if isinstance(tags, list):
-            for t in tags:
-                for st in _split_tag(str(t)):
-                    tag_items.append(f"#{st}")
         # 材料タグ
         if isinstance(materials, list):
             for m in materials:
