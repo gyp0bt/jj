@@ -16,6 +16,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M3: Neo4j統合パイプライン** | 進行中 | jj側完了、jjrv IEntityRepository抽象化完了、接続設定UI・検索アダプター完了 |
 | **M4: jjrv横断ダッシュボード** | 未着手 | Streamlit検証パターンのjjrv移植、横断視認性 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
+| **M6: ML/実験/最適化タスク対応** | 設計済み | PyTorch/sklearn対応、三層データフロー、最適化ループ |
 
 ---
 
@@ -46,6 +47,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [021](status-021.md) | 2026-02-18 | M2/M3 | status-020 TODO実行: Neo4jスキーマ反映・接頭辞キー表示対応・diff_unifiedエクスポート | claude/execute-status-todos-aP2p4 |
 | [022](status-022.md) | 2026-02-18 | M3 | Neo4j Docker環境構築・IEntityRepository抽象化・SQLite/Neo4j両対応 | claude/setup-neo4j-docker-fDy9r |
 | [023](status-023.md) | 2026-02-18 | M3 | 接続設定UI・Neo4j検索アダプター・統合テスト・表示名改善 | claude/execute-status-todos-AZ5Am |
+| [024](status-024.md) | 2026-02-18 | M6 | ML/実験/最適化タスク対応ロードマップ策定・三層データフロー設計 | claude/ml-task-roadmap-uwhPT |
 
 ---
 

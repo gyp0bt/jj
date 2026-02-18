@@ -2,9 +2,9 @@
 
 # v0.2.0 ロードマップ
 
-**テーマ**: 「単一プロジェクト → 複数プロジェクト横断」
+**テーマ**: 「単一プロジェクト → 複数プロジェクト横断 → ML/最適化統合」
 
-v0.1.0が「1つのCAEプロジェクトのグラフ化と可視化」を実現したのに対し、v0.2.0は「複数プロジェクトの横断検索・比較・再利用」と「マルチソルバー対応」を目指す。
+v0.1.0が「1つのCAEプロジェクトのグラフ化と可視化」を実現したのに対し、v0.2.0は「複数プロジェクトの横断検索・比較・再利用」「マルチソルバー対応」「機械学習・実験・最適化タスクのデータフローグラフ化」を目指す。
 
 ---
 
@@ -23,9 +23,18 @@ M1: 基盤整備（完了）
              └──→ M5: ワークフロー自動化
 
 M2: マルチソルバー検証（検証環境確保後に実施）
+
+M6: ML/実験/最適化タスク対応
+ ├── Phase 1: 基盤設計（仕様書・テストアセット）
+ ├── Phase 2: コアパーサー（スクリプト解析・データセット検出・設定解析）
+ ├── Phase 3: フレームワーク固有パーサー（PyTorch・sklearn・実験ディレクトリ）
+ ├── Phase 4: 実験管理連携（MLflow・TensorBoard・Optuna）
+ └── Phase 5: 最適化ループ・横断統合（CAE-ML連携・三層データフロー・ダッシュボード）
 ```
 
 > **M2について**: Fluent/LS-DYNA/Flow-3D/OpenFOAM/CalculiX等の検証環境は常時利用可能ではないため、M1→M3の順に進める。M2は検証環境確保後にプラグインとして個別対応する。ただし、M1.5でコアモジュールの柔軟性を事前に確保しておく。
+
+> **M6について**: 機械学習タスク（PyTorch, scikit-learn）、実験タスク、CAEタスク、およびそれらを横断する最適化タスクのデータフローをグラフ化する。既存のAbstractFileParserプラグインパターンに則り、`services/plugins/ml/`として実装する。M2（マルチソルバー）と並行して進行可能。
 
 ---
 
@@ -135,6 +144,47 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 
 ---
 
+## M6: ML/実験/最適化タスク対応 — 設計済み
+
+**位置づけ**: CAEシミュレーションと連携する機械学習タスク、実験管理タスク、最適化ループのデータフローをグラフ構造化し、三層（CAE/ML/最適化）の横断可視化を実現する。
+
+### 対象フレームワーク
+
+| カテゴリ | フレームワーク | ファイル形式 |
+|---------|--------------|-------------|
+| 深層学習 | PyTorch, PyTorch Lightning | `.pt`, `.pth`, `.ckpt` |
+| 古典ML | scikit-learn | `.pkl`, `.joblib` |
+| 実験管理 | MLflow, TensorBoard | メトリクスログ、アーティファクト |
+| 最適化 | Optuna, BoTorch | `.db`, 試行履歴 |
+| データ | pandas, numpy, HDF5 | `.csv`, `.parquet`, `.h5`, `.npy` |
+
+### 三層データフローモデル
+
+```
+Layer 3: 最適化タスク ── Objective Function → Search Space → Pareto Front
+    │                         │
+Layer 2: ML/実験タスク ── Dataset → Training Script → Model Checkpoint
+    │                         │
+Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
+```
+
+層間リレーション: `extracted_from`（CAE結果→学習データ）、`surrogate_of`（モデル→CAE入力）、`optimizes`（最適化→モデル/CAE入力）
+
+### 実装計画
+
+| Phase | タスク | 成果物 |
+|-------|--------|--------|
+| 1 | 基盤設計 | 仕様書、テストアセット設計 |
+| 2 | コアパーサー | MLScriptParser, MLDatasetParser, MLConfigParser |
+| 3 | フレームワーク固有 | TorchProjectParser, SklearnProjectParser, ExperimentRunParser |
+| 4 | 実験管理連携 | MLflowParser, TensorBoardParser, OptunaParser |
+| 5 | 横断統合 | OptimizationLoopParser, 三層データフロー, ダッシュボード |
+
+### 関連仕様書
+- [ML対応仕様書](specs/ml-task-roadmap.md) — ドメイン分析、データモデル拡張、パーサー設計、三層データフロー
+
+---
+
 ## 仕様書リンク集
 
 ### jj仕様書（`jj/docs/specs/`）
@@ -159,6 +209,7 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 |---|---------|---------|-------------------|
 | MS-01 | マルチソルバー対応 | [multi-solver.md](specs/multi-solver.md) | M1.5, M2 |
 | MS-02 | 解析結果ディレクトリ再構成 | [results-directory-restructure.md](specs/results-directory-restructure.md) | M2 |
+| MS-03 | ML/実験/最適化タスク対応 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6 |
 
 ### jjrv仕様書（`jjrv/docs/`）
 
