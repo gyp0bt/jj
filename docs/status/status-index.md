@@ -13,7 +13,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M1: 基盤整備** | 完了 | CI/CD構築、ドキュメント再編、statusアーカイブ、CLAUDE.md/CONTRIBUTING.md |
 | **M1.5: ドキュメント再構成** | 完了 | roadmap分離、CLAUDE.md/README.mdスリム化、マルチソルバー仕様書、プラグイン雛形 |
 | **M2: マルチソルバー基盤** | 進行中 | プラグイン雛形作成済み、本実装は検証環境確保後に実施 |
-| **M3: Neo4j統合パイプライン** | 未着手 | jj→Neo4j→jjrv パイプライン実稼働 |
+| **M3: Neo4j統合パイプライン** | 設計段階 | jj→Neo4j→jjrv パイプライン実稼働（jj側完了、設計仕様書作成済み） |
 | **M4: jjrv横断ダッシュボード** | 未着手 | Streamlit検証パターンのjjrv移植、横断視認性 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
 
@@ -41,6 +41,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [016](status-016.md) | 2026-02-17 | M2 | status-015 TODO実行: メッシュ品質修正・コネクターHTML統合・E2Eテスト・プラグイン実例 | claude/execute-status-todos-L25fw |
 | [017](status-017.md) | 2026-02-17 | M2 | ビュー保存/HTMLエクスポート横断対応・フィルター階層化 | claude/view-save-html-export-zhqFA |
 | [018](status-018.md) | 2026-02-17 | M2 | status-017 TODO実行: 設計仕様書・コネクター保存ビュー・ローカルフィルタ拡張・テスト拡充・CI統合 | claude/execute-status-todos-S8s5u |
+| [019](status-019.md) | 2026-02-18 | M2/M3 | status-018 TODO実行: 新構造パーサー・connector_config UI・CI統合・プラグイン検証・Neo4j設計 | claude/execute-status-todos-UcI3G |
 
 ---
 

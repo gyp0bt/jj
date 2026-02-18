@@ -143,6 +143,22 @@ class DashboardPageConnector:
         """
         return self.generate_html(provider, dashboard_config)
 
+    @classmethod
+    def get_connector_config_schema(cls) -> list[dict[str, Any]]:
+        """connector_configの入力フィールド定義を返す
+
+        サブクラスでオーバーライドし、保存済みビューの
+        connector_config編集UIに使用するフィールドを宣言する。
+
+        Returns:
+            フィールド定義のリスト。各要素は以下のキーを持つ:
+            - key: connector_configのキー名（str）
+            - label: UI表示ラベル（str）
+            - type: フィールド型 "text" | "checkbox"（str）
+            - help: 補足説明（str、optional）
+        """
+        return []
+
 
 def get_connector_pages(
     provider: DashboardDataProvider,
@@ -261,6 +277,23 @@ def generate_connector_pages_html(
         if html:
             results.append((label, html))
     return results
+
+
+def get_connector_config_schema(
+    page_label: str,
+) -> list[dict[str, Any]]:
+    """指定ページラベルのconnector_configスキーマを取得
+
+    Args:
+        page_label: ページラベル
+
+    Returns:
+        フィールド定義のリスト。未登録の場合は空リスト。
+    """
+    cls = DashboardPageConnector._registry.get(page_label)
+    if cls is None:
+        return []
+    return cls.get_connector_config_schema()
 
 
 def get_connector_view_type_options(

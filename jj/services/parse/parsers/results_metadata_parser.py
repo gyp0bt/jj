@@ -4,12 +4,18 @@ results/のサブディレクトリ内にある結果可視化画像ファイル
 メタデータを抽出し、ファイルノードと対応するgo_*.inpノードに
 プロパティを付与する。
 
-ディレクトリ名パターン: results/step{N}_frame{M}/
-ファイル名パターン: {go_basename}_{result_key}_{params}.{ext}
+■ 旧構造（step/frameベース）:
+  ディレクトリ名パターン: results/step{N}_frame{M}/
+  ファイル名パターン: {go_basename}_{result_key}_{params}.{ext}
+  例: results/step0_frame10/go_idx1.v1_S-S33_vmax10.0_vmin_5.0.png
 
-例: results/step0_frame10/go_idx1.v1_S-S33_vmax10.0_vmin_5.0.png
-  → ファイルノード: step=0, frame=10, vmax=10.0, vmin=5.0
-  → go_idx1.v1.inp の properties["results.S-S33"] にリスト形式で追加
+■ 新構造（GOノードベース）:
+  ディレクトリ名パターン: results/{go_basename}/
+  ファイル名パターン: {result_key}[_{step_info}][_{params}].{ext}
+  例: results/go_idx1.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png
+
+両構造を自動検出し、共存をサポートする。
+新構造の検出: results/ 直下のサブディレクトリ名が go_ で始まる場合は新構造と判定。
 
 同じresult_keyでstep/frame/vmin/vmax違いがあれば別エントリとして扱う。
 
@@ -40,6 +46,17 @@ _FLOAT_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(-?\d+(?:\.\d+)?)$")
 
 # 結果キーパターン（ダッシュ含む識別子）: S-S33, U-U3, PEEQ 等
 _RESULT_KEY_PATTERN = re.compile(r"^[A-Z][A-Za-z0-9]*(?:-[A-Z][A-Za-z0-9]*(?:\d+)?)?$")
+
+# GOノードディレクトリ名判定パターン: go_ で始まるディレクトリ名
+_GO_DIR_PREFIX = "go_"
+
+
+def _is_go_node_directory(dirname: str) -> bool:
+    """ディレクトリ名がGOノードベースの新構造かを判定
+
+    新構造: results/go_idx1.v1/ のようにGOノード名がディレクトリ名
+    """
+    return dirname.lower().startswith(_GO_DIR_PREFIX) or dirname.lower() == "go"
 
 
 def _is_in_results_subdirectory(path: str) -> tuple[bool, str]:
@@ -163,6 +180,57 @@ def _parse_result_filename(
     return matched_basename, result_key, params
 
 
+def _parse_new_result_filename(
+    filename_without_ext: str,
+) -> tuple[str, dict[str, str]]:
+    """新構造のファイル名を解析してresult_keyとパラメータを返す
+
+    新構造: {result_key}[_{step_info}][_{params}].{ext}
+    result_keyはファイル名の先頭トークン。
+
+    Args:
+        filename_without_ext: 拡張子なしのファイル名
+
+    Returns:
+        (result_key, params)
+        マッチしない場合は ("", {})
+
+    例: "S-S33_step0_frame10_vmax10.0_vmin5.0"
+        → ("S-S33", {"step": "0", "frame": "10", "vmax": "10.0", "vmin": "5.0"})
+        "stress" → ("stress", {})
+    """
+    if not filename_without_ext:
+        return "", {}
+
+    tokens = filename_without_ext.split("_")
+    # 先頭トークンをresult_keyとして確定
+    result_key = tokens[0]
+    params: dict[str, str] = {}
+    pending_key: str | None = None
+
+    for token in tokens[1:]:
+        # 浮動小数点パラメータ: step0, frame10, vmax10.0, vmin-50.0
+        float_match = _FLOAT_PROP_PATTERN.fullmatch(token)
+        if float_match:
+            if pending_key is not None:
+                pending_key = None
+            params[float_match.group(1)] = float_match.group(2)
+            continue
+
+        # 数値のみのトークン: 前のpending_keyの値として扱う
+        if pending_key is not None and re.fullmatch(r"\d+(?:\.\d+)?", token):
+            params[pending_key] = token
+            pending_key = None
+            continue
+
+        # アルファベットのみのトークン: パラメータキーの可能性
+        if re.fullmatch(r"[A-Za-z]+", token):
+            pending_key = token
+            continue
+
+    return result_key, params
+
+
 class ResultsMetadataParser(AbstractFileParser):
     """results/サブディレクトリの結果可視化画像メタデータを抽出
 
@@ -208,23 +276,40 @@ class ResultsMetadataParser(AbstractFileParser):
             if not in_subdir:
                 continue
 
-            # ディレクトリ名からメタデータ抽出
-            dir_metadata = _parse_directory_metadata(subdir_name)
+            if _is_go_node_directory(subdir_name):
+                # ■ 新構造: results/{go_basename}/ ディレクトリ
+                # ディレクトリ名がgo_basenameに対応
+                go_basename = subdir_name
+                if go_basename not in go_basenames:
+                    continue
 
-            # ファイル名から結果キーとパラメータを抽出
-            go_basename, result_key, file_params = _parse_result_filename(node.name, go_basenames)
+                # ファイル名からresult_keyとパラメータを抽出
+                result_key, file_params = _parse_new_result_filename(node.name)
+                if not result_key:
+                    continue
 
-            if not go_basename or not result_key:
-                continue
+                # ファイルノードにプロパティを付与
+                node.properties.update(file_params)
+                node.properties["result_key"] = result_key
+            else:
+                # ■ 旧構造: results/step{N}_frame{M}/ ディレクトリ
+                # ディレクトリ名からstep/frameメタデータ抽出
+                dir_metadata = _parse_directory_metadata(subdir_name)
 
-            # ファイルノードにプロパティを付与
-            node.properties.update(dir_metadata)
-            node.properties.update(file_params)
-            node.properties["result_key"] = result_key
+                # ファイル名からgo_basename、result_key、パラメータを抽出
+                go_basename, result_key, file_params = _parse_result_filename(node.name, go_basenames)
+                if not go_basename or not result_key:
+                    continue
+
+                # ファイルノードにプロパティを付与
+                node.properties.update(dir_metadata)
+                node.properties.update(file_params)
+                node.properties["result_key"] = result_key
+                # エントリにdir_metadataも含める
+                file_params.update(dir_metadata)
 
             # エントリを構築
             entry: dict[str, Any] = {"path": node_path}
-            entry.update(dir_metadata)
             entry.update(file_params)
 
             results_map[go_basename][result_key].append(entry)

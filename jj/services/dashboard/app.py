@@ -55,6 +55,7 @@ from services.dashboard.components import (  # noqa: E402
     load_dashboard_plugins,
 )
 from services.dashboard.connectors import (  # noqa: E402
+    get_connector_config_schema,
     get_connector_pages,
     get_connector_view_type_options,
     render_connector_page,
@@ -507,10 +508,29 @@ def _render_view_add_form(
         # ViewConfigレジストリからビュータイプ固有の設定UIを描画
         type_specific_config: dict[str, Any] = {}
         is_connector = view_type.startswith("connector:")
+        connector_config_values: dict[str, Any] = {}
         if not is_connector:
             vc = get_view_config(view_type)
             if vc is not None:
                 type_specific_config = vc.render_add_form(provider)
+        else:
+            # コネクターの場合: connector_config入力UIを表示
+            page_label = view_type[len("connector:") :]
+            schema = get_connector_config_schema(page_label)
+            if schema:
+                st.markdown("**コネクター設定**")
+                for field in schema:
+                    fkey = field["key"]
+                    flabel = field.get("label", fkey)
+                    fhelp = field.get("help", "")
+                    if field.get("type") == "checkbox":
+                        connector_config_values[fkey] = st.checkbox(
+                            flabel, value=True, key=f"_add_cc_{fkey}", help=fhelp
+                        )
+                    else:
+                        val = st.text_input(flabel, key=f"_add_cc_{fkey}", help=fhelp)
+                        if val:
+                            connector_config_values[fkey] = val
 
         if st.button("追加", key="_add_view_btn"):
             if not view_name:
@@ -528,6 +548,13 @@ def _render_view_add_form(
                 for lf_k, lf_v in lf_pairs:
                     local_filters[lf_k] = lf_v
 
+                # connector_config: compare_materialsはカンマ区切りをリストに変換
+                final_cc = dict(connector_config_values)
+                if "compare_materials" in final_cc and isinstance(final_cc["compare_materials"], str):
+                    final_cc["compare_materials"] = [
+                        m.strip() for m in final_cc["compare_materials"].split(",") if m.strip()
+                    ]
+
                 new_view: dict[str, Any] = {
                     "name": view_name,
                     "type": view_type,
@@ -536,7 +563,7 @@ def _render_view_add_form(
                     "plot": type_specific_config.get("plot", {}),
                     "array_plot": type_specific_config.get("array_plot", {}),
                     "gallery": type_specific_config.get("gallery", {}),
-                    "connector_config": {},
+                    "connector_config": final_cc,
                 }
                 st.session_state["_dynamic_views"].append(new_view)
                 if project_root is not None:
@@ -559,10 +586,17 @@ def _render_view_edit_form(
             value=view_data.get("name", ""),
             key=f"_edit_name_{dyn_idx}",
         )
+
+        # タイプ選択（コネクタータイプも含む）
+        base_types = ["table", "plot", "array_plot", "gallery", "card", "status"]
+        connector_types = get_connector_view_type_options(provider)
+        all_types = base_types + connector_types
+        current_type = view_data.get("type", "table")
+        type_index = all_types.index(current_type) if current_type in all_types else 0
         view_type = st.selectbox(
             "タイプ",
-            ["table", "plot", "array_plot", "gallery", "card", "status"],
-            index=["table", "plot", "array_plot", "gallery", "card", "status"].index(view_data.get("type", "table")),
+            all_types,
+            index=type_index,
             key=f"_edit_type_{dyn_idx}",
         )
 
@@ -626,6 +660,40 @@ def _render_view_edit_form(
                 st.session_state[lf_count_key] = max(1, edit_lf_count - 1)
                 st.rerun()
 
+        # コネクター設定の編集UI
+        edit_cc_values: dict[str, Any] = {}
+        is_connector_edit = view_type.startswith("connector:")
+        if is_connector_edit:
+            page_label = view_type[len("connector:") :]
+            schema = get_connector_config_schema(page_label)
+            if schema:
+                st.markdown("**コネクター設定**")
+                existing_cc = view_data.get("connector_config", {})
+                for field in schema:
+                    fkey = field["key"]
+                    flabel = field.get("label", fkey)
+                    fhelp = field.get("help", "")
+                    if field.get("type") == "checkbox":
+                        edit_cc_values[fkey] = st.checkbox(
+                            flabel,
+                            value=existing_cc.get(fkey, True),
+                            key=f"_edit_cc_{fkey}_{dyn_idx}",
+                            help=fhelp,
+                        )
+                    else:
+                        # compare_materialsなどリスト値はカンマ区切りで表示
+                        existing_val = existing_cc.get(fkey, "")
+                        if isinstance(existing_val, list):
+                            existing_val = ", ".join(str(v) for v in existing_val)
+                        val = st.text_input(
+                            flabel,
+                            value=str(existing_val),
+                            key=f"_edit_cc_{fkey}_{dyn_idx}",
+                            help=fhelp,
+                        )
+                        if val:
+                            edit_cc_values[fkey] = val
+
         ec1, ec2 = st.columns(2)
         with ec1:
             if st.button("保存", key=f"_edit_save_{dyn_idx}"):
@@ -641,10 +709,18 @@ def _render_view_edit_form(
                 for lf_k, lf_v in edit_lf_pairs:
                     local_filters[lf_k] = lf_v
 
+                # connector_config: compare_materialsはカンマ区切りをリストに変換
+                final_edit_cc = dict(edit_cc_values)
+                if "compare_materials" in final_edit_cc and isinstance(final_edit_cc["compare_materials"], str):
+                    final_edit_cc["compare_materials"] = [
+                        m.strip() for m in final_edit_cc["compare_materials"].split(",") if m.strip()
+                    ]
+
                 view_data["name"] = view_name
                 view_data["type"] = view_type
                 view_data["filters"] = filters
                 view_data["local_filters"] = local_filters
+                view_data["connector_config"] = final_edit_cc
                 st.session_state["_dynamic_views"][dyn_idx] = view_data
                 if project_root is not None:
                     _save_persistent_views(project_root, st.session_state["_dynamic_views"])
