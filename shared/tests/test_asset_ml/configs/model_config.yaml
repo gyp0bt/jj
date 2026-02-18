@@ -1,0 +1,6 @@
+# Model architecture configuration
+architecture: resnet18
+input_channels: 3
+output_classes: 10
+dropout: 0.5
+activation: relu

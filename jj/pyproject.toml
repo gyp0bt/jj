@@ -63,6 +63,24 @@ fluent = [
 ]
 # HFSSプラグイン依存（現時点で追加依存なし）
 # hfss = []
+# ML（PyTorch深層学習）
+ml = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+]
+# scikit-learn（古典ML）
+sklearn = [
+    "scikit-learn>=1.3.0",
+    "joblib>=1.3.0",
+]
+# Optuna（ハイパーパラメータ最適化）
+optuna = [
+    "optuna>=3.0.0",
+]
+# ML全依存
+ml-all = [
+    "jj[ml,sklearn,optuna]",
+]
 # SSH操作
 ssh = [
     "paramiko>=3.0.0",
@@ -75,7 +93,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,dev]",
+    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,ml-all,dev]",
 ]
 
 # --------------------------------------------------
@@ -92,6 +110,7 @@ openfoam = "services.plugins.openfoam:register"
 calculix = "services.plugins.calculix:register"
 fluent = "services.plugins.fluent:register"
 hfss = "services.plugins.hfss:register"
+ml = "services.plugins.ml:register"
 
 # jj.parsers グループ: 個別パーサーの登録（外部プラグイン用の拡張点）
 # 内蔵プラグインはjj.plugins経由でまとめて登録されるため、ここは空でもよい
