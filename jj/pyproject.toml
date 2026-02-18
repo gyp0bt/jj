@@ -45,9 +45,9 @@ api = [
     "fastapi>=0.100.0",
     "uvicorn>=0.25.0",
 ]
-# Neo4jコネクター
+# Neo4jコネクター（jjrv側: neo4j-driver ^6.0.1 / Docker: neo4j:5-community）
 neo4j = [
-    "neo4j>=5.0.0",
+    "neo4j>=5.0.0,<7.0.0",
 ]
 # LS-DYNAプラグイン依存（将来: d3plot解析等）
 # lsdyna = []

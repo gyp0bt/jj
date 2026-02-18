@@ -1,9 +1,10 @@
 "use client";
 
-import { LogIn, Settings } from "lucide-react";
+import { Database, LogIn, Settings } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
+import { DataSourceSettingsModal } from "@/components/DataSourceSettingsModal";
 import { UserIcon } from "@/components/UserIcon";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -11,6 +12,7 @@ export function AccountStatus() {
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dataSourceOpen, setDataSourceOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,6 +83,19 @@ export function AccountStatus() {
             <Settings size={14} />
             アカウント設定
           </button>
+          {user.role === "admin" && (
+            <button
+              type="button"
+              onClick={() => {
+                setDataSourceOpen(true);
+                setIsOpen(false);
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 transition-colors flex items-center gap-2"
+            >
+              <Database size={14} />
+              データソース設定
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -97,6 +112,10 @@ export function AccountStatus() {
       <AccountSettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+      <DataSourceSettingsModal
+        isOpen={dataSourceOpen}
+        onClose={() => setDataSourceOpen(false)}
       />
     </div>
   );

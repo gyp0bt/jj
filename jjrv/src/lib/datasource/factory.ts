@@ -11,10 +11,19 @@ import type {
 let entityRepo: IEntityRepository | null = null;
 let relationRepo: IRelationRepository | null = null;
 
+/** ランタイムオーバーライド（null = 環境変数に従う） */
+let runtimeDataSource: DataSourceType | null = null;
+
 function getDataSourceType(): DataSourceType {
+  if (runtimeDataSource) return runtimeDataSource;
   const ds = process.env.DATA_SOURCE?.toLowerCase();
   if (ds === "neo4j") return "neo4j";
   return "sqlite";
+}
+
+/** 現在のデータソース種別を取得 */
+export function getCurrentDataSourceType(): DataSourceType {
+  return getDataSourceType();
 }
 
 export function getEntityRepository(): IEntityRepository {
@@ -47,4 +56,10 @@ export function getRelationRepository(): IRelationRepository {
 export function resetRepositories(): void {
   entityRepo = null;
   relationRepo = null;
+}
+
+/** ランタイムでデータソースを切替 */
+export function switchDataSource(dsType: DataSourceType | null): void {
+  runtimeDataSource = dsType;
+  resetRepositories();
 }
