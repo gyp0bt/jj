@@ -1,0 +1,37 @@
+# jj + jjrv 開発環境 Docker Compose
+# Neo4jグラフデータベースの起動・管理
+#
+# 起動: docker compose up -d
+# 停止: docker compose down
+# ログ: docker compose logs -f neo4j
+# Neo4jブラウザ: http://localhost:7474
+# Bolt接続: bolt://localhost:7687
+#
+# [← README.md](README.md)
+
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: jj-neo4j
+    ports:
+      - "7474:7474"   # Neo4jブラウザUI
+      - "7687:7687"   # Boltプロトコル
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ./shared/neo4j/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

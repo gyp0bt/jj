@@ -54,16 +54,24 @@ jjで構築したプロジェクトグラフをNeo4jに永続化し、jjrvから
 | スキーマ初期化 | `shared/neo4j/init/01-schema.cypher` | 完了 |
 | テストスイート | `tests/test_neo4j_connector.py` | 完了（839行, 19クラス） |
 
+### 完了済み（jjrv側）
+
+| コンポーネント | 設計文書 | 実装ファイル | 状態 |
+|---------------|---------|-------------|------|
+| Neo4jドライバ導入 | Phase 6-N-01 | `src/lib/datasource/neo4j-driver.ts` | 完了 |
+| IEntityRepository抽象化 | Phase 6-N-03 | `src/lib/datasource/types.ts` | 完了 |
+| SQLiteリポジトリ | Phase 6-N-03 | `src/lib/datasource/sqlite-*-repository.ts` | 完了 |
+| Neo4jエンティティリポジトリ | Phase 6-N-04 | `src/lib/datasource/neo4j-entity-repository.ts` | 完了（読み取り） |
+| Neo4jリレーションリポジトリ | Phase 6-N-05 | `src/lib/datasource/neo4j-relation-repository.ts` | 完了（読み取り） |
+| データソース切替ファクトリ | Phase 6-N-06 | `src/lib/datasource/factory.ts` | 完了 |
+| ファサード（後方互換） | — | `src/lib/entity-repository.ts` | 完了 |
+
 ### 未着手（jjrv側）
 
 | コンポーネント | 設計文書 | 実装ファイル |
 |---------------|---------|-------------|
-| Neo4jドライバ導入 | spec-roadmap6.md Phase 6-N-01 | `src/lib/datasource/neo4j-driver.ts` |
-| IEntityRepository抽象化 | Phase 6-N-03 | `src/lib/datasource/types.ts` |
-| Neo4jエンティティリポジトリ | Phase 6-N-04 | `src/lib/datasource/neo4j-entity-repository.ts` |
-| Neo4jリレーションリポジトリ | Phase 6-N-05 | `src/lib/datasource/neo4j-relation-repository.ts` |
-| データソース切替ファクトリ | Phase 6-N-06 | `src/lib/datasource/factory.ts` |
 | 接続設定UI | Phase 6-N-02 | `src/components/settings/` |
+| Neo4j検索アダプター | Phase 6-N-07 | `src/lib/datasource/neo4j-search.ts` |
 
 ---
 
@@ -143,19 +151,27 @@ jjで構築したプロジェクトグラフをNeo4jに永続化し、jjrvから
 - [x] docker-compose upでのNeo4j起動確認
 - [x] `jj export --target neo4j` のエンドツーエンド検証
 
-### Phase 2: jjrv IEntityRepository抽象化
+### Phase 2: jjrv IEntityRepository抽象化 ✅ 完了
 
 jjrvの既存SQLiteリポジトリ（`entity-repository.ts`）を
-IEntityRepositoryインターフェースで抽象化する。
+IEntityRepository/IRelationRepositoryインターフェースで抽象化完了。
+
+- [x] IEntityRepository / IRelationRepository インターフェース定義
+- [x] SqliteEntityRepository / SqliteRelationRepository 実装
+- [x] Neo4jEntityRepository / Neo4jRelationRepository 実装（読み取り専用）
+- [x] データソース切替ファクトリ（環境変数 DATA_SOURCE）
+- [x] entity-repository.ts ファサード化（API Routes変更不要）
 
 ```typescript
+// src/lib/datasource/types.ts
 interface IEntityRepository {
-  findAll(filters?: SearchFilters): Promise<StringEntity[]>;
-  findById(id: string): Promise<StringEntity | null>;
-  create(entity: CreateEntityInput): Promise<StringEntity>;
-  update(id: string, patch: Partial<StringEntity>): Promise<StringEntity>;
-  delete(id: string): Promise<void>;
-  search(query: string, filters?: SearchFilters): Promise<StringEntity[]>;
+  getAllEntities(): Promise<StringEntity[]>;
+  getEntityById(id: string): Promise<StringEntity | null>;
+  createEntity(entity: StringEntity): Promise<StringEntity>;
+  updateEntity(entity: StringEntity): Promise<StringEntity>;
+  deleteEntity(id: string): Promise<boolean>;
+  searchEntities(query: string): Promise<StringEntity[]>;
+  // ... 他8メソッド
 }
 ```
 
@@ -199,7 +215,9 @@ jjrvではstring型IDを使用。変換ルール:
 
 ## 次回TODO
 
-- [ ] Phase 2: jjrvのIEntityRepository抽象化着手
-- [ ] Neo4jドライバの選定（neo4j-driver vs neo4j-driver-core）
-- [ ] jjrv側のCypher生成パターン検討
+- [x] Phase 2: jjrvのIEntityRepository抽象化 ✅ status-022で完了
+- [x] Neo4jドライバの選定 → neo4j-driver 6.0.1 採用
+- [ ] Neo4j実環境でのエンドツーエンド検証（docker compose up → jj export → jjrv参照）
+- [ ] 接続設定UI（Phase 6-N-02）
+- [ ] Neo4j検索アダプター（Phase 6-N-07）
 - [ ] 統合テスト環境の構築（docker-compose + テストデータ）

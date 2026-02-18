@@ -13,7 +13,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M1: 基盤整備** | 完了 | CI/CD構築、ドキュメント再編、statusアーカイブ、CLAUDE.md/CONTRIBUTING.md |
 | **M1.5: ドキュメント再構成** | 完了 | roadmap分離、CLAUDE.md/README.mdスリム化、マルチソルバー仕様書、プラグイン雛形 |
 | **M2: マルチソルバー基盤** | 進行中 | プラグイン雛形作成済み、本実装は検証環境確保後に実施 |
-| **M3: Neo4j統合パイプライン** | 設計段階 | jj→Neo4j→jjrv パイプライン実稼働（jj側完了、設計仕様書作成済み） |
+| **M3: Neo4j統合パイプライン** | 進行中 | jj側完了、jjrv IEntityRepository抽象化完了、Docker環境構築済み |
 | **M4: jjrv横断ダッシュボード** | 未着手 | Streamlit検証パターンのjjrv移植、横断視認性 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
 
@@ -44,6 +44,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [019](status-019.md) | 2026-02-18 | M2/M3 | status-018 TODO実行: 新構造パーサー・connector_config UI・CI統合・プラグイン検証・Neo4j設計 | claude/execute-status-todos-UcI3G |
 | [020](status-020.md) | 2026-02-18 | M2/M3 | M3前pymeshリファクタリング: tags削除・element_quality・トポロジー・include廃止・diff形式 | claude/setup-project-docs-PPYi8 |
 | [021](status-021.md) | 2026-02-18 | M2/M3 | status-020 TODO実行: Neo4jスキーマ反映・接頭辞キー表示対応・diff_unifiedエクスポート | claude/execute-status-todos-aP2p4 |
+| [022](status-022.md) | 2026-02-18 | M3 | Neo4j Docker環境構築・IEntityRepository抽象化・SQLite/Neo4j両対応 | claude/setup-neo4j-docker-fDy9r |
 
 ---
 
