@@ -708,7 +708,6 @@ class TestOutputRelations:
         assert inp_node is not None, "go_idx1_w5_t20.inp ノードが見つからない"
         assert rf_node is not None, "go_idx1_w5_t20_RF.csv ノードが見つからない"
 
-
         # has_output関係が存在
         relation = next(
             (r for r in has_output_relations if r.node1_id == inp_node.id and r.node2_id == rf_node.id),
@@ -3189,8 +3188,6 @@ class TestObsidianTagExport:
         assert "#go" in content
 
 
-
-
 class TestVersionKeyUnification:
     """version/バージョンのキー統一テスト"""
 
@@ -3281,7 +3278,7 @@ class TestTokenKeyMapVerboseName:
         )
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "mesh_hogehoge24_v1_idx1.inp").write_text("")
-        node = svc.file_to_node(tmp_path / "mesh_hogehoge24_v1_idx1.inp")
+        svc.file_to_node(tmp_path / "mesh_hogehoge24_v1_idx1.inp")
 
 
 class TestStaEnrichmentOnly:

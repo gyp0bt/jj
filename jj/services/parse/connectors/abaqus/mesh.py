@@ -412,6 +412,118 @@ def extract_element_quality_stats(
     return result if result else None
 
 
+def extract_mesh_topology_groups(
+    inp_path: Path,
+    verbose: bool = False,
+    cached_abq_data: Any | None = None,
+) -> list[list[str]] | None:
+    """メッシュトポロジーを解析し、ノード共有で接続された要素集団を抽出
+
+    要素間のノード共有関係をUnion-Findで解析し、連結成分（メッシュ整合集団）を
+    特定する。各集団に属するelset名をリストにまとめて返す。
+
+    Args:
+        inp_path: .inpファイルのパス
+        verbose: 詳細ログを出力するか
+        cached_abq_data: キャッシュ済みABQData
+
+    Returns:
+        [[elset_a, elset_b], [elset_c]] のようなelsetグループのリスト。
+        各グループ内のelsetは同じメッシュ整合集団に属する。
+        pymesh未導入やパース失敗時はNone。
+    """
+    create_mesher, _ = _safe_import_pymesh()
+    if create_mesher is None:
+        logger.debug("pymesh not available, skipping mesh topology analysis")
+        return None
+
+    if not inp_path.exists() or not str(inp_path).lower().endswith(".inp"):
+        return None
+
+    try:
+        mesh = create_mesher(str(inp_path), verbose=verbose, cached_abq_data=cached_abq_data)
+    except Exception as e:
+        logger.warning(f"pymesh failed to parse {inp_path}: {e}")
+        return None
+
+    # elsetが無ければスキップ
+    if not mesh.elset_data or len(mesh.elset_data) == 0:
+        return None
+
+    # Union-Find実装
+    parent: dict[int, int] = {}
+
+    def find(x: int) -> int:
+        while parent.get(x, x) != x:
+            parent[x] = parent.get(parent[x], parent[x])  # path compression
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    # 要素のノード接続情報からUnion-Findを構築
+    # node_id → 最初のelement_labelのマッピング
+    node_to_first_elem: dict[int, int] = {}
+
+    for key in list(mesh.elements_data.keys()):
+        elements = mesh.elements_data[key]
+        if not hasattr(elements, "data") or elements.data is None:
+            continue
+        data = elements.data
+        if not hasattr(data, "ndim") or data.ndim != 2:
+            continue
+
+        for row in data:
+            elem_label = int(row[0])
+            parent.setdefault(elem_label, elem_label)
+            # ノードIDは列1以降
+            for node_id in row[1:]:
+                nid = int(node_id)
+                if nid == 0:
+                    continue  # パディングされたゼロをスキップ
+                if nid in node_to_first_elem:
+                    union(elem_label, node_to_first_elem[nid])
+                else:
+                    node_to_first_elem[nid] = elem_label
+
+    # 各要素のグループIDを確定
+    elem_to_group: dict[int, int] = {}
+    for elem_label in parent:
+        elem_to_group[elem_label] = find(elem_label)
+
+    # 各elsetがどのグループに属するかを判定
+    # elset内の要素が複数グループにまたがる場合は最初のグループに帰属
+    elset_group: dict[str, int] = {}
+    for name in list(mesh.elset_data.keys()):
+        elset = mesh.elset_data[name]
+        elset_labels = elset.data if hasattr(elset, "data") else []
+        if not hasattr(elset_labels, "__len__") or len(elset_labels) == 0:
+            continue
+        # elsetの最初の要素のグループIDを使用
+        for lbl in elset_labels:
+            gid = elem_to_group.get(int(lbl))
+            if gid is not None:
+                elset_group[name] = gid
+                break
+
+    if not elset_group:
+        return None
+
+    # グループIDごとにelset名を集約
+    from collections import defaultdict
+
+    group_elsets: dict[int, list[str]] = defaultdict(list)
+    for name, gid in elset_group.items():
+        group_elsets[gid].append(name)
+
+    # ソートして返す
+    result = [sorted(elsets) for elsets in group_elsets.values()]
+    return sorted(result, key=lambda x: x[0]) if result else None
+
+
 def _parse_parameters(inp_path: Path) -> dict[str, str]:
     """*PARAMETERブロックからパラメータ名→値のマッピングを抽出
 
