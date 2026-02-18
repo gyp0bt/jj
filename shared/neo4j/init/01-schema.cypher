@@ -45,3 +45,13 @@ CREATE INDEX jjrun_project IF NOT EXISTS FOR (n:JJRun) ON (n.project);
 // meshタイプのノード統計値検索（mesh_node_count, mesh_element_count）
 CREATE INDEX jjfile_mesh_node_count IF NOT EXISTS FOR (n:JJFile) ON (n.mesh_node_count);
 CREATE INDEX jjfile_mesh_element_count IF NOT EXISTS FOR (n:JJFile) ON (n.mesh_element_count);
+
+// === 全文検索インデックス ===
+
+// JJFileのname, type, formatで全文検索（大文字小文字非区別、部分一致）
+CREATE FULLTEXT INDEX jjfile_fulltext IF NOT EXISTS
+FOR (n:JJFile) ON EACH [n.name, n.type, n.format];
+
+// JJMaterialのnameで全文検索
+CREATE FULLTEXT INDEX jjmaterial_fulltext IF NOT EXISTS
+FOR (n:JJMaterial) ON EACH [n.name];
