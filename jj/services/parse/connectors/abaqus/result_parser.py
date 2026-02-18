@@ -1,7 +1,6 @@
 """Abaqus結果パーサー
 
-.sta/.msg/.datファイルの解析結果をノードのプロパティに付与し、
-includeファイルのプロパティをgo_*.inpに伝搬する。
+.sta/.msg/.datファイルの解析結果をノードのプロパティに付与する。
 
 [READMEへ戻る](../../../../../README.md)
 """
@@ -9,7 +8,6 @@ includeファイルのプロパティをgo_*.inpに伝搬する。
 from __future__ import annotations
 
 import re
-from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -261,70 +259,3 @@ class AbaqusResultParser(AbstractFileParser):
                     inp_node.properties["dat_errors"] = dat_info["errors"]
                 if dat_info.get("warnings"):
                     inp_node.properties["dat_warnings"] = dat_info["warnings"]
-
-
-class AbaqusIncludePropertyParser(AbstractFileParser):
-    """includeファイルのプロパティをgo_*.inpに伝搬"""
-
-    priority = 86
-
-    def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        includes_map: dict[int, list[int]] = defaultdict(list)
-        for rel in graph.relations:
-            if rel.label == "includes":
-                includes_map[rel.node1_id].append(rel.node2_id)
-
-        if not includes_map:
-            return graph
-
-        for parent_id, child_ids in includes_map.items():
-            parent = graph.get_node_by_id(parent_id)
-            if parent is None:
-                continue
-
-            name_lower = parent.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
-                continue
-
-            include_props: dict[str, dict[str, Any]] = {}
-
-            for child_id in child_ids:
-                child = graph.get_node_by_id(child_id)
-                if child is None:
-                    continue
-
-                child_file = child.properties.get("path", child.name)
-                child_summary: dict[str, Any] = {}
-
-                for key in (
-                    "mesh_node_count",
-                    "mesh_element_count",
-                    "mesh_element_types",
-                    "mesh_elset_summary",
-                    "mesh_quality",
-                ):
-                    if key in child.properties:
-                        child_summary[key] = child.properties[key]
-                        if key not in parent.properties:
-                            parent.properties[key] = child.properties[key]
-
-                for key in (
-                    "analysis_status",
-                    "sta_errors",
-                    "sta_warnings",
-                    "msg_errors",
-                    "msg_warnings",
-                ):
-                    if key in child.properties:
-                        child_summary[key] = child.properties[key]
-
-                if "keywords" in child.properties:
-                    child_summary["keywords"] = child.properties["keywords"]
-
-                if child_summary:
-                    include_props[child_file] = child_summary
-
-            if include_props:
-                parent.properties["include_properties"] = include_props
-
-        return graph

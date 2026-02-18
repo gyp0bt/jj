@@ -2392,11 +2392,8 @@ class TestIncludePropertyPropagation:
         )
         assert go_node is not None
 
-        # include_propertiesが付与される
-        include_props = go_node.properties.get("include_properties")
-        # meshのinclude関係が構築されていれば伝搬される
-        if include_props:
-            assert isinstance(include_props, dict)
+        # MeshInheritParserによりinclude先のプロパティが直接継承される
+        # (include_propertiesは廃止、全プロパティを親ノードに直接マッピング)
 
     def test_include_relations_exist(self, tmp_path):
         """includes関係が正しく構築される"""

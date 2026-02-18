@@ -226,7 +226,7 @@ class DashboardDataProvider:
             keys.update(node.properties.keys())
 
         # 内部キー（path等）は除外
-        internal_keys = {"path", "include_properties"}
+        internal_keys = {"path"}
         keys -= internal_keys
 
         return self._sort_by_vocab(keys)
@@ -449,9 +449,7 @@ class DashboardDataProvider:
                         "image_name": output_node.name,
                         "image_path": path_str,
                         "image_format": fmt or ext,
-                        "go_properties": {
-                            k: v for k, v in go_node.properties.items() if k not in ("path", "include_properties")
-                        },
+                        "go_properties": {k: v for k, v in go_node.properties.items() if k != "path"},
                     }
                 )
 
@@ -490,11 +488,11 @@ class DashboardDataProvider:
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
 
-            go_props = {k: v for k, v in node.properties.items() if k not in ("path", "include_properties")}
+            go_props = {k: v for k, v in node.properties.items() if k != "path"}
             display_name = self._get_display_name(node)
 
             for key, value in node.properties.items():
-                if key in ("path", "include_properties"):
+                if key == "path":
                     continue
                 # daily_notes dict内の画像パスを探索
                 if key == "daily_notes" and isinstance(value, dict):
@@ -724,7 +722,7 @@ class DashboardDataProvider:
                     "properties": {
                         k: v
                         for k, v in node.properties.items()
-                        if k not in ("path", "include_properties") and not (isinstance(v, list) and "." in k)
+                        if k != "path" and not (isinstance(v, list) and "." in k)
                     },
                 }
             )
@@ -790,8 +788,6 @@ class DashboardDataProvider:
 
         for key, value in node.properties.items():
             if key == "path":
-                continue
-            if key == "include_properties":
                 continue
             row[key] = format_float_value(value) if isinstance(value, float) else value
 

@@ -7,14 +7,18 @@ go_*.inpが*INCLUDEで参照する全ファイル（mesh_*, material_*, step_*�
 - ファイル名から解析されたプロパティ（例: mesh_t50_v1.inp → t:50）
 - メッシュ統計情報（mesh_node_count, mesh_element_count, mesh_quality等）
 - material/step等のinclude先が持つ任意のプロパティ
+- 解析ステータス（analysis_status, sta_errors, msg_errors等）
+- キーワード情報（keywords）
+
+キー競合時の挙動:
+- 辞書型マージキー（mesh_elset_summary等）: 複数include先から統合
+- その他: キーが競合する場合は「{child_name}:{key}」の接頭辞付きで保存
 
 除外:
 - index/version相当のキー（idx/v/条件/バージョン等）
-- path, tags, active, verbose_name等のメタプロパティ
+- path, active, verbose_name等のメタプロパティ
 
 priority=81: IncludesRelationParser(40)とAbaqusMeshParser(80)の後に実行。
-
-status-088でservices/parse/parsers/からAbaqusプラグインに移動。
 
 [READMEへ戻る](../../../../../README.md)
 """
@@ -58,7 +62,7 @@ class MeshInheritParser(AbstractFileParser):
     includes関係を辿り、include先ノードのプロパティのうち
     index/version/メタプロパティ以外をgo_*.inpの直下プロパティに追加する。
     メッシュ統計情報（mesh_node_count, mesh_quality等）も含めて継承する。
-    go_*が既に持っているキーは上書きしない（go_*自身の値を優先）。
+    キーが競合する場合は「{child_name}:{key}」の接頭辞付きで保存する。
     """
 
     priority = 81  # IncludesRelationParser(40), AbaqusMeshParser(80)の後
@@ -101,5 +105,10 @@ class MeshInheritParser(AbstractFileParser):
                     elif key in _MERGE_DICT_KEYS and isinstance(node.properties[key], dict) and isinstance(value, dict):
                         # メッシュ関連の辞書プロパティは複数include先からマージ
                         node.properties[key] = {**node.properties[key], **value}
+                    else:
+                        # キー競合: 接頭辞 "{child_name}:" を付けてエスケープ
+                        prefixed_key = f"{child.name}:{key}"
+                        if prefixed_key not in node.properties:
+                            node.properties[prefixed_key] = value
 
         return graph

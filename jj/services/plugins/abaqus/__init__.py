@@ -11,9 +11,8 @@ Abaqus固有のパーサー・ダッシュボードコネクター・ジョブ�
 | AbaqusInpParser | 60 | material.inp解析、材料ノード生成 |
 | AbaqusResultParser | 70 | .sta/.msg/.dat解析 |
 | AbaqusMeshParser | 80 | pymeshメッシュ品質統計（requires_full） |
-| MeshInheritParser | 81 | includeプロパティ継承 |
+| MeshInheritParser | 81 | includeプロパティ継承（競合時は接頭辞エスケープ） |
 | AbaqusMaterialAssignmentParser | 85 | 材料割り当て |
-| AbaqusIncludePropertyParser | 86 | includeプロパティ伝搬 |
 | AbaqusDiffParser | 90 | バージョン間diff |
 | AbaqusElsetParser | 98 | elsetノード化 |
 

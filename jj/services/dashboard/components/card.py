@@ -90,7 +90,7 @@ class CardPage(PageComponent[CardViewConfig]):
         st.markdown("---")
         st.subheader("プロパティ")
 
-        props = {k: v for k, v in card["properties"].items() if k not in ("path", "include_properties")}
+        props = {k: v for k, v in card["properties"].items() if k != "path"}
         if props:
             import pandas as pd
 
@@ -150,7 +150,7 @@ class CardPage(PageComponent[CardViewConfig]):
             return
 
         st.markdown(f"**{card['name']}** ({card['type']})")
-        props = {k: v for k, v in card["properties"].items() if k not in ("path", "include_properties")}
+        props = {k: v for k, v in card["properties"].items() if k != "path"}
         if props:
             import pandas as pd
 

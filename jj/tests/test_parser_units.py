@@ -666,8 +666,8 @@ class TestMeshInheritParser:
         assert go_node.properties["mesh_node_count"] == 1000
         assert go_node.properties["mesh_element_count"] == 500
 
-    def test_does_not_overwrite_existing_keys(self, config: GraphConfig):
-        """go_*が既に持っているキーは上書きしない"""
+    def test_prefix_escaping_on_key_conflict(self, config: GraphConfig):
+        """キー競合時に「{child_name}:{key}」接頭辞付きで保存される"""
         from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
@@ -677,7 +677,7 @@ class TestMeshInheritParser:
                 name="go_idx1",
                 format="inp",
                 properties={"path": "go_idx1.inp", "index": "1", "version": "1", "t": "100"},
-            ),  # go_*が持つ値を優先
+            ),
             Node(
                 id=2,
                 type="mesh",
@@ -693,7 +693,10 @@ class TestMeshInheritParser:
         result = MeshInheritParser().apply(graph)
 
         go_node = result.get_node_by_id(1)
-        assert go_node.properties["t"] == "100"  # 上書きされない
+        # go_*自身の値が優先される
+        assert go_node.properties["t"] == "100"
+        # 競合キーは「{child_name}:{key}」接頭辞付きで保存
+        assert go_node.properties["mesh_t50_v1:t"] == "50"
 
     def test_inherits_from_all_includes(self, config: GraphConfig):
         """mesh_*だけでなく全include先からプロパティを継承する"""
