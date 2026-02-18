@@ -583,6 +583,11 @@ class ObsidianConnector:
             if diff_details and diff_details != "差分なし":
                 content += f"### 詳細\n\n{diff_details}\n"
 
+            # diff_unified形式（+/-表記）があればUnified Diffセクションとして出力
+            diff_unified = props.get("diff_unified", "")
+            if diff_unified:
+                content += f"\n### Unified Diff\n\n{diff_unified}\n"
+
         # version_diffノード専用: 比較元/比較先ファイルへのリンク
         if node.type == "version_diff":
             content += "\n## バージョン比較\n\n"

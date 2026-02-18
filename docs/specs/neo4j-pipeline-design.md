@@ -73,7 +73,7 @@ jjで構築したプロジェクトグラフをNeo4jに永続化し、jjrvから
 
 | ラベル | 対応するjjノードtype | 用途 |
 |--------|---------------------|------|
-| JJFile | go, input, output, asset 等 | ファイルノード全般 |
+| JJFile | go, input, output, asset, version_diff 等 | ファイルノード全般 |
 | JJMaterial | abaqus_material | Abaqus物性定義 |
 | JJRun | run | 実行ジョブ |
 | JJTag | tag | タグ |
@@ -91,11 +91,44 @@ jjで構築したプロジェクトグラフをNeo4jに永続化し、jjrvから
 | USES_MATERIAL | 物性利用 |
 | ASSIGNED_TO | elset割り当て |
 
+### メッシュ関連プロパティ（JJFile上）
+
+| プロパティキー | 型 | 格納形式 | 用途 |
+|---------------|-----|----------|------|
+| mesh_node_count | int | ネイティブ | ノード数 |
+| mesh_element_count | int | ネイティブ | 要素数 |
+| mesh_element_quality | str | JSON文字列 | 要素タイプ別品質統計 |
+| mesh_topology_groups | str | JSON文字列 | 連結成分グループ |
+| mesh_elset_summary | str | JSON文字列 | elset別サマリー |
+| mesh_element_types | str | JSON文字列 | 要素タイプ別カウント |
+
+**型変換ルール**: Neo4jはネストされたプロパティ（dict, list[list]）を直接格納できないため、`_sanitize_property_value()`がJSON文字列に変換する。jjrv側ではJSON.parse()で復元する。
+
+### diff関連プロパティ（JJFile上、type=version_diff）
+
+| プロパティキー | 型 | 格納形式 | 用途 |
+|---------------|-----|----------|------|
+| diff_summary | str | ネイティブ | テーブル形式の差分要約 |
+| diff_details | str | ネイティブ | ブロック別詳細差分 |
+| diff_unified | str | ネイティブ | unified diff形式（+/-表記） |
+| has_diffs | bool | ネイティブ | 差分有無 |
+
 ### 一意性制約
 
 ```cypher
 (n:JJFile) REQUIRE (n.project, n.jj_id) IS UNIQUE
 (n:JJMaterial) REQUIRE (n.project, n.jj_id) IS UNIQUE
+```
+
+### インデックス
+
+```cypher
+// 検索用
+(n:JJFile) ON (n.name), (n.type), (n.project)
+(n:JJMaterial) ON (n.name), (n.project)
+(n:JJRun) ON (n.project)
+// メッシュ統計値検索用
+(n:JJFile) ON (n.mesh_node_count), (n.mesh_element_count)
 ```
 
 プロジェクト単位でデータ隔離される。

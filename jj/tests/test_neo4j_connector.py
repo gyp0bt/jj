@@ -837,3 +837,146 @@ class TestEndToEndCypherExport:
         # 全ノードとリレーションが出力されている
         assert content.count("MERGE (n:JJFile") == 100
         assert content.count(":NEXT_VERSION") == 99
+
+
+# ===== メッシュプロパティのNeo4jエクスポートテスト =====
+
+
+class TestMeshPropertiesExport:
+    """mesh_element_quality/mesh_topology_groupsのCypherエクスポート検証"""
+
+    def test_mesh_element_quality_exported_as_json(self, tmp_path):
+        """mesh_element_qualityはJSON文字列としてエクスポートされる"""
+        quality_data = {
+            "C3D8": {
+                "element_count": 100,
+                "quality": {"min_volume": 0.001, "max_aspect_ratio": 3.5},
+            },
+            "C3D4": {
+                "element_count": 50,
+                "quality": {"min_volume": 0.0005, "max_aspect_ratio": 5.2},
+            },
+        }
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="mesh",
+                    name="mesh_box",
+                    format="inp",
+                    properties={"mesh_element_quality": quality_data},
+                ),
+            ],
+            relations=[],
+        )
+        connector = Neo4jConnector(project_root=tmp_path)
+        output = tmp_path / "mesh_quality.cypher"
+        connector.export_cypher(graph, output_path=output)
+        content = output.read_text(encoding="utf-8")
+
+        # dict型はJSON文字列化される
+        assert "mesh_element_quality:" in content
+        assert "C3D8" in content
+        assert "element_count" in content
+
+    def test_mesh_topology_groups_exported_as_json(self, tmp_path):
+        """mesh_topology_groupsはJSON文字列としてエクスポートされる"""
+        topology = [["BODY", "SKIN"], ["SUPPORT"]]
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="mesh",
+                    name="mesh_box",
+                    format="inp",
+                    properties={"mesh_topology_groups": topology},
+                ),
+            ],
+            relations=[],
+        )
+        connector = Neo4jConnector(project_root=tmp_path)
+        output = tmp_path / "mesh_topo.cypher"
+        connector.export_cypher(graph, output_path=output)
+        content = output.read_text(encoding="utf-8")
+
+        # list[list]型はJSON文字列化される（同種型でないため）
+        assert "mesh_topology_groups:" in content
+        assert "BODY" in content
+        assert "SUPPORT" in content
+
+    def test_version_diff_node_label(self, tmp_path):
+        """version_diffタイプはJJFileラベルにマッピングされる"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="version_diff",
+                    name="diff_v1_vs_v2",
+                    format="diff",
+                    properties={
+                        "diff_unified": "```diff\n- old\n+ new\n```",
+                        "has_diffs": True,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        connector = Neo4jConnector(project_root=tmp_path)
+        output = tmp_path / "diff.cypher"
+        connector.export_cypher(graph, output_path=output)
+        content = output.read_text(encoding="utf-8")
+
+        assert "MERGE (n:JJFile" in content
+        assert "diff_unified:" in content
+
+    def test_build_node_properties_sanitizes_mesh_data(self, tmp_path):
+        """_build_node_propertiesがメッシュプロパティを正しくサニタイズする"""
+        from services.export.connectors.neo4j import _build_node_properties
+
+        node = Node(
+            id=1,
+            type="mesh",
+            name="mesh_test",
+            format="inp",
+            properties={
+                "mesh_node_count": 1000,
+                "mesh_element_count": 500,
+                "mesh_element_quality": {"C3D8": {"element_count": 500}},
+                "mesh_topology_groups": [["A", "B"], ["C"]],
+                "mesh_elset_summary": {"BODY": {"count": 300}},
+            },
+        )
+        props = _build_node_properties(node, "test_project")
+
+        # スカラー値はそのまま
+        assert props["mesh_node_count"] == 1000
+        assert props["mesh_element_count"] == 500
+        # dict型はJSON文字列化
+        assert isinstance(props["mesh_element_quality"], str)
+        assert "C3D8" in props["mesh_element_quality"]
+        # list[list]はJSON文字列化
+        assert isinstance(props["mesh_topology_groups"], str)
+        assert "A" in props["mesh_topology_groups"]
+        # dictはJSON文字列化
+        assert isinstance(props["mesh_elset_summary"], str)
+
+
+class TestPropertyKeyConstants:
+    """PropertyKeyクラスの定数定義テスト"""
+
+    def test_property_key_values(self):
+        """PropertyKeyの定数値が正しい"""
+        from shared.neo4j_schema import PropertyKey
+
+        assert PropertyKey.MESH_ELEMENT_QUALITY == "mesh_element_quality"
+        assert PropertyKey.MESH_TOPOLOGY_GROUPS == "mesh_topology_groups"
+        assert PropertyKey.MESH_NODE_COUNT == "mesh_node_count"
+        assert PropertyKey.MESH_ELEMENT_COUNT == "mesh_element_count"
+        assert PropertyKey.DIFF_UNIFIED == "diff_unified"
+
+    def test_version_diff_in_type_to_label(self):
+        """version_diffがTYPE_TO_LABELに含まれる"""
+        from shared.neo4j_schema import TYPE_TO_LABEL, NodeLabel
+
+        assert "version_diff" in TYPE_TO_LABEL
+        assert TYPE_TO_LABEL["version_diff"] == NodeLabel.JJ_FILE

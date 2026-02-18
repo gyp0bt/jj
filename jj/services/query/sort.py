@@ -3,6 +3,11 @@
 vocab辞書に基づくカラムソートと、configパターンに基づく
 テーブルカラム選択を提供する。
 
+接頭辞エスケープキー（{child_name}:{key}）への対応:
+- MeshInheritParserがキー競合時に生成する「mesh_t50:mesh_node_count」形式
+- vocab照合時に「:」以降のベースキーでもマッチを試みる
+- ソート順はベースキーの直後に配置される
+
 [READMEへ戻る](../../../README.md)
 """
 
@@ -11,11 +16,31 @@ from __future__ import annotations
 import fnmatch
 
 
+def get_base_key(column: str) -> str:
+    """接頭辞エスケープキーからベースキーを取得
+
+    「child_name:key」形式の場合「key」を返す。
+    「:」を含まない場合はそのまま返す。
+
+    Args:
+        column: カラム名
+
+    Returns:
+        ベースキー
+    """
+    if ":" in column:
+        return column.split(":", 1)[1]
+    return column
+
+
 def sort_columns_by_vocab(columns: list[str], vocab: dict[str, str]) -> list[str]:
     """vocab順でカラムをソート
 
     vocab辞書の値（日本語表記）の出現順を優先し、
     vocabに含まれないカラムは文字列昇順で後に配置する。
+
+    接頭辞エスケープキー（child_name:key）はベースキー（key部分）で
+    vocab照合を試み、ベースキーの直後にソートされる。
 
     Args:
         columns: ソート対象のカラムリスト
@@ -32,11 +57,20 @@ def sort_columns_by_vocab(columns: list[str], vocab: dict[str, str]) -> list[str
         if k not in vocab_order:
             vocab_order[k] = len(vocab) + idx
 
-    in_vocab = [c for c in columns if c in vocab_order]
-    not_in_vocab = [c for c in columns if c not in vocab_order]
-    in_vocab.sort(key=lambda c: vocab_order[c])
-    not_in_vocab.sort()
-    return in_vocab + not_in_vocab
+    max_order = len(vocab_order) + len(vocab)
+
+    def _sort_key(col: str) -> tuple[int, int, str]:
+        """(vocab順位, 接頭辞有無フラグ, カラム名) のソートキー"""
+        if col in vocab_order:
+            return (vocab_order[col], 0, col)
+        base = get_base_key(col)
+        if base != col and base in vocab_order:
+            # 接頭辞付きキー: ベースキーの直後に配置
+            return (vocab_order[base], 1, col)
+        # vocab外: 大きい数値で後方配置、文字列昇順
+        return (max_order, 0, col)
+
+    return sorted(columns, key=_sort_key)
 
 
 def select_table_columns(
@@ -47,6 +81,7 @@ def select_table_columns(
     """config指定に基づいてテーブルカラムをフィルタ・並べ替え
 
     table_columnsが指定されていない場合はvocab順でソートして返す。
+    globパターンは接頭辞エスケープキーのベースキー部分にもマッチする。
 
     Args:
         all_columns: DataFrameの全カラム名
@@ -74,9 +109,16 @@ def select_table_columns(
         for col in all_columns:
             if col in seen:
                 continue
+            # 完全一致 or globマッチ（フルキー）
             if fnmatch.fnmatch(col, pattern) or col == pattern:
                 ordered.append(col)
                 seen.add(col)
+            else:
+                # 接頭辞エスケープキーのベースキーでもマッチを試みる
+                base = get_base_key(col)
+                if base != col and (fnmatch.fnmatch(base, pattern) or base == pattern):
+                    ordered.append(col)
+                    seen.add(col)
 
     # 固定カラム（存在するもののみ） + 指定カラム
     result = [c for c in fixed if c in all_columns] + ordered

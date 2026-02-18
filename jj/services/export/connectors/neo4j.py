@@ -48,13 +48,16 @@ def _sanitize_property_value(value: Any) -> Any:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
+        # Neo4jのリストはプリミティブ型（bool, int, float, str）の同一型のみ
+        # ネストされたリストやdict要素を含む場合はJSON文字列化
+        if any(isinstance(item, (list, dict)) for item in value):
+            return json.dumps(value, ensure_ascii=False, default=str)
         # リスト内の要素もサニタイズ
         sanitized = []
         for item in value:
             s = _sanitize_property_value(item)
             if s is not None:
                 sanitized.append(s)
-        # Neo4jのリストは同一型でなければならない
         # 混在型の場合はJSON文字列化
         if sanitized and not _is_homogeneous_list(sanitized):
             return json.dumps(value, ensure_ascii=False, default=str)

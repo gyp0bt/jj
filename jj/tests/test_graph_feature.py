@@ -2525,6 +2525,56 @@ class TestObsidianWarningDisplay:
         assert "go_idx1_v1.inp" in content
         assert "### サマリー" in content
 
+    def test_diff_unified_in_markdown_body(self, tmp_path):
+        """diff_unified形式がmarkdown本文にUnified Diffセクションとして出力される"""
+        from services.parse.connectors.obsidian import ObsidianConnector
+
+        diff_unified_text = "```diff\n- old_value\n+ new_value\n  unchanged\n```"
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1_v2",
+            format="inp",
+            properties={
+                "path": "go_idx1_v2.inp",
+                "index": "1",
+                "version": "2",
+                "diff_from": "go_idx1_v1.inp",
+                "diff_summary": "| Location | Status |\n|---|---|\n| step | 変更 |",
+                "diff_details": "## step\n変更あり",
+                "diff_unified": diff_unified_text,
+            },
+        )
+
+        connector = ObsidianConnector(project_root=tmp_path)
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+
+        assert "### Unified Diff" in content
+        assert "- old_value" in content
+        assert "+ new_value" in content
+
+    def test_diff_unified_not_shown_without_diff_from(self, tmp_path):
+        """diff_fromがない場合はdiffセクション自体が出力されない"""
+        from services.parse.connectors.obsidian import ObsidianConnector
+
+        node = Node(
+            id=1,
+            type="go",
+            name="go_idx1",
+            format="inp",
+            properties={
+                "path": "go_idx1.inp",
+                "diff_unified": "```diff\n- old\n+ new\n```",
+            },
+        )
+
+        connector = ObsidianConnector(project_root=tmp_path)
+        frontmatter = connector.node_to_frontmatter(node)
+        content = connector._format_md(frontmatter, node)
+
+        assert "### Unified Diff" not in content
+
     def test_no_warnings_section_when_clean(self, tmp_path):
         """warning/errorがない場合はセクションが表示されない"""
         from services.parse.connectors.obsidian import ObsidianConnector

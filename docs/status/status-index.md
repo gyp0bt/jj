@@ -43,6 +43,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [018](status-018.md) | 2026-02-17 | M2 | status-017 TODO実行: 設計仕様書・コネクター保存ビュー・ローカルフィルタ拡張・テスト拡充・CI統合 | claude/execute-status-todos-S8s5u |
 | [019](status-019.md) | 2026-02-18 | M2/M3 | status-018 TODO実行: 新構造パーサー・connector_config UI・CI統合・プラグイン検証・Neo4j設計 | claude/execute-status-todos-UcI3G |
 | [020](status-020.md) | 2026-02-18 | M2/M3 | M3前pymeshリファクタリング: tags削除・element_quality・トポロジー・include廃止・diff形式 | claude/setup-project-docs-PPYi8 |
+| [021](status-021.md) | 2026-02-18 | M2/M3 | status-020 TODO実行: Neo4jスキーマ反映・接頭辞キー表示対応・diff_unifiedエクスポート | claude/execute-status-todos-aP2p4 |
 
 ---
 

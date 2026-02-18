@@ -80,9 +80,45 @@ TYPE_TO_LABEL: dict[str, str] = {
     # 特殊ノードタイプ
     "abaqus_material": NodeLabel.JJ_MATERIAL,
     "abaqus_elset": NodeLabel.JJ_FILE,
+    "version_diff": NodeLabel.JJ_FILE,
     "run": NodeLabel.JJ_RUN,
     "tag": NodeLabel.JJ_TAG,
 }
+
+
+class PropertyKey:
+    """Neo4jプロパティキー定義（メッシュ解析関連）
+
+    Neo4jに格納される際の型変換:
+    - dict型 → JSON文字列（Neo4jはネストされたプロパティを扱えないため）
+    - list[list] → JSON文字列（同種型リスト以外はJSON化される）
+    - list[int|float|str] → Neo4jネイティブリスト
+    """
+
+    # メッシュ統計
+    MESH_NODE_COUNT = "mesh_node_count"
+    MESH_ELEMENT_COUNT = "mesh_element_count"
+
+    # メッシュ品質統計（要素タイプ別）
+    # 格納形式: JSON文字列 {"C3D8": {"element_count": N, "quality": {...}}, ...}
+    MESH_ELEMENT_QUALITY = "mesh_element_quality"
+
+    # メッシュトポロジーグループ（連結成分）
+    # 格納形式: JSON文字列 [["elset_a", "elset_b"], ["elset_c"]]
+    MESH_TOPOLOGY_GROUPS = "mesh_topology_groups"
+
+    # メッシュelsetサマリー
+    # 格納形式: JSON文字列 {"BODY": {"element_count": N, ...}, ...}
+    MESH_ELSET_SUMMARY = "mesh_elset_summary"
+
+    # メッシュ要素タイプ
+    # 格納形式: JSON文字列 {"C3D8": N, "C3D4": N, ...}
+    MESH_ELEMENT_TYPES = "mesh_element_types"
+
+    # diff関連
+    DIFF_SUMMARY = "diff_summary"
+    DIFF_DETAILS = "diff_details"
+    DIFF_UNIFIED = "diff_unified"
 
 
 def get_neo4j_label(node_type: str) -> str:

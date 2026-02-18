@@ -39,3 +39,9 @@ CREATE INDEX jjmaterial_project IF NOT EXISTS FOR (n:JJMaterial) ON (n.project);
 
 // JJRun検索用
 CREATE INDEX jjrun_project IF NOT EXISTS FOR (n:JJRun) ON (n.project);
+
+// === メッシュ関連プロパティインデックス ===
+
+// meshタイプのノード統計値検索（mesh_node_count, mesh_element_count）
+CREATE INDEX jjfile_mesh_node_count IF NOT EXISTS FOR (n:JJFile) ON (n.mesh_node_count);
+CREATE INDEX jjfile_mesh_element_count IF NOT EXISTS FOR (n:JJFile) ON (n.mesh_element_count);
