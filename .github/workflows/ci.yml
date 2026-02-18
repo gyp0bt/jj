@@ -58,6 +58,22 @@ jobs:
       - name: Run plugin integration tests
         run: pytest tests/test_plugin_integration.py --tb=short -q -v
 
+  python-dashboard-e2e:
+    name: "Python: dashboard E2E (Streamlit)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jj
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]" streamlit
+      - name: Run dashboard E2E tests
+        run: pytest tests/test_dashboard_e2e.py --tb=short -q -v
+
   # ─────────────────────────────────────────────
   # TypeScript (jjrv)
   # ─────────────────────────────────────────────
