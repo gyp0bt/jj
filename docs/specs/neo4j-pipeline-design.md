@@ -66,12 +66,16 @@ jjで構築したプロジェクトグラフをNeo4jに永続化し、jjrvから
 | データソース切替ファクトリ | Phase 6-N-06 | `src/lib/datasource/factory.ts` | 完了 |
 | ファサード（後方互換） | — | `src/lib/entity-repository.ts` | 完了 |
 
-### 未着手（jjrv側）
+### 完了済み（jjrv側 Phase 2）
 
-| コンポーネント | 設計文書 | 実装ファイル |
-|---------------|---------|-------------|
-| 接続設定UI | Phase 6-N-02 | `src/components/settings/` |
-| Neo4j検索アダプター | Phase 6-N-07 | `src/lib/datasource/neo4j-search.ts` |
+| コンポーネント | 設計文書 | 実装ファイル | 状態 |
+|---------------|---------|-------------|------|
+| 接続設定UI | Phase 6-N-02 | `src/components/DataSourceSettingsModal/` | 完了 |
+| 接続設定API | Phase 6-N-02 | `src/app/api/datasource/` | 完了 |
+| Neo4j検索アダプター | Phase 6-N-07 | `src/lib/datasource/neo4j-search.ts` | 完了 |
+| 検索API | Phase 6-N-07 | `src/app/api/datasource/search/` | 完了 |
+| ファクトリ切替テスト | — | `tests/test-datasource-factory.ts` | 完了 |
+| ドライバ設定テスト | — | `tests/test-neo4j-driver.ts` | 完了 |
 
 ---
 
@@ -217,7 +221,8 @@ jjrvではstring型IDを使用。変換ルール:
 
 - [x] Phase 2: jjrvのIEntityRepository抽象化 ✅ status-022で完了
 - [x] Neo4jドライバの選定 → neo4j-driver 6.0.1 採用
+- [x] 接続設定UI（Phase 6-N-02）✅ status-023で完了
+- [x] Neo4j検索アダプター（Phase 6-N-07）✅ status-023で完了
+- [x] 統合テスト（factory切替・ドライバ設定）✅ status-023で完了
 - [ ] Neo4j実環境でのエンドツーエンド検証（docker compose up → jj export → jjrv参照）
-- [ ] 接続設定UI（Phase 6-N-02）
-- [ ] Neo4j検索アダプター（Phase 6-N-07）
-- [ ] 統合テスト環境の構築（docker-compose + テストデータ）
+- [ ] Docker環境でのSQLite↔Neo4j切替のE2Eテスト
