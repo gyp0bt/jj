@@ -708,8 +708,6 @@ class TestOutputRelations:
         assert inp_node is not None, "go_idx1_w5_t20.inp ノードが見つからない"
         assert rf_node is not None, "go_idx1_w5_t20_RF.csv ノードが見つからない"
 
-        # RF はタグとして保持される
-        assert "RF" in rf_node.properties.get("tags", [])
 
         # has_output関係が存在
         relation = next(
@@ -1711,9 +1709,6 @@ class TestTokenKeyMap:
         node = svc.file_to_node(inp)
         # hogehoge24がpropに変換される
         assert node.properties.get("形状") == "hogehoge24"
-        # verbose_nameから導出されるtagには含まれる（translateされた値）
-        tags = node.properties.get("tags", [])
-        assert "hogehoge24" in tags  # verbose_name由来
 
     def test_token_key_map_with_vocab_value_translation(self, tmp_path):
         """token-key-map + vocab値変換で最終プロパティが正しい"""
@@ -3080,8 +3075,6 @@ class TestExportCSVJSON:
             read_rows = list(reader)
         assert len(read_rows) == 2
         assert read_rows[0]["name"] == "go_idx1"
-        # mesh_idx1のtagsはNone（null）
-        assert read_rows[1].get("tags", "") in ("", None, "None")
 
 
 class TestMaterialAssignmentProps:
@@ -3143,7 +3136,6 @@ class TestObsidianTagExport:
             name="go_idx1",
             format="inp",
             properties={
-                "tags": ["test"],
                 "index": "1",
                 "version": "1",
                 "path": "go_idx1.inp",
@@ -3164,7 +3156,6 @@ class TestObsidianTagExport:
             name="go_idx1",
             format="inp",
             properties={
-                "tags": [],
                 "index": "1",
                 "version": "1",
                 "path": "go_idx1.inp",
@@ -3187,7 +3178,6 @@ class TestObsidianTagExport:
             name="go_idx1",
             format="inp",
             properties={
-                "tags": ["test"],
                 "index": "1",
                 "version": "1",
                 "path": "go_idx1.inp",
@@ -3197,40 +3187,8 @@ class TestObsidianTagExport:
         fm = connector.node_to_frontmatter(node)
         content = connector._format_md(fm, node)
         assert "#go" in content
-        assert "#test" in content
 
 
-class TestVerboseNameTags:
-    """verbose_name由来のタグ生成テスト"""
-
-    def test_verbose_name_split_creates_tags(self, tmp_path):
-        """verbose_nameを_でsplitした結果がタグに含まれる"""
-        config = GraphConfig.from_dict(
-            {
-                "vocab": {"go": "計算入力", "idx": "条件"},
-            }
-        )
-        svc = GraphService(project_root=tmp_path, config=config)
-        (tmp_path / "go_idx1_v1.inp").write_text("")
-        node = svc.file_to_node(tmp_path / "go_idx1_v1.inp")
-        tags = node.properties.get("tags", [])
-        # verbose_name = "計算入力_条件1_v1" → ["計算入力", "条件1", "v1"]
-        assert "計算入力" in tags
-        assert "条件1" in tags
-
-    def test_verbose_name_tags_no_duplicates(self, tmp_path):
-        """verbose_name由来のタグに重複がない"""
-        config = GraphConfig.from_dict(
-            {
-                "vocab": {"go": "計算入力"},
-            }
-        )
-        svc = GraphService(project_root=tmp_path, config=config)
-        (tmp_path / "go_idx1.inp").write_text("")
-        node = svc.file_to_node(tmp_path / "go_idx1.inp")
-        tags = node.properties.get("tags", [])
-        # 重複なし
-        assert len(tags) == len(set(tags))
 
 
 class TestVersionKeyUnification:
@@ -3324,9 +3282,6 @@ class TestTokenKeyMapVerboseName:
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "mesh_hogehoge24_v1_idx1.inp").write_text("")
         node = svc.file_to_node(tmp_path / "mesh_hogehoge24_v1_idx1.inp")
-        tags = node.properties.get("tags", [])
-        # verbose_name由来のtagに翻訳済み値が含まれる
-        assert "ほげほげ24" in tags
 
 
 class TestStaEnrichmentOnly:
@@ -3446,10 +3401,6 @@ class TestMaterialVerboseNameEnrichment:
             None,
         )
         assert mat_node is not None
-        tags = mat_node.properties.get("tags", [])
-        # 元のケース（NAME=Steel）を保持
-        assert "Steel" in tags
-        assert "材料定義" in tags
 
 
 class TestRootDirectoryNode:
@@ -3470,9 +3421,6 @@ class TestRootDirectoryNode:
         assert root_node is not None
         assert root_node.type == "directory"
         assert root_node.name == tmp_path.name  # フォルダ名がname
-        tags = root_node.properties.get("tags", [])
-        assert "root" in tags
-        assert "directory" in tags
 
     def test_root_directory_with_project_name(self, tmp_path):
         """project-name設定時はその名前をrootのnameに使用"""

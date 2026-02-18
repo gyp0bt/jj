@@ -101,7 +101,6 @@ def get_material_table(provider: DashboardDataProvider) -> list[dict[str, Any]]:
                 "path",
                 "include_properties",
                 "source_file",
-                "tags",
                 "verbose_name",
                 vn_key,
                 "assigned_elsets",

@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 _SKIP_KEYS: frozenset[str] = frozenset(
     {
         "path",
-        "tags",
         "active",
         "verbose_name",
         "date",

@@ -445,7 +445,6 @@ class TestRootDirectoryParser:
         dir_nodes = [n for n in result.nodes if n.format == "directory"]
         assert len(dir_nodes) == 1
         assert dir_nodes[0].properties["path"] == "."
-        assert "root" in dir_nodes[0].properties["tags"]
 
     def test_contains_relation_for_root_files(self, config: GraphConfig):
         from services.parse.parsers.directory_parser import RootDirectoryParser

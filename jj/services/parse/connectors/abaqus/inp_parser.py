@@ -202,16 +202,11 @@ class AbaqusInpParser(AbstractFileParser):
                 properties: dict[str, Any] = {
                     "source_file": node.properties.get("path", ""),
                     "keywords": mat["keywords"],
-                    "tags": list(mat_tags),
                     **translated_props,
                 }
 
                 if verbose_name and verbose_name != mat_name:
                     properties["verbose_name"] = verbose_name
-                    # verbose_nameの各部分をタグに追加
-                    for vt in verbose_name.split("_"):
-                        if vt and vt not in properties["tags"]:
-                            properties["tags"].append(vt)
 
                 for keyword, data in mat["properties"].items():
                     properties[keyword] = data
@@ -246,7 +241,7 @@ class AbaqusInpParser(AbstractFileParser):
         mat_nodes: list[Node],
         mat_relations: list[Relation],
     ) -> None:
-        """material.inpのverbose_nameに含まれる材料名を設定しタグ化"""
+        """material.inpのverbose_nameに含まれる材料名を設定"""
         source_materials: dict[int, list[str]] = defaultdict(list)
         for rel in mat_relations:
             if rel.label == "defined_in":
@@ -269,12 +264,6 @@ class AbaqusInpParser(AbstractFileParser):
             vn_parts = [type_name, *mat_names]
             verbose_name = "_".join(vn_parts)
             node.properties["verbose_name"] = verbose_name
-
-            tags = node.properties.get("tags", [])
-            for part in vn_parts:
-                if part and part not in tags:
-                    tags.append(part)
-            node.properties["tags"] = tags
 
 
 class AbaqusMaterialAssignmentParser(AbstractFileParser):
