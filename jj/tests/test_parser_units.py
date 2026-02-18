@@ -3944,6 +3944,342 @@ class TestResultsMetadataParserNegativeValues:
 
 
 # ====================================================================
+# ResultsMetadataParser 新構造（GOノードベースディレクトリ）テスト
+# ====================================================================
+
+
+class TestResultsMetadataParserNewStructure:
+    """ResultsMetadataParser の新構造（GOノードベースディレクトリ）テスト
+
+    新構造: results/{go_basename}/ ディレクトリに結果ファイルを配置
+    ファイル名パターン: {result_key}[_{step_info}][_{params}].{ext}
+    """
+
+    def test_new_structure_extracts_metadata(self, config: GraphConfig, tmp_path: Path):
+        """新構造のファイルからメタデータを抽出する"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="S-S33_step0_frame10_vmax10.0_vmin5.0",
+                format="png",
+                properties={"path": "results/go_idx1.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        png_node = result.get_node_by_id(2)
+        assert png_node is not None
+        assert png_node.properties["step"] == "0"
+        assert png_node.properties["frame"] == "10"
+        assert png_node.properties["vmax"] == "10.0"
+        assert png_node.properties["vmin"] == "5.0"
+        assert png_node.properties["result_key"] == "S-S33"
+
+    def test_new_structure_assigns_results_to_go_inp(self, config: GraphConfig, tmp_path: Path):
+        """新構造: go_*.inpノードにresults.{result_key}プロパティが割り当てられる"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="S-S33_step0_frame10_vmax10.0_vmin5.0",
+                format="png",
+                properties={"path": "results/go_idx1.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        inp_node = result.get_node_by_id(1)
+        assert inp_node is not None
+        assert "results.S-S33" in inp_node.properties
+        entries = inp_node.properties["results.S-S33"]
+        assert isinstance(entries, list)
+        assert len(entries) == 1
+        assert entries[0]["path"] == "results/go_idx1.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png"
+        assert entries[0]["step"] == "0"
+        assert entries[0]["frame"] == "10"
+        assert entries[0]["vmax"] == "10.0"
+        assert entries[0]["vmin"] == "5.0"
+
+    def test_new_structure_multiple_result_keys(self, config: GraphConfig, tmp_path: Path):
+        """新構造: 異なるresult_keyは別のプロパティキーとして格納される"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="S-S33_step0_frame10_vmax10.0_vmin5.0",
+                format="png",
+                properties={"path": "results/go_idx1.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png"},
+            ),
+            Node(
+                id=3,
+                type="unknown",
+                name="U-U3_step0_frame10_vmax1.0_vmin0.5",
+                format="png",
+                properties={"path": "results/go_idx1.v1/U-U3_step0_frame10_vmax1.0_vmin0.5.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        inp_node = result.get_node_by_id(1)
+        assert inp_node is not None
+        assert "results.S-S33" in inp_node.properties
+        assert "results.U-U3" in inp_node.properties
+        assert len(inp_node.properties["results.S-S33"]) == 1
+        assert len(inp_node.properties["results.U-U3"]) == 1
+
+    def test_new_structure_json_metadata_file(self, config: GraphConfig, tmp_path: Path):
+        """新構造: JSONメタデータファイル（stress.json等）もresult_keyとして扱う"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="stress",
+                format="json",
+                properties={"path": "results/go_idx1.v1/stress.json"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        inp_node = result.get_node_by_id(1)
+        assert inp_node is not None
+        assert "results.stress" in inp_node.properties
+        entries = inp_node.properties["results.stress"]
+        assert len(entries) == 1
+        assert entries[0]["path"] == "results/go_idx1.v1/stress.json"
+
+    def test_new_structure_multiple_entries_different_steps(self, config: GraphConfig, tmp_path: Path):
+        """新構造: 同じresult_keyでstep違いは別エントリとして格納される"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="S-S33_step0_frame10_vmax10.0_vmin5.0",
+                format="png",
+                properties={"path": "results/go_idx1.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png"},
+            ),
+            Node(
+                id=3,
+                type="unknown",
+                name="S-S33_step1_frame20_vmax15.0_vmin3.0",
+                format="png",
+                properties={"path": "results/go_idx1.v1/S-S33_step1_frame20_vmax15.0_vmin3.0.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        inp_node = result.get_node_by_id(1)
+        assert inp_node is not None
+        entries = inp_node.properties["results.S-S33"]
+        assert isinstance(entries, list)
+        assert len(entries) == 2
+        steps = {e["step"] for e in entries}
+        assert steps == {"0", "1"}
+
+    def test_new_structure_unmatched_go_dir_ignored(self, config: GraphConfig, tmp_path: Path):
+        """新構造: go_basenamesに存在しないディレクトリは無視する"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="S-S33_step0_frame10_vmax10.0_vmin5.0",
+                format="png",
+                properties={"path": "results/go_idx99.v1/S-S33_step0_frame10_vmax10.0_vmin5.0.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        inp_node = result.get_node_by_id(1)
+        assert inp_node is not None
+        results_keys = [k for k in inp_node.properties if k.startswith("results.")]
+        assert len(results_keys) == 0
+
+    def test_new_structure_negative_values(self, config: GraphConfig, tmp_path: Path):
+        """新構造: 負の値を含むパラメータが正しくパースされる"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v3",
+                format="inp",
+                properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+            ),
+            Node(
+                id=2,
+                type="unknown",
+                name="S-S13_step0_frame10_vmax50.0_vmin-50.0",
+                format="png",
+                properties={"path": "results/go_idx1.v3/S-S13_step0_frame10_vmax50.0_vmin-50.0.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        png_node = result.get_node_by_id(2)
+        assert png_node is not None
+        assert png_node.properties["vmax"] == "50.0"
+        assert png_node.properties["vmin"] == "-50.0"
+        assert png_node.properties["result_key"] == "S-S13"
+
+    def test_mixed_old_and_new_structure(self, config: GraphConfig, tmp_path: Path):
+        """旧構造と新構造が混在するケースで両方正しく処理される"""
+        from services.parse.parsers.results_metadata_parser import ResultsMetadataParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1.v1",
+                format="inp",
+                properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
+            ),
+            # 旧構造
+            Node(
+                id=2,
+                type="unknown",
+                name="go_idx1.v1_S-S33_vmax10.0_vmin5.0",
+                format="png",
+                properties={"path": "results/step0_frame10/go_idx1.v1_S-S33_vmax10.0_vmin5.0.png"},
+            ),
+            # 新構造
+            Node(
+                id=3,
+                type="unknown",
+                name="U-U3_step0_frame10_vmax1.0_vmin0.5",
+                format="png",
+                properties={"path": "results/go_idx1.v1/U-U3_step0_frame10_vmax1.0_vmin0.5.png"},
+            ),
+        ]
+        graph = _make_graph(nodes, config=config, project_root=tmp_path)
+        result = ResultsMetadataParser().apply(graph)
+
+        inp_node = result.get_node_by_id(1)
+        assert inp_node is not None
+        # 旧構造のresult
+        assert "results.S-S33" in inp_node.properties
+        assert len(inp_node.properties["results.S-S33"]) == 1
+        # 新構造のresult
+        assert "results.U-U3" in inp_node.properties
+        assert len(inp_node.properties["results.U-U3"]) == 1
+
+
+class TestNewResultFilenameParser:
+    """_parse_new_result_filename のヘルパー関数テスト"""
+
+    def test_basic_with_step_frame_params(self):
+        """基本パターン: result_key + step/frame + vmax/vmin"""
+        from services.parse.parsers.results_metadata_parser import _parse_new_result_filename
+
+        key, params = _parse_new_result_filename("S-S33_step0_frame10_vmax10.0_vmin5.0")
+        assert key == "S-S33"
+        assert params == {"step": "0", "frame": "10", "vmax": "10.0", "vmin": "5.0"}
+
+    def test_simple_name_no_params(self):
+        """パラメータなしのシンプルなファイル名"""
+        from services.parse.parsers.results_metadata_parser import _parse_new_result_filename
+
+        key, params = _parse_new_result_filename("stress")
+        assert key == "stress"
+        assert params == {}
+
+    def test_result_key_with_step_frame_only(self):
+        """step/frameのみ（vmax/vminなし）"""
+        from services.parse.parsers.results_metadata_parser import _parse_new_result_filename
+
+        key, params = _parse_new_result_filename("PEEQ_step0_frame10")
+        assert key == "PEEQ"
+        assert params == {"step": "0", "frame": "10"}
+
+    def test_empty_string(self):
+        """空文字列"""
+        from services.parse.parsers.results_metadata_parser import _parse_new_result_filename
+
+        key, params = _parse_new_result_filename("")
+        assert key == ""
+        assert params == {}
+
+    def test_negative_value(self):
+        """負の値"""
+        from services.parse.parsers.results_metadata_parser import _parse_new_result_filename
+
+        key, params = _parse_new_result_filename("S-S13_vmax50.0_vmin-50.0")
+        assert key == "S-S13"
+        assert params == {"vmax": "50.0", "vmin": "-50.0"}
+
+    def test_is_go_node_directory(self):
+        """GOノードディレクトリ判定"""
+        from services.parse.parsers.results_metadata_parser import _is_go_node_directory
+
+        assert _is_go_node_directory("go_idx1.v1") is True
+        assert _is_go_node_directory("go_idx2.v3") is True
+        assert _is_go_node_directory("go") is True
+        assert _is_go_node_directory("step0_frame10") is False
+        assert _is_go_node_directory("contours") is False
+
+
+# ====================================================================
 # DisplayNameParser テスト
 # ====================================================================
 
