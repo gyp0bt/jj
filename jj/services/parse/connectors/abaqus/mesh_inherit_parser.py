@@ -46,7 +46,7 @@ _SKIP_KEYS: frozenset[str] = frozenset(
 _MERGE_DICT_KEYS: frozenset[str] = frozenset(
     {
         "mesh_elset_summary",
-        "mesh_elset_quality",
+        "mesh_element_quality",
         "mesh_element_types",
     }
 )

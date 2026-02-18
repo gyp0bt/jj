@@ -793,7 +793,7 @@ class TestMeshInheritParser:
                 properties={
                     "path": "mesh_part1.inp",
                     "mesh_elset_summary": {"ELSET_A": 100, "ELSET_B": 200},
-                    "mesh_elset_quality": {"ELSET_A": {"quality": {"volume": {"mean": 0.5}}}},
+                    "mesh_element_quality": {"C3D8": {"element_count": 300, "quality": {"volume": {"mean": 0.5}}}},
                     "mesh_element_types": {"C3D8": 300},
                 },
             ),
@@ -805,7 +805,7 @@ class TestMeshInheritParser:
                 properties={
                     "path": "mesh_part2.inp",
                     "mesh_elset_summary": {"ELSET_C": 150},
-                    "mesh_elset_quality": {"ELSET_C": {"quality": {"volume": {"mean": 0.7}}}},
+                    "mesh_element_quality": {"C3D6": {"element_count": 150, "quality": {"volume": {"mean": 0.7}}}},
                     "mesh_element_types": {"C3D6": 150},
                 },
             ),
@@ -823,10 +823,10 @@ class TestMeshInheritParser:
         assert summary["ELSET_A"] == 100
         assert summary["ELSET_B"] == 200
         assert summary["ELSET_C"] == 150
-        # mesh_elset_qualityもマージされている
-        quality = go_node.properties["mesh_elset_quality"]
-        assert "ELSET_A" in quality
-        assert "ELSET_C" in quality
+        # mesh_element_qualityもマージされている
+        quality = go_node.properties["mesh_element_quality"]
+        assert "C3D8" in quality
+        assert "C3D6" in quality
         # mesh_element_typesもマージされている
         elem_types = go_node.properties["mesh_element_types"]
         assert elem_types["C3D8"] == 300
@@ -1649,11 +1649,11 @@ class TestIncludeSearchDepthConfig:
             GraphConfig.from_dict({"vocab": {}, "include-search-depth": -1})
 
 
-class TestElsetQualityStats:
-    """Elsetごとの品質統計テスト"""
+class TestElementQualityStats:
+    """*ELEMENTキーワードブロック（要素タイプ）ごとの品質統計テスト"""
 
-    def test_elset_quality_property_on_elset_node(self, config: GraphConfig):
-        """mesh_elset_qualityからelsetノードにqualityが付与される"""
+    def test_elset_node_created_without_quality(self, config: GraphConfig):
+        """elsetノードが作成される（qualityは要素タイプ別のため個別elsetにはない）"""
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
@@ -1666,17 +1666,11 @@ class TestElsetQualityStats:
                     "path": "go_idx1.inp",
                     "index": "1",
                     "mesh_elset_summary": {"BODY": 100, "SKIN": 50},
-                    "mesh_elset_quality": {
-                        "BODY": {
-                            "element_count": 100,
+                    "mesh_element_quality": {
+                        "C3D8": {
+                            "element_count": 150,
                             "quality": {
                                 "volume": {"min": 0.1, "max": 1.0, "mean": 0.5},
-                            },
-                        },
-                        "SKIN": {
-                            "element_count": 50,
-                            "quality": {
-                                "volume": {"min": 0.2, "max": 0.8, "mean": 0.4},
                             },
                         },
                     },
@@ -1687,13 +1681,13 @@ class TestElsetQualityStats:
         result = AbaqusElsetParser().apply(graph)
 
         elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
-        assert "quality" in elset_nodes["BODY"].properties
-        assert elset_nodes["BODY"].properties["quality"]["volume"]["mean"] == 0.5
-        assert "quality" in elset_nodes["SKIN"].properties
-        assert elset_nodes["SKIN"].properties["quality"]["volume"]["mean"] == 0.4
+        assert "BODY" in elset_nodes
+        assert "SKIN" in elset_nodes
+        assert elset_nodes["BODY"].properties["element_count"] == 100
+        assert elset_nodes["SKIN"].properties["element_count"] == 50
 
-    def test_elset_quality_from_include_child(self, config: GraphConfig):
-        """include先からもelset品質統計が統合される"""
+    def test_elset_from_include_child(self, config: GraphConfig):
+        """include先のelsetもノード化される"""
         from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
 
         nodes = [
@@ -1706,14 +1700,6 @@ class TestElsetQualityStats:
                 properties={
                     "path": "mesh_t50.inp",
                     "mesh_elset_summary": {"PART_A": 200},
-                    "mesh_elset_quality": {
-                        "PART_A": {
-                            "element_count": 200,
-                            "quality": {
-                                "aspect_ratio": {"min": 1.0, "max": 3.0, "mean": 1.5},
-                            },
-                        },
-                    },
                 },
             ),
         ]
@@ -1724,8 +1710,8 @@ class TestElsetQualityStats:
         result = AbaqusElsetParser().apply(graph)
 
         elset_nodes = {n.name: n for n in result.nodes if n.type == "abaqus_elset"}
-        assert "quality" in elset_nodes["PART_A"].properties
-        assert elset_nodes["PART_A"].properties["quality"]["aspect_ratio"]["mean"] == 1.5
+        assert "PART_A" in elset_nodes
+        assert elset_nodes["PART_A"].properties["element_count"] == 200
 
 
 class TestIncludesParserCache:

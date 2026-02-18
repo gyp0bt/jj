@@ -441,10 +441,6 @@ class AbaqusElsetParser(AbstractFileParser):
                 src_summary = src_node.properties.get("mesh_elset_summary", {})
                 if not isinstance(src_summary, dict):
                     continue
-                src_quality = src_node.properties.get("mesh_elset_quality", {})
-                if not isinstance(src_quality, dict):
-                    src_quality = {}
-
                 for elset_name in sorted(src_summary.keys()):
                     elset_props: dict[str, Any] = {
                         "verbose_name": elset_name,
@@ -454,12 +450,6 @@ class AbaqusElsetParser(AbstractFileParser):
 
                     # elset別element数
                     elset_props["element_count"] = src_summary[elset_name]
-
-                    # elset別品質統計
-                    if elset_name in src_quality:
-                        eq = src_quality[elset_name]
-                        if isinstance(eq, dict) and "quality" in eq:
-                            elset_props["quality"] = eq["quality"]
 
                     # 材料割り当て
                     assigned_material_name = elset_to_material.get(elset_name)

@@ -81,7 +81,7 @@ class AbaqusMeshParser(AbstractFileParser):
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus.mesh import (
-            extract_elset_quality_stats,
+            extract_element_quality_stats,
             extract_mesh_stats,
         )
 
@@ -124,9 +124,9 @@ class AbaqusMeshParser(AbstractFileParser):
                     f"element_count={stats.get('element_count', 0)})"
                 )
 
-            # Elsetごとの品質統計
-            elset_quality = extract_elset_quality_stats(file_path, verbose=False, cached_abq_data=cached_abq)
-            if elset_quality:
-                node.properties["mesh_elset_quality"] = elset_quality
+            # *ELEMENTキーワードブロック（要素タイプ）ごとの品質統計
+            element_quality = extract_element_quality_stats(file_path, verbose=False, cached_abq_data=cached_abq)
+            if element_quality:
+                node.properties["mesh_element_quality"] = element_quality
 
         return graph
