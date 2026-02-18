@@ -548,3 +548,77 @@ class TestDashboardHtmlExportE2E:
         # コネクターページのHTMLが含まれる（物性一覧 or ジョブサマリー）
         has_connector = "物性一覧" in html or "ジョブサマリー" in html or "メッシュ品質" in html
         assert has_connector
+
+
+# ====================================================================
+# connector_config スキーマテスト
+# ====================================================================
+
+
+class TestConnectorConfigSchema:
+    """DashboardPageConnectorのget_connector_config_schemaテスト"""
+
+    def test_material_connector_has_schema(self):
+        """AbaqusMaterialPageConnectorがスキーマを返す"""
+        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+
+        schema = AbaqusMaterialPageConnector.get_connector_config_schema()
+        assert len(schema) == 3
+        keys = [f["key"] for f in schema]
+        assert "material_name" in keys
+        assert "property_key" in keys
+        assert "compare_materials" in keys
+
+    def test_mesh_quality_connector_has_schema(self):
+        """AbaqusMeshQualityPageConnectorがスキーマを返す"""
+        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+
+        schema = AbaqusMeshQualityPageConnector.get_connector_config_schema()
+        assert len(schema) == 2
+        keys = [f["key"] for f in schema]
+        assert "go_name" in keys
+        assert "show_elset" in keys
+        # show_elsetはcheckbox型
+        elset_field = next(f for f in schema if f["key"] == "show_elset")
+        assert elset_field["type"] == "checkbox"
+
+    def test_job_summary_connector_has_schema(self):
+        """AbaqusJobSummaryPageConnectorがスキーマを返す"""
+        from services.dashboard.connectors.abaqus import AbaqusJobSummaryPageConnector
+
+        schema = AbaqusJobSummaryPageConnector.get_connector_config_schema()
+        assert len(schema) == 2
+        keys = [f["key"] for f in schema]
+        assert "status_filter" in keys
+        assert "go_name" in keys
+
+    def test_base_connector_returns_empty_schema(self):
+        """基底クラスは空のスキーマを返す"""
+        from services.dashboard.connectors import DashboardPageConnector
+
+        schema = DashboardPageConnector.get_connector_config_schema()
+        assert schema == []
+
+    def test_get_connector_config_schema_by_label(self):
+        """get_connector_config_schema関数でページラベルからスキーマを取得"""
+        from services.dashboard.connectors import get_connector_config_schema
+
+        schema = get_connector_config_schema("物性一覧")
+        assert len(schema) == 3
+
+        schema = get_connector_config_schema("メッシュ品質")
+        assert len(schema) == 2
+
+        schema = get_connector_config_schema("存在しないページ")
+        assert schema == []
+
+    def test_schema_fields_have_required_keys(self):
+        """スキーマの各フィールドがkey, label, typeを持つ"""
+        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+
+        schema = AbaqusMaterialPageConnector.get_connector_config_schema()
+        for field in schema:
+            assert "key" in field
+            assert "label" in field
+            assert "type" in field
+            assert field["type"] in ("text", "checkbox")

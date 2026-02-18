@@ -529,6 +529,19 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
     page_label = "物性一覧"
     connector_key = "abaqus"
 
+    @classmethod
+    def get_connector_config_schema(cls) -> list[dict[str, Any]]:
+        return [
+            {"key": "material_name", "label": "物性名", "type": "text", "help": "特定物性の詳細表示（空で全物性）"},
+            {"key": "property_key", "label": "プロパティキー", "type": "text", "help": "カーブ表示キー（例: plastic）"},
+            {
+                "key": "compare_materials",
+                "label": "比較物性名（カンマ区切り）",
+                "type": "text",
+                "help": "複数物性を比較表示",
+            },
+        ]
+
     def is_available(self, provider: DashboardDataProvider) -> bool:
         """abaqus_materialノードが1つ以上存在するか判定"""
         return any(n.type == "abaqus_material" for n in provider.graph.nodes)
@@ -606,6 +619,13 @@ class AbaqusMeshQualityPageConnector(DashboardPageConnector):
     page_label = "メッシュ品質"
     connector_key = "abaqus"
 
+    @classmethod
+    def get_connector_config_schema(cls) -> list[dict[str, Any]]:
+        return [
+            {"key": "go_name", "label": "GOノード名", "type": "text", "help": "特定GOノードに絞り込み"},
+            {"key": "show_elset", "label": "elset品質を表示", "type": "checkbox", "help": "elset品質サマリーの表示"},
+        ]
+
     def is_available(self, provider: DashboardDataProvider) -> bool:
         """メッシュ関連データが1つ以上存在するか判定"""
         for n in provider.graph.nodes:
@@ -664,6 +684,18 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
 
     page_label = "ジョブサマリー"
     connector_key = "abaqus"
+
+    @classmethod
+    def get_connector_config_schema(cls) -> list[dict[str, Any]]:
+        return [
+            {
+                "key": "status_filter",
+                "label": "ステータスフィルタ",
+                "type": "text",
+                "help": "解析ステータスでフィルタ（例: COMPLETED）",
+            },
+            {"key": "go_name", "label": "GOノード名", "type": "text", "help": "特定GOノードに絞り込み"},
+        ]
 
     def is_available(self, provider: DashboardDataProvider) -> bool:
         """ジョブ関連データが1つ以上存在するか判定"""
