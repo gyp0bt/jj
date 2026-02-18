@@ -13,6 +13,9 @@
 | TorchCheckpointParser | 58 | PyTorchチェックポイント検出・メタデータ抽出 |
 | SklearnModelParser | 59 | scikit-learnシリアライズ済みモデル検出 |
 | ExperimentRunParser | 60 | 実験ディレクトリ構造認識・メトリクス抽出 |
+| OptimizationRunParser | 62 | Optunaスタディ構造認識・メタデータ抽出 |
+| MLDataFlowParser | 65 | スクリプト→データセット→モデル間リレーション構築 |
+| SurrogateWorkflowDetector | 70 | CAE↔ML層間リレーション検出 |
 
 ## ファイル構造
 
@@ -21,6 +24,7 @@
 - .pkl/.joblib: scikit-learnモデル
 - .csv/.parquet/.h5/.npy: データセット
 - .yaml/.json/.toml: 実験設定ファイル
+- .db: Optuna最適化スタディ
 
 [READMEへ戻る](../../../../README.md)
 """
@@ -42,12 +46,17 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
+    # Phase 2-3: 基本MLパーサー (55-60)
+    # Phase 4: 最適化・データフロー・サロゲートモデル (62-70)
     import services.parse.connectors.ml.checkpoint_parser
     import services.parse.connectors.ml.config_parser
+    import services.parse.connectors.ml.dataflow_parser
     import services.parse.connectors.ml.dataset_parser
     import services.parse.connectors.ml.experiment_parser
     import services.parse.connectors.ml.model_parser
+    import services.parse.connectors.ml.optimization_parser
     import services.parse.connectors.ml.script_parser
+    import services.parse.connectors.ml.surrogate_detector
 
     # importの副作用（__init_subclass__）でパーサーが登録される
     del services
