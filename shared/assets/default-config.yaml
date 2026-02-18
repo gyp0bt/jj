@@ -181,6 +181,16 @@ path-property-map:
 #       filename-pattern: standard
 #       input-extensions: [".aedt"]
 #       result-extensions: [".csv", ".s2p"]
+#     ml-pytorch:
+#       source-unit: directory
+#       filename-pattern: none
+#       input-extensions: [".py", ".yaml", ".json"]
+#       result-extensions: [".pt", ".pth", ".ckpt", ".csv", ".json"]
+#     ml-sklearn:
+#       source-unit: directory
+#       filename-pattern: none
+#       input-extensions: [".py", ".yaml", ".json"]
+#       result-extensions: [".pkl", ".joblib", ".csv", ".json"]
 # solver-profiles:
 
 # ========================================================================
@@ -195,6 +205,8 @@ path-property-map:
 #     "**/system/controlDict": openfoam
 #     "**/*.cas.h5": fluent
 #     "**/*.aedt": hfss
+#     "**/*.pt | **/*.pth | **/*.ckpt": ml-pytorch
+#     "**/*.pkl | **/*.joblib": ml-sklearn
 # solver-detection:
 
 # ========================================================================
