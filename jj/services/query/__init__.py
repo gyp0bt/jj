@@ -34,6 +34,7 @@ from services.query.filters import (
     saved_view_filters_to_provider_filters,
 )
 from services.query.sort import (
+    get_base_key,
     select_table_columns,
     sort_columns_by_vocab,
 )
@@ -44,12 +45,11 @@ __all__ = [
     "apply_filters",
     "apply_prop_filters",
     "apply_saved_view_filters",
-    # filters
+    "get_base_key",
     "is_truthy",
     "node_prop_getter",
     "parse_prop_filters",
     "saved_view_filters_to_provider_filters",
     "select_table_columns",
-    # sort
     "sort_columns_by_vocab",
 ]

@@ -237,12 +237,17 @@ class DashboardDataProvider:
         vocab辞書の値（日本語表記）の出現順を優先し、
         vocabに含まれないキーは文字列昇順で後に配置する。
 
+        接頭辞エスケープキー（child_name:key）はベースキー（key部分）で
+        vocab照合を試み、ベースキーの直後にソートされる。
+
         Args:
             keys: ソート対象のキー集合
 
         Returns:
             vocab順→文字列昇順のリスト
         """
+        from services.query.sort import get_base_key
+
         # vocabの値（翻訳後キー名）の順序マップを構築
         vocab_order: dict[str, int] = {}
         for idx, v in enumerate(self.vocab.values()):
@@ -253,13 +258,17 @@ class DashboardDataProvider:
             if k not in vocab_order:
                 vocab_order[k] = len(self.vocab) + idx
 
-        in_vocab = [k for k in keys if k in vocab_order]
-        not_in_vocab = [k for k in keys if k not in vocab_order]
+        max_order = len(vocab_order) + len(self.vocab)
 
-        in_vocab.sort(key=lambda k: vocab_order[k])
-        not_in_vocab.sort()
+        def _sort_key(col: str) -> tuple[int, int, str]:
+            if col in vocab_order:
+                return (vocab_order[col], 0, col)
+            base = get_base_key(col)
+            if base != col and base in vocab_order:
+                return (vocab_order[base], 1, col)
+            return (max_order, 0, col)
 
-        return in_vocab + not_in_vocab
+        return sorted(keys, key=_sort_key)
 
     def get_status_summary(self) -> dict[str, Any]:
         """実行ステータスサマリー

@@ -401,6 +401,32 @@ class TestSortColumnsByVocab:
         result = sort_columns_by_vocab(["c", "a", "b"], {})
         assert result == ["a", "b", "c"]
 
+    def test_prefixed_key_sorted_after_base(self):
+        """接頭辞エスケープキーがベースキーの直後にソートされる"""
+        from services.query import sort_columns_by_vocab
+
+        vocab = {"mesh_node_count": "ノード数", "mesh_element_count": "要素数"}
+        columns = ["mesh_t50:mesh_node_count", "mesh_node_count", "mesh_element_count", "z_col"]
+        result = sort_columns_by_vocab(columns, vocab)
+        # ノード数 → mesh_t50:ノード数 → 要素数 → z_col
+        assert result.index("mesh_node_count") < result.index("mesh_t50:mesh_node_count")
+        assert result.index("mesh_t50:mesh_node_count") < result.index("mesh_element_count")
+        assert result.index("mesh_element_count") < result.index("z_col")
+
+    def test_multiple_prefixed_keys_grouped(self):
+        """同じベースキーの接頭辞キーが近接してソートされる"""
+        from services.query import sort_columns_by_vocab
+
+        vocab = {"mesh_node_count": "ノード数"}
+        columns = ["mesh_t50:mesh_node_count", "mesh_t30:mesh_node_count", "mesh_node_count", "z_col"]
+        result = sort_columns_by_vocab(columns, vocab)
+        # mesh_node_count → (t30, t50の順で接頭辞付き) → z_col
+        nc_idx = result.index("mesh_node_count")
+        t30_idx = result.index("mesh_t30:mesh_node_count")
+        t50_idx = result.index("mesh_t50:mesh_node_count")
+        z_idx = result.index("z_col")
+        assert nc_idx < t30_idx < t50_idx < z_idx
+
 
 class TestSelectTableColumns:
     """select_table_columns のテスト"""
@@ -447,6 +473,48 @@ class TestSelectTableColumns:
         vocab = {"a_col": "A列", "b_col": "B列"}
         result = select_table_columns(all_cols, None, vocab=vocab)
         assert result[0] == "name"
+
+    def test_prefixed_key_matches_base_pattern(self):
+        """接頭辞キーがベースキーのglobパターンにマッチする"""
+        from services.query import select_table_columns
+
+        all_cols = ["name", "type", "format", "mesh_node_count", "mesh_t50:mesh_node_count", "other"]
+        result = select_table_columns(all_cols, ["mesh_*"])
+        assert "mesh_node_count" in result
+        assert "mesh_t50:mesh_node_count" in result
+        assert "other" not in result
+
+    def test_prefixed_key_exact_match(self):
+        """接頭辞キーがベースキーの完全一致でマッチする"""
+        from services.query import select_table_columns
+
+        all_cols = ["name", "type", "format", "mesh_t50:mesh_node_count"]
+        result = select_table_columns(all_cols, ["mesh_node_count"])
+        assert "mesh_t50:mesh_node_count" in result
+
+
+class TestGetBaseKey:
+    """get_base_key のテスト"""
+
+    def test_plain_key(self):
+        from services.query.sort import get_base_key
+
+        assert get_base_key("mesh_node_count") == "mesh_node_count"
+
+    def test_prefixed_key(self):
+        from services.query.sort import get_base_key
+
+        assert get_base_key("mesh_t50:mesh_node_count") == "mesh_node_count"
+
+    def test_multiple_colons(self):
+        from services.query.sort import get_base_key
+
+        assert get_base_key("a:b:c") == "b:c"
+
+    def test_empty_prefix(self):
+        from services.query.sort import get_base_key
+
+        assert get_base_key(":key") == "key"
 
 
 # ====================================================================
