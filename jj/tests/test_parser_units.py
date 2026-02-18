@@ -1274,6 +1274,7 @@ class TestAbaqusDiffParser:
         assert diff_node.properties["diff_to"] == "go_idx1_v2.inp"
         assert "diff_summary" in diff_node.properties
         assert "diff_details" in diff_node.properties
+        assert "diff_unified" in diff_node.properties
 
         # diff_from/diff_to relationが作成される
         diff_from_rels = [r for r in result.relations if r.label == "diff_from"]
