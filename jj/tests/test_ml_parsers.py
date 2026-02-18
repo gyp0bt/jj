@@ -1,8 +1,8 @@
 """MLパーサーユニットテスト
 
-MLDatasetParser, MLConfigParser, MLScriptParser の各パーサーを
-個別にテストする。テストアセット（shared/tests/test_asset_ml/）を
-利用した実ファイル解析テストも含む。
+MLDatasetParser, MLConfigParser, MLScriptParser, TorchCheckpointParser,
+SklearnModelParser, ExperimentRunParser の各パーサーを個別にテストする。
+テストアセット（shared/tests/test_asset_ml/）を利用した実ファイル解析テストも含む。
 
 [READMEへ戻る](../../README.md)
 """
@@ -479,6 +479,9 @@ class TestMLPluginRegistration:
         assert "MLDatasetParser" in parser_names
         assert "MLConfigParser" in parser_names
         assert "MLScriptParser" in parser_names
+        assert "TorchCheckpointParser" in parser_names
+        assert "SklearnModelParser" in parser_names
+        assert "ExperimentRunParser" in parser_names
 
     def test_ml_plugin_idempotent(self):
         """register()を複数回呼んでもパーサーが重複登録されない"""
@@ -494,12 +497,503 @@ class TestMLPluginRegistration:
 
     def test_parser_priorities(self):
         """パーサーの優先度が仕様通りに設定されている"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
         from services.parse.connectors.ml.config_parser import MLConfigParser
         from services.parse.connectors.ml.dataset_parser import MLDatasetParser
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
         from services.parse.connectors.ml.script_parser import MLScriptParser
 
         assert MLDatasetParser.priority == 55
         assert MLConfigParser.priority == 56
         assert MLScriptParser.priority == 57
-        # 優先順: dataset < config < script
-        assert MLDatasetParser.priority < MLConfigParser.priority < MLScriptParser.priority
+        assert TorchCheckpointParser.priority == 58
+        assert SklearnModelParser.priority == 59
+        assert ExperimentRunParser.priority == 60
+        # 優先順: dataset < config < script < checkpoint < model < experiment
+        assert (
+            MLDatasetParser.priority
+            < MLConfigParser.priority
+            < MLScriptParser.priority
+            < TorchCheckpointParser.priority
+            < SklearnModelParser.priority
+            < ExperimentRunParser.priority
+        )
+
+
+# ====================================================================
+# TorchCheckpointParser テスト
+# ====================================================================
+
+
+class TestTorchCheckpointParser:
+    """TorchCheckpointParser の単体テスト"""
+
+    def test_pt_file_promoted_to_model_checkpoint(self):
+        """.ptファイルがmodel_checkpointに昇格する"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_model.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/best_model.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert result.nodes[0].type == "model_checkpoint"
+        assert result.nodes[0].properties["ml_checkpoint"] is True
+        assert result.nodes[0].properties["checkpoint_format"] == "pt"
+
+    def test_epoch_extraction_from_filename(self):
+        """ファイル名からエポック番号を抽出する"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="epoch_10.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/epoch_10.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert result.nodes[0].properties["epoch"] == 10
+
+    def test_best_model_flag(self):
+        """best modelフラグが設定される"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_model.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/best_model.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert result.nodes[0].properties["is_best"] is True
+
+    def test_non_best_model_no_flag(self):
+        """bestでないモデルにはフラグが付かない"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="epoch_10.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/epoch_10.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert "is_best" not in result.nodes[0].properties
+
+    def test_pth_format_supported(self):
+        """.pthファイルも対象になる"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="model.pth",
+                format="pth",
+                properties={"path": "models/model.pth"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert result.nodes[0].type == "model_checkpoint"
+        assert result.nodes[0].properties["checkpoint_format"] == "pth"
+
+    def test_ckpt_format_supported(self):
+        """.ckptファイルも対象になる"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="model.ckpt",
+                format="ckpt",
+                properties={"path": "models/model.ckpt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert result.nodes[0].type == "model_checkpoint"
+
+    def test_file_size_extracted(self):
+        """ファイルサイズが抽出される"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_model.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/best_model.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert "file_size_bytes" in result.nodes[0].properties
+        assert result.nodes[0].properties["file_size_bytes"] > 0
+
+    def test_non_checkpoint_file_unchanged(self):
+        """チェックポイント拡張子でないファイルは変更されない"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+
+        nodes = [
+            Node(id=1, type="file", name="train.py", format="py", properties={"path": "src/train.py"}),
+        ]
+        graph = _make_graph(nodes)
+        result = TorchCheckpointParser().apply(graph)
+
+        assert result.nodes[0].type == "file"
+
+
+# ====================================================================
+# SklearnModelParser テスト
+# ====================================================================
+
+
+class TestSklearnModelParser:
+    """SklearnModelParser の単体テスト"""
+
+    def test_pkl_file_promoted_to_serialized_model(self):
+        """.pklファイルがserialized_modelに昇格する"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_classifier.pkl",
+                format="pkl",
+                properties={"path": "models/best_classifier.pkl"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].type == "serialized_model"
+        assert result.nodes[0].properties["ml_serialized_model"] is True
+        assert result.nodes[0].properties["serialization_format"] == "pkl"
+
+    def test_joblib_file_promoted(self):
+        """.joblibファイルがserialized_modelに昇格する"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="scaler.joblib",
+                format="joblib",
+                properties={"path": "models/scaler.joblib"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].type == "serialized_model"
+        assert result.nodes[0].properties["serialization_format"] == "joblib"
+
+    def test_model_type_classifier(self):
+        """classifierモデル種別が推定される"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_classifier.pkl",
+                format="pkl",
+                properties={"path": "models/best_classifier.pkl"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].properties["model_type"] == "classifier"
+
+    def test_model_type_scaler(self):
+        """scalerモデル種別が推定される"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="scaler.joblib",
+                format="joblib",
+                properties={"path": "models/scaler.joblib"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].properties["model_type"] == "scaler"
+
+    def test_model_type_pipeline(self):
+        """pipelineモデル種別が推定される"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="pipeline.pkl",
+                format="pkl",
+                properties={"path": "models/pipeline.pkl"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].properties["model_type"] == "pipeline"
+
+    def test_best_model_flag(self):
+        """bestモデルフラグが設定される"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_classifier.pkl",
+                format="pkl",
+                properties={"path": "models/best_classifier.pkl"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].properties["is_best"] is True
+
+    def test_file_size_extracted(self):
+        """ファイルサイズが抽出される"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="best_classifier.pkl",
+                format="pkl",
+                properties={"path": "models/best_classifier.pkl"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert "file_size_bytes" in result.nodes[0].properties
+        assert result.nodes[0].properties["file_size_bytes"] > 0
+
+    def test_non_model_file_unchanged(self):
+        """モデル拡張子でないファイルは変更されない"""
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+
+        nodes = [
+            Node(id=1, type="file", name="data.csv", format="csv", properties={"path": "data/data.csv"}),
+        ]
+        graph = _make_graph(nodes)
+        result = SklearnModelParser().apply(graph)
+
+        assert result.nodes[0].type == "file"
+
+
+# ====================================================================
+# ExperimentRunParser テスト
+# ====================================================================
+
+
+class TestExperimentRunParser:
+    """ExperimentRunParser の単体テスト"""
+
+    def test_experiment_id_detected(self):
+        """実験ディレクトリパターンから実験IDが抽出される"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="config.yaml",
+                format="yaml",
+                properties={"path": "experiments/exp_001/config.yaml"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        assert result.nodes[0].properties["experiment_id"] == "001"
+        assert result.nodes[0].properties["experiment_dir"] == "exp_001"
+
+    def test_metrics_json_promoted(self):
+        """metrics.jsonがexperiment_metricsに昇格する"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="metrics.json",
+                format="json",
+                properties={"path": "experiments/exp_001/metrics.json"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        assert result.nodes[0].type == "experiment_metrics"
+        assert result.nodes[0].properties["ml_metrics"] is True
+
+    def test_key_metrics_extracted(self):
+        """メトリクスファイルからキーメトリクスが抽出される"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="metrics.json",
+                format="json",
+                properties={"path": "experiments/exp_001/metrics.json"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        metrics = result.nodes[0].properties["ml_key_metrics"]
+        assert metrics["best_val_accuracy"] == 0.91
+        assert metrics["best_epoch"] == 5
+
+    def test_exp_002_metrics(self):
+        """exp_002のメトリクスも正しく抽出される"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="metrics.json",
+                format="json",
+                properties={"path": "experiments/exp_002/metrics.json"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        assert result.nodes[0].properties["experiment_id"] == "002"
+        metrics = result.nodes[0].properties["ml_key_metrics"]
+        assert metrics["best_val_accuracy"] == 0.93
+
+    def test_checkpoint_in_experiment(self):
+        """実験ディレクトリ内のチェックポイントに実験IDが付与される"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="model_checkpoint",
+                name="best_model.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/best_model.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        assert result.nodes[0].properties["experiment_id"] == "001"
+
+    def test_non_experiment_path_unchanged(self):
+        """実験パターンに一致しないパスは変更されない"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="train.py",
+                format="py",
+                properties={"path": "src/train.py"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        assert "experiment_id" not in result.nodes[0].properties
+
+    def test_run_pattern_detected(self):
+        """run_NNNパターンの実験ディレクトリも検出される"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="metrics.json",
+                format="json",
+                properties={"path": "results/run_042/metrics.json"},
+            ),
+        ]
+        # メトリクスファイルが存在しないケース（パス検出のみテスト）
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        assert result.nodes[0].properties["experiment_id"] == "042"
+        assert result.nodes[0].properties["experiment_dir"] == "run_042"
+
+    def test_multiple_nodes_in_experiment(self):
+        """同一実験ディレクトリ内の複数ファイルに実験IDが付与される"""
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="file",
+                name="config.yaml",
+                format="yaml",
+                properties={"path": "experiments/exp_001/config.yaml"},
+            ),
+            Node(
+                id=2,
+                type="file",
+                name="metrics.json",
+                format="json",
+                properties={"path": "experiments/exp_001/metrics.json"},
+            ),
+            Node(
+                id=3,
+                type="file",
+                name="best_model.pt",
+                format="pt",
+                properties={"path": "experiments/exp_001/checkpoints/best_model.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = ExperimentRunParser().apply(graph)
+
+        for node in result.nodes:
+            assert node.properties["experiment_id"] == "001"

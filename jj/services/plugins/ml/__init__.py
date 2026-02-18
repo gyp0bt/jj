@@ -10,6 +10,9 @@
 | MLDatasetParser | 55 | データセットファイル検出・メタデータ抽出 |
 | MLConfigParser | 56 | ML設定ファイル解析（YAML/JSON/TOML） |
 | MLScriptParser | 57 | Pythonスクリプトのimport解析・フレームワーク検出 |
+| TorchCheckpointParser | 58 | PyTorchチェックポイント検出・メタデータ抽出 |
+| SklearnModelParser | 59 | scikit-learnシリアライズ済みモデル検出 |
+| ExperimentRunParser | 60 | 実験ディレクトリ構造認識・メトリクス抽出 |
 
 ## ファイル構造
 
@@ -39,8 +42,11 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
+    import services.parse.connectors.ml.checkpoint_parser
     import services.parse.connectors.ml.config_parser
     import services.parse.connectors.ml.dataset_parser
+    import services.parse.connectors.ml.experiment_parser
+    import services.parse.connectors.ml.model_parser
     import services.parse.connectors.ml.script_parser
 
     # importの副作用（__init_subclass__）でパーサーが登録される

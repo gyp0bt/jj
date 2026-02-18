@@ -16,7 +16,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M3: Neo4j統合パイプライン** | 進行中 | jj側完了、jjrv IEntityRepository抽象化完了、接続設定UI・検索アダプター完了 |
 | **M4: jjrv横断ダッシュボード** | 未着手 | Streamlit検証パターンのjjrv移植、横断視認性 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
-| **M6: ML/実験/最適化タスク対応** | 設計済み | PyTorch/sklearn対応、三層データフロー、最適化ループ |
+| **M6: ML/実験/最適化タスク対応** | 進行中 | PyTorch/sklearn対応、パーサー6種実装済み、三層データフロー設計済み |
 
 ---
 
@@ -49,6 +49,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [023](status-023.md) | 2026-02-18 | M3 | 接続設定UI・Neo4j検索アダプター・統合テスト・表示名改善 | claude/execute-status-todos-AZ5Am |
 | [024](status-024.md) | 2026-02-18 | M6 | ML/実験/最適化タスク対応ロードマップ策定・三層データフロー設計 | claude/ml-task-roadmap-uwhPT |
 | [025](status-025.md) | 2026-02-18 | M6 | MLプラグイン Phase 2: コアパーサー3種実装・テストアセット・テスト28件 | claude/execute-status-todos-cMpnf |
+| [026](status-026.md) | 2026-02-18 | M6 | MLプラグイン Phase 3: パーサー3種追加（checkpoint/model/experiment）・テスト24件 | claude/execute-status-todos-pdDTh |
 
 ---
 
