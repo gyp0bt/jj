@@ -600,3 +600,207 @@ class TestParserParallel:
         # グループ間はpriority昇順
         group_priorities = [group[0].priority for group in groups]
         assert group_priorities == sorted(group_priorities)
+
+
+# ====================================================================
+# AbaqusMeshParser 並列プリフェッチテスト
+# ====================================================================
+
+
+class TestMeshParserPrefetch:
+    """AbaqusMeshParser._prefetch_inp_parallel のテスト"""
+
+    def test_prefetch_populates_cache(self, config: GraphConfig):
+        """並列プリフェッチがインメモリキャッシュを正しく設定する"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        pg = ProjectGraph(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v3",
+                    format="inp",
+                    properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v3",
+                    format="inp",
+                    properties={"path": "go_idx2.v3.inp", "index": "2", "version": "3"},
+                ),
+            ],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+
+        path1 = ASSET_DIR / "go_idx1.v3.inp"
+        path2 = ASSET_DIR / "go_idx2.v3.inp"
+        if not path1.exists() or not path2.exists():
+            pytest.skip("Test asset .inp files not found")
+
+        parse_needed = [
+            (pg.nodes[0], path1, None),
+            (pg.nodes[1], path2, None),
+        ]
+
+        AbaqusMeshParser._prefetch_inp_parallel(pg, parse_needed, max_workers=2)
+
+        # キャッシュにデータが入っている
+        cached1 = pg.get_cached_plugin_data("abaqus", str(path1))
+        cached2 = pg.get_cached_plugin_data("abaqus", str(path2))
+        assert cached1 is not None
+        assert cached2 is not None
+
+    def test_prefetch_skips_already_cached(self, config: GraphConfig):
+        """既にキャッシュ済みのファイルはprefetchをスキップする"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        pg = ProjectGraph(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v3",
+                    format="inp",
+                    properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+                ),
+            ],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+
+        path1 = ASSET_DIR / "go_idx1.v3.inp"
+        if not path1.exists():
+            pytest.skip("Test asset .inp files not found")
+
+        # 先にキャッシュにダミーを設定
+        sentinel = {"pre_cached": True}
+        pg.set_cached_plugin_data("abaqus", str(path1), sentinel)
+
+        parse_needed = [(pg.nodes[0], path1, None)]
+        AbaqusMeshParser._prefetch_inp_parallel(pg, parse_needed, max_workers=1)
+
+        # キャッシュは上書きされない（プリフェッチがスキップされた）
+        cached = pg.get_cached_plugin_data("abaqus", str(path1))
+        assert cached is sentinel
+
+    def test_prefetch_deduplicates_paths(self, config: GraphConfig):
+        """同一パスの重複parseを回避する"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        pg = ProjectGraph(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v3",
+                    format="inp",
+                    properties={"path": "go_idx1.v3.inp"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx1_v3_dup",
+                    format="inp",
+                    properties={"path": "go_idx1.v3.inp"},
+                ),
+            ],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+
+        path1 = ASSET_DIR / "go_idx1.v3.inp"
+        if not path1.exists():
+            pytest.skip("Test asset .inp files not found")
+
+        parse_needed = [
+            (pg.nodes[0], path1, None),
+            (pg.nodes[1], path1, None),  # 同一パス
+        ]
+
+        AbaqusMeshParser._prefetch_inp_parallel(pg, parse_needed, max_workers=2)
+        # 1回のparseでキャッシュに入る
+        cached = pg.get_cached_plugin_data("abaqus", str(path1))
+        assert cached is not None
+
+
+# ====================================================================
+# AbaqusDiffParser lightweightモードテスト
+# ====================================================================
+
+
+class TestDiffParserLightweight:
+    """AbaqusDiffParser._get_or_parse_inp の lightweight モードテスト"""
+
+    def test_lightweight_parse_returns_abqdata(self, config: GraphConfig):
+        """lightweightモードでABQDataが返される"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        pg = ProjectGraph(
+            nodes=[],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+
+        path = ASSET_DIR / "go_idx1.v3.inp"
+        if not path.exists():
+            pytest.skip("Test asset .inp files not found")
+
+        result = AbaqusDiffParser._get_or_parse_inp(pg, str(path), lightweight=True)
+        assert result is not None
+
+    def test_lightweight_returns_full_cache_if_available(self, config: GraphConfig):
+        """フルデータキャッシュがあればlightweight要求でもフルデータを返す"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        pg = ProjectGraph(
+            nodes=[],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+
+        path = ASSET_DIR / "go_idx1.v3.inp"
+        if not path.exists():
+            pytest.skip("Test asset .inp files not found")
+
+        # フルデータをキャッシュに設定
+        full_data = {"full": True}
+        pg.set_cached_plugin_data("abaqus", str(path), full_data)
+
+        # lightweightでもフルデータが返される
+        result = AbaqusDiffParser._get_or_parse_inp(pg, str(path), lightweight=True)
+        assert result is full_data
+
+    def test_lightweight_cache_key_separated(self, config: GraphConfig):
+        """lightweightとフルデータのキャッシュキーが分離されている"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        pg = ProjectGraph(
+            nodes=[],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+
+        path = ASSET_DIR / "go_idx1.v3.inp"
+        if not path.exists():
+            pytest.skip("Test asset .inp files not found")
+
+        # lightweightでparse
+        result_lw = AbaqusDiffParser._get_or_parse_inp(pg, str(path), lightweight=True)
+        assert result_lw is not None
+
+        # フルキャッシュにはまだない
+        full_cached = pg.get_cached_plugin_data("abaqus", str(path))
+        assert full_cached is None
+
+        # lightweightキャッシュにはある
+        lw_cached = pg.get_cached_plugin_data("abaqus", f"{path}::lightweight")
+        assert lw_cached is not None
