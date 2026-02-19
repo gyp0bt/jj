@@ -885,3 +885,312 @@ class TestMeshHashesMatch:
         f2 = self._write_inp(tmp_path, "b.inp", "*PARAMETER\nthick=10\n*STEP\n*DYNAMIC\n")
 
         assert AbaqusDiffParser._mesh_hashes_match(str(f1), str(f2)) is False
+
+
+# ====================================================================
+# _compute_optimal_workers use_processes パラメータテスト
+# ====================================================================
+
+
+class TestComputeOptimalWorkersProcessMode:
+    """_compute_optimal_workers の ProcessPoolExecutor モードテスト"""
+
+    def test_process_mode_uses_cpu_count(self):
+        """プロセスモードではCPU数が上限（スレッドモードの半分）"""
+        from unittest.mock import patch
+
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        with patch("os.cpu_count", return_value=8):
+            thread_result = AbaqusMeshParser._compute_optimal_workers(100, use_processes=False)
+            process_result = AbaqusMeshParser._compute_optimal_workers(100, use_processes=True)
+
+        assert thread_result == 16  # cpu_count * 2 = 16（上限一致）
+        assert process_result == 8  # cpu_count = 8
+
+    def test_process_mode_single_file(self):
+        """プロセスモードでもファイル1件ではワーカー1"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        result = AbaqusMeshParser._compute_optimal_workers(1, use_processes=True)
+        assert result == 1
+
+    def test_process_mode_capped_at_16(self):
+        """プロセスモードでも上限16"""
+        from unittest.mock import patch
+
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        with patch("os.cpu_count", return_value=32):
+            result = AbaqusMeshParser._compute_optimal_workers(100, use_processes=True)
+        assert result == 16
+
+    def test_default_is_thread_mode(self):
+        """デフォルトはスレッドモード（後方互換）"""
+        from unittest.mock import patch
+
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        with patch("os.cpu_count", return_value=4):
+            default_result = AbaqusMeshParser._compute_optimal_workers(10)
+            thread_result = AbaqusMeshParser._compute_optimal_workers(10, use_processes=False)
+
+        assert default_result == thread_result
+
+
+# ====================================================================
+# ProcessPoolExecutor 閾値テスト
+# ====================================================================
+
+
+class TestProcessPoolThreshold:
+    """_prefetch_inp_parallel の並列化方式自動選択テスト"""
+
+    def test_threshold_value(self):
+        """閾値が3であること"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD == 3
+
+
+# ====================================================================
+# get_plotly_template テスト
+# ====================================================================
+
+
+class TestGetPlotlyTemplate:
+    """get_plotly_template のStreamlitテーマ検出テスト"""
+
+    def _run_with_streamlit_mock(self, theme_value):
+        """streamlitモジュールをモック化してget_plotly_templateを実行"""
+        import importlib
+        import sys
+        from unittest.mock import MagicMock
+
+        mock_st = MagicMock()
+        mock_st.get_option = MagicMock(return_value=theme_value)
+        original = sys.modules.get("streamlit")
+        sys.modules["streamlit"] = mock_st
+        try:
+            # モジュールを再読み込みしてモックを反映
+            import services.dashboard.widgets as widgets_mod
+
+            importlib.reload(widgets_mod)
+            return widgets_mod.get_plotly_template()
+        finally:
+            if original is not None:
+                sys.modules["streamlit"] = original
+            else:
+                sys.modules.pop("streamlit", None)
+            importlib.reload(widgets_mod)
+
+    def test_light_theme(self):
+        """ライトテーマではplotly_whiteを返す"""
+        assert self._run_with_streamlit_mock("light") == "plotly_white"
+
+    def test_dark_theme(self):
+        """ダークテーマではplotly_darkを返す"""
+        assert self._run_with_streamlit_mock("dark") == "plotly_dark"
+
+    def test_none_theme_defaults_to_light(self):
+        """テーマ未設定時はplotly_white（デフォルト）"""
+        assert self._run_with_streamlit_mock(None) == "plotly_white"
+
+    def test_import_error_defaults_to_light(self):
+        """streamlit未インストール時はplotly_white"""
+        from services.dashboard.widgets import get_plotly_template
+
+        # streamlitが無い環境ではget_plotly_templateのtry/exceptが
+        # ImportErrorをキャッチしてデフォルト値を返す
+        result = get_plotly_template()
+        assert result == "plotly_white"
+
+
+# ====================================================================
+# diff_abq_mesh_blocks / diff_abq_metadata_blocks 分離テスト
+# ====================================================================
+
+
+class TestDiffSeparation:
+    """diff_abq_blocks の mesh/metadata 分離テスト"""
+
+    def _write_inp(self, tmp_path: Path, name: str, content: str) -> Path:
+        p = tmp_path / name
+        p.write_text(content, encoding="utf-8")
+        return p
+
+    def test_mesh_only_diff_detects_node_changes(self, tmp_path: Path):
+        """diff_abq_mesh_blocks はメッシュ差分を検出する"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import diff_abq_mesh_blocks, read_inp
+
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+                2, 1.0, 0.0, 0.0
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        diffs = diff_abq_mesh_blocks(left, right)
+        assert len(diffs) > 0
+        assert any("nodes" in d.location for d in diffs)
+
+    def test_mesh_only_diff_ignores_step_changes(self, tmp_path: Path):
+        """diff_abq_mesh_blocks はSTEP差分を検出しない"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import diff_abq_mesh_blocks, read_inp
+
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *STEP, NAME=Step-1
+                *STATIC
+                1., 1., 1e-05, 1.
+                *END STEP
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *STEP, NAME=Step-1
+                *STATIC
+                0.5, 1., 1e-05, 0.5
+                *END STEP
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        diffs = diff_abq_mesh_blocks(left, right)
+        assert len(diffs) == 0
+
+    def test_metadata_only_diff_detects_step_changes(self, tmp_path: Path):
+        """diff_abq_metadata_blocks はSTEP差分を検出する"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *STEP, NAME=Step-1
+                *STATIC
+                1., 1., 1e-05, 1.
+                *END STEP
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *STEP, NAME=Step-1
+                *STATIC
+                0.5, 1., 1e-05, 0.5
+                *END STEP
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        diffs = diff_abq_metadata_blocks(left, right)
+        assert len(diffs) > 0
+        assert any("step" in d.location for d in diffs)
+
+    def test_metadata_only_diff_ignores_mesh_changes(self, tmp_path: Path):
+        """diff_abq_metadata_blocks はメッシュ差分を検出しない"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+                2, 1.0, 0.0, 0.0
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        diffs = diff_abq_metadata_blocks(left, right)
+        assert len(diffs) == 0
+
+    def test_combined_equals_sum_of_parts(self, tmp_path: Path):
+        """diff_abq_blocks = diff_abq_mesh_blocks + diff_abq_metadata_blocks"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import (
+            diff_abq_blocks,
+            diff_abq_mesh_blocks,
+            diff_abq_metadata_blocks,
+            read_inp,
+        )
+
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+                *STEP, NAME=Step-1
+                *STATIC
+                1., 1., 1e-05, 1.
+                *END STEP
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+                2, 1.0, 0.0, 0.0
+                *STEP, NAME=Step-1
+                *STATIC
+                0.5, 1., 1e-05, 0.5
+                *END STEP
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        combined = diff_abq_blocks(left, right)
+        mesh_diffs = diff_abq_mesh_blocks(left, right)
+        metadata_diffs = diff_abq_metadata_blocks(left, right)
+
+        assert len(combined) == len(mesh_diffs) + len(metadata_diffs)
+        assert len(mesh_diffs) > 0
+        assert len(metadata_diffs) > 0
