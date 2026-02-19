@@ -391,13 +391,36 @@ def clear_parser_registry() -> None:
     _parser_registry.clear()
 
 
-def parse(graph: ProjectGraph, *, full_mode: bool = False, debug: bool = False) -> ProjectGraph:
+def _group_parsers_by_priority(
+    parsers: list[type[AbstractFileParser]],
+) -> list[list[type[AbstractFileParser]]]:
+    """パーサーを同一priority値でグルーピングする
+
+    Returns:
+        priority昇順のグループリスト。各グループ内のパーサーは同一priority。
+    """
+    from itertools import groupby
+
+    sorted_parsers = sorted(parsers, key=lambda cls: cls.priority)
+    return [list(group) for _, group in groupby(sorted_parsers, key=lambda cls: cls.priority)]
+
+
+def parse(
+    graph: ProjectGraph,
+    *,
+    full_mode: bool = False,
+    debug: bool = False,
+    parallel: bool = False,
+    max_workers: int | None = None,
+) -> ProjectGraph:
     """全登録パーサーをpriority順に適用する
 
     Args:
         graph: 処理対象のProjectGraph
         full_mode: Trueの場合、requires_full=Trueのパーサーも実行する
         debug: デバッグモード（True: パーサーエラーをraise）
+        parallel: Trueの場合、同一priorityグループ内のパーサーを並列実行する
+        max_workers: 並列実行時のワーカー数（Noneでcpu_count()ベースの自動決定）
 
     Returns:
         全パーサー適用後のProjectGraph
@@ -405,34 +428,84 @@ def parse(graph: ProjectGraph, *, full_mode: bool = False, debug: bool = False) 
     import sys
     import time
 
-    sorted_parsers = sorted(_parser_registry, key=lambda cls: cls.priority)
+    # priorityでグルーピング
+    eligible = [cls for cls in _parser_registry if full_mode or not cls.requires_full]
+    groups = _group_parsers_by_priority(eligible)
     node_count = len(graph.nodes) or 1  # ゼロ除算防止
 
-    for parser_cls in sorted_parsers:
-        print(parser_cls.__name__)
-        if parser_cls.requires_full and not full_mode:
-            continue
+    for group in groups:
+        if parallel and len(group) > 1:
+            graph = _run_parser_group_parallel(graph, group, debug=debug, max_workers=max_workers)
+        else:
+            for parser_cls in group:
+                print(parser_cls.__name__)
+                start_time = time.monotonic()
+                try:
+                    graph = parser_cls().apply(graph)
+                except Exception as e:
+                    if debug:
+                        raise
+                    print(
+                        f"警告: {parser_cls.__name__} でエラーが発生しました: {e}",
+                        file=sys.stderr,
+                    )
+                    continue
+                elapsed = time.monotonic() - start_time
 
-        start_time = time.monotonic()
-        try:
-            graph = parser_cls().apply(graph)
-        except Exception as e:
-            if debug:
-                raise
-            print(
-                f"警告: {parser_cls.__name__} でエラーが発生しました: {e}",
-                file=sys.stderr,
-            )
-            continue
-        elapsed = time.monotonic() - start_time
+                if not full_mode and elapsed > 0 and (elapsed / node_count) > 0.1:
+                    print(
+                        f"警告: {parser_cls.__name__} の実行に {elapsed:.1e}秒かかりました"
+                        f"（{elapsed / node_count:.1e}秒/ファイル）。"
+                        f"--fullオプションでの実行を推奨します。",
+                        file=sys.stderr,
+                    )
 
-        # --fullでない場合、1ファイルあたり1秒超のパーサーは警告
-        if not full_mode and elapsed > 0 and (elapsed / node_count) > 0.1:
-            print(
-                f"警告: {parser_cls.__name__} の実行に {elapsed:.1e}秒かかりました"
-                f"（{elapsed / node_count:.1e}秒/ファイル）。"
-                f"--fullオプションでの実行を推奨します。",
-                file=sys.stderr,
-            )
+    return graph
+
+
+def _run_parser_group_parallel(
+    graph: ProjectGraph,
+    group: list[type[AbstractFileParser]],
+    *,
+    debug: bool = False,
+    max_workers: int | None = None,
+) -> ProjectGraph:
+    """同一priorityグループ内のパーサーをThreadPoolExecutorで並列実行する
+
+    注意: 各パーサーが生成するノード・リレーションは独立している前提。
+    既存ノードのプロパティ変更を行うパーサー同士が同一priorityにいる場合、
+    競合する可能性がある。
+
+    Args:
+        graph: 処理対象のProjectGraph
+        group: 同一priorityのパーサークラスリスト
+        debug: デバッグモード
+        max_workers: ワーカー数
+
+    Returns:
+        全パーサー適用後のProjectGraph
+    """
+    import sys
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    names = ", ".join(cls.__name__ for cls in group)
+    print(f"[parallel] {names}")
+
+    def _apply_parser(parser_cls: type[AbstractFileParser]) -> None:
+        parser_cls().apply(graph)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_apply_parser, cls): cls for cls in group}
+        for future in as_completed(futures):
+            parser_cls = futures[future]
+            try:
+                future.result()
+            except Exception as e:
+                if debug:
+                    raise
+                print(
+                    f"警告: {parser_cls.__name__} でエラーが発生しました: {e}",
+                    file=sys.stderr,
+                )
 
     return graph
