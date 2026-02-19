@@ -345,6 +345,28 @@ class TestGetStatusSummary:
         v1_items = [i for i in items if i["name"] == "go_idx1_v1" and "warnings" in i]
         assert len(v1_items) == 1
 
+    def test_summary_includes_cpu_stats(self, provider: DashboardDataProvider):
+        """cpu_statsキーが含まれる"""
+        summary = provider.get_status_summary()
+        assert "cpu_stats" in summary
+
+    def test_summary_includes_warning_stats(self, provider: DashboardDataProvider):
+        """warning_statsキーが含まれる"""
+        summary = provider.get_status_summary()
+        assert "warning_stats" in summary
+
+    def test_cpu_stats_values_when_present(self, provider: DashboardDataProvider):
+        """cpu_statsにvaluesが含まれる場合、統計値が正しい"""
+        summary = provider.get_status_summary()
+        cpu_stats = summary["cpu_stats"]
+        if cpu_stats:
+            assert "count" in cpu_stats
+            assert "min" in cpu_stats
+            assert "max" in cpu_stats
+            assert "mean" in cpu_stats
+            assert "values" in cpu_stats
+            assert cpu_stats["min"] <= cpu_stats["mean"] <= cpu_stats["max"]
+
 
 # ====================================================================
 # get_related_files

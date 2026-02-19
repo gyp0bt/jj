@@ -87,6 +87,16 @@ def _normalize_paths(file_paths: PathList) -> list[Path]:
 
 
 def _detect_encoding(raw: bytes) -> str:
+    """バイト列からエンコーディングを推定する（UTF-8ファースト）
+
+    UTF-8でデコード可能ならchardetを呼ばずに即座にUTF-8を返す。
+    大半のCAEファイルはUTF-8/ASCIIのため、chardetのコストを回避できる。
+    """
+    try:
+        raw.decode("utf-8")
+        return "utf-8"
+    except UnicodeDecodeError:
+        pass
     enc = chardet.detect(raw).get("encoding")
     return enc or "utf-8"
 

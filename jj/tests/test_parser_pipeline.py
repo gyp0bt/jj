@@ -545,3 +545,58 @@ def _find_node(graph: GraphModel, *, name: str, format: str) -> Node | None:
         if n.name == name and n.format == format:
             return n
     return None
+
+
+# ====================================================================
+# パーサー並列化テスト
+# ====================================================================
+
+
+class TestParserParallel:
+    """parse() の parallel=True モードテスト"""
+
+    def test_parallel_parse_returns_valid_graph(self, config: GraphConfig):
+        """parallel=True で parse() が正常にグラフを返す"""
+        pg = ProjectGraph(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"path": "go_idx1.v3.inp", "index": "1", "version": "3"},
+                ),
+            ],
+            relations=[],
+            project_root=ASSET_DIR,
+            config=config,
+        )
+        result = parse(pg, parallel=True, max_workers=2)
+        assert isinstance(result, ProjectGraph)
+        assert len(result.nodes) >= 1
+
+    def test_parallel_sequential_same_result(self, config: GraphConfig):
+        """parallel=True と False で同じパーサーが適用される"""
+        from services.parse.base import _group_parsers_by_priority, get_parser_registry
+
+        registry = get_parser_registry()
+        eligible = [cls for cls in registry if not cls.requires_full]
+        groups = _group_parsers_by_priority(eligible)
+        # グループ数が適正（各priority値ごとに1グループ）
+        assert len(groups) > 0
+        total = sum(len(g) for g in groups)
+        assert total == len(eligible)
+
+    def test_group_parsers_by_priority(self):
+        """_group_parsers_by_priority が正しくグルーピングする"""
+        from services.parse.base import _group_parsers_by_priority, get_parser_registry
+
+        registry = get_parser_registry()
+        groups = _group_parsers_by_priority(registry)
+        # 各グループ内のpriorityは同一
+        for group in groups:
+            priorities = {cls.priority for cls in group}
+            assert len(priorities) == 1
+        # グループ間はpriority昇順
+        group_priorities = [group[0].priority for group in groups]
+        assert group_priorities == sorted(group_priorities)

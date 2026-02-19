@@ -176,28 +176,39 @@ class MeshData:
 
 def detect_file_encoding(file_path: str, n: int = 100, sample_size: int = 1024) -> str:
     """
-    ファイル全体からランダムサンプリングしてエンコーディングを推定する。
+    ファイルのエンコーディングを推定する。
+
+    UTF-8ファースト戦略: 先頭8KBをUTF-8としてデコード試行し、
+    成功すれば即座にUTF-8を返す。失敗時のみchardetにフォールバック。
 
     Args:
         file_path (str): 対象ファイルのパス
-        n (int): サンプリング回数（行単位）
-        sample_size (int): 各サンプルの最大バイト数（過剰なメモリ使用を避ける）
+        n (int): chardetフォールバック時のサンプリング回数
+        sample_size (int): 各サンプルの最大バイト数
 
     Returns:
         str: 推定エンコーディング。失敗時は None。
     """
+    # UTF-8ファースト: 先頭8KBで判定（大半のCAEファイルはUTF-8/ASCII）
+    try:
+        with open(file_path, "rb") as f:
+            head = f.read(8192)
+        head.decode("utf-8")
+        return "utf-8"
+    except (UnicodeDecodeError, OSError):
+        pass
+
+    # フォールバック: chardetでランダムサンプリング
     file_size = os.path.getsize(file_path)
     samples = []
 
     with open(file_path, "rb") as f:
         for _ in range(n):
-            # ランダムな位置にseek（安全のため、sample_size分の余裕を見て制限）
             pos = random.randint(0, max(0, file_size - sample_size))
             f.seek(pos)
             chunk = f.read(sample_size)
             samples.append(chunk)
 
-    # バイト列を結合して推定
     data = b"".join(samples)
     result = chardet.detect(data)
     return result.get("encoding")
