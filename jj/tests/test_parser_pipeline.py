@@ -804,3 +804,84 @@ class TestDiffParserLightweight:
         # lightweightキャッシュにはある
         lw_cached = pg.get_cached_plugin_data("abaqus", f"{path}::lightweight")
         assert lw_cached is not None
+
+
+# ====================================================================
+# _compute_optimal_workers テスト
+# ====================================================================
+
+
+class TestComputeOptimalWorkers:
+    """AbaqusMeshParser._compute_optimal_workers のテスト"""
+
+    def test_single_file(self):
+        """ファイル1件ではワーカー1"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        result = AbaqusMeshParser._compute_optimal_workers(1)
+        assert result == 1
+
+    def test_many_files_capped(self):
+        """ファイル数が多くても上限16を超えない"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        result = AbaqusMeshParser._compute_optimal_workers(100)
+        assert result <= 16
+
+    def test_file_count_limits_workers(self):
+        """ワーカー数はファイル数以下"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        result = AbaqusMeshParser._compute_optimal_workers(3)
+        assert result <= 3
+
+    def test_minimum_one(self):
+        """ワーカー数は最低1"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        result = AbaqusMeshParser._compute_optimal_workers(0)
+        assert result >= 1
+
+
+# ====================================================================
+# AbaqusDiffParser._mesh_hashes_match テスト
+# ====================================================================
+
+
+class TestMeshHashesMatch:
+    """AbaqusDiffParser._mesh_hashes_match のテスト"""
+
+    def _write_inp(self, tmp_path: Path, name: str, content: str) -> Path:
+        p = tmp_path / name
+        p.write_text(content, encoding="utf-8")
+        return p
+
+    def test_identical_mesh_returns_true(self, tmp_path: Path):
+        """同一メッシュのファイルペアはTrueを返す"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        mesh = "*NODE\n1, 0.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8\n1, 1\n"
+        f1 = self._write_inp(tmp_path, "a.inp", "*PARAMETER\nthick=5\n" + mesh)
+        f2 = self._write_inp(tmp_path, "b.inp", "*PARAMETER\nthick=10\n" + mesh)
+
+        assert AbaqusDiffParser._mesh_hashes_match(str(f1), str(f2)) is True
+
+    def test_different_mesh_returns_false(self, tmp_path: Path):
+        """異なるメッシュのファイルペアはFalseを返す"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        f1 = self._write_inp(tmp_path, "a.inp", "*NODE\n1, 0.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8\n1, 1\n")
+        f2 = self._write_inp(
+            tmp_path, "b.inp", "*NODE\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8\n1, 1, 2\n"
+        )
+
+        assert AbaqusDiffParser._mesh_hashes_match(str(f1), str(f2)) is False
+
+    def test_no_mesh_returns_false(self, tmp_path: Path):
+        """メッシュ定義なしのファイルペアはFalseを返す"""
+        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+
+        f1 = self._write_inp(tmp_path, "a.inp", "*PARAMETER\nthick=5\n*STEP\n*STATIC\n")
+        f2 = self._write_inp(tmp_path, "b.inp", "*PARAMETER\nthick=10\n*STEP\n*DYNAMIC\n")
+
+        assert AbaqusDiffParser._mesh_hashes_match(str(f1), str(f2)) is False

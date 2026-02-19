@@ -319,6 +319,26 @@ class AbaqusMeshParser(AbstractFileParser):
         return graph
 
     @staticmethod
+    def _compute_optimal_workers(file_count: int) -> int:
+        """並列プリフェッチの最適ワーカー数を計算
+
+        read_inp()はI/Oバウンド（ファイル読み込み）とCPUバウンド（パース）の
+        混合処理であるため、CPU数の2倍を上限とし、ファイル数で制限する。
+
+        Args:
+            file_count: 処理対象ファイル数
+
+        Returns:
+            推奨ワーカー数（最小1、最大CPU数*2、ファイル数以下）
+        """
+        import os
+
+        cpu_count = os.cpu_count() or 4
+        # I/O+CPU混合: CPU数の2倍が妥当（純I/OならCPU*4、純CPUならCPU*1）
+        optimal = min(cpu_count * 2, 16)  # 上限16（過剰なスレッドによるGIL競合回避）
+        return max(1, min(optimal, file_count))
+
+    @staticmethod
     def _prefetch_inp_parallel(
         graph: ProjectGraph,
         parse_needed: list[tuple[Any, Path, str | None]],
@@ -350,11 +370,15 @@ class AbaqusMeshParser(AbstractFileParser):
 
         include_depth = graph.config.include_search_depth
 
+        # max_workers未指定時はCPU数ベースで自動決定
+        if max_workers is None:
+            max_workers = AbaqusMeshParser._compute_optimal_workers(len(unique_paths))
+
         def _parse_single(fp_str: str) -> tuple[str, object]:
             abq = abaqus_mod.read_inp(fp_str, verbose=False, include_max_depth=include_depth)
             return fp_str, abq
 
-        logger.debug(f"Prefetching {len(unique_paths)} .inp files in parallel")
+        logger.debug(f"Prefetching {len(unique_paths)} .inp files in parallel (workers={max_workers})")
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(_parse_single, fp): fp for fp in unique_paths}
