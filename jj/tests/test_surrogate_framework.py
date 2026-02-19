@@ -518,6 +518,149 @@ class TestMLDataFlowParser:
         assert "produces_model" in labels
         assert "configured_by" in labels
 
+    def test_project_root_scope_fallback_trains_with(self):
+        """親/祖父母が異なるディレクトリでもプロジェクトルートスコープでマッチ"""
+        from services.parse.connectors.ml.dataflow_parser import MLDataFlowParser
+
+        # 典型的なMLプロジェクト構造: src/ と data/ が別ディレクトリ
+        nodes = [
+            Node(
+                id=1,
+                type="training_script",
+                name="train.py",
+                format="py",
+                properties={"path": "src/train.py"},
+            ),
+            Node(
+                id=2,
+                type="dataset",
+                name="dataset_v1.csv",
+                format="csv",
+                properties={"path": "data/raw/dataset_v1.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDataFlowParser().apply(graph)
+
+        train_rels = [r for r in result.relations if r.label == "trains_with"]
+        assert len(train_rels) == 1
+        assert train_rels[0].node1_id == 1
+        assert train_rels[0].node2_id == 2
+
+    def test_project_root_scope_fallback_produces_model(self):
+        """プロジェクトルートスコープでモデル生成もマッチ"""
+        from services.parse.connectors.ml.dataflow_parser import MLDataFlowParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="training_script",
+                name="train.py",
+                format="py",
+                properties={"path": "src/train.py"},
+            ),
+            Node(
+                id=2,
+                type="model_checkpoint",
+                name="best_model.pt",
+                format="pt",
+                properties={"path": "models/checkpoints/best_model.pt"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDataFlowParser().apply(graph)
+
+        model_rels = [r for r in result.relations if r.label == "produces_model"]
+        assert len(model_rels) == 1
+
+    def test_project_root_scope_fallback_configured_by(self):
+        """プロジェクトルートスコープで設定ファイルもマッチ"""
+        from services.parse.connectors.ml.dataflow_parser import MLDataFlowParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="training_script",
+                name="train.py",
+                format="py",
+                properties={"path": "src/train.py"},
+            ),
+            Node(
+                id=2,
+                type="experiment_config",
+                name="config.yaml",
+                format="yaml",
+                properties={"path": "configs/experiment/config.yaml"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDataFlowParser().apply(graph)
+
+        cfg_rels = [r for r in result.relations if r.label == "configured_by"]
+        assert len(cfg_rels) == 1
+
+    def test_root_level_files_excluded_from_project_scope(self):
+        """ルート直下のファイルはプロジェクトスコープフォールバックの対象外"""
+        from services.parse.connectors.ml.dataflow_parser import MLDataFlowParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="training_script",
+                name="train.py",
+                format="py",
+                properties={"path": "train.py"},  # ルート直下
+            ),
+            Node(
+                id=2,
+                type="dataset",
+                name="data.csv",
+                format="csv",
+                properties={"path": "data.csv"},  # ルート直下
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDataFlowParser().apply(graph)
+
+        # ルート直下同士はparent matchingで処理される（parentが空）のでマッチしない
+        train_rels = [r for r in result.relations if r.label == "trains_with"]
+        assert len(train_rels) == 0
+
+    def test_sibling_dir_preferred_over_project_scope(self):
+        """兄弟ディレクトリマッチが優先され、プロジェクトスコープはフォールバック"""
+        from services.parse.connectors.ml.dataflow_parser import MLDataFlowParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="training_script",
+                name="train.py",
+                format="py",
+                properties={"path": "project/src/train.py"},
+            ),
+            Node(
+                id=2,
+                type="dataset",
+                name="near.csv",
+                format="csv",
+                properties={"path": "project/data/near.csv"},  # 兄弟ディレクトリ
+            ),
+            Node(
+                id=3,
+                type="dataset",
+                name="far.csv",
+                format="csv",
+                properties={"path": "other/data/far.csv"},  # 別プロジェクト
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDataFlowParser().apply(graph)
+
+        train_rels = [r for r in result.relations if r.label == "trains_with"]
+        # 兄弟ディレクトリの near.csv のみマッチ（フォールバックに行かない）
+        assert len(train_rels) == 1
+        assert train_rels[0].node2_id == 2
+
 
 # ====================================================================
 # SurrogateWorkflowDetector テスト
@@ -770,6 +913,95 @@ class TestSurrogateWorkflowDetector:
 
         assert len(result.relations) == 0
 
+    def test_shallow_path_fallback_matches(self):
+        """浅いパス（depth==2）の機能ディレクトリ同士はフォールバックでマッチ"""
+        from services.parse.connectors.ml.surrogate_detector import (
+            SurrogateWorkflowDetector,
+        )
+
+        # cae/ と data/ は同一プロジェクト内の機能ディレクトリと判定
+        nodes = [
+            Node(
+                id=1,
+                type="result",
+                name="result.odb",
+                format="odb",
+                properties={"path": "cae/result.odb"},
+            ),
+            Node(
+                id=2,
+                type="dataset",
+                name="features.csv",
+                format="csv",
+                properties={"path": "data/features.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SurrogateWorkflowDetector().apply(graph)
+
+        rels = [r for r in result.relations if r.label == "extracted_from"]
+        assert len(rels) == 1
+
+    def test_deep_path_no_fallback(self):
+        """深いパス（depth>=3）ではroot segment不一致時にフォールバックしない"""
+        from services.parse.connectors.ml.surrogate_detector import (
+            SurrogateWorkflowDetector,
+        )
+
+        # project_a/ と project_b/ は異なるプロジェクトと判定
+        nodes = [
+            Node(
+                id=1,
+                type="result",
+                name="result.odb",
+                format="odb",
+                properties={"path": "project_a/cae/result.odb"},
+            ),
+            Node(
+                id=2,
+                type="dataset",
+                name="features.csv",
+                format="csv",
+                properties={"path": "project_b/data/features.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SurrogateWorkflowDetector().apply(graph)
+
+        assert len(result.relations) == 0
+
+    def test_shallow_path_full_workflow(self):
+        """浅いパスで三層ワークフロー全体がフォールバックでマッチ"""
+        from services.parse.connectors.ml.surrogate_detector import (
+            SurrogateWorkflowDetector,
+        )
+
+        nodes = [
+            # Layer 1
+            Node(id=1, type="calculation_input", name="go.inp", format="inp", properties={"path": "cae/go.inp"}),
+            Node(id=2, type="result", name="go.odb", format="odb", properties={"path": "cae/go.odb"}),
+            # Layer 2
+            Node(id=3, type="dataset", name="data.csv", format="csv", properties={"path": "data/data.csv"}),
+            Node(id=4, type="model_checkpoint", name="model.pt", format="pt", properties={"path": "ml/model.pt"}),
+            Node(id=5, type="training_script", name="train.py", format="py", properties={"path": "ml/train.py"}),
+            # Layer 3
+            Node(
+                id=6,
+                type="optimization_study",
+                name="study.db",
+                format="db",
+                properties={"path": "optimization/study.db"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = SurrogateWorkflowDetector().apply(graph)
+
+        labels = {r.label for r in result.relations}
+        assert "extracted_from" in labels
+        assert "surrogate_of" in labels
+        assert "optimizes" in labels
+        assert "uses_objective" in labels
+
 
 # ====================================================================
 # プラグイン登録テスト
@@ -997,3 +1229,143 @@ class TestSurrogateFrameworkE2E:
 
         for node in graph.nodes:
             assert node.type in valid_types, f"Unexpected node type: {node.type} for {node.name}"
+
+
+# ====================================================================
+# CAE+ML混在 E2Eテスト: test_asset_surrogate
+# ====================================================================
+
+SURROGATE_ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset_surrogate"
+
+
+class TestSurrogateE2EWithCAE:
+    """CAE+ML混在テストアセットを使った三層ワークフローE2Eテスト
+
+    test_asset_surrogate/ は以下の構造:
+      cae/          - CAE入力ファイル (.inp)
+      data/         - CAE結果から抽出したデータセット (.csv)
+      ml/           - 学習スクリプト・設定・モデル (.py, .yaml, .pt)
+      optimization/ - 最適化スタディ (.db, .csv)
+    """
+
+    def _build_surrogate_graph(self) -> ProjectGraph:
+        """test_asset_surrogateからノードを生成し全パーサーを適用"""
+        from services.parse.connectors.ml.checkpoint_parser import TorchCheckpointParser
+        from services.parse.connectors.ml.config_parser import MLConfigParser
+        from services.parse.connectors.ml.dataflow_parser import MLDataFlowParser
+        from services.parse.connectors.ml.dataset_parser import MLDatasetParser
+        from services.parse.connectors.ml.experiment_parser import ExperimentRunParser
+        from services.parse.connectors.ml.model_parser import SklearnModelParser
+        from services.parse.connectors.ml.optimization_parser import OptimizationRunParser
+        from services.parse.connectors.ml.script_parser import MLScriptParser
+        from services.parse.connectors.ml.surrogate_detector import SurrogateWorkflowDetector
+
+        nodes: list[Node] = []
+        node_id = 0
+        for path in sorted(SURROGATE_ASSET_DIR.rglob("*")):
+            if path.is_file():
+                rel_path = path.relative_to(SURROGATE_ASSET_DIR)
+                node_id += 1
+                # .inp ファイルは calculation_input として初期化（実際のパーサーが行う処理を模擬）
+                file_type = "file"
+                if path.suffix == ".inp":
+                    file_type = "calculation_input"
+                nodes.append(
+                    Node(
+                        id=node_id,
+                        type=file_type,
+                        name=path.name,
+                        format=path.suffix.lstrip(".") if path.suffix else "",
+                        properties={"path": str(rel_path)},
+                    )
+                )
+
+        graph = _make_graph(nodes, project_root=SURROGATE_ASSET_DIR)
+
+        parsers = sorted(
+            [
+                MLDatasetParser,
+                MLConfigParser,
+                MLScriptParser,
+                TorchCheckpointParser,
+                SklearnModelParser,
+                ExperimentRunParser,
+                OptimizationRunParser,
+                MLDataFlowParser,
+                SurrogateWorkflowDetector,
+            ],
+            key=lambda cls: cls.priority,
+        )
+        for parser_cls in parsers:
+            graph = parser_cls().apply(graph)
+
+        return graph
+
+    def test_all_three_layers_detected(self):
+        """三層全てのノードタイプが検出される"""
+        graph = self._build_surrogate_graph()
+
+        types = {n.type for n in graph.nodes}
+
+        # Layer 1: CAE
+        assert "calculation_input" in types, f"CAE input missing, got: {types}"
+        # Layer 2: ML
+        assert "dataset" in types, f"Dataset missing, got: {types}"
+        assert "experiment_config" in types, f"Config missing, got: {types}"
+        # Layer 3: Optimization
+        assert "optimization_study" in types, f"Optuna study missing, got: {types}"
+
+    def test_cross_layer_relations_created(self):
+        """三層間のリレーションが生成される"""
+        graph = self._build_surrogate_graph()
+
+        labels = {r.label for r in graph.relations}
+
+        # L1→L2: CAE結果からデータ抽出は.odbが無いのでextracted_fromは不要
+        # L1→L2: サロゲートモデルがCAE入力を近似
+        assert "surrogate_of" in labels, f"surrogate_of missing, got: {labels}"
+        # L2→L3: 最適化スタディがモデルを最適化
+        assert "optimizes" in labels, f"optimizes missing, got: {labels}"
+
+    def test_intra_ml_dataflow_relations(self):
+        """ML層内のデータフローリレーションが生成される"""
+        graph = self._build_surrogate_graph()
+
+        labels = {r.label for r in graph.relations}
+        ml_labels = {"trains_with", "produces_model", "configured_by", "logs_to"}
+        found = labels & ml_labels
+        assert found, f"Expected intra-ML dataflow relations, got: {labels}"
+
+    def test_cae_nodes_preserved(self):
+        """CAEノードのタイプがML昇格で上書きされない"""
+        graph = self._build_surrogate_graph()
+
+        inp_nodes = [n for n in graph.nodes if n.name.endswith(".inp")]
+        for node in inp_nodes:
+            assert node.type == "calculation_input", f"CAE input type overwritten: {node.name} → {node.type}"
+
+    def test_no_duplicate_relations_in_surrogate(self):
+        """CAE+ML混在でも重複リレーションが発生しない"""
+        graph = self._build_surrogate_graph()
+
+        seen: set[tuple[int, int, str]] = set()
+        for rel in graph.relations:
+            key = (rel.node1_id, rel.node2_id, rel.label)
+            assert key not in seen, f"Duplicate relation: {key}"
+            seen.add(key)
+
+    def test_node_count_matches_files(self):
+        """ノード数がファイル数と一致する"""
+        graph = self._build_surrogate_graph()
+        file_count = sum(1 for p in SURROGATE_ASSET_DIR.rglob("*") if p.is_file())
+        assert len(graph.nodes) == file_count
+
+    def test_optimization_metadata_extracted(self):
+        """最適化スタディのメタデータが抽出される"""
+        graph = self._build_surrogate_graph()
+
+        studies = [n for n in graph.nodes if n.type == "optimization_study"]
+        assert len(studies) >= 1
+        study = studies[0]
+        assert study.properties.get("study_name") == "surrogate_opt"
+        assert study.properties.get("n_trials_completed") == 5

@@ -90,6 +90,16 @@ def _project_root_segment(path_str: str) -> str:
     return parts[0] if len(parts) >= 2 else ""
 
 
+def _is_shallow_path(path_str: str) -> bool:
+    """パスが浅い（機能ディレクトリ直下）かどうか
+
+    depth==2 のパス（例: "cae/file.inp", "data/file.csv"）はプロジェクト内の
+    機能ディレクトリを示す可能性が高い。depth>=3 のパス（例: "project/cae/file.inp"）
+    はプロジェクトレベルのディレクトリ構造があり、root segmentで判別可能。
+    """
+    return len(PurePosixPath(path_str).parts) == 2
+
+
 class SurrogateWorkflowDetector(AbstractFileParser):
     """サロゲートモデルワークフロー検出器
 
@@ -176,7 +186,9 @@ class SurrogateWorkflowDetector(AbstractFileParser):
         if not cae_results or not datasets:
             return
 
-        # プロジェクトルートの近接性で判定
+        matched = False
+
+        # 1. プロジェクトルートの近接性で判定
         for ds in datasets:
             ds_path = ds.properties.get("path", "")
             ds_root = _project_root_segment(ds_path)
@@ -185,8 +197,22 @@ class SurrogateWorkflowDetector(AbstractFileParser):
                 cae_path = cae_result.properties.get("path", "")
                 cae_root = _project_root_segment(cae_path)
 
-                # 同一プロジェクト内に共存（上位2階層が同じ）
                 if ds_root and cae_root and ds_root == cae_root:
+                    add_fn("extracted_from", ds, cae_result)
+                    matched = True
+
+        if matched:
+            return
+
+        # 2. 浅いパスフォールバック: depth==2の機能ディレクトリ同士はマッチ
+        # 例: "cae/result.odb" + "data/features.csv" → 同一プロジェクト内と判定
+        for ds in datasets:
+            ds_path = ds.properties.get("path", "")
+            if not _is_shallow_path(ds_path):
+                continue
+            for cae_result in cae_results:
+                cae_path = cae_result.properties.get("path", "")
+                if _is_shallow_path(cae_path):
                     add_fn("extracted_from", ds, cae_result)
 
     def _build_surrogate_of(
@@ -207,6 +233,9 @@ class SurrogateWorkflowDetector(AbstractFileParser):
         if not cae_inputs or not models:
             return
 
+        matched = False
+
+        # 1. プロジェクトルート一致
         for model in models:
             model_path = model.properties.get("path", "")
             model_root = _project_root_segment(model_path)
@@ -216,6 +245,20 @@ class SurrogateWorkflowDetector(AbstractFileParser):
                 cae_root = _project_root_segment(cae_path)
 
                 if model_root and cae_root and model_root == cae_root:
+                    add_fn("surrogate_of", model, cae_input)
+                    matched = True
+
+        if matched:
+            return
+
+        # 2. 浅いパスフォールバック
+        for model in models:
+            model_path = model.properties.get("path", "")
+            if not _is_shallow_path(model_path):
+                continue
+            for cae_input in cae_inputs:
+                cae_path = cae_input.properties.get("path", "")
+                if _is_shallow_path(cae_path):
                     add_fn("surrogate_of", model, cae_input)
 
     def _build_optimizes(
@@ -235,6 +278,9 @@ class SurrogateWorkflowDetector(AbstractFileParser):
         if not studies or not models:
             return
 
+        matched = False
+
+        # 1. プロジェクトルート一致
         for study in studies:
             study_path = study.properties.get("path", "")
             study_root = _project_root_segment(study_path)
@@ -244,6 +290,20 @@ class SurrogateWorkflowDetector(AbstractFileParser):
                 model_root = _project_root_segment(model_path)
 
                 if study_root and model_root and study_root == model_root:
+                    add_fn("optimizes", study, model)
+                    matched = True
+
+        if matched:
+            return
+
+        # 2. 浅いパスフォールバック
+        for study in studies:
+            study_path = study.properties.get("path", "")
+            if not _is_shallow_path(study_path):
+                continue
+            for model in models:
+                model_path = model.properties.get("path", "")
+                if _is_shallow_path(model_path):
                     add_fn("optimizes", study, model)
 
     def _build_uses_objective(
@@ -266,6 +326,9 @@ class SurrogateWorkflowDetector(AbstractFileParser):
         if not studies or not target_scripts:
             return
 
+        matched = False
+
+        # 1. プロジェクトルート一致
         for study in studies:
             study_path = study.properties.get("path", "")
             study_root = _project_root_segment(study_path)
@@ -275,4 +338,18 @@ class SurrogateWorkflowDetector(AbstractFileParser):
                 script_root = _project_root_segment(script_path)
 
                 if study_root and script_root and study_root == script_root:
+                    add_fn("uses_objective", study, script)
+                    matched = True
+
+        if matched:
+            return
+
+        # 2. 浅いパスフォールバック
+        for study in studies:
+            study_path = study.properties.get("path", "")
+            if not _is_shallow_path(study_path):
+                continue
+            for script in target_scripts:
+                script_path = script.properties.get("path", "")
+                if _is_shallow_path(script_path):
                     add_fn("uses_objective", study, script)

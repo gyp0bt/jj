@@ -40,6 +40,11 @@ def _parent_dir(path_str: str) -> str:
     return parent if parent != "." else ""
 
 
+def _has_directory(path_str: str) -> bool:
+    """パスにディレクトリ成分があるか（ルート直下でないか）"""
+    return len(PurePosixPath(path_str).parts) >= 2
+
+
 def _experiment_id(node: Any) -> str | None:
     """ノードのexperiment_idを取得"""
     return node.properties.get("experiment_id")
@@ -174,6 +179,17 @@ class MLDataFlowParser(AbstractFileParser):
             ):
                 result.append(ds)
 
+        if result:
+            return result
+
+        # 3. プロジェクトルートスコープ: 両方がディレクトリ配下にある場合フォールバック
+        # 典型的なMLプロジェクト構造（src/, data/, models/が別ディレクトリ）に対応
+        if _has_directory(script_path):
+            for ds in datasets:
+                ds_path = ds.properties.get("path", "")
+                if _has_directory(ds_path):
+                    result.append(ds)
+
         return result
 
     def _find_related_models(
@@ -209,6 +225,16 @@ class MLDataFlowParser(AbstractFileParser):
             ):
                 result.append(model)
 
+        if result:
+            return result
+
+        # 3. プロジェクトルートスコープ
+        if _has_directory(script_path):
+            for model in models:
+                model_path = model.properties.get("path", "")
+                if _has_directory(model_path):
+                    result.append(model)
+
         return result
 
     def _find_related_configs(
@@ -243,5 +269,15 @@ class MLDataFlowParser(AbstractFileParser):
                 script_grandparent and cfg_grandparent and cfg_grandparent == script_grandparent
             ):
                 result.append(cfg)
+
+        if result:
+            return result
+
+        # 3. プロジェクトルートスコープ
+        if _has_directory(script_path):
+            for cfg in configs:
+                cfg_path = cfg.properties.get("path", "")
+                if _has_directory(cfg_path):
+                    result.append(cfg)
 
         return result
