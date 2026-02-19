@@ -30,6 +30,14 @@ M6: ML/実験/最適化タスク対応
  ├── Phase 3: フレームワーク固有パーサー（PyTorch・sklearn・実験ディレクトリ）✓
  ├── Phase 4: サロゲートモデルフレームワーク（Optuna・データフロー・層間リレーション）✓
  └── Phase 5: ダッシュボード統合（MLコネクター・三層データフロー可視化）
+
+M7: Run中心スキーマ再設計（M6の知見を元にデータモデル統一）
+ ├── Phase 1: コアモデル拡張（NodeCategory・Run構造的リレーション）✓
+ ├── Phase 2: CAE Run発見パーサー
+ ├── Phase 3: ML Run発見パーサー
+ ├── Phase 4: RunService統合・潜在Run管理
+ ├── Phase 5: Run比較ダッシュボード
+ └── Phase 6: Neo4j Run Node対応
 ```
 
 > **M2について**: Fluent/LS-DYNA/Flow-3D/OpenFOAM/CalculiX等の検証環境は常時利用可能ではないため、M1→M3の順に進める。M2は検証環境確保後にプラグインとして個別対応する。ただし、M1.5でコアモジュールの柔軟性を事前に確保しておく。
@@ -186,6 +194,26 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 
 ---
 
+## M7: Run中心スキーマ再設計 — Phase 1完了
+
+**位置づけ**: M6（ML/実験/最適化タスク対応）の知見から、jjの最重要管理対象はRunであることが明確化。全てのデータ（CAEジョブ、スクリプト実行、ML学習、物理実験、parse自体）をRunとして統一的にモデル化し、Run比較を中核機能とする。
+
+### 設計文書
+- [Run中心スキーマ再設計仕様書](specs/run-centric-schema.md) — 全体設計、Nodeカテゴリ体系、Run三項関係、比較モデル
+
+### 実装計画
+
+| Phase | タスク | 成果物 | 状態 |
+|-------|--------|--------|------|
+| 1 | コアモデル拡張 | NodeCategory, Run構造的リレーション, AbstractRunDiscoverer, RunQueryService | 完了 |
+| 2 | CAE Run発見 | CaeRunDiscoverer（inp→odbペアからCAE潜在Runを発見） | 未着手 |
+| 3 | ML Run発見 | MlTrainingRunDiscoverer（script→dataset→modelからML潜在Runを発見） | 未着手 |
+| 4 | RunService統合 | 実行時RunもRun Nodeとして統一記録 | 未着手 |
+| 5 | Run比較ダッシュボード | Run一覧・Run比較・Run DAGビュー | 未着手 |
+| 6 | Neo4j Run Node対応 | Run NodeのNeo4jラベルマッピング | 未着手 |
+
+---
+
 ## 仕様書リンク集
 
 ### jj仕様書（`jj/docs/specs/`）
@@ -211,6 +239,7 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 | MS-01 | マルチソルバー対応 | [multi-solver.md](specs/multi-solver.md) | M1.5, M2 |
 | MS-02 | 解析結果ディレクトリ再構成 | [results-directory-restructure.md](specs/results-directory-restructure.md) | M2 |
 | MS-03 | ML/実験/最適化タスク対応 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6 |
+| MS-04 | Run中心スキーマ再設計 | [run-centric-schema.md](specs/run-centric-schema.md) | M7 |
 
 ### jjrv仕様書（`jjrv/docs/`）
 
