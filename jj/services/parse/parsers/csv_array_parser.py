@@ -43,6 +43,11 @@ class CsvArrayParser(AbstractFileParser):
 
     ヘッダーなしCSV: 1行目が全て数値の場合、col_0, col_1, ... で自動命名。
 
+    csv-max-rows設定:
+        0（デフォルト）: 全行を配列として読み込む（従来動作）
+        N > 0: N行を超えるCSVはサマリーモード（min/max/mean/count/last）で格納。
+        大規模プロジェクト（60K行×1000ファイル等）でのメモリ使用量を抑制する。
+
     例1 (トークン差分):
         go_idx1_w5_t20.inp → go_idx1_w5_t20_RF.csv
         余剰トークン: "RF"
@@ -52,24 +57,24 @@ class CsvArrayParser(AbstractFileParser):
         go_idx1_w5_t20.inp → go_idx1_w5_t20/history_RF3.csv
         接頭辞: "history_RF3"
         格納: node.properties["history_RF3.time"] = [0.0, 0.5, 1.0]
+
+    例3 (サマリーモード, csv-max-rows: 10000):
+        60000行のCSV → サマリー統計量で格納
+        格納: node.properties["RF.time"] = {"min": 0.0, "max": 1.0, "mean": 0.5, "count": 60000, "last": 1.0}
     """
 
     priority = 33
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        input_extensions = graph.config.file_relations.input_extensions
+        csv_max_rows = graph.config.csv_max_rows
 
-        # 入力ノードをIDで引けるようにする
+        # 入力ノードをIDで引けるようにする（インデックス活用）
         input_nodes: dict[int, Node] = {}
-        for node in graph.nodes:
-            ext = f".{node.format}" if node.format else ""
-            if ext.lower() in input_extensions:
-                input_nodes[node.id] = node
+        for node in graph.get_input_nodes():
+            input_nodes[node.id] = node
 
-        # has_output関係からCSVノードを収集
-        for rel in graph.relations:
-            if rel.label != "has_output":
-                continue
+        # has_output関係からCSVノードを収集（インデックス活用）
+        for rel in graph.get_relations_by_label("has_output"):
             inp_node = input_nodes.get(rel.node1_id)
             if inp_node is None:
                 continue
@@ -93,7 +98,7 @@ class CsvArrayParser(AbstractFileParser):
             if not csv_path.exists():
                 continue
 
-            arrays = _read_csv_arrays(csv_path)
+            arrays = _read_csv_arrays(csv_path, max_rows=csv_max_rows)
             if not arrays:
                 continue
 
@@ -203,8 +208,93 @@ def _is_header_row(row: list[str]) -> bool:
     return False
 
 
-def _read_csv_arrays(csv_path: Path) -> dict[str, list[float]]:
-    """CSVファイルを読み取り、列名→数値配列の辞書を返す
+def _count_csv_rows(csv_path: Path) -> int:
+    """CSVファイルの行数を高速に数える（ヘッダー行含む）"""
+    try:
+        with csv_path.open("r", encoding="utf-8", errors="ignore") as f:
+            return sum(1 for _ in f)
+    except OSError:
+        return 0
+
+
+def _read_csv_summary(csv_path: Path) -> dict[str, dict[str, float]]:
+    """CSVファイルをストリーミング読み込みし、列ごとの統計量のみを返す
+
+    全行をメモリに保持せず、1行ずつ処理して統計量を計算する。
+    大規模CSV（60K行×1000ファイル等）でのメモリ使用量を抑制する。
+
+    Args:
+        csv_path: CSVファイルパス
+
+    Returns:
+        {列名: {"min": float, "max": float, "mean": float, "count": int, "last": float}}
+    """
+    try:
+        with csv_path.open("r", encoding="utf-8", errors="ignore") as f:
+            sniffer_reader = csv.reader(f)
+            try:
+                first_row = next(sniffer_reader)
+            except StopIteration:
+                return {}
+
+            has_header = _is_header_row(first_row)
+
+            if has_header:
+                fieldnames = [cell.strip() for cell in first_row]
+            else:
+                num_cols = len(first_row)
+                fieldnames = [f"col_{i}" for i in range(num_cols)]
+
+            # ストリーミング統計: min, max, sum, count, last
+            stats: dict[str, dict[str, float]] = {}
+            for col in fieldnames:
+                stats[col] = {"min": float("inf"), "max": float("-inf"), "sum": 0.0, "count": 0, "last": float("nan")}
+
+            def _update_stats(row: list[str]) -> None:
+                for i, col in enumerate(fieldnames):
+                    val_str = row[i].strip() if i < len(row) else ""
+                    try:
+                        val = float(val_str)
+                    except (ValueError, TypeError):
+                        continue
+                    if math.isnan(val):
+                        continue
+                    s = stats[col]
+                    if val < s["min"]:
+                        s["min"] = val
+                    if val > s["max"]:
+                        s["max"] = val
+                    s["sum"] += val
+                    s["count"] += 1
+                    s["last"] = val
+
+            if not has_header:
+                _update_stats(first_row)
+
+            for row in sniffer_reader:
+                _update_stats(row)
+
+            # 結果辞書を構築（有効データがない列は除外）
+            result: dict[str, dict[str, float]] = {}
+            for col, s in stats.items():
+                count = int(s["count"])
+                if count == 0:
+                    continue
+                result[col] = {
+                    "min": s["min"],
+                    "max": s["max"],
+                    "mean": s["sum"] / count,
+                    "count": count,
+                    "last": s["last"],
+                }
+
+            return result
+    except OSError:
+        return {}
+
+
+def _read_csv_arrays(csv_path: Path, *, max_rows: int = 0) -> dict[str, list[float] | dict[str, float]]:
+    """CSVファイルを読み取り、列名→数値配列（またはサマリー）の辞書を返す
 
     1行目がヘッダー（非数値を含む）の場合はそのままカラム名として使用。
     1行目が全て数値の場合はヘッダーなしと判断し、col_0, col_1, ... で
@@ -212,12 +302,23 @@ def _read_csv_arrays(csv_path: Path) -> dict[str, list[float]]:
 
     数値変換できない値はNaNとする。全値がNaNの列は除外される。
 
+    max_rows > 0 の場合、データ行数がmax_rowsを超えるCSVはサマリーモードで読み込む。
+    サマリーモードでは全行をメモリに保持せず、統計量（min/max/mean/count/last）のみを返す。
+
     Args:
         csv_path: CSVファイルパス
+        max_rows: CSV最大行数閾値（0=無制限、超過時サマリーモード）
 
     Returns:
-        {列名: [値のリスト]} の辞書。空の場合は空辞書。
+        {列名: [値のリスト]} または {列名: {"min", "max", "mean", "count", "last"}}
     """
+    # サマリーモード判定
+    if max_rows > 0:
+        row_count = _count_csv_rows(csv_path)
+        # ヘッダー行を除くデータ行数で判定
+        if row_count > max_rows + 1:
+            return _read_csv_summary(csv_path)
+
     try:
         with csv_path.open("r", encoding="utf-8", errors="ignore") as f:
             # まず最初の行を読み取ってヘッダー有無を判定
