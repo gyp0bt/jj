@@ -10,6 +10,7 @@ AbstractFileParserのサブクラスとして、ファイル名解析・バー�
 """
 
 # 全パーサーをimportして自動登録させる
+from services.parse.parsers.cae_run_discoverer import CaeRunDiscoverer
 from services.parse.parsers.csv_array_parser import CsvArrayParser
 from services.parse.parsers.directory_parser import (
     DirectoryRelationParser,
@@ -18,6 +19,7 @@ from services.parse.parsers.directory_parser import (
 from services.parse.parsers.display_name_parser import DisplayNameParser
 from services.parse.parsers.enrichment_filter import EnrichmentOnlyFilter
 from services.parse.parsers.json_property_parser import JsonPropertyParser
+from services.parse.parsers.ml_run_discoverer import MlTrainingRunDiscoverer
 from services.parse.parsers.output_parser import (
     AssetRelationParser,
     IncludesRelationParser,
@@ -33,12 +35,14 @@ from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
 __all__ = [
     "AssetRelationParser",
+    "CaeRunDiscoverer",
     "CsvArrayParser",
     "DirectoryRelationParser",
     "DisplayNameParser",
     "EnrichmentOnlyFilter",
     "IncludesRelationParser",
     "JsonPropertyParser",
+    "MlTrainingRunDiscoverer",
     "OutputRelationParser",
     "ResultRelationParser",
     "ResultsMetadataParser",

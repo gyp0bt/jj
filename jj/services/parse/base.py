@@ -358,7 +358,14 @@ class AbstractFileParser(ABC):
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         # 抽象メソッドが残っているクラスは登録しない
-        if not getattr(cls, "__abstractmethods__", None):
+        # Note: ABCMeta.__new__はtype.__new__の後に__abstractmethods__を設定するが、
+        # __init_subclass__はtype.__new__内で呼ばれるため、新規定義された
+        # abstractmethodが__abstractmethods__に反映されていない場合がある。
+        # クラスの名前空間を直接チェックして補完する。
+        has_abstract = getattr(cls, "__abstractmethods__", None) or any(
+            getattr(v, "__isabstractmethod__", False) for v in cls.__dict__.values()
+        )
+        if not has_abstract:
             _parser_registry.append(cls)
 
     @abstractmethod
