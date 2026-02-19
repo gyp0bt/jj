@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re as _re
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
@@ -497,25 +498,33 @@ class TokenKeyMapConfig:
 
 @dataclass(frozen=True)
 class IgnoreConfig:
-    """ignore設定: 除外パターン（.gitignore相当）"""
+    """ignore設定: 除外パターン（.gitignore相当）
+
+    パフォーマンス最適化: fnmatchパターンを正規表現にプリコンパイルし、
+    大量ファイル（1000+）のスキャン時のオーバーヘッドを削減する。
+    """
 
     patterns: list[str]
+    _compiled_patterns: tuple[_re.Pattern[str], ...] = ()
 
     @classmethod
     def from_list(cls, data: list[str] | None) -> IgnoreConfig:
         if not data:
             return cls(patterns=[])
-        return cls(patterns=[str(p) for p in data])
+        patterns = [str(p) for p in data]
+        compiled = tuple(_re.compile(fnmatch.translate(p)) for p in patterns)
+        return cls(patterns=patterns, _compiled_patterns=compiled)
 
     def should_ignore(self, path: str) -> bool:
-        """パスを除外するべきかどうか判定"""
-        for pattern in self.patterns:
-            if fnmatch.fnmatch(path, pattern):
+        """パスを除外するべきかどうか判定（プリコンパイル済み正規表現使用）"""
+        for compiled in self._compiled_patterns:
+            if compiled.match(path):
                 return True
-            # パス内の各コンポーネントにもマッチングを試みる
-            parts = path.replace("\\", "/").split("/")
+        # パス内の各コンポーネントにもマッチングを試みる
+        parts = path.replace("\\", "/").split("/")
+        for compiled in self._compiled_patterns:
             for part in parts:
-                if fnmatch.fnmatch(part, pattern):
+                if compiled.match(part):
                     return True
         return False
 
@@ -925,6 +934,7 @@ class GraphConfig:
     verbose_name_format: str | None  # verbose_nameのフォーマットテンプレート（例: "条件{idx}(高さ{t},荷重{F})"）
     solver_profiles: dict[str, SolverProfileConfig]  # ソルバー別設定プロファイル
     solver_detection: SolverDetectionConfig  # ソルバー自動検出ルール
+    csv_max_rows: int  # CSV読み込み最大行数（0=無制限、超過時はサマリーモード）
 
     def detect_solver_profile(self, path: str) -> SolverProfileConfig:
         """パスからソルバープロファイルを検出
@@ -956,6 +966,7 @@ class GraphConfig:
             raise ValueError("include-search-depth must be >= 0")
         cache_max_age = int(data.get("cache-max-age-days", 30))
         cache_max_count = int(data.get("cache-max-count", 100))
+        csv_max_rows = int(data.get("csv-max-rows", 0))
 
         # ソルバープロファイルの読み込み
         raw_profiles = data.get("solver-profiles", {})
@@ -994,6 +1005,7 @@ class GraphConfig:
             verbose_name_format=verbose_name_format,
             solver_profiles=solver_profiles,
             solver_detection=solver_detection,
+            csv_max_rows=csv_max_rows,
         )
 
     @classmethod

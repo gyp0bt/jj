@@ -79,17 +79,28 @@ class ProjectGraph:
     _parser_cache: dict[str, Any] = field(default_factory=dict, repr=False)
     _file_timestamps: dict[str, float] = field(default_factory=dict, repr=False)
     _prev_timestamps: dict[str, float] = field(default_factory=dict, repr=False)
+    # パフォーマンス用インデックス（O(N)線形走査 → O(1)ハッシュ参照）
+    _relations_by_label: dict[str, list[Relation]] = field(default_factory=lambda: defaultdict(list), repr=False)
+    _relations_by_node: dict[int, list[Relation]] = field(default_factory=lambda: defaultdict(list), repr=False)
+    _nodes_by_type: dict[str, list[Node]] = field(default_factory=lambda: defaultdict(list), repr=False)
+    _nodes_by_category: dict[NodeCategory, list[Node]] = field(default_factory=lambda: defaultdict(list), repr=False)
 
     def __post_init__(self) -> None:
-        """既存ノードのインデックスを構築"""
+        """既存ノード・リレーションのインデックスを構築"""
         for node in self.nodes:
             path = node.properties.get("path", "")
             if path:
                 self._node_by_path[path] = node
             self._node_by_id[node.id] = node
+            self._nodes_by_type[node.type].append(node)
+            if node.category is not None:
+                self._nodes_by_category[node.category].append(node)
             if node.id > self._node_id_counter:
                 self._node_id_counter = node.id
         for rel in self.relations:
+            self._relations_by_label[rel.label].append(rel)
+            self._relations_by_node[rel.node1_id].append(rel)
+            self._relations_by_node[rel.node2_id].append(rel)
             if rel.id > self._relation_id_counter:
                 self._relation_id_counter = rel.id
 
@@ -110,6 +121,9 @@ class ProjectGraph:
         if path:
             self._node_by_path[path] = node
         self._node_by_id[node.id] = node
+        self._nodes_by_type[node.type].append(node)
+        if node.category is not None:
+            self._nodes_by_category[node.category].append(node)
 
     def add_nodes(self, nodes: list[Node]) -> None:
         """複数ノードを一括追加"""
@@ -117,12 +131,19 @@ class ProjectGraph:
             self.add_node(node)
 
     def add_relation(self, relation: Relation) -> None:
-        """リレーションを追加"""
+        """リレーションを追加しインデックスを更新"""
         self.relations.append(relation)
+        self._relations_by_label[relation.label].append(relation)
+        self._relations_by_node[relation.node1_id].append(relation)
+        self._relations_by_node[relation.node2_id].append(relation)
 
     def add_relations(self, relations: list[Relation]) -> None:
         """複数リレーションを一括追加"""
         self.relations.extend(relations)
+        for relation in relations:
+            self._relations_by_label[relation.label].append(relation)
+            self._relations_by_node[relation.node1_id].append(relation)
+            self._relations_by_node[relation.node2_id].append(relation)
 
     def get_node_by_path(self, path: str) -> Node | None:
         """パスからノードを取得"""
@@ -133,8 +154,8 @@ class ProjectGraph:
         return self._node_by_id.get(node_id)
 
     def get_nodes_by_type(self, node_type: str) -> list[Node]:
-        """タイプでノードをフィルタリング"""
-        return [n for n in self.nodes if n.type == node_type]
+        """タイプでノードをフィルタリング（インデックス参照: O(1)）"""
+        return list(self._nodes_by_type.get(node_type, []))
 
     def get_input_nodes(self) -> list[Node]:
         """入力ファイルノード（input_extensions）を取得"""
@@ -142,12 +163,12 @@ class ProjectGraph:
         return [n for n in self.nodes if f".{n.format}".lower() in input_exts]
 
     def get_relations_for_node(self, node_id: int) -> list[Relation]:
-        """ノードに関連するリレーションを取得"""
-        return [r for r in self.relations if r.node1_id == node_id or r.node2_id == node_id]
+        """ノードに関連するリレーションを取得（インデックス参照: O(1)）"""
+        return list(self._relations_by_node.get(node_id, []))
 
     def get_relations_by_label(self, label: str) -> list[Relation]:
-        """ラベルでリレーションをフィルタリング"""
-        return [r for r in self.relations if r.label == label]
+        """ラベルでリレーションをフィルタリング（インデックス参照: O(1)）"""
+        return list(self._relations_by_label.get(label, []))
 
     def safe_relative_path(self, file_path: Path) -> str:
         """POSIX形式の相対パスを生成（先頭./なし）"""
@@ -183,13 +204,29 @@ class ProjectGraph:
         """指定IDのノードとそれに関わるリレーションを除去"""
         self.nodes = [n for n in self.nodes if n.id not in node_ids]
         self.relations = [r for r in self.relations if r.node1_id not in node_ids and r.node2_id not in node_ids]
-        # インデックス再構築
-        self._node_by_id = {n.id: n for n in self.nodes}
+        # 全インデックス再構築
+        self._rebuild_all_indexes()
+
+    def _rebuild_all_indexes(self) -> None:
+        """全インデックスを再構築（remove_nodes後等に使用）"""
+        self._node_by_id = {}
         self._node_by_path = {}
+        self._nodes_by_type = defaultdict(list)
+        self._nodes_by_category = defaultdict(list)
         for n in self.nodes:
+            self._node_by_id[n.id] = n
             path = n.properties.get("path", "")
             if path:
                 self._node_by_path[path] = n
+            self._nodes_by_type[n.type].append(n)
+            if n.category is not None:
+                self._nodes_by_category[n.category].append(n)
+        self._relations_by_label = defaultdict(list)
+        self._relations_by_node = defaultdict(list)
+        for r in self.relations:
+            self._relations_by_label[r.label].append(r)
+            self._relations_by_node[r.node1_id].append(r)
+            self._relations_by_node[r.node2_id].append(r)
 
     def get_cache(self, key: str) -> Any:
         """パーサー間で共有するキャッシュから値を取得
@@ -334,7 +371,7 @@ class ProjectGraph:
     # =========================================================
 
     def get_run_nodes(self, run_type: str | None = None) -> list[Node]:
-        """Runカテゴリのノードを取得
+        """Runカテゴリのノードを取得（インデックス参照: O(1)）
 
         Args:
             run_type: 指定時はrun_typeプロパティでフィルタリング
@@ -342,7 +379,7 @@ class ProjectGraph:
         Returns:
             Runノードのリスト
         """
-        runs = [n for n in self.nodes if n.category == NodeCategory.RUN]
+        runs = list(self._nodes_by_category.get(NodeCategory.RUN, []))
         if run_type is not None:
             runs = [r for r in runs if r.properties.get("run_type") == run_type]
         return runs
@@ -360,11 +397,15 @@ class ProjectGraph:
         return self._get_run_related_nodes(run_node, RUN_MEDIA)
 
     def _get_run_related_nodes(self, run_node: Node, label: str) -> list[Node]:
-        """Run構造的リレーションで接続されたノードを取得
+        """Run構造的リレーションで接続されたノードを取得（インデックス参照）
 
         run_input/run_output/run_media は Run(node1) → Target(node2) の方向。
         """
-        target_ids = [r.node2_id for r in self.relations if r.label == label and r.node1_id == run_node.id]
+        target_ids = [
+            r.node2_id
+            for r in self._relations_by_node.get(run_node.id, [])
+            if r.label == label and r.node1_id == run_node.id
+        ]
         return [n for nid in target_ids if (n := self.get_node_by_id(nid)) is not None]
 
     def add_run_node(
@@ -423,8 +464,8 @@ class ProjectGraph:
         return run_node
 
     def get_nodes_by_category(self, category: NodeCategory) -> list[Node]:
-        """カテゴリでノードをフィルタリング"""
-        return [n for n in self.nodes if n.category == category]
+        """カテゴリでノードをフィルタリング（インデックス参照: O(1)）"""
+        return list(self._nodes_by_category.get(category, []))
 
     def to_graph_model(self) -> GraphModel:
         """GraphModelに変換して返す"""
