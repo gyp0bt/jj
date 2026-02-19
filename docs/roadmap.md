@@ -33,8 +33,8 @@ M6: ML/実験/最適化タスク対応
 
 M7: Run中心スキーマ再設計（M6の知見を元にデータモデル統一）
  ├── Phase 1: コアモデル拡張（NodeCategory・Run構造的リレーション）✓
- ├── Phase 2: CAE Run発見パーサー
- ├── Phase 3: ML Run発見パーサー
+ ├── Phase 2: CAE Run発見パーサー ✓
+ ├── Phase 3: ML Run発見パーサー ✓
  ├── Phase 4: RunService統合・潜在Run管理
  ├── Phase 5: Run比較ダッシュボード
  └── Phase 6: Neo4j Run Node対応
@@ -206,8 +206,8 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 | Phase | タスク | 成果物 | 状態 |
 |-------|--------|--------|------|
 | 1 | コアモデル拡張 | NodeCategory, Run構造的リレーション, AbstractRunDiscoverer, RunQueryService | 完了 |
-| 2 | CAE Run発見 | CaeRunDiscoverer（inp→odbペアからCAE潜在Runを発見） | 未着手 |
-| 3 | ML Run発見 | MlTrainingRunDiscoverer（script→dataset→modelからML潜在Runを発見） | 未着手 |
+| 2 | CAE Run発見 | CaeRunDiscoverer（inp→odbペアからCAE潜在Runを発見） | 完了 |
+| 3 | ML Run発見 | MlTrainingRunDiscoverer（script→dataset→modelからML潜在Runを発見） | 完了 |
 | 4 | RunService統合 | 実行時RunもRun Nodeとして統一記録 | 未着手 |
 | 5 | Run比較ダッシュボード | Run一覧・Run比較・Run DAGビュー | 未着手 |
 | 6 | Neo4j Run Node対応 | Run NodeのNeo4jラベルマッピング | 未着手 |
