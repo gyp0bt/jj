@@ -3,11 +3,17 @@
 前バージョンとのキーワードブロック差分をdiffノードとして生成する。
 diff情報はノードとして作成し、新旧ノードへのrelationを持つ。
 
+lightweight最適化:
+    メッシュコンテンツハッシュが同一のファイルペアでは、メッシュ差分は
+    確実に「なし」であるため、lightweightモードでパースしてSTEP/材料/
+    境界条件のみの差分を計算する。メッシュが異なるペアにはフルモードを使用。
+
 [READMEへ戻る](../../../../../README.md)
 """
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
@@ -16,6 +22,8 @@ from services.parse.base import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
+
+_logger = logging.getLogger(__name__)
 
 
 class AbaqusDiffParser(AbstractFileParser):
@@ -26,6 +34,11 @@ class AbaqusDiffParser(AbstractFileParser):
     差分が存在する場合、diffノードを作成し:
     - diff_from relation: diffノード → 旧ノード
     - diff_to relation: diffノード → 新ノード
+
+    lightweight最適化:
+        メッシュコンテンツハッシュが同一のファイルペアでは、メッシュデータの
+        パースをスキップ（lightweight=True）し、パース時間を削減する。
+        メッシュ差分は「mesh_identical」フラグで記録される。
     """
 
     priority = 90
@@ -46,13 +59,10 @@ class AbaqusDiffParser(AbstractFileParser):
             lightweight: Trueの場合、メッシュデータのスキップ版でパースする。
                 キャッシュにフルデータがあればそれを返す（lightweightは新規parse時のみ影響）。
         """
-        import logging
         from pathlib import Path
 
         import services.parse.connectors.abaqus as abaqus_mod
         from services.graph.storage import GraphStorage
-
-        _logger = logging.getLogger(__name__)
 
         # lightweightパース結果はキャッシュキーを分離（フルデータと混在させない）
         cache_key = f"{file_path}::lightweight" if lightweight else file_path
@@ -107,6 +117,19 @@ class AbaqusDiffParser(AbstractFileParser):
         """
         return graph.is_file_modified(path1) or graph.is_file_modified(path2)
 
+    @staticmethod
+    def _mesh_hashes_match(prev_path: str, next_path: str) -> bool:
+        """2ファイルのメッシュコンテンツハッシュが同一かどうかを判定
+
+        両方のハッシュが計算可能で、かつ一致する場合にTrueを返す。
+        ハッシュが計算できない場合（メッシュ定義なし等）はFalseを返す。
+        """
+        from services.parse.connectors.abaqus.mesh_parser import _compute_mesh_content_hash
+
+        h1 = _compute_mesh_content_hash(prev_path)
+        h2 = _compute_mesh_content_hash(next_path)
+        return h1 is not None and h2 is not None and h1 == h2
+
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus import (
             diff_abq_blocks,
@@ -158,8 +181,15 @@ class AbaqusDiffParser(AbstractFileParser):
                     continue
 
                 try:
-                    prev_abq = self._get_or_parse_inp(graph, str(prev_path))
-                    next_abq = self._get_or_parse_inp(graph, str(next_path))
+                    # lightweight最適化: メッシュハッシュが同一ならlightweightでパース
+                    mesh_identical = self._mesh_hashes_match(str(prev_path), str(next_path))
+                    use_lightweight = mesh_identical
+
+                    if use_lightweight:
+                        _logger.debug(f"Mesh identical, using lightweight parse: {prev_node.name} vs {next_node.name}")
+
+                    prev_abq = self._get_or_parse_inp(graph, str(prev_path), lightweight=use_lightweight)
+                    next_abq = self._get_or_parse_inp(graph, str(next_path), lightweight=use_lightweight)
                     diffs = diff_abq_blocks(prev_abq, next_abq)
 
                     # 差分がなくてもdiffノードを作成する（差分なしの記録として）
@@ -175,6 +205,7 @@ class AbaqusDiffParser(AbstractFileParser):
                         "has_diffs": has_diffs,
                         "source_type": _node_type,
                         "source_index": _index,
+                        "mesh_identical": mesh_identical,
                     }
 
                     if has_diffs:

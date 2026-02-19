@@ -131,6 +131,10 @@ class StatusPage(PageComponent[StatusViewConfig]):
                         nbins=nbins,
                         labels={"x": "CPU時間", "y": "件数"},
                         title="CPU時間分布",
+                        template="plotly_white",
+                    )
+                    fig.update_traces(
+                        hovertemplate="範囲: %{x}<br>件数: %{y}<extra></extra>",
                     )
                     fig.update_layout(
                         bargap=0.05,
@@ -182,6 +186,10 @@ class StatusPage(PageComponent[StatusViewConfig]):
                         nbins=nbins,
                         labels={"x": "警告件数", "y": "解析数"},
                         title="警告件数分布",
+                        template="plotly_white",
+                    )
+                    fig.update_traces(
+                        hovertemplate="範囲: %{x}<br>件数: %{y}<extra></extra>",
                     )
                     fig.update_layout(
                         bargap=0.05,
