@@ -51,6 +51,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [025](status-025.md) | 2026-02-18 | M6 | MLプラグイン Phase 2: コアパーサー3種実装・テストアセット・テスト28件 | claude/execute-status-todos-cMpnf |
 | [026](status-026.md) | 2026-02-18 | M6 | MLプラグイン Phase 3: パーサー3種追加（checkpoint/model/experiment）・テスト24件 | claude/execute-status-todos-pdDTh |
 | [027](status-027.md) | 2026-02-18 | M6 | サロゲートモデルフレームワーク Phase 4: パーサー3種（最適化/データフロー/層間検出）・テスト37件 | claude/surrogate-model-framework-NSm1k |
+| [028](status-028.md) | 2026-02-19 | M6 | Phase 4.5: バグ修正・パスマッチング改善・CAE+ML混在E2Eテスト拡充 | claude/surrogate-model-framework-NSm1k |
 
 ---
 
