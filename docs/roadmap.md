@@ -25,11 +25,11 @@ M1: 基盤整備（完了）
 M2: マルチソルバー検証（検証環境確保後に実施）
 
 M6: ML/実験/最適化タスク対応
- ├── Phase 1: 基盤設計（仕様書・テストアセット）
- ├── Phase 2: コアパーサー（スクリプト解析・データセット検出・設定解析）
- ├── Phase 3: フレームワーク固有パーサー（PyTorch・sklearn・実験ディレクトリ）
- ├── Phase 4: 実験管理連携（MLflow・TensorBoard・Optuna）
- └── Phase 5: 最適化ループ・横断統合（CAE-ML連携・三層データフロー・ダッシュボード）
+ ├── Phase 1: 基盤設計（仕様書・テストアセット）✓
+ ├── Phase 2: コアパーサー（スクリプト解析・データセット検出・設定解析）✓
+ ├── Phase 3: フレームワーク固有パーサー（PyTorch・sklearn・実験ディレクトリ）✓
+ ├── Phase 4: サロゲートモデルフレームワーク（Optuna・データフロー・層間リレーション）✓
+ └── Phase 5: ダッシュボード統合（MLコネクター・三層データフロー可視化）
 ```
 
 > **M2について**: Fluent/LS-DYNA/Flow-3D/OpenFOAM/CalculiX等の検証環境は常時利用可能ではないため、M1→M3の順に進める。M2は検証環境確保後にプラグインとして個別対応する。ただし、M1.5でコアモジュールの柔軟性を事前に確保しておく。
@@ -144,7 +144,7 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 
 ---
 
-## M6: ML/実験/最適化タスク対応 — 設計済み
+## M6: ML/実験/最適化タスク対応 — Phase 4完了
 
 **位置づけ**: CAEシミュレーションと連携する機械学習タスク、実験管理タスク、最適化ループのデータフローをグラフ構造化し、三層（CAE/ML/最適化）の横断可視化を実現する。
 
@@ -172,16 +172,17 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 
 ### 実装計画
 
-| Phase | タスク | 成果物 |
-|-------|--------|--------|
-| 1 | 基盤設計 | 仕様書、テストアセット設計 |
-| 2 | コアパーサー | MLScriptParser, MLDatasetParser, MLConfigParser |
-| 3 | フレームワーク固有 | TorchProjectParser, SklearnProjectParser, ExperimentRunParser |
-| 4 | 実験管理連携 | MLflowParser, TensorBoardParser, OptunaParser |
-| 5 | 横断統合 | OptimizationLoopParser, 三層データフロー, ダッシュボード |
+| Phase | タスク | 成果物 | 状態 |
+|-------|--------|--------|------|
+| 1 | 基盤設計 | 仕様書、テストアセット設計 | 完了 |
+| 2 | コアパーサー | MLScriptParser, MLDatasetParser, MLConfigParser | 完了 |
+| 3 | フレームワーク固有 | TorchCheckpointParser, SklearnModelParser, ExperimentRunParser | 完了 |
+| 4 | サロゲートモデルフレームワーク | OptimizationRunParser, MLDataFlowParser, SurrogateWorkflowDetector | 完了 |
+| 5 | ダッシュボード統合 | MLダッシュボードコネクター, 三層データフロー可視化 | 未着手 |
 
 ### 関連仕様書
 - [ML対応仕様書](specs/ml-task-roadmap.md) — ドメイン分析、データモデル拡張、パーサー設計、三層データフロー
+- [サロゲートモデルフレームワーク仕様書](specs/surrogate-model-framework.md) — CAE-ML-最適化ワークフロー、層間リレーション設計
 
 ---
 

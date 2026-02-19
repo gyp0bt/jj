@@ -41,6 +41,19 @@ class RelType:
     MENTIONED_IN = "MENTIONED_IN"
     HAS_ELSET = "HAS_ELSET"
 
+    # MLデータフローリレーション
+    TRAINS_WITH = "TRAINS_WITH"
+    PRODUCES_MODEL = "PRODUCES_MODEL"
+    CONFIGURED_BY = "CONFIGURED_BY"
+    EVALUATED_ON = "EVALUATED_ON"
+    LOGS_TO = "LOGS_TO"
+
+    # サロゲートモデル/層間リレーション
+    EXTRACTED_FROM = "EXTRACTED_FROM"
+    SURROGATE_OF = "SURROGATE_OF"
+    OPTIMIZES = "OPTIMIZES"
+    USES_OBJECTIVE = "USES_OBJECTIVE"
+
     # jj-jjrv間のクロスリレーション
     MATCHES = "MATCHES"
     REFERENCES = "REFERENCES"
@@ -63,6 +76,17 @@ LABEL_TO_RELTYPE: dict[str, str] = {
     "assigned_to": RelType.ASSIGNED_TO,
     "mentioned_in": RelType.MENTIONED_IN,
     "has_elset": RelType.HAS_ELSET,
+    # MLデータフローリレーション
+    "trains_with": RelType.TRAINS_WITH,
+    "produces_model": RelType.PRODUCES_MODEL,
+    "configured_by": RelType.CONFIGURED_BY,
+    "evaluated_on": RelType.EVALUATED_ON,
+    "logs_to": RelType.LOGS_TO,
+    # サロゲートモデル/層間リレーション
+    "extracted_from": RelType.EXTRACTED_FROM,
+    "surrogate_of": RelType.SURROGATE_OF,
+    "optimizes": RelType.OPTIMIZES,
+    "uses_objective": RelType.USES_OBJECTIVE,
 }
 
 # jj Node.type → Neo4j NodeLabel マッピング
@@ -83,6 +107,17 @@ TYPE_TO_LABEL: dict[str, str] = {
     "version_diff": NodeLabel.JJ_FILE,
     "run": NodeLabel.JJ_RUN,
     "tag": NodeLabel.JJ_TAG,
+    # MLノードタイプ
+    "dataset": NodeLabel.JJ_FILE,
+    "model_checkpoint": NodeLabel.JJ_FILE,
+    "serialized_model": NodeLabel.JJ_FILE,
+    "training_script": NodeLabel.JJ_FILE,
+    "experiment_config": NodeLabel.JJ_FILE,
+    "experiment_metrics": NodeLabel.JJ_FILE,
+    # 最適化ノードタイプ
+    "optimization_study": NodeLabel.JJ_FILE,
+    "optimization_config": NodeLabel.JJ_FILE,
+    "trial_history": NodeLabel.JJ_FILE,
 }
 
 

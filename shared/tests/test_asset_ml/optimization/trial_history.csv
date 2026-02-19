@@ -1,0 +1,6 @@
+trial_number,learning_rate,batch_size,n_layers,value,state
+0,0.01,32,2,0.15,COMPLETE
+1,0.05,64,3,0.22,COMPLETE
+2,0.001,16,1,0.08,COMPLETE
+3,0.008,128,4,0.31,COMPLETE
+4,0.003,32,2,0.06,COMPLETE
