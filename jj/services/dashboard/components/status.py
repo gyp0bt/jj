@@ -122,6 +122,8 @@ class StatusPage(PageComponent[StatusViewConfig]):
             try:
                 import plotly.express as px
 
+                from services.dashboard.widgets import get_plotly_template
+
                 col_chart, col_summary = st.columns([2, 1])
 
                 with col_chart:
@@ -131,7 +133,7 @@ class StatusPage(PageComponent[StatusViewConfig]):
                         nbins=nbins,
                         labels={"x": "CPU時間", "y": "件数"},
                         title="CPU時間分布",
-                        template="plotly_white",
+                        template=get_plotly_template(),
                     )
                     fig.update_traces(
                         hovertemplate="範囲: %{x}<br>件数: %{y}<extra></extra>",
@@ -177,6 +179,8 @@ class StatusPage(PageComponent[StatusViewConfig]):
             try:
                 import plotly.express as px
 
+                from services.dashboard.widgets import get_plotly_template
+
                 col_chart, col_summary = st.columns([2, 1])
 
                 with col_chart:
@@ -186,7 +190,7 @@ class StatusPage(PageComponent[StatusViewConfig]):
                         nbins=nbins,
                         labels={"x": "警告件数", "y": "解析数"},
                         title="警告件数分布",
-                        template="plotly_white",
+                        template=get_plotly_template(),
                     )
                     fig.update_traces(
                         hovertemplate="範囲: %{x}<br>件数: %{y}<extra></extra>",
