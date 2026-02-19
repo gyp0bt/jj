@@ -161,6 +161,46 @@ class TestMLDatasetParser:
 
         assert result.nodes[0].type == "dataset"
 
+    def test_path_type_map_type_preserved(self):
+        """path_type_mapで設定済みの型はdatasetに上書きされない"""
+        from services.parse.connectors.ml.dataset_parser import MLDatasetParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="報告書",
+                name="結果まとめ.csv",
+                format="csv",
+                properties={"path": "reports/結果まとめ.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDatasetParser().apply(graph)
+
+        # 型は「報告書」のまま維持される
+        assert result.nodes[0].type == "報告書"
+        # メタデータは付与される
+        assert result.nodes[0].properties["ml_dataset"] is True
+
+    def test_result_type_not_overridden(self):
+        """先行パーサーで設定された型（result等）はdatasetに上書きされない"""
+        from services.parse.connectors.ml.dataset_parser import MLDatasetParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="result",
+                name="analysis_result.csv",
+                format="csv",
+                properties={"path": "results/analysis_result.csv"},
+            ),
+        ]
+        graph = _make_graph(nodes)
+        result = MLDatasetParser().apply(graph)
+
+        assert result.nodes[0].type == "result"
+        assert result.nodes[0].properties["ml_dataset"] is True
+
 
 # ====================================================================
 # MLConfigParser テスト

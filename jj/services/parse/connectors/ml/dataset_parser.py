@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from jj_types import Node
 from services.parse.base import AbstractFileParser
+from services.parse.file_parse import FileType
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -29,6 +30,10 @@ DATASET_EXTENSIONS = {"csv", "parquet", "h5", "hdf5", "npy", "npz"}
 
 # データ分割名のヒューリスティクス
 SPLIT_KEYWORDS = {"train", "val", "validation", "test", "dev", "eval"}
+
+# デフォルトのFileType値（path_type_mapや他パーサーで未分類のノード）
+# "file" はテストfixture等で使用されるデフォルトタイプ
+_DEFAULT_FILE_TYPES = {ft.value for ft in FileType} | {"file"}
 
 
 class MLDatasetParser(AbstractFileParser):
@@ -46,8 +51,10 @@ class MLDatasetParser(AbstractFileParser):
             if node.format not in DATASET_EXTENSIONS:
                 continue
 
-            # データセットノードに昇格
-            node.type = "dataset"
+            # path_type_mapや先行パーサーで既に具体的な型が割り当て済みの場合、
+            # 型は変更せずメタデータのみ付与する（例: "報告書" → そのまま維持）
+            if node.type in _DEFAULT_FILE_TYPES:
+                node.type = "dataset"
             node.properties["ml_dataset"] = True
 
             # split推定（ファイル名ベース）
