@@ -60,6 +60,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [033](status-033.md) | 2026-02-19 | M2 | パフォーマンス最適化Phase2: UTF-8ファースト・段階的INP解析・パーサー並列化・統計量UI | claude/execute-status-todos-IRWbE |
 | [034](status-034.md) | 2026-02-19 | M2 | パフォーマンス最適化Phase3: 並列プリフェッチ・lightweight対応・plotly統合 | claude/execute-status-todos-pK7Ih |
 | [035](status-035.md) | 2026-02-19 | M2 | status-034 TODO実行: lightweight最適化・ワーカーチューニング・plotlyテーマ・ホバー表示 | claude/execute-status-todos-7XXco |
+| [036](status-036.md) | 2026-02-19 | M2 | status-035 TODO実行: ProcessPool並列化・plotlyダークモード・diff分離 | claude/execute-status-todos-11ExX |
 
 ---
 
