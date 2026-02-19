@@ -1334,3 +1334,65 @@ class TestParseMaterialBlocksRealData:
         """mesh_shape1_t95.v7.inp: メッシュのみで材料定義なし"""
         result = parse_material_blocks(ASSET_DIR / "mesh_shape1_t95.v7.inp")
         assert len(result) == 0
+
+
+class TestReadInpLightweight:
+    """read_inp() の lightweight モードテスト"""
+
+    def test_lightweight_skips_node_data(self, simple_inp):
+        """lightweightモードではノードデータがスキップされる"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=True)
+        # ノードコンポーネントは存在するが、データは空
+        for comp in abq.nodes.values():
+            assert len(comp.data) == 0
+
+    def test_lightweight_skips_element_data(self, simple_inp):
+        """lightweightモードでは要素データがスキップされる"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=True)
+        for comp in abq.elements.values():
+            assert len(comp.data) == 0
+
+    def test_lightweight_skips_nset_data(self, simple_inp):
+        """lightweightモードではノード集合データがスキップされる"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=True)
+        for comp in abq.nsets.values():
+            assert len(comp.data) == 0
+
+    def test_lightweight_skips_elset_data(self, simple_inp):
+        """lightweightモードでは要素集合データがスキップされる"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=True)
+        for comp in abq.elsets.values():
+            assert len(comp.data) == 0
+
+    def test_lightweight_preserves_materials(self, simple_inp):
+        """lightweightモードでも材料データは保持される"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=True)
+        assert len(abq.materials) == 1
+        mat_name = next(iter(abq.materials.keys()))
+        assert "steel" in mat_name.lower()
+        mat = abq.materials[mat_name]
+        assert "elastic" in mat
+        assert "density" in mat
+
+    def test_lightweight_preserves_steps(self, simple_inp):
+        """lightweightモードでもSTEP構造は保持される"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=True)
+        assert len(abq.steps) == 1
+        step = abq.steps[0]
+        assert step.name.lower() == "step-1"
+
+    def test_lightweight_preserves_parameters(self, parameter_inp):
+        """lightweightモードでもパラメータ展開・STEP構造は保持される"""
+        abq = read_inp(parameter_inp, verbose=False, lightweight=True)
+        assert abq is not None
+        # STEP構造が保持されていること
+        assert len(abq.steps) == 1
+        assert abq.steps[0].name.lower() == "step-1"
+
+    def test_full_mode_has_data(self, simple_inp):
+        """通常モード（lightweight=False）ではデータが存在する"""
+        abq = read_inp(simple_inp, verbose=False, lightweight=False)
+        node_comp = next(iter(abq.nodes.values()))
+        assert len(node_comp.data) == 4  # 4ノード
+        elem_comp = next(iter(abq.elements.values()))
+        assert len(elem_comp.data) == 1  # 1要素

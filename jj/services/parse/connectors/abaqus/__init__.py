@@ -199,6 +199,7 @@ class ReadComponent:
 
     dtype: Any = "int32"
     read_component_list: ClassVar[list[type[ReadComponent]]] = []
+    is_heavyweight: ClassVar[bool] = False  # Trueのコンポーネントはlightweightモードでスキップ
 
     @staticmethod
     def iter_read_components() -> Generator[type[ReadComponent], None, None]:
@@ -416,6 +417,7 @@ class ReadNode(ReadComponent):
         ("y", "float32"),
         ("z", "float32"),
     ]
+    is_heavyweight: ClassVar[bool] = True  # lightweightモードでデータ行スキップ
 
     def read_line(self, line: str) -> None:
         values = super().read_line(line)
@@ -434,6 +436,8 @@ class ReadNode(ReadComponent):
 class ReadElement(ReadComponent):
     """*Element"""
 
+    is_heavyweight: ClassVar[bool] = True  # lightweightモードでデータ行スキップ
+
     def read_line(self, line: str) -> None:
         values = super().read_line(line)
         try:
@@ -444,6 +448,8 @@ class ReadElement(ReadComponent):
 
 class ReadNset(ReadComponent):
     """*Nset"""
+
+    is_heavyweight: ClassVar[bool] = True  # lightweightモードでデータ行スキップ
 
     def read_line(self, line: str) -> None:
         ReadNset._read_line(instance=self, line=line)
@@ -471,6 +477,8 @@ class ReadNset(ReadComponent):
 
 class ReadElset(ReadComponent):
     """*Elset"""
+
+    is_heavyweight: ClassVar[bool] = True  # lightweightモードでデータ行スキップ
 
     def read_line(self, line: str) -> None:
         # Nset と同じ仕様を流用
@@ -721,7 +729,12 @@ class ABQData:
 # ==========================
 
 
-def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: int = 5) -> ABQData:
+def read_inp(
+    inp_filepath: PathList,
+    verbose: bool = True,
+    include_max_depth: int = 5,
+    lightweight: bool = False,
+) -> ABQData:
     """Abaqus inpファイルを読み込み、ABQData に変換する
 
     要件:
@@ -729,6 +742,14 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
         * 未対応キーワード: RawBlock として list[str] 生データで保持
         * *STEP〜*END STEP: StepData としてブロック構造を保持
         * *BOUNDARY: ReadBoundary としてブロック化 (Step内で拾える)
+
+    Args:
+        inp_filepath: 入力ファイルパス
+        verbose: 詳細ログ出力
+        include_max_depth: *INCLUDE再帰探索の最大階層数
+        lightweight: Trueの場合、メッシュデータ（NODE/ELEMENT/NSET/ELSET）の
+            データ行読み込みをスキップし、キーワード・材料・パラメータ等の
+            メタデータのみを解析する。メッシュ統計が不要な軽量パーサー向け。
     """
     context = Context()
     all_components: list[ReadComponent] = []
@@ -825,6 +846,9 @@ def read_inp(inp_filepath: PathList, verbose: bool = True, include_max_depth: in
                 continue
 
             if isinstance(current_component, ReadComponent):
+                # lightweightモード: heavyweightコンポーネントのデータ行をスキップ
+                if lightweight and current_component.is_heavyweight:
+                    continue
                 current_component.read_line(line=norm)
             elif isinstance(current_component, RawBlock):
                 tokens = _parse_rawblock_data_line(raw_line, context)
