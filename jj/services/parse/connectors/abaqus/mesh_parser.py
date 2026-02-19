@@ -2,14 +2,20 @@
 
 pymeshを使ってメッシュ統計情報をノードのプロパティに付与する。
 
+メッシュ統計キャッシュ:
+パラメーターや境界条件のみが異なる.inpファイル間でメッシュ部分が同一の場合、
+メッシュ定義部分（*NODE, *ELEMENT, *ELSET, *NSET）のコンテンツハッシュで
+メッシュ統計をディスクキャッシュし、pymesh解析をスキップする。
+
 [READMEへ戻る](../../../../../README.md)
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from services.parse.base import AbstractFileParser
 
@@ -17,6 +23,124 @@ if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
 
 logger = logging.getLogger(__name__)
+
+# メッシュ定義キーワード（ハッシュ対象）
+_MESH_KEYWORDS = frozenset(
+    {
+        "*NODE",
+        "*ELEMENT",
+        "*ELSET",
+        "*NSET",
+    }
+)
+
+# メッシュ統計キャッシュの namespace
+_MESH_STATS_CACHE_NS = "mesh_stats"
+
+# ディスクキャッシュ用の固定mtime（ハッシュベースキャッシュではmtime検証不要）
+_HASH_CACHE_SENTINEL_MTIME = 0.0
+
+
+def _compute_mesh_content_hash(file_path: str) -> str | None:
+    """メッシュ定義部分のコンテンツハッシュを計算
+
+    .inpファイルの*NODE, *ELEMENT, *ELSET, *NSETセクションのみを
+    ハッシュ化する。*PARAMETER, *BOUNDARY, *STEP等は除外。
+    *INCLUDE参照はファイルパス+mtimeをハッシュに含める。
+
+    Args:
+        file_path: .inpファイルの絶対パス
+
+    Returns:
+        SHA256ハッシュ（先頭32文字）。メッシュ内容なし/読み取り不可時はNone。
+    """
+    hasher = hashlib.sha256()
+    in_mesh_section = False
+    has_mesh_content = False
+    parent_dir = Path(file_path).parent
+
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("**"):
+                    continue
+
+                if stripped.startswith("*"):
+                    keyword = stripped.split(",")[0].strip().upper()
+                    in_mesh_section = keyword in _MESH_KEYWORDS
+
+                    # *INCLUDE: 参照先ファイルのパス+mtimeをハッシュに含める
+                    if keyword == "*INCLUDE":
+                        for token in stripped.split(","):
+                            token_stripped = token.strip()
+                            if token_stripped.upper().startswith("INPUT="):
+                                include_path = token_stripped.split("=", 1)[1].strip()
+                                resolved = parent_dir / include_path
+                                try:
+                                    mtime = resolved.stat().st_mtime
+                                    hasher.update(f"INCLUDE:{include_path}:{mtime}".encode())
+                                    has_mesh_content = True
+                                except OSError:
+                                    # includeファイルが見つからない場合はパスのみ
+                                    hasher.update(f"INCLUDE:{include_path}:MISSING".encode())
+                        continue
+
+                if in_mesh_section:
+                    hasher.update(line.encode())
+                    has_mesh_content = True
+    except OSError:
+        return None
+
+    if not has_mesh_content:
+        return None
+
+    return hasher.hexdigest()[:32]
+
+
+def _load_mesh_stats_cache(graph: ProjectGraph, mesh_hash: str) -> dict[str, Any] | None:
+    """ディスクからメッシュ統計キャッシュをロード
+
+    Args:
+        graph: ProjectGraph（project_root取得用）
+        mesh_hash: メッシュコンテンツハッシュ
+
+    Returns:
+        キャッシュされたメッシュ統計辞書。キャッシュなし時はNone。
+    """
+    from services.graph.storage import GraphStorage
+
+    storage = GraphStorage()
+    return storage.load_plugin_data(
+        graph.project_root,
+        _MESH_STATS_CACHE_NS,
+        mesh_hash,
+        _HASH_CACHE_SENTINEL_MTIME,
+    )
+
+
+def _save_mesh_stats_cache(graph: ProjectGraph, mesh_hash: str, data: dict[str, Any]) -> None:
+    """メッシュ統計をディスクキャッシュに保存
+
+    Args:
+        graph: ProjectGraph（project_root取得用）
+        mesh_hash: メッシュコンテンツハッシュ
+        data: メッシュ統計データ
+    """
+    from services.graph.storage import GraphStorage
+
+    try:
+        storage = GraphStorage()
+        storage.save_plugin_data(
+            graph.project_root,
+            _MESH_STATS_CACHE_NS,
+            mesh_hash,
+            data,
+            _HASH_CACHE_SENTINEL_MTIME,
+        )
+        logger.debug(f"Mesh stats cache saved: hash={mesh_hash[:12]}")
+    except Exception as e:
+        logger.debug(f"Mesh stats cache save failed: {e}")
 
 
 class AbaqusMeshParser(AbstractFileParser):
@@ -79,6 +203,30 @@ class AbaqusMeshParser(AbstractFileParser):
 
         return abq
 
+    @staticmethod
+    def _apply_mesh_stats_to_node(node: Any, cached_stats: dict[str, Any]) -> None:
+        """キャッシュ済みメッシュ統計をノードプロパティに適用"""
+        stats = cached_stats.get("stats")
+        if stats:
+            if stats.get("node_count"):
+                node.properties["mesh_node_count"] = stats["node_count"]
+            if stats.get("element_count"):
+                node.properties["mesh_element_count"] = stats["element_count"]
+            if stats.get("element_types"):
+                node.properties["mesh_element_types"] = stats["element_types"]
+            if stats.get("elset_summary"):
+                node.properties["mesh_elset_summary"] = stats["elset_summary"]
+            if stats.get("quality"):
+                node.properties["mesh_quality"] = stats["quality"]
+
+        element_quality = cached_stats.get("element_quality")
+        if element_quality:
+            node.properties["mesh_element_quality"] = element_quality
+
+        topology_groups = cached_stats.get("topology_groups")
+        if topology_groups:
+            node.properties["mesh_topology_groups"] = topology_groups
+
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus.mesh import (
             extract_element_quality_stats,
@@ -100,7 +248,16 @@ class AbaqusMeshParser(AbstractFileParser):
                 logger.debug(f"Skipping unchanged file: {node.name}")
                 continue
 
-            # キャッシュからABQDataを取得（または新規パースしてキャッシュに保存）
+            # メッシュコンテンツハッシュによるキャッシュ（パラメーター/境界条件違いの共有）
+            mesh_hash = _compute_mesh_content_hash(str(file_path))
+            if mesh_hash is not None:
+                cached_stats = _load_mesh_stats_cache(graph, mesh_hash)
+                if cached_stats is not None:
+                    logger.debug(f"Mesh stats cache hit for {node.name} (hash={mesh_hash[:12]})")
+                    self._apply_mesh_stats_to_node(node, cached_stats)
+                    continue
+
+            # キャッシュミス: pymeshで完全解析
             cached_abq = self._get_or_parse_inp(graph, str(file_path))
 
             stats = extract_mesh_stats(file_path, verbose=False, cached_abq_data=cached_abq)
@@ -134,5 +291,14 @@ class AbaqusMeshParser(AbstractFileParser):
             topology_groups = extract_mesh_topology_groups(file_path, verbose=False, cached_abq_data=cached_abq)
             if topology_groups:
                 node.properties["mesh_topology_groups"] = topology_groups
+
+            # メッシュ統計をハッシュキーでディスクキャッシュに保存
+            if mesh_hash is not None:
+                cache_data: dict[str, Any] = {
+                    "stats": stats,
+                    "element_quality": element_quality,
+                    "topology_groups": topology_groups,
+                }
+                _save_mesh_stats_cache(graph, mesh_hash, cache_data)
 
         return graph

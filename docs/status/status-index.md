@@ -56,6 +56,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [029](status-029.md) | 2026-02-19 | M7 | Run中心スキーマ再設計 Phase 1: コアモデル拡張・仕様書策定・テスト35件 | claude/run-centric-schema-redesign-KanLN |
 | [030](status-030.md) | 2026-02-19 | M7 | Run中心スキーマ Phase 2-3: CaeRunDiscoverer・MlTrainingRunDiscoverer・テスト29件 | claude/execute-status-todos-ltUCT |
 | [031](status-031.md) | 2026-02-19 | M2 | パフォーマンス最適化: ProjectGraphインデックス・IgnoreConfigプリコンパイル・CSVサマリーモード | claude/optimize-file-parsing-hhX9f |
+| [032](status-032.md) | 2026-02-19 | M2 | メッシュ統計キャッシュ: コンテンツハッシュによるファイル間共有 | claude/optimize-file-parsing-hhX9f |
 
 ---
 
