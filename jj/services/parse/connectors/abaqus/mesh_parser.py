@@ -234,6 +234,10 @@ class AbaqusMeshParser(AbstractFileParser):
             extract_mesh_topology_groups,
         )
 
+        # Phase 1: ノード分類（キャッシュヒット / 要parse）
+        cache_hit_nodes: list[tuple[Any, dict[str, Any]]] = []
+        parse_needed: list[tuple[Any, Path, str | None]] = []  # (node, file_path, mesh_hash)
+
         for node in graph.nodes:
             ext = f".{node.format}" if node.format else ""
             if ext.lower() != ".inp":
@@ -254,10 +258,21 @@ class AbaqusMeshParser(AbstractFileParser):
                 cached_stats = _load_mesh_stats_cache(graph, mesh_hash)
                 if cached_stats is not None:
                     logger.debug(f"Mesh stats cache hit for {node.name} (hash={mesh_hash[:12]})")
-                    self._apply_mesh_stats_to_node(node, cached_stats)
+                    cache_hit_nodes.append((node, cached_stats))
                     continue
 
-            # キャッシュミス: pymeshで完全解析
+            parse_needed.append((node, file_path, mesh_hash))
+
+        # Phase 1.5: キャッシュヒットノードに即座に適用
+        for node, cached_stats in cache_hit_nodes:
+            self._apply_mesh_stats_to_node(node, cached_stats)
+
+        # Phase 2: 複数ファイルのread_inp()を並列実行（キャッシュミス分）
+        if len(parse_needed) > 1:
+            self._prefetch_inp_parallel(graph, parse_needed)
+
+        # Phase 3: メッシュ統計を抽出・適用（順次処理）
+        for node, file_path, mesh_hash in parse_needed:
             cached_abq = self._get_or_parse_inp(graph, str(file_path))
 
             stats = extract_mesh_stats(file_path, verbose=False, cached_abq_data=cached_abq)
@@ -302,3 +317,51 @@ class AbaqusMeshParser(AbstractFileParser):
                 _save_mesh_stats_cache(graph, mesh_hash, cache_data)
 
         return graph
+
+    @staticmethod
+    def _prefetch_inp_parallel(
+        graph: ProjectGraph,
+        parse_needed: list[tuple[Any, Path, str | None]],
+        max_workers: int | None = None,
+    ) -> None:
+        """複数.inpファイルのread_inp()を並列実行してキャッシュにプリフェッチする
+
+        read_inp()結果はインメモリキャッシュに保存されるため、
+        後続の_get_or_parse_inp()呼び出しでキャッシュヒットする。
+
+        Args:
+            graph: ProjectGraph（キャッシュ保存先）
+            parse_needed: (node, file_path, mesh_hash)のリスト
+            max_workers: 並列ワーカー数（Noneでcpu_countベースの自動決定）
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        import services.parse.connectors.abaqus as abaqus_mod
+
+        # 同一ファイルの重複parseを避けるためパス単位で一意化
+        unique_paths: dict[str, Path] = {}
+        for _, file_path, _ in parse_needed:
+            fp_str = str(file_path)
+            if fp_str not in unique_paths and graph.get_cached_plugin_data("abaqus", fp_str) is None:
+                unique_paths[fp_str] = file_path
+
+        if not unique_paths:
+            return
+
+        include_depth = graph.config.include_search_depth
+
+        def _parse_single(fp_str: str) -> tuple[str, object]:
+            abq = abaqus_mod.read_inp(fp_str, verbose=False, include_max_depth=include_depth)
+            return fp_str, abq
+
+        logger.debug(f"Prefetching {len(unique_paths)} .inp files in parallel")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_parse_single, fp): fp for fp in unique_paths}
+            for future in as_completed(futures):
+                fp_str = futures[future]
+                try:
+                    _, abq = future.result()
+                    graph.set_cached_plugin_data("abaqus", fp_str, abq)
+                except Exception as e:
+                    logger.warning(f"Parallel prefetch failed for {fp_str}: {e}")

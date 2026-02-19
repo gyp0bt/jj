@@ -5396,3 +5396,149 @@ class TestConnectorSavedViewHtml:
         view = SavedViewConfig.from_dict({"name": "test", "type": "table"})
         result = connector.generate_saved_view_html(provider, view, None)
         assert result == "<p>test html</p>"
+
+
+# ====================================================================
+# _compute_histogram_bins / _percentile テスト
+# ====================================================================
+
+
+class TestComputeHistogramBins:
+    """ヒストグラムビン数の動的調整テスト"""
+
+    def test_single_value(self):
+        """1値の場合はbin=1"""
+        from services.dashboard.data_provider import _compute_histogram_bins
+
+        assert _compute_histogram_bins([1.0]) == 1
+
+    def test_small_dataset(self):
+        """5値以下の場合はbin=n"""
+        from services.dashboard.data_provider import _compute_histogram_bins
+
+        assert _compute_histogram_bins([1.0, 2.0, 3.0]) == 3
+        assert _compute_histogram_bins([1.0, 2.0, 3.0, 4.0, 5.0]) == 5
+
+    def test_medium_dataset(self):
+        """中規模データでSturges則ベースのbin数"""
+        from services.dashboard.data_provider import _compute_histogram_bins
+
+        values = list(range(100))
+        nbins = _compute_histogram_bins([float(v) for v in values])
+        # Sturges則: ceil(log2(100) + 1) = ceil(7.64) = 8 → 最小10に拡大
+        assert nbins == 10
+
+    def test_large_dataset(self):
+        """大規模データでbin数が最大50に制限"""
+        from services.dashboard.data_provider import _compute_histogram_bins
+
+        values = [float(i) for i in range(1000000)]
+        nbins = _compute_histogram_bins(values)
+        assert nbins <= 50
+
+    def test_empty_list_returns_one(self):
+        """空リストの場合"""
+        from services.dashboard.data_provider import _compute_histogram_bins
+
+        # n=0 → max(10, min(50, ...)) will handle log(0)
+        # 実際はn <= 1のガード
+        assert _compute_histogram_bins([]) == 1
+
+
+class TestPercentile:
+    """パーセンタイル計算テスト"""
+
+    def test_median_odd_count(self):
+        """奇数個のデータの中央値"""
+        from services.dashboard.data_provider import _percentile
+
+        assert _percentile([1.0, 2.0, 3.0], 50) == 2.0
+
+    def test_median_even_count(self):
+        """偶数個のデータの中央値（線形補間）"""
+        from services.dashboard.data_provider import _percentile
+
+        result = _percentile([1.0, 2.0, 3.0, 4.0], 50)
+        assert result == pytest.approx(2.5)
+
+    def test_quartiles(self):
+        """四分位数テスト"""
+        from services.dashboard.data_provider import _percentile
+
+        data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+        q1 = _percentile(data, 25)
+        q3 = _percentile(data, 75)
+        assert q1 < _percentile(data, 50) < q3
+
+    def test_single_value(self):
+        """単一値ではすべてのパーセンタイルが同値"""
+        from services.dashboard.data_provider import _percentile
+
+        assert _percentile([5.0], 0) == 5.0
+        assert _percentile([5.0], 50) == 5.0
+        assert _percentile([5.0], 100) == 5.0
+
+
+class TestStatusSummaryEnhanced:
+    """get_status_summary の拡張統計テスト"""
+
+    def test_cpu_stats_includes_nbins(self):
+        """cpu_statsにnbinsキーが含まれる"""
+        nodes = [
+            Node(
+                id=i,
+                type="go",
+                name=f"go_idx{i}",
+                format="inp",
+                properties={"cpu_time": float(i * 100), "analysis_status": "completed"},
+            )
+            for i in range(1, 20)
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph)
+        summary = provider.get_status_summary()
+        cpu_stats = summary["cpu_stats"]
+        assert "nbins" in cpu_stats
+        assert cpu_stats["nbins"] >= 1
+
+    def test_cpu_stats_includes_quartiles(self):
+        """cpu_statsに四分位数・標準偏差が含まれる"""
+        nodes = [
+            Node(
+                id=i,
+                type="go",
+                name=f"go_idx{i}",
+                format="inp",
+                properties={"cpu_time": float(i * 100), "analysis_status": "completed"},
+            )
+            for i in range(1, 10)
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph)
+        summary = provider.get_status_summary()
+        cpu_stats = summary["cpu_stats"]
+        assert "median" in cpu_stats
+        assert "q1" in cpu_stats
+        assert "q3" in cpu_stats
+        assert "std" in cpu_stats
+        assert cpu_stats["q1"] <= cpu_stats["median"] <= cpu_stats["q3"]
+
+    def test_warning_stats_includes_nbins(self):
+        """warning_statsにnbinsキーが含まれる"""
+        nodes = [
+            Node(
+                id=i,
+                type="go",
+                name=f"go_idx{i}",
+                format="inp",
+                properties={"sta_warnings": i * 2, "analysis_status": "completed"},
+            )
+            for i in range(1, 15)
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        provider = DashboardDataProvider(graph)
+        summary = provider.get_status_summary()
+        warning_stats = summary["warning_stats"]
+        assert "nbins" in warning_stats
+        assert "min" in warning_stats
+        assert "max" in warning_stats

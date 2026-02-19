@@ -47,6 +47,57 @@ def format_float_value(value: float) -> str | float:
     return value
 
 
+def _compute_histogram_bins(values: list[float]) -> int:
+    """データ分布に応じたヒストグラムビン数を動的に決定する
+
+    Sturges則をベースに、データ数やレンジに応じて調整する。
+    - n <= 5: ビン数 = n（各値に1ビン）
+    - n > 5: Sturges則 ceil(log2(n) + 1) を基本に、最小10・最大50で制限
+
+    Args:
+        values: 数値リスト
+
+    Returns:
+        推奨ビン数
+    """
+    n = len(values)
+    if n <= 1:
+        return 1
+    if n <= 5:
+        return n
+
+    # Sturges則: k = ceil(log2(n) + 1)
+    sturges = math.ceil(math.log2(n) + 1)
+    # 最小10、最大50に制限
+    return max(10, min(50, sturges))
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float:
+    """ソート済みリストからパーセンタイル値を線形補間で計算
+
+    Args:
+        sorted_values: 昇順ソート済み数値リスト
+        pct: パーセンタイル（0-100）
+
+    Returns:
+        パーセンタイル値
+    """
+    n = len(sorted_values)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return sorted_values[0]
+
+    k = (pct / 100.0) * (n - 1)
+    f = math.floor(k)
+    c = math.ceil(k)
+
+    if f == c:
+        return sorted_values[int(k)]
+
+    return sorted_values[f] + (k - f) * (sorted_values[c] - sorted_values[f])
+
+
 class DashboardDataProvider:
     """ダッシュボード向けデータ供給
 
@@ -329,17 +380,32 @@ class DashboardDataProvider:
                     "max": max(numeric_cpu),
                     "mean": sum(numeric_cpu) / len(numeric_cpu),
                     "values": numeric_cpu,
+                    "nbins": _compute_histogram_bins(numeric_cpu),
                 }
+                # 四分位数・標準偏差（2値以上の場合）
+                if len(numeric_cpu) >= 2:
+                    sorted_vals = sorted(numeric_cpu)
+                    n = len(sorted_vals)
+                    cpu_stats["median"] = _percentile(sorted_vals, 50)
+                    cpu_stats["q1"] = _percentile(sorted_vals, 25)
+                    cpu_stats["q3"] = _percentile(sorted_vals, 75)
+                    mean = cpu_stats["mean"]
+                    cpu_stats["std"] = (sum((v - mean) ** 2 for v in sorted_vals) / n) ** 0.5
 
         # 警告件数統計
         warning_counts = [i["warnings"] for i in items if "warnings" in i and isinstance(i["warnings"], (int, float))]
         warning_stats: dict[str, Any] = {}
         if warning_counts:
+            int_warnings = [int(w) for w in warning_counts]
             warning_stats = {
-                "count": len(warning_counts),
-                "total": sum(int(w) for w in warning_counts),
-                "values": [int(w) for w in warning_counts],
+                "count": len(int_warnings),
+                "total": sum(int_warnings),
+                "values": int_warnings,
+                "nbins": _compute_histogram_bins([float(w) for w in int_warnings]),
             }
+            if len(int_warnings) >= 2:
+                warning_stats["min"] = min(int_warnings)
+                warning_stats["max"] = max(int_warnings)
 
         return {
             "total": total,
