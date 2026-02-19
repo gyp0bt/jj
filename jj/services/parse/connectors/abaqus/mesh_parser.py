@@ -143,6 +143,25 @@ def _save_mesh_stats_cache(graph: ProjectGraph, mesh_hash: str, data: dict[str, 
         logger.debug(f"Mesh stats cache save failed: {e}")
 
 
+def _parse_inp_worker(args: tuple[str, int]) -> tuple[str, object]:
+    """ProcessPoolExecutor用のワーカー関数
+
+    モジュールレベルに配置することでpickle可能にする。
+    子プロセスで実行されるため、グローバル状態に依存しない。
+
+    Args:
+        args: (file_path, include_max_depth)のタプル
+
+    Returns:
+        (file_path, ABQData)のタプル
+    """
+    import services.parse.connectors.abaqus as abaqus_mod
+
+    fp_str, include_depth = args
+    abq = abaqus_mod.read_inp(fp_str, verbose=False, include_max_depth=include_depth)
+    return fp_str, abq
+
+
 class AbaqusMeshParser(AbstractFileParser):
     """pymeshを使ってメッシュ統計情報をノードのプロパティに付与
 
@@ -319,42 +338,64 @@ class AbaqusMeshParser(AbstractFileParser):
         return graph
 
     @staticmethod
-    def _compute_optimal_workers(file_count: int) -> int:
+    def _compute_optimal_workers(file_count: int, use_processes: bool = False) -> int:
         """並列プリフェッチの最適ワーカー数を計算
 
         read_inp()はI/Oバウンド（ファイル読み込み）とCPUバウンド（パース）の
-        混合処理であるため、CPU数の2倍を上限とし、ファイル数で制限する。
+        混合処理であるため、並列化方式に応じて最適ワーカー数を算出する。
+
+        - ThreadPoolExecutor (use_processes=False): CPU数の2倍（I/O待ちの隠蔽）
+        - ProcessPoolExecutor (use_processes=True): CPU数（GIL回避による真の並列化）
 
         Args:
             file_count: 処理対象ファイル数
+            use_processes: ProcessPoolExecutor使用時True
 
         Returns:
-            推奨ワーカー数（最小1、最大CPU数*2、ファイル数以下）
+            推奨ワーカー数（最小1、最大16、ファイル数以下）
         """
         import os
 
         cpu_count = os.cpu_count() or 4
-        # I/O+CPU混合: CPU数の2倍が妥当（純I/OならCPU*4、純CPUならCPU*1）
-        optimal = min(cpu_count * 2, 16)  # 上限16（過剰なスレッドによるGIL競合回避）
+        if use_processes:
+            # ProcessPool: CPU数が上限（プロセス間オーバーヘッド考慮）
+            optimal = min(cpu_count, 16)
+        else:
+            # ThreadPool: CPU数の2倍（I/O待ち隠蔽、GIL競合は許容）
+            optimal = min(cpu_count * 2, 16)
         return max(1, min(optimal, file_count))
+
+    # ProcessPoolExecutor使用の最小ファイル数閾値
+    # ファイル数が少ない場合はプロセス起動オーバーヘッドが支配的になるため
+    # ThreadPoolExecutorの方が高速
+    _PROCESS_POOL_THRESHOLD = 3
 
     @staticmethod
     def _prefetch_inp_parallel(
         graph: ProjectGraph,
         parse_needed: list[tuple[Any, Path, str | None]],
         max_workers: int | None = None,
+        use_processes: bool | None = None,
     ) -> None:
         """複数.inpファイルのread_inp()を並列実行してキャッシュにプリフェッチする
 
         read_inp()結果はインメモリキャッシュに保存されるため、
         後続の_get_or_parse_inp()呼び出しでキャッシュヒットする。
 
+        並列化方式:
+        - ProcessPoolExecutor: GIL回避による真の並列CPU処理。ファイル数3以上で自動選択。
+          ABQDataのpickleシリアライゼーションを経由するため、プロセス間通信のオーバーヘッドあり。
+        - ThreadPoolExecutor: ファイル数が少ない場合やProcessPoolが利用不可の場合のフォールバック。
+          GILの制約はあるが、プロセス起動コストが不要で軽量。
+
         Args:
             graph: ProjectGraph（キャッシュ保存先）
             parse_needed: (node, file_path, mesh_hash)のリスト
             max_workers: 並列ワーカー数（Noneでcpu_countベースの自動決定）
+            use_processes: ProcessPoolExecutor使用フラグ。
+                None=自動（ファイル数>=閾値でProcess）、True=強制Process、False=強制Thread
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
         import services.parse.connectors.abaqus as abaqus_mod
 
@@ -370,15 +411,41 @@ class AbaqusMeshParser(AbstractFileParser):
 
         include_depth = graph.config.include_search_depth
 
+        # 並列化方式の自動決定
+        if use_processes is None:
+            use_processes = len(unique_paths) >= AbaqusMeshParser._PROCESS_POOL_THRESHOLD
+
         # max_workers未指定時はCPU数ベースで自動決定
         if max_workers is None:
-            max_workers = AbaqusMeshParser._compute_optimal_workers(len(unique_paths))
+            max_workers = AbaqusMeshParser._compute_optimal_workers(len(unique_paths), use_processes=use_processes)
 
+        pool_type = "process" if use_processes else "thread"
+        logger.debug(
+            f"Prefetching {len(unique_paths)} .inp files in parallel (workers={max_workers}, pool={pool_type})"
+        )
+
+        if use_processes:
+            # ProcessPoolExecutor: モジュールレベル関数でpickle可能にする
+            args_list = [(fp, include_depth) for fp in unique_paths]
+            try:
+                with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                    futures = {executor.submit(_parse_inp_worker, args): args[0] for args in args_list}
+                    for future in as_completed(futures):
+                        fp_str = futures[future]
+                        try:
+                            _, abq = future.result()
+                            graph.set_cached_plugin_data("abaqus", fp_str, abq)
+                        except Exception as e:
+                            logger.warning(f"Parallel prefetch failed for {fp_str}: {e}")
+                return
+            except (OSError, RuntimeError) as e:
+                # ProcessPoolExecutor起動失敗時はThreadPoolExecutorにフォールバック
+                logger.debug(f"ProcessPoolExecutor unavailable, falling back to threads: {e}")
+
+        # ThreadPoolExecutor（デフォルトまたはフォールバック）
         def _parse_single(fp_str: str) -> tuple[str, object]:
             abq = abaqus_mod.read_inp(fp_str, verbose=False, include_max_depth=include_depth)
             return fp_str, abq
-
-        logger.debug(f"Prefetching {len(unique_paths)} .inp files in parallel (workers={max_workers})")
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(_parse_single, fp): fp for fp in unique_paths}
