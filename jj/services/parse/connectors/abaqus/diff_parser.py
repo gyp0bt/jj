@@ -32,13 +32,19 @@ class AbaqusDiffParser(AbstractFileParser):
     requires_full = True
 
     @staticmethod
-    def _get_or_parse_inp(graph: ProjectGraph, file_path: str) -> object:
+    def _get_or_parse_inp(graph: ProjectGraph, file_path: str, lightweight: bool = False) -> object:
         """read_inp()結果をキャッシュから取得、なければパースしてキャッシュに保存
 
         キャッシュ探索順序:
         1. インメモリキャッシュ（_parser_cache）
         2. ディスク永続化キャッシュ（.jj/storage/plugin_cache/abaqus/）
         3. キャッシュなし → read_inp()で新規パースし、両方に保存
+
+        Args:
+            graph: ProjectGraph
+            file_path: 対象ファイルパス
+            lightweight: Trueの場合、メッシュデータのスキップ版でパースする。
+                キャッシュにフルデータがあればそれを返す（lightweightは新規parse時のみ影響）。
         """
         import logging
         from pathlib import Path
@@ -48,35 +54,47 @@ class AbaqusDiffParser(AbstractFileParser):
 
         _logger = logging.getLogger(__name__)
 
-        # 1. インメモリキャッシュ
+        # lightweightパース結果はキャッシュキーを分離（フルデータと混在させない）
+        cache_key = f"{file_path}::lightweight" if lightweight else file_path
+
+        # 1. インメモリキャッシュ（フルデータがあればlightweight要求でもそちらを返す）
         cached = graph.get_cached_plugin_data("abaqus", file_path)
         if cached is not None:
             return cached
+        if lightweight:
+            cached_lw = graph.get_cached_plugin_data("abaqus", cache_key)
+            if cached_lw is not None:
+                return cached_lw
 
-        # 2. ディスク永続化キャッシュ
-        try:
-            mtime = Path(file_path).stat().st_mtime
-            storage = GraphStorage()
-            disk_cached = storage.load_plugin_data(graph.project_root, "abaqus", file_path, mtime)
-            if disk_cached is not None:
-                _logger.debug(f"ABQData disk cache hit: {file_path}")
-                graph.set_cached_plugin_data("abaqus", file_path, disk_cached)
-                return disk_cached
-        except OSError:
-            mtime = 0.0
+        # 2. ディスク永続化キャッシュ（フルデータのみ検索）
+        if not lightweight:
+            try:
+                mtime = Path(file_path).stat().st_mtime
+                storage = GraphStorage()
+                disk_cached = storage.load_plugin_data(graph.project_root, "abaqus", file_path, mtime)
+                if disk_cached is not None:
+                    _logger.debug(f"ABQData disk cache hit: {file_path}")
+                    graph.set_cached_plugin_data("abaqus", file_path, disk_cached)
+                    return disk_cached
+            except OSError:
+                pass
 
         # 3. 新規パース → キャッシュに保存
-        # モジュール属性経由で呼び出し（テストのmonkeypatch対応）
         include_depth = graph.config.include_search_depth
-        abq = abaqus_mod.read_inp(file_path, verbose=False, include_max_depth=include_depth)
-        graph.set_cached_plugin_data("abaqus", file_path, abq)
+        kwargs: dict = {"verbose": False, "include_max_depth": include_depth}
+        if lightweight:
+            kwargs["lightweight"] = True
+        abq = abaqus_mod.read_inp(file_path, **kwargs)
+        graph.set_cached_plugin_data("abaqus", cache_key, abq)
 
-        # ディスクにも永続化
-        try:
-            storage = GraphStorage()
-            storage.save_plugin_data(graph.project_root, "abaqus", file_path, abq, mtime)
-        except Exception:
-            pass
+        # ディスク永続化はフルパースの場合のみ（lightweightデータはディスクキャッシュしない）
+        if not lightweight:
+            try:
+                mtime = Path(file_path).stat().st_mtime
+                storage = GraphStorage()
+                storage.save_plugin_data(graph.project_root, "abaqus", file_path, abq, mtime)
+            except Exception:
+                pass
 
         return abq
 
