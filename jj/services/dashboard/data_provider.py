@@ -317,12 +317,38 @@ class DashboardDataProvider:
 
             items.append(item)
 
+        # CPU時間統計
+        cpu_times = [i["cpu_time"] for i in items if "cpu_time" in i and i["cpu_time"] is not None]
+        cpu_stats: dict[str, Any] = {}
+        if cpu_times:
+            numeric_cpu = [float(t) for t in cpu_times if isinstance(t, (int, float))]
+            if numeric_cpu:
+                cpu_stats = {
+                    "count": len(numeric_cpu),
+                    "min": min(numeric_cpu),
+                    "max": max(numeric_cpu),
+                    "mean": sum(numeric_cpu) / len(numeric_cpu),
+                    "values": numeric_cpu,
+                }
+
+        # 警告件数統計
+        warning_counts = [i["warnings"] for i in items if "warnings" in i and isinstance(i["warnings"], (int, float))]
+        warning_stats: dict[str, Any] = {}
+        if warning_counts:
+            warning_stats = {
+                "count": len(warning_counts),
+                "total": sum(int(w) for w in warning_counts),
+                "values": [int(w) for w in warning_counts],
+            }
+
         return {
             "total": total,
             "completed": completed,
             "failed": failed,
             "unknown": unknown,
             "items": items,
+            "cpu_stats": cpu_stats,
+            "warning_stats": warning_stats,
         }
 
     def get_related_files(
