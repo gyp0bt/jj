@@ -74,7 +74,7 @@ class GraphStorage:
 
     def _dump_graph(self, graph: GraphModel) -> dict[str, Any]:
         if hasattr(graph, "model_dump"):
-            return graph.model_dump()
+            return graph.model_dump(mode="json")
         return graph.dict()  # type: ignore[no-any-return]
 
     def _read_file(self, path: Path) -> dict[str, Any] | None:

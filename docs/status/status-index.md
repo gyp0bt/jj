@@ -17,6 +17,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M4: jjrv横断ダッシュボード** | 未着手 | Streamlit検証パターンのjjrv移植、横断視認性 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
 | **M6: ML/実験/最適化タスク対応** | 進行中 | パーサー9種実装済み（Phase 2-4完了）、サロゲートモデルフレームワーク構築、三層リレーション構築 |
+| **M7: Run中心スキーマ再設計** | 進行中 | Phase 1完了: NodeCategory・Run構造的リレーション・AbstractRunDiscoverer・RunQueryService |
 
 ---
 
@@ -52,6 +53,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [026](status-026.md) | 2026-02-18 | M6 | MLプラグイン Phase 3: パーサー3種追加（checkpoint/model/experiment）・テスト24件 | claude/execute-status-todos-pdDTh |
 | [027](status-027.md) | 2026-02-18 | M6 | サロゲートモデルフレームワーク Phase 4: パーサー3種（最適化/データフロー/層間検出）・テスト37件 | claude/surrogate-model-framework-NSm1k |
 | [028](status-028.md) | 2026-02-19 | M6 | Phase 4.5: バグ修正・パスマッチング改善・CAE+ML混在E2Eテスト拡充 | claude/surrogate-model-framework-NSm1k |
+| [029](status-029.md) | 2026-02-19 | M7 | Run中心スキーマ再設計 Phase 1: コアモデル拡張・仕様書策定・テスト35件 | claude/run-centric-schema-redesign-KanLN |
 
 ---
 
