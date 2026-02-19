@@ -106,7 +106,7 @@ class StatusPage(PageComponent[StatusViewConfig]):
 
     @staticmethod
     def _render_statistics(status: dict[str, Any]) -> None:
-        """統計量プロット: CPU時間分布・警告件数分布"""
+        """統計量プロット: CPU時間分布・警告件数分布（plotlyインタラクティブ）"""
         import streamlit as st
 
         cpu_stats = status.get("cpu_stats", {})
@@ -119,37 +119,100 @@ class StatusPage(PageComponent[StatusViewConfig]):
 
         # CPU時間統計
         if cpu_stats and cpu_stats.get("values"):
-            import pandas as pd
+            try:
+                import plotly.express as px
 
-            col_chart, col_summary = st.columns([2, 1])
+                col_chart, col_summary = st.columns([2, 1])
 
-            with col_chart:
-                st.caption("CPU時間分布")
-                df_cpu = pd.DataFrame({"cpu_time": cpu_stats["values"]})
-                st.bar_chart(df_cpu["cpu_time"].value_counts().sort_index())
+                with col_chart:
+                    nbins = cpu_stats.get("nbins", 10)
+                    fig = px.histogram(
+                        x=cpu_stats["values"],
+                        nbins=nbins,
+                        labels={"x": "CPU時間", "y": "件数"},
+                        title="CPU時間分布",
+                    )
+                    fig.update_layout(
+                        bargap=0.05,
+                        xaxis_title="CPU時間",
+                        yaxis_title="件数",
+                        height=350,
+                        margin={"t": 40, "b": 40, "l": 40, "r": 20},
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
 
-            with col_summary:
-                st.caption("CPU時間サマリー")
-                st.metric("件数", cpu_stats["count"])
-                st.metric("最小", f"{cpu_stats['min']:.1f}")
-                st.metric("最大", f"{cpu_stats['max']:.1f}")
-                st.metric("平均", f"{cpu_stats['mean']:.1f}")
+                with col_summary:
+                    st.caption("CPU時間サマリー")
+                    st.metric("件数", cpu_stats["count"])
+                    st.metric("最小", f"{cpu_stats['min']:.1f}")
+                    st.metric("最大", f"{cpu_stats['max']:.1f}")
+                    st.metric("平均", f"{cpu_stats['mean']:.1f}")
+                    if "median" in cpu_stats:
+                        st.metric("中央値", f"{cpu_stats['median']:.1f}")
+                    if "std" in cpu_stats:
+                        st.metric("標準偏差", f"{cpu_stats['std']:.1f}")
+
+            except ImportError:
+                # plotly未インストール時はst.bar_chartにフォールバック
+                import pandas as pd
+
+                col_chart, col_summary = st.columns([2, 1])
+                with col_chart:
+                    st.caption("CPU時間分布")
+                    df_cpu = pd.DataFrame({"cpu_time": cpu_stats["values"]})
+                    st.bar_chart(df_cpu["cpu_time"].value_counts().sort_index())
+                with col_summary:
+                    st.caption("CPU時間サマリー")
+                    st.metric("件数", cpu_stats["count"])
+                    st.metric("最小", f"{cpu_stats['min']:.1f}")
+                    st.metric("最大", f"{cpu_stats['max']:.1f}")
+                    st.metric("平均", f"{cpu_stats['mean']:.1f}")
 
         # 警告件数統計
         if warning_stats and warning_stats.get("values"):
-            import pandas as pd
+            try:
+                import plotly.express as px
 
-            col_chart, col_summary = st.columns([2, 1])
+                col_chart, col_summary = st.columns([2, 1])
 
-            with col_chart:
-                st.caption("警告件数分布")
-                df_warn = pd.DataFrame({"warnings": warning_stats["values"]})
-                st.bar_chart(df_warn["warnings"].value_counts().sort_index())
+                with col_chart:
+                    nbins = warning_stats.get("nbins", 10)
+                    fig = px.histogram(
+                        x=warning_stats["values"],
+                        nbins=nbins,
+                        labels={"x": "警告件数", "y": "解析数"},
+                        title="警告件数分布",
+                    )
+                    fig.update_layout(
+                        bargap=0.05,
+                        xaxis_title="警告件数",
+                        yaxis_title="解析数",
+                        height=350,
+                        margin={"t": 40, "b": 40, "l": 40, "r": 20},
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
 
-            with col_summary:
-                st.caption("警告サマリー")
-                st.metric("解析数", warning_stats["count"])
-                st.metric("警告総数", warning_stats["total"])
+                with col_summary:
+                    st.caption("警告サマリー")
+                    st.metric("解析数", warning_stats["count"])
+                    st.metric("警告総数", warning_stats["total"])
+                    if "min" in warning_stats:
+                        st.metric("最小", warning_stats["min"])
+                    if "max" in warning_stats:
+                        st.metric("最大", warning_stats["max"])
+
+            except ImportError:
+                import pandas as pd
+
+                col_chart, col_summary = st.columns([2, 1])
+                with col_chart:
+                    st.caption("警告件数分布")
+                    df_warn = pd.DataFrame({"warnings": warning_stats["values"]})
+                    st.bar_chart(df_warn["warnings"].value_counts().sort_index())
+                with col_summary:
+                    st.caption("警告サマリー")
+                    st.metric("解析数", warning_stats["count"])
+                    st.metric("警告総数", warning_stats["total"])
 
     def generate_html(
         self,
