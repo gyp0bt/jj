@@ -484,8 +484,10 @@ def _create_plot_figure(
             template=template,
         )
 
-    # マーカーサイズをデフォルトで16に設定
-    fig.update_traces(marker=dict(size=16))
+    # マーカーサイズをデフォルトで16に設定（散布図・折れ線グラフのみ）
+    # barグラフはmarker.sizeプロパティを持たないため除外
+    if chart_type != "棒グラフ":
+        fig.update_traces(marker=dict(size=16))
 
     # フォントサイズのデフォルト設定（色はテンプレートに委譲）
     fig.update_layout(
