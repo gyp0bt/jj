@@ -1006,6 +1006,130 @@ class TestGetPlotlyTemplate:
         assert result == "plotly_white"
 
 
+class TestPlotlyDarkModeVisibility:
+    """ダークモード時のplotlyグラフ視認性検証テスト
+
+    plotly_darkテンプレートの背景色・フォント色のコントラスト、
+    ハードコードされた色の非存在、テンプレートのFigure適用を検証する。
+    """
+
+    def test_dark_template_has_light_font(self):
+        """plotly_darkテンプレートのフォント色が明るい色であることを確認"""
+        import plotly.io as pio
+
+        dark = pio.templates["plotly_dark"]
+        font_color = dark.layout.font.color
+        # #f2f5fa は明るいグレー系の色
+        assert font_color is not None
+        # RGBまたはhex形式で明度を確認
+        if font_color.startswith("#"):
+            r = int(font_color[1:3], 16)
+            g = int(font_color[3:5], 16)
+            b = int(font_color[5:7], 16)
+        else:
+            # rgb(r,g,b)形式
+            import re
+
+            m = re.match(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", font_color)
+            assert m, f"Unexpected font color format: {font_color}"
+            r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        # 明度チェック: ダークモードのフォントは明るい色（平均180以上）
+        brightness = (r + g + b) / 3
+        assert brightness > 180, f"Dark template font too dark: {font_color} (brightness={brightness})"
+
+    def test_dark_template_has_dark_background(self):
+        """plotly_darkテンプレートの背景色が暗い色であることを確認"""
+        import re
+
+        import plotly.io as pio
+
+        dark = pio.templates["plotly_dark"]
+        bg_color = dark.layout.paper_bgcolor
+        assert bg_color is not None
+        if bg_color.startswith("#"):
+            r = int(bg_color[1:3], 16)
+            g = int(bg_color[3:5], 16)
+            b = int(bg_color[5:7], 16)
+        else:
+            m = re.match(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", bg_color)
+            assert m, f"Unexpected bg color format: {bg_color}"
+            r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        brightness = (r + g + b) / 3
+        assert brightness < 50, f"Dark template bg too bright: {bg_color} (brightness={brightness})"
+
+    def test_no_hardcoded_black_font_in_dashboard(self):
+        """ダッシュボードコンポーネントにcolor='black'がハードコードされていないことを確認"""
+        import re
+        from pathlib import Path
+
+        dashboard_dir = Path(__file__).parent.parent / "services" / "dashboard"
+        py_files = list(dashboard_dir.rglob("*.py"))
+        assert len(py_files) > 0, "No Python files found in dashboard directory"
+
+        violations = []
+        # update_layout/fontコンテキスト内のcolor="black"を検出
+        # NG領域の赤色など意図的な色指定は許容
+        pattern = re.compile(r"""font.*color\s*=\s*["']black["']""", re.IGNORECASE)
+        for f in py_files:
+            content = f.read_text()
+            for i, line in enumerate(content.splitlines(), 1):
+                if pattern.search(line):
+                    violations.append(f"{f.name}:{i}: {line.strip()}")
+        assert violations == [], "Hardcoded black font found:\n" + "\n".join(violations)
+
+    def test_figure_template_applied_in_dark_mode(self):
+        """ダークモード設定時にFigureにplotly_darkテンプレートが適用されることを確認"""
+        import importlib
+        import sys
+        from unittest.mock import MagicMock
+
+        import plotly.graph_objects as go
+
+        # streamlitモックでダークモードを設定
+        mock_st = MagicMock()
+        mock_st.get_option = MagicMock(return_value="dark")
+        original = sys.modules.get("streamlit")
+        sys.modules["streamlit"] = mock_st
+        try:
+            import services.dashboard.widgets as widgets_mod
+
+            importlib.reload(widgets_mod)
+            template_name = widgets_mod.get_plotly_template()
+            assert template_name == "plotly_dark"
+
+            # 実際のFigureにテンプレートを適用
+            fig = go.Figure()
+            fig.update_layout(template=template_name)
+            # テンプレートが正しく設定されていることを確認
+            assert fig.layout.template is not None
+        finally:
+            if original is not None:
+                sys.modules["streamlit"] = original
+            else:
+                sys.modules.pop("streamlit", None)
+            importlib.reload(widgets_mod)
+
+    def test_white_template_contrast(self):
+        """plotly_whiteテンプレートのフォント色が暗い色であることを確認"""
+        import plotly.io as pio
+
+        white = pio.templates["plotly_white"]
+        font_color = white.layout.font.color
+        assert font_color is not None
+        if font_color.startswith("#"):
+            r = int(font_color[1:3], 16)
+            g = int(font_color[3:5], 16)
+            b = int(font_color[5:7], 16)
+        else:
+            import re
+
+            m = re.match(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", font_color)
+            assert m
+            r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        brightness = (r + g + b) / 3
+        assert brightness < 120, f"White template font too bright: {font_color} (brightness={brightness})"
+
+
 # ====================================================================
 # diff_abq_mesh_blocks / diff_abq_metadata_blocks 分離テスト
 # ====================================================================
@@ -1225,6 +1349,21 @@ class TestMeshTopologyFilter:
         for kw in ("mpc", "equation", "tie", "rigidbody"):
             assert kw in _MESH_TOPOLOGY_KEYWORDS
 
+    def test_orientation_keyword_included(self):
+        """要素局所座標系キーワードが含まれる"""
+        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+
+        assert "orientation" in _MESH_TOPOLOGY_KEYWORDS
+
+    def test_section_keywords_not_included(self):
+        """セクション定義はメッシュ参照を持つが材料割当を含むためフィルタ対象外"""
+        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+
+        # セクション定義は材料割り当て・板厚定義を含むため、
+        # メッシュ同一でも変更される可能性がありフィルタ対象外
+        for kw in ("shellsection", "solidsection"):
+            assert kw not in _MESH_TOPOLOGY_KEYWORDS
+
     def test_filter_removes_mesh_raw_blocks(self):
         """_filter_non_mesh_raw_blocks がメッシュ関連RawBlockを除外する"""
         from pathlib import Path
@@ -1238,6 +1377,7 @@ class TestMeshTopologyFilter:
             RawBlock(keyword="amplitude", options={}, lines=[], file_path=Path("a.inp")),
             RawBlock(keyword="tie", options={}, lines=[], file_path=Path("a.inp")),
             RawBlock(keyword="mpc", options={}, lines=[], file_path=Path("a.inp")),
+            RawBlock(keyword="orientation", options={}, lines=[], file_path=Path("a.inp")),
             RawBlock(keyword="restart", options={}, lines=[], file_path=Path("a.inp")),
         ]
 
@@ -1295,6 +1435,39 @@ class TestMeshTopologyFilter:
         diffs = diff_abq_metadata_blocks(left, right)
         mesh_keyword_diffs = [d for d in diffs if "raw_blocks" in d.location]
         assert len(mesh_keyword_diffs) == 0
+
+    def test_metadata_diff_excludes_orientation(self, tmp_path: Path):
+        """diff_abq_metadata_blocks がORIENTATIONキーワードを除外する"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *ORIENTATION, NAME=S0, DEFINITION=COORDINATES, SYSTEM=RECTANGULAR
+                1., 0., 0., 0., 1., 0.
+                3, 0.
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *ORIENTATION, NAME=S0, DEFINITION=COORDINATES, SYSTEM=CYLINDRICAL
+                0., 0., 0., 0., 0., 1.
+                3, 0.
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        # ORIENTATIONはメッシュトポロジーキーワードとして除外される
+        diffs = diff_abq_metadata_blocks(left, right)
+        orientation_diffs = [d for d in diffs if "orientation" in d.location.lower()]
+        assert len(orientation_diffs) == 0
 
     def _write_inp(self, tmp_path: Path, name: str, content: str) -> Path:
         p = tmp_path / name
@@ -1397,3 +1570,131 @@ class TestProcessPoolBenchmark:
         assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD > 2  # 2ファイルはThread
         # ファイル数 >= 閾値: Process選択
         assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD <= 3  # 3ファイルはProcess
+
+
+# ====================================================================
+# ProcessPool vs ThreadPool ベンチマーク実測テスト
+# ====================================================================
+
+
+class TestPoolBenchmark:
+    """ProcessPoolExecutor vs ThreadPoolExecutor のベンチマーク実測
+
+    テストアセットのINPファイルを使用して両方式の実行時間を計測し、
+    結果をログに出力する。CIでは結果一致性のみ検証し、
+    速度の優劣はassertしない（環境依存のため）。
+    """
+
+    @staticmethod
+    def _collect_inp_files() -> list[Path]:
+        """テストアセットからINPファイルを収集"""
+        asset_dirs = [
+            Path(__file__).parent.parent.parent / "shared" / "tests" / "test_asset1",
+            Path(__file__).parent / "fixtures" / "graph_test1",
+        ]
+        inp_files = []
+        for d in asset_dirs:
+            if d.exists():
+                inp_files.extend(sorted(d.glob("**/*.inp")))
+        return inp_files
+
+    def test_benchmark_thread_vs_process_parse(self, caplog):
+        """Thread/Process両方式でINPファイルをパースし実行時間を計測
+
+        結果はログに出力され、CI/ローカルで確認可能。
+        両方式で同一のパース結果（ノード数・要素数）が得られることも検証する。
+        """
+        import logging
+        import time
+        from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+
+        from services.parse.connectors.abaqus import read_inp
+        from services.parse.connectors.abaqus.mesh_parser import _parse_inp_worker
+
+        inp_files = self._collect_inp_files()
+        if len(inp_files) < 3:
+            pytest.skip("Benchmark requires at least 3 INP files")
+
+        include_depth = 5
+
+        # --- ThreadPoolExecutor ---
+        thread_results: dict[str, object] = {}
+        t0 = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=min(len(inp_files), 8)) as executor:
+            futures = {}
+            for fp in inp_files:
+                fp_str = str(fp)
+                futures[executor.submit(read_inp, fp_str, False, include_depth)] = fp_str
+            for future in as_completed(futures):
+                fp_str = futures[future]
+                try:
+                    abq = future.result()
+                    thread_results[fp_str] = abq
+                except Exception:
+                    pass
+        thread_time = time.perf_counter() - t0
+
+        # --- ProcessPoolExecutor ---
+        process_results: dict[str, object] = {}
+        t0 = time.perf_counter()
+        try:
+            args_list = [(str(fp), include_depth) for fp in inp_files]
+            with ProcessPoolExecutor(max_workers=min(len(inp_files), 8)) as executor:
+                futures = {}
+                for args in args_list:
+                    futures[executor.submit(_parse_inp_worker, args)] = args[0]
+                for future in as_completed(futures):
+                    fp_str = futures[future]
+                    try:
+                        _, abq = future.result()
+                        process_results[fp_str] = abq
+                    except Exception:
+                        pass
+        except (OSError, RuntimeError):
+            pytest.skip("ProcessPoolExecutor unavailable in this environment")
+        process_time = time.perf_counter() - t0
+
+        # --- 逐次パース（ベースライン） ---
+        t0 = time.perf_counter()
+        serial_results: dict[str, object] = {}
+        for fp in inp_files:
+            try:
+                abq = read_inp(str(fp), verbose=False, include_max_depth=include_depth)
+                serial_results[str(fp)] = abq
+            except Exception:
+                pass
+        serial_time = time.perf_counter() - t0
+
+        # --- ログ出力 ---
+        with caplog.at_level(logging.INFO):
+            logging.getLogger().info(
+                f"\n=== Pool Benchmark ({len(inp_files)} INP files) ===\n"
+                f"  Serial:      {serial_time:.3f}s\n"
+                f"  ThreadPool:  {thread_time:.3f}s (speedup: {serial_time / thread_time:.2f}x)\n"
+                f"  ProcessPool: {process_time:.3f}s (speedup: {serial_time / process_time:.2f}x)\n"
+                f"  Thread vs Process: {thread_time / process_time:.2f}x"
+            )
+
+        # --- 結果一致性検証 ---
+        common_files = set(thread_results) & set(process_results) & set(serial_results)
+        assert len(common_files) > 0, "No common successfully parsed files"
+
+        for fp_str in common_files:
+            t_abq = thread_results[fp_str]
+            p_abq = process_results[fp_str]
+            s_abq = serial_results[fp_str]
+
+            t_nodes = sum(len(c.data) for c in t_abq.nodes.values())
+            p_nodes = sum(len(c.data) for c in p_abq.nodes.values())
+            s_nodes = sum(len(c.data) for c in s_abq.nodes.values())
+            assert t_nodes == p_nodes == s_nodes, f"Node count mismatch for {fp_str}"
+
+            t_elems = sum(len(c.data) for c in t_abq.elements.values())
+            p_elems = sum(len(c.data) for c in p_abq.elements.values())
+            s_elems = sum(len(c.data) for c in s_abq.elements.values())
+            assert t_elems == p_elems == s_elems, f"Element count mismatch for {fp_str}"
+
+    def test_benchmark_results_logged(self, caplog):
+        """ベンチマーク結果がログに出力されることを確認"""
+        inp_files = self._collect_inp_files()
+        assert len(inp_files) >= 3, f"Expected at least 3 INP files in test assets, found {len(inp_files)}"

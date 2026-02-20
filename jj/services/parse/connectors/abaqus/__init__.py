@@ -1691,6 +1691,8 @@ _MESH_TOPOLOGY_KEYWORDS: frozenset[str] = frozenset(
         "elset",
         # メッシュジオメトリ変換
         "transform",
+        # 要素の局所座標系定義（メッシュ要素に直結、メッシュ同一なら変化しない）
+        "orientation",
         # メッシュ拘束（トポロジー依存）
         "mpc",
         "equation",
