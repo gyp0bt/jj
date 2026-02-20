@@ -1678,6 +1678,48 @@ def _diff_mesh_dicts(
                 diffs.append(BlockDiff(location=loc, left=left_ser, right=right_ser))
 
 
+# メッシュトポロジー/ジオメトリに関連するキーワード
+# diff_abq_metadata_blocksのraw_blocks比較から除外するフィルタ用。
+# メッシュデータはdiff_abq_mesh_blocksで別途比較されるため、
+# メタデータ差分にメッシュ関連の重複差分が混入するのを防ぐ。
+_MESH_TOPOLOGY_KEYWORDS: frozenset[str] = frozenset(
+    {
+        # コアメッシュ定義（ReadComponentとして解析されるため通常raw_blocksに入らないが安全策）
+        "node",
+        "element",
+        "nset",
+        "elset",
+        # メッシュジオメトリ変換
+        "transform",
+        # メッシュ拘束（トポロジー依存）
+        "mpc",
+        "equation",
+        "tie",
+        "rigidbody",
+        # パート/アセンブリ構造（メッシュ構造定義）
+        "part",
+        "endpart",
+        "instance",
+        "endinstance",
+        "assembly",
+        "endassembly",
+    }
+)
+
+
+def _filter_non_mesh_raw_blocks(
+    blocks: list[ReadComponent | RawBlock],
+) -> list[ReadComponent | RawBlock]:
+    """raw_blocksからメッシュトポロジー関連キーワードを除外する
+
+    メタデータ差分比較時に、メッシュ定義と密結合したキーワードを除外して
+    純粋なメタデータ（材料、境界条件、出力設定等）のみを比較対象にする。
+
+    ReadComponent型のブロックはフィルタせず通過させる。
+    """
+    return [b for b in blocks if not isinstance(b, RawBlock) or b.keyword not in _MESH_TOPOLOGY_KEYWORDS]
+
+
 def diff_abq_mesh_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
     """メッシュデータ（nodes/elements/nsets/elsets）の差分のみを抽出する。
 
@@ -1791,8 +1833,9 @@ def diff_abq_metadata_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
         )
 
     # ---- STEP 外の raw_blocks の比較 ----
-    left_top_logical = _build_logical_blocks(left.raw_blocks)
-    right_top_logical = _build_logical_blocks(right.raw_blocks)
+    # メッシュトポロジー関連キーワードを除外してメタデータのみ比較
+    left_top_logical = _build_logical_blocks(_filter_non_mesh_raw_blocks(left.raw_blocks))
+    right_top_logical = _build_logical_blocks(_filter_non_mesh_raw_blocks(right.raw_blocks))
 
     diffs.extend(
         _diff_block_groups(

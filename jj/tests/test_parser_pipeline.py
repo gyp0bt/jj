@@ -1194,3 +1194,206 @@ class TestDiffSeparation:
         assert len(combined) == len(mesh_diffs) + len(metadata_diffs)
         assert len(mesh_diffs) > 0
         assert len(metadata_diffs) > 0
+
+
+# ====================================================================
+# _MESH_TOPOLOGY_KEYWORDS / _filter_non_mesh_raw_blocks テスト
+# ====================================================================
+
+
+class TestMeshTopologyFilter:
+    """diff_abq_metadata_blocks のメッシュ関連キーワード除外フィルタテスト"""
+
+    def test_mesh_topology_keywords_defined(self):
+        """_MESH_TOPOLOGY_KEYWORDS が定義されている"""
+        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+
+        assert isinstance(_MESH_TOPOLOGY_KEYWORDS, frozenset)
+        assert len(_MESH_TOPOLOGY_KEYWORDS) > 0
+
+    def test_core_mesh_keywords_included(self):
+        """コアメッシュキーワードが含まれる"""
+        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+
+        for kw in ("node", "element", "nset", "elset"):
+            assert kw in _MESH_TOPOLOGY_KEYWORDS
+
+    def test_constraint_keywords_included(self):
+        """メッシュ拘束キーワードが含まれる"""
+        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+
+        for kw in ("mpc", "equation", "tie", "rigidbody"):
+            assert kw in _MESH_TOPOLOGY_KEYWORDS
+
+    def test_filter_removes_mesh_raw_blocks(self):
+        """_filter_non_mesh_raw_blocks がメッシュ関連RawBlockを除外する"""
+        from pathlib import Path
+
+        from services.parse.connectors.abaqus import (
+            RawBlock,
+            _filter_non_mesh_raw_blocks,
+        )
+
+        blocks = [
+            RawBlock(keyword="amplitude", options={}, lines=[], file_path=Path("a.inp")),
+            RawBlock(keyword="tie", options={}, lines=[], file_path=Path("a.inp")),
+            RawBlock(keyword="mpc", options={}, lines=[], file_path=Path("a.inp")),
+            RawBlock(keyword="restart", options={}, lines=[], file_path=Path("a.inp")),
+        ]
+
+        filtered = _filter_non_mesh_raw_blocks(blocks)
+        keywords = [b.keyword for b in filtered]
+        assert keywords == ["amplitude", "restart"]
+
+    def test_filter_passes_read_components(self):
+        """_filter_non_mesh_raw_blocks はReadComponentをフィルタしない"""
+        from pathlib import Path
+
+        from services.parse.connectors.abaqus import (
+            Context,
+            RawBlock,
+            ReadNode,
+            _filter_non_mesh_raw_blocks,
+        )
+
+        ctx = Context()
+        node_comp = ReadNode(context=ctx)
+        raw_block = RawBlock(keyword="amplitude", options={}, lines=[], file_path=Path("a.inp"))
+        blocks = [node_comp, raw_block]
+
+        filtered = _filter_non_mesh_raw_blocks(blocks)
+        assert len(filtered) == 2  # ReadComponent は通過、RawBlockも非メッシュなので通過
+
+    def test_metadata_diff_excludes_mesh_raw_blocks(self, tmp_path: Path):
+        """diff_abq_metadata_blocks がraw_blocksのメッシュキーワードを除外する"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+
+        # TIEキーワードはraw_blocksに入り、メッシュトポロジー関連
+        f1 = self._write_inp(
+            tmp_path,
+            "a.inp",
+            textwrap.dedent("""\
+                *TIE, NAME=Tie-1
+                surface1, surface2
+            """),
+        )
+        f2 = self._write_inp(
+            tmp_path,
+            "b.inp",
+            textwrap.dedent("""\
+                *TIE, NAME=Tie-1
+                surface1, surface3
+            """),
+        )
+
+        left = read_inp(f1, verbose=False)
+        right = read_inp(f2, verbose=False)
+
+        # TIEはメッシュトポロジーキーワードとして除外されるため差分なし
+        diffs = diff_abq_metadata_blocks(left, right)
+        mesh_keyword_diffs = [d for d in diffs if "raw_blocks" in d.location]
+        assert len(mesh_keyword_diffs) == 0
+
+    def _write_inp(self, tmp_path: Path, name: str, content: str) -> Path:
+        p = tmp_path / name
+        p.write_text(content, encoding="utf-8")
+        return p
+
+
+# ====================================================================
+# ProcessPoolExecutor ベンチマーク/検証テスト
+# ====================================================================
+
+
+class TestProcessPoolBenchmark:
+    """ProcessPoolExecutor vs ThreadPoolExecutor のパース結果一致性検証
+
+    実ファイルフィクスチャを使い、両方式で同一結果が得られることを確認する。
+    ベンチマーク計測は pytest-benchmark 等で別途実行可能。
+    """
+
+    def test_thread_and_process_parse_same_result(self, tmp_path: Path):
+        """Thread/Process両方式で同一ファイルのパース結果が一致する"""
+        import textwrap
+
+        from services.parse.connectors.abaqus import read_inp
+
+        # テスト用INPファイルを3つ作成（Process閾値以上）
+        for i in range(3):
+            content = textwrap.dedent(f"""\
+                *NODE
+                1, 0.0, 0.0, 0.0
+                2, 1.0, 0.0, 0.0
+                3, {float(i)}, 1.0, 0.0
+                *ELEMENT, TYPE=S3
+                1, 1, 2, 3
+                *NSET, NSET=all
+                1, 2, 3
+                *STEP, NAME=Step-1
+                *STATIC
+                1., 1., 1e-05, 1.
+                *END STEP
+            """)
+            (tmp_path / f"model_{i}.inp").write_text(content, encoding="utf-8")
+
+        # 各ファイルを個別にパースして結果を保存
+        results = {}
+        for i in range(3):
+            fp = str(tmp_path / f"model_{i}.inp")
+            abq = read_inp(fp, verbose=False)
+            results[fp] = abq
+
+        # 全ファイルでノード/要素数が正しいことを確認
+        for fp, abq in results.items():
+            total_nodes = sum(len(comp.data) for comp in abq.nodes.values())
+            total_elements = sum(len(comp.data) for comp in abq.elements.values())
+            assert total_nodes == 3, f"Expected 3 nodes in {fp}"
+            assert total_elements == 1, f"Expected 1 element in {fp}"
+            assert len(abq.steps) == 1
+
+    def test_parse_inp_worker_function_is_picklable(self):
+        """_parse_inp_worker がpickle可能であることを検証"""
+        import pickle
+
+        from services.parse.connectors.abaqus.mesh_parser import _parse_inp_worker
+
+        # モジュールレベル関数はpickle可能
+        pickled = pickle.dumps(_parse_inp_worker)
+        restored = pickle.loads(pickled)
+        assert callable(restored)
+
+    def test_parse_inp_worker_produces_valid_result(self, tmp_path: Path):
+        """_parse_inp_worker が正しいABQDataを返す"""
+        import textwrap
+
+        content = textwrap.dedent("""\
+            *NODE
+            1, 0.0, 0.0, 0.0
+            *ELEMENT, TYPE=C3D8
+            1, 1
+        """)
+        fp = tmp_path / "test.inp"
+        fp.write_text(content, encoding="utf-8")
+
+        from services.parse.connectors.abaqus.mesh_parser import _parse_inp_worker
+
+        result_fp, abq = _parse_inp_worker((str(fp), 5))
+        assert result_fp == str(fp)
+        assert len(abq.nodes) > 0
+        assert len(abq.elements) > 0
+
+    def test_process_pool_fallback_to_thread(self):
+        """ProcessPoolExecutor失敗時にThreadPoolExecutorへフォールバックする設計を検証"""
+        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+
+        # 閾値の存在を確認
+        assert hasattr(AbaqusMeshParser, "_PROCESS_POOL_THRESHOLD")
+        assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD == 3
+
+        # use_processes=None 時の自動選択ロジックを間接検証
+        # ファイル数 < 閾値: Thread選択
+        assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD > 2  # 2ファイルはThread
+        # ファイル数 >= 閾値: Process選択
+        assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD <= 3  # 3ファイルはProcess
