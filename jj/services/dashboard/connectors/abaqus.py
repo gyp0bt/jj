@@ -31,6 +31,7 @@ from services.dashboard.connectors.abaqus_query import (
     guess_table_column_names,
     parse_material_curve_columns,
 )
+from services.dashboard.widgets import get_plotly_template
 
 if False:  # TYPE_CHECKING
     from services.dashboard.data_provider import DashboardDataProvider
@@ -150,6 +151,7 @@ def _render_material_page(
                     yaxis_title=col_names[y_idx] if y_idx < len(col_names) else "Y",
                     title=f"{selected_mat} - {selected_key}",
                     height=400,
+                    template=get_plotly_template(),
                 )
                 st.plotly_chart(fig, use_container_width=True)
             except ImportError:
@@ -274,6 +276,7 @@ def _render_material_comparison(
             yaxis_title=y_label,
             title=f"物性比較: {compare_key}",
             height=500,
+            template=get_plotly_template(),
         )
         st.plotly_chart(fig, use_container_width=True)
     except ImportError:
@@ -837,6 +840,7 @@ def _render_material_saved_view(
                 yaxis_title=col_names[y_idx] if y_idx < len(col_names) else "Y",
                 title=f"物性比較: {property_key}",
                 height=500,
+                template=get_plotly_template(),
             )
             st.plotly_chart(fig, use_container_width=True)
         except ImportError:
@@ -906,6 +910,7 @@ def _render_material_saved_view(
                     yaxis_title=col_names[y_idx] if y_idx < len(col_names) else "Y",
                     title=f"{material_name} - {tk}",
                     height=400,
+                    template=get_plotly_template(),
                 )
                 st.plotly_chart(fig, use_container_width=True)
             except ImportError:

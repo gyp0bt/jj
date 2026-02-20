@@ -133,6 +133,7 @@ class AbaqusDiffParser(AbstractFileParser):
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
         from services.parse.connectors.abaqus import (
             diff_abq_blocks,
+            diff_abq_metadata_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,
             format_diff_unified_markdown,
@@ -190,7 +191,12 @@ class AbaqusDiffParser(AbstractFileParser):
 
                     prev_abq = self._get_or_parse_inp(graph, str(prev_path), lightweight=use_lightweight)
                     next_abq = self._get_or_parse_inp(graph, str(next_path), lightweight=use_lightweight)
-                    diffs = diff_abq_blocks(prev_abq, next_abq)
+
+                    # メッシュ同一時はメタデータ差分のみ（メッシュ比較をスキップ）
+                    if mesh_identical:
+                        diffs = diff_abq_metadata_blocks(prev_abq, next_abq)
+                    else:
+                        diffs = diff_abq_blocks(prev_abq, next_abq)
 
                     # 差分がなくてもdiffノードを作成する（差分なしの記録として）
                     prev_file = prev_node.properties.get("path", prev_node.name)

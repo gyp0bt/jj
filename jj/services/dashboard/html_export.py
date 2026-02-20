@@ -19,6 +19,7 @@ from services.dashboard.query import (
     apply_saved_view_filters,
     select_table_columns,
 )
+from services.dashboard.widgets import get_plotly_template
 
 if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
@@ -317,6 +318,7 @@ def generate_array_plot_html(
                     yaxis_title=y_key.split(".")[-1],
                     height=600,
                     showlegend=True,
+                    template=get_plotly_template(),
                 )
                 plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
                 parts.append(f'<div class="plotly-graph">{plot_html}</div>')
@@ -350,6 +352,7 @@ def generate_array_plot_html(
                         margin=dict(l=20, r=20, t=40, b=20),
                         height=300,
                         showlegend=False,
+                        template=get_plotly_template(),
                     )
                     plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
                     parts.append(f'<div class="plotly-graph">{plot_html}</div>')
@@ -448,6 +451,8 @@ def _create_plot_figure(
     # hover_name列がdfに存在しなければ"name"にフォールバック
     hn = hover_name_col if hover_name_col in df.columns else "name"
 
+    template = get_plotly_template()
+
     if chart_type == "散布図":
         fig = px.scatter(
             df,
@@ -456,6 +461,7 @@ def _create_plot_figure(
             color=color,
             hover_name=hn if hn in df.columns else None,
             title=f"{y_key} vs {x_key}",
+            template=template,
         )
     elif chart_type == "棒グラフ":
         fig = px.bar(
@@ -464,6 +470,7 @@ def _create_plot_figure(
             y=y_key,
             color=color,
             title=f"{y_key} by name",
+            template=template,
         )
     else:
         fig = px.line(
@@ -474,24 +481,24 @@ def _create_plot_figure(
             hover_name=hn if hn in df.columns else None,
             title=f"{y_key} vs {x_key}",
             markers=True,
+            template=template,
         )
 
     # マーカーサイズをデフォルトで16に設定
     fig.update_traces(marker=dict(size=16))
 
-    # フォントサイズ・色のデフォルト設定
+    # フォントサイズのデフォルト設定（色はテンプレートに委譲）
     fig.update_layout(
-        title_font=dict(size=24, color="black"),
-        font=dict(color="black"),
-        legend=dict(font=dict(size=16, color="black")),
+        title_font=dict(size=24),
+        legend=dict(font=dict(size=16)),
     )
     fig.update_xaxes(
-        title_font=dict(size=20, color="black"),
-        tickfont=dict(size=20, color="black"),
+        title_font=dict(size=20),
+        tickfont=dict(size=20),
     )
     fig.update_yaxes(
-        title_font=dict(size=20, color="black"),
-        tickfont=dict(size=20, color="black"),
+        title_font=dict(size=20),
+        tickfont=dict(size=20),
     )
     return fig
 

@@ -204,6 +204,28 @@ def render_excel_download(df: pd.DataFrame, filename_prefix: str = "data") -> No
 # ====================================================================
 
 
+def get_plotly_template() -> str:
+    """Streamlitテーマに連動したplotlyテンプレートを返す
+
+    Streamlitのテーマ設定を検出し、適切なplotlyテンプレートを選択する。
+    - ライトテーマ → "plotly_white"
+    - ダークテーマ → "plotly_dark"
+    - 検出不可 → "plotly_white"（デフォルト）
+
+    Returns:
+        plotlyテンプレート名
+    """
+    try:
+        import streamlit as st
+
+        theme_base = st.get_option("theme.base")
+        if theme_base == "dark":
+            return "plotly_dark"
+    except Exception:
+        pass
+    return "plotly_white"
+
+
 def build_axis_range(
     axis_min: float | None,
     axis_max: float | None,

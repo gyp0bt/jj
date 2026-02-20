@@ -1678,33 +1678,103 @@ def _diff_mesh_dicts(
                 diffs.append(BlockDiff(location=loc, left=left_ser, right=right_ser))
 
 
-def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
-    """2つの ABQData の差分を取り、差があるブロックのみ抽出する。
+# メッシュトポロジー/ジオメトリに関連するキーワード
+# diff_abq_metadata_blocksのraw_blocks比較から除外するフィルタ用。
+# メッシュデータはdiff_abq_mesh_blocksで別途比較されるため、
+# メタデータ差分にメッシュ関連の重複差分が混入するのを防ぐ。
+_MESH_TOPOLOGY_KEYWORDS: frozenset[str] = frozenset(
+    {
+        # コアメッシュ定義（ReadComponentとして解析されるため通常raw_blocksに入らないが安全策）
+        "node",
+        "element",
+        "nset",
+        "elset",
+        # メッシュジオメトリ変換
+        "transform",
+        # メッシュ拘束（トポロジー依存）
+        "mpc",
+        "equation",
+        "tie",
+        "rigidbody",
+        # パート/アセンブリ構造（メッシュ構造定義）
+        "part",
+        "endpart",
+        "instance",
+        "endinstance",
+        "assembly",
+        "endassembly",
+    }
+)
 
-    現状仕様:
-        - トップレベルのメッシュデータ (nodes, elements, nsets, elsets) を要約形式で比較
-        - STEP 単位で、Step.blocks を論理ブロック (SurfaceInteractionBlock) に変換して比較
-        - kind/keyword (=_get_block_group_key) が同じブロック同士をグループ化して比較
-        - メッシュ関連キーワード (Node, Element, Nset, Elset) は要約データに置換して比較
-        - surface, contact, contact property, boundary, surface interaction block は順不同扱い
+
+def _filter_non_mesh_raw_blocks(
+    blocks: list[ReadComponent | RawBlock],
+) -> list[ReadComponent | RawBlock]:
+    """raw_blocksからメッシュトポロジー関連キーワードを除外する
+
+    メタデータ差分比較時に、メッシュ定義と密結合したキーワードを除外して
+    純粋なメタデータ（材料、境界条件、出力設定等）のみを比較対象にする。
+
+    ReadComponent型のブロックはフィルタせず通過させる。
+    """
+    return [b for b in blocks if not isinstance(b, RawBlock) or b.keyword not in _MESH_TOPOLOGY_KEYWORDS]
+
+
+def diff_abq_mesh_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
+    """メッシュデータ（nodes/elements/nsets/elsets）の差分のみを抽出する。
+
+    トップレベルのメッシュ定義データを要約形式で比較する。
+    STEP内のキーワードブロックやraw_blocksは比較しない。
+
+    lightweight最適化でメッシュが同一と判定済みの場合、この関数の呼び出しを
+    スキップすることで不要なメッシュ比較を回避できる。
+
+    Args:
+        left: 比較元ABQData
+        right: 比較先ABQData
+
+    Returns:
+        メッシュ差分のBlockDiffリスト
     """
     diffs: list[BlockDiff] = []
 
-    # ---- ノード座標ルックアップテーブルを構築 ----
     left_nodes_lookup = _build_nodes_lookup(left)
     right_nodes_lookup = _build_nodes_lookup(right)
 
-    # ---- トップレベルのメッシュデータ比較（要約形式）----
     _diff_mesh_dicts(diffs, left.nodes, right.nodes, "nodes", left_nodes_lookup, right_nodes_lookup)
     _diff_mesh_dicts(diffs, left.elements, right.elements, "elements", left_nodes_lookup, right_nodes_lookup)
     _diff_mesh_dicts(diffs, left.nsets, right.nsets, "nsets", left_nodes_lookup, right_nodes_lookup)
     _diff_mesh_dicts(diffs, left.elsets, right.elsets, "elsets", left_nodes_lookup, right_nodes_lookup)
 
+    return diffs
+
+
+def diff_abq_metadata_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
+    """メタデータ（STEP/raw_blocks）の差分のみを抽出する。
+
+    STEP内のキーワードブロック（材料定義、境界条件、接触設定等）と
+    STEP外のraw_blocksを比較する。メッシュデータは比較しない。
+
+    lightweight最適化と組み合わせることで、メッシュが同一のファイルペアでは
+    この関数のみを呼び出してSTEP/材料/境界条件のみの差分を高速に計算できる。
+
+    Args:
+        left: 比較元ABQData
+        right: 比較先ABQData
+
+    Returns:
+        メタデータ差分のBlockDiffリスト
+    """
+    diffs: list[BlockDiff] = []
+
+    # ノード座標ルックアップ（_serialize_block内で使用される可能性があるため構築）
+    left_nodes_lookup = _build_nodes_lookup(left)
+    right_nodes_lookup = _build_nodes_lookup(right)
+
     # ---- STEP 配下の blocks の比較 ----
     max_steps = max(len(left.steps), len(right.steps))
 
     for si in range(max_steps):
-        # 片側にしか step がない場合 → その step の全ブロックを丸ごと差分として扱う
         if si >= len(left.steps):
             step_loc = f"step[{si}]"
             step = right.steps[si]
@@ -1733,7 +1803,6 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
                 )
             continue
 
-        # 両方に step がある場合
         left_step = left.steps[si]
         right_step = right.steps[si]
 
@@ -1750,11 +1819,9 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
                 )
             )
 
-        # 論理ブロック列に変換
         left_logical = _build_logical_blocks(left_step.blocks)
         right_logical = _build_logical_blocks(right_step.blocks)
 
-        # kind/keyword group 単位で比較
         diffs.extend(
             _diff_block_groups(
                 left_blocks=left_logical,
@@ -1766,8 +1833,9 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
         )
 
     # ---- STEP 外の raw_blocks の比較 ----
-    left_top_logical = _build_logical_blocks(left.raw_blocks)
-    right_top_logical = _build_logical_blocks(right.raw_blocks)
+    # メッシュトポロジー関連キーワードを除外してメタデータのみ比較
+    left_top_logical = _build_logical_blocks(_filter_non_mesh_raw_blocks(left.raw_blocks))
+    right_top_logical = _build_logical_blocks(_filter_non_mesh_raw_blocks(right.raw_blocks))
 
     diffs.extend(
         _diff_block_groups(
@@ -1779,6 +1847,25 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
         )
     )
 
+    return diffs
+
+
+def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
+    """2つの ABQData の差分を取り、差があるブロックのみ抽出する。
+
+    メッシュ差分とメタデータ差分の両方を計算する統合関数。
+    lightweight最適化でメッシュ同一判定済みの場合は、代わりに
+    diff_abq_metadata_blocks() のみを呼び出すことを推奨する。
+
+    現状仕様:
+        - トップレベルのメッシュデータ (nodes, elements, nsets, elsets) を要約形式で比較
+        - STEP 単位で、Step.blocks を論理ブロック (SurfaceInteractionBlock) に変換して比較
+        - kind/keyword (=_get_block_group_key) が同じブロック同士をグループ化して比較
+        - メッシュ関連キーワード (Node, Element, Nset, Elset) は要約データに置換して比較
+        - surface, contact, contact property, boundary, surface interaction block は順不同扱い
+    """
+    diffs = diff_abq_mesh_blocks(left, right)
+    diffs.extend(diff_abq_metadata_blocks(left, right))
     return diffs
 
 

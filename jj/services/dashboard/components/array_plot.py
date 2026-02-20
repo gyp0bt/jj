@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from services.dashboard.components import PageComponent, ViewConfig
+from services.dashboard.widgets import get_plotly_template
 
 if TYPE_CHECKING:
     from config import DashboardConfig, SavedViewConfig
@@ -246,6 +247,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                             xaxis_title=x_key.split(".")[-1],
                             yaxis_title="値",
                             height=500,
+                            template=get_plotly_template(),
                         )
                         st.plotly_chart(fig, use_container_width=True)
                     except ImportError:
@@ -322,25 +324,26 @@ def _render_array_overlay(
             fig.update_layout(
                 title=dict(
                     text=f"{y_key} vs {x_key}（全条件比較）",
-                    font=dict(size=24, color="black"),
+                    font=dict(size=24),
                 ),
                 xaxis=dict(
                     title=dict(
                         text=x_key.split(".")[-1],
-                        font=dict(size=20, color="black"),
+                        font=dict(size=20),
                     ),
-                    tickfont=dict(size=20, color="black"),
+                    tickfont=dict(size=20),
                 ),
                 yaxis=dict(
                     title=dict(
                         text=y_key.split(".")[-1],
-                        font=dict(size=20, color="black"),
+                        font=dict(size=20),
                     ),
-                    tickfont=dict(size=20, color="black"),
+                    tickfont=dict(size=20),
                 ),
-                legend=dict(font=dict(size=16, color="black")),
+                legend=dict(font=dict(size=16)),
                 height=600,
                 showlegend=True,
+                template=get_plotly_template(),
             )
             if x_range:
                 fig.update_xaxes(range=x_range)
@@ -436,28 +439,29 @@ def _render_array_single(
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
 
-        # 軸ラベル・軸数値・凡例の文字色を黒、フォントサイズを20に設定
+        # 軸ラベル・軸数値・凡例のフォントサイズ設定（色はテンプレートに委譲）
         fig.update_layout(
             title=dict(
                 text=f"{selected}",
-                font=dict(size=24, color="black"),
+                font=dict(size=24),
             ),
             xaxis=dict(
                 title=dict(
                     text=x_key.split(".")[-1],
-                    font=dict(size=20, color="black"),
+                    font=dict(size=20),
                 ),
-                tickfont=dict(size=20, color="black"),
+                tickfont=dict(size=20),
             ),
             yaxis=dict(
                 title=dict(
                     text="値",
-                    font=dict(size=20, color="black"),
+                    font=dict(size=20),
                 ),
-                tickfont=dict(size=20, color="black"),
+                tickfont=dict(size=20),
             ),
-            legend=dict(font=dict(size=16, color="black")),
+            legend=dict(font=dict(size=16)),
             height=500,
+            template=get_plotly_template(),
         )
         if x_range:
             fig.update_xaxes(range=x_range)
