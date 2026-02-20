@@ -133,8 +133,35 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> str:
-        # ギャラリーのHTMLエクスポートは未実装（画像はローカルパス依存のため）
-        return ""
+        project_root = kwargs.get("project_root")
+        if project_root is None:
+            return "<p>project_rootが指定されていません。</p>"
+        project_root = Path(project_root)
+
+        gallery_config = view.gallery
+        source = gallery_config.get("source", "has_output")
+        property_key = gallery_config.get("property_key")
+        format_filter = gallery_config.get("format")
+
+        if source == "property":
+            images = provider.get_property_images()
+            if property_key:
+                images = [img for img in images if img["property_key"] == property_key]
+        else:
+            images = provider.get_output_images()
+
+        if format_filter:
+            images = [img for img in images if img["image_format"] == format_filter]
+
+        if not images:
+            return "<p>条件に一致する画像がありません。</p>"
+
+        cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
+        rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+        max_display = cols_per_row * rows_per_page
+        images = images[:max_display]
+
+        return _generate_gallery_html_grid(images, cols_per_row, project_root, source)
 
 
 # ====================================================================
@@ -413,3 +440,72 @@ def _render_image_grid(
                     )
                 else:
                     st.warning(f"画像が見つかりません: {image_path_str}")
+
+
+def _generate_gallery_html_grid(
+    images: list[dict[str, Any]],
+    cols_per_row: int,
+    project_root: Path,
+    source: str,
+) -> str:
+    """画像をHTMLグリッドとして生成（base64エンコード埋め込み）
+
+    Args:
+        images: 画像情報のリスト
+        cols_per_row: 1行あたりの列数
+        project_root: プロジェクトルート
+        source: "output" or "property"
+
+    Returns:
+        HTMLグリッド文字列
+    """
+    import base64
+    import mimetypes
+
+    parts: list[str] = []
+    parts.append(f'<p class="caption">{len(images)} 件</p>')
+    parts.append(f'<div style="display:grid;grid-template-columns:repeat({cols_per_row},1fr);gap:12px;">')
+
+    for img_info in images:
+        display_name = img_info.get("display_name", img_info["go_node_name"])
+        image_path_str = img_info["image_path"]
+
+        # 画像パス解決（プロジェクトルート基準 → notes/daily基準フォールバック）
+        image_path = project_root / image_path_str
+        if not image_path.exists():
+            fallback = project_root / "notes" / "daily" / image_path_str
+            if fallback.exists():
+                image_path = fallback
+
+        cell_parts: list[str] = [
+            '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px;text-align:center;">',
+            f'<p style="font-weight:600;font-size:0.85em;margin:0 0 4px 0;">{display_name}</p>',
+        ]
+
+        if image_path.exists():
+            mime_type = mimetypes.guess_type(str(image_path))[0] or "image/png"
+            try:
+                img_data = image_path.read_bytes()
+                b64 = base64.b64encode(img_data).decode("ascii")
+                cell_parts.append(
+                    f'<img src="data:{mime_type};base64,{b64}" '
+                    f'style="max-width:100%;height:auto;border-radius:4px;" '
+                    f'alt="{display_name}">'
+                )
+            except OSError:
+                cell_parts.append(f'<p style="color:#ef4444;">読み取りエラー: {image_path_str}</p>')
+        else:
+            cell_parts.append(f'<p style="color:#6b7280;">画像なし: {image_path_str}</p>')
+
+        if source == "property":
+            prop_key = img_info.get("property_key", "")
+            cell_parts.append(f'<p style="color:#6b7280;font-size:0.75em;margin:4px 0 0 0;">{prop_key}</p>')
+        else:
+            img_name = img_info.get("image_name", "")
+            cell_parts.append(f'<p style="color:#6b7280;font-size:0.75em;margin:4px 0 0 0;">{img_name}</p>')
+
+        cell_parts.append("</div>")
+        parts.append("\n".join(cell_parts))
+
+    parts.append("</div>")
+    return "\n".join(parts)

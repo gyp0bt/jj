@@ -4629,6 +4629,336 @@ class TestHtmlExportHelpers:
         # 各グループ1点のみなので結線なし
         assert len(fig.data) == 0
 
+    def test_create_plot_figure_with_plot_style(self):
+        """plot_style指定でマーカー・フォントが反映される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "y": [4, 5, 6],
+                "name": ["a", "b", "c"],
+            }
+        )
+        style = {"marker_size": 24, "line_width": 3, "font_size": 14}
+        fig = _create_plot_figure(px, df, "x", "y", None, "散布図", plot_style=style)
+        # マーカーサイズが24に設定される
+        assert fig.data[0].marker.size == 24
+        # フォントサイズ比率: title=14*24/20=17, legend=14*16/20=11
+        assert fig.layout.title.font.size == round(14 * 24 / 20)
+        assert fig.layout.xaxis.tickfont.size == 14
+
+    def test_create_plot_figure_default_style(self):
+        """plot_style未指定でデフォルトスタイルが適用される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({"x": [1], "y": [2], "name": ["a"]})
+        fig = _create_plot_figure(px, df, "x", "y", None, "散布図")
+        # デフォルトマーカーサイズ=16
+        assert fig.data[0].marker.size == 16
+        # デフォルトフォント=20, title=24
+        assert fig.layout.title.font.size == 24
+        assert fig.layout.xaxis.tickfont.size == 20
+
+    def test_resolve_plot_style_merges_config_and_view(self):
+        """DashboardConfigとビュー設定のマージ"""
+        from config import DashboardConfig
+        from services.dashboard.html_export import _resolve_plot_style
+
+        config = DashboardConfig.from_dict({"plot": {"style": {"marker_size": 10, "font_size": 18}}})
+        # ビュー設定がDashboardConfigを上書き
+        view_style = {"marker_size": 30}
+        merged = _resolve_plot_style(view_style, config)
+        assert merged["marker_size"] == 30  # ビュー設定優先
+        assert merged["font_size"] == 18  # DashboardConfigから継承
+
+    def test_resolve_plot_style_empty(self):
+        """空のスタイル設定"""
+        from services.dashboard.html_export import _resolve_plot_style
+
+        merged = _resolve_plot_style(None, None)
+        assert merged == {}
+
+    def test_apply_axis_range(self):
+        """軸範囲の適用"""
+        try:
+            import plotly.graph_objects as go
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from services.dashboard.html_export import _apply_axis_range
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[1, 2, 3], y=[4, 5, 6]))
+        _apply_axis_range(fig, {"x_min": 0, "x_max": 10, "y_min": -5, "y_max": 15})
+        assert list(fig.layout.xaxis.range) == [0, 10]
+        assert list(fig.layout.yaxis.range) == [-5, 15]
+
+    def test_apply_default_layout_with_style(self):
+        """_apply_default_layoutでplot_styleが反映される"""
+        try:
+            import plotly.graph_objects as go
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from services.dashboard.html_export import _apply_default_layout
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[1, 2], y=[3, 4], mode="lines+markers"))
+        style = {"font_size": 14, "marker_size": 20}
+        _apply_default_layout(
+            fig,
+            title="Test",
+            x_title="X",
+            y_title="Y",
+            height=500,
+            showlegend=True,
+            plot_style=style,
+        )
+        assert fig.layout.xaxis.tickfont.size == 14
+        assert fig.data[0].marker.size == 20
+
+    def test_generate_plot_html_with_style_and_range(self):
+        """plot_styleとaxis_rangeがHTMLエクスポートに反映される"""
+        try:
+            import plotly  # noqa: F401
+        except ImportError:
+            pytest.skip("plotly not installed")
+
+        from config import DashboardConfig, SavedViewConfig
+        from services.dashboard.html_export import generate_plot_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_test1",
+                    format="inp",
+                    properties={"path": "a.inp", "RF3": 5.0, "temp": 300},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_test2",
+                    format="inp",
+                    properties={"path": "b.inp", "RF3": 3.0, "temp": 350},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({"plot": {"style": {"marker_size": 20, "font_size": 16}}})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "styled_plot",
+                "type": "plot",
+                "plot": {
+                    "x": "RF3",
+                    "y": "temp",
+                    "axis_range": {"x_min": 0, "x_max": 10},
+                },
+            }
+        )
+        html = generate_plot_html(provider, view, dashboard_config)
+        assert "plotly-graph" in html
+        assert "データ点数" in html
+
+
+class TestGalleryHtmlExport:
+    """ギャラリーHTMLエクスポートのテスト"""
+
+    def test_gallery_html_export_with_output_images(self):
+        """has_output画像のHTMLエクスポート（base64埋め込み）"""
+        import tempfile
+        from pathlib import Path
+
+        from config import DashboardConfig, SavedViewConfig
+
+        # テスト画像ファイルを作成
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            img_path = project_root / "test_image.png"
+            # 1x1 白ピクセルのPNG
+            img_path.write_bytes(
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+                b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
+                b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
+                b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+
+            graph = GraphModel(
+                nodes=[
+                    Node(
+                        id=1,
+                        type="go",
+                        name="go_test1",
+                        format="inp",
+                        properties={"path": "go_test1.inp"},
+                    ),
+                    Node(
+                        id=2,
+                        type="output",
+                        name="test_image.png",
+                        format="png",
+                        properties={"path": "test_image.png"},
+                    ),
+                ],
+                relations=[
+                    Relation(id=1, label="has_output", node1_id=1, node2_id=2),
+                ],
+            )
+            provider = DashboardDataProvider(graph)
+            dashboard_config = DashboardConfig.from_dict({})
+            view = SavedViewConfig.from_dict(
+                {
+                    "name": "gallery_test",
+                    "type": "gallery",
+                    "gallery": {"source": "has_output"},
+                }
+            )
+
+            from services.dashboard.components.gallery import GalleryPage
+
+            page = GalleryPage()
+            html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
+            assert "base64" in html
+            assert "go_test1" in html
+            assert "test_image.png" in html
+
+    def test_gallery_html_export_no_images(self):
+        """画像がない場合のエクスポート"""
+        from config import DashboardConfig, SavedViewConfig
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="go", name="go_test1", format="inp", properties={"path": "a.inp"}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "empty_gallery",
+                "type": "gallery",
+                "gallery": {"source": "has_output"},
+            }
+        )
+
+        from services.dashboard.components.gallery import GalleryPage
+
+        page = GalleryPage()
+        html = page.generate_html(provider, view, dashboard_config, project_root="/tmp")
+        assert "条件に一致する画像がありません" in html
+
+    def test_gallery_html_export_no_project_root(self):
+        """project_root未指定の場合"""
+        from config import DashboardConfig, SavedViewConfig
+
+        graph = GraphModel(
+            nodes=[Node(id=1, type="go", name="go_test1", format="inp", properties={"path": "a.inp"})],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict({"name": "no_root", "type": "gallery", "gallery": {"source": "has_output"}})
+
+        from services.dashboard.components.gallery import GalleryPage
+
+        page = GalleryPage()
+        html = page.generate_html(provider, view, dashboard_config)
+        assert "project_root" in html
+
+    def test_gallery_html_export_missing_image(self):
+        """画像ファイルが存在しない場合"""
+        import tempfile
+        from pathlib import Path
+
+        from config import DashboardConfig, SavedViewConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            graph = GraphModel(
+                nodes=[
+                    Node(id=1, type="go", name="go_test1", format="inp", properties={"path": "a.inp"}),
+                    Node(
+                        id=2,
+                        type="output",
+                        name="missing.png",
+                        format="png",
+                        properties={"path": "missing.png"},
+                    ),
+                ],
+                relations=[
+                    Relation(id=1, label="has_output", node1_id=1, node2_id=2),
+                ],
+            )
+            provider = DashboardDataProvider(graph)
+            dashboard_config = DashboardConfig.from_dict({})
+            view = SavedViewConfig.from_dict(
+                {
+                    "name": "missing_img",
+                    "type": "gallery",
+                    "gallery": {"source": "has_output"},
+                }
+            )
+
+            from services.dashboard.components.gallery import GalleryPage
+
+            page = GalleryPage()
+            html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
+            assert "画像なし" in html
+
+
+class TestDashboardConfigPlotStyle:
+    """DashboardConfig.plot_styleのテスト"""
+
+    def test_plot_style_from_config(self):
+        """YAML設定からplot_styleが読み取れる"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {"plot": {"x": "RF3", "y": "temp", "style": {"marker_size": 20, "line_width": 3, "font_size": 16}}}
+        )
+        assert config.plot_style == {"marker_size": 20, "line_width": 3, "font_size": 16}
+        assert config.plot_x == "RF3"
+        assert config.plot_y == "temp"
+
+    def test_plot_style_empty_default(self):
+        """デフォルトではplot_styleは空dict"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({})
+        assert config.plot_style == {}
+
+    def test_plot_style_partial(self):
+        """一部のスタイルのみ指定"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({"plot": {"style": {"font_size": 14}}})
+        assert config.plot_style == {"font_size": 14}
+        assert "marker_size" not in config.plot_style
+
+    def test_plot_style_hyphen_keys(self):
+        """ハイフン区切りのキーも対応"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({"plot": {"style": {"marker-size": 25}}})
+        assert config.plot_style == {"marker_size": 25}
+
 
 # ====================================================================
 # verbose_name_format動的展開テスト
