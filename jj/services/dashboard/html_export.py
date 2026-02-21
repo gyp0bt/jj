@@ -207,6 +207,10 @@ def generate_plot_html(
     extra_keys: list[str] = []
     if group_line_key:
         extra_keys.append(group_line_key)
+    # コンタープロット用Z軸キーもextra_keysに含める
+    z_key_for_extra = plot_config.get("z")
+    if z_key_for_extra:
+        extra_keys.append(z_key_for_extra)
 
     # colorが未設定の場合、デフォルトで表示名を使用
     vn_key = provider._verbose_name_key
@@ -229,12 +233,27 @@ def generate_plot_html(
     # axis_range: ビュー設定から読み取り
     axis_range = plot_config.get("axis_range", {})
 
+    # コンタープロット用: z_keyとcolor_range
+    z_key = plot_config.get("z")
+    color_range = plot_config.get("color_range", {})
+
     try:
         import pandas as pd
         import plotly.express as px
 
         df = pd.DataFrame(data)
-        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type, hover_name_col=vn_key, plot_style=plot_style)
+        fig = _create_plot_figure(
+            px,
+            df,
+            x_key,
+            y_key,
+            color,
+            chart_type,
+            hover_name_col=vn_key,
+            plot_style=plot_style,
+            z_key=z_key,
+            color_range=color_range,
+        )
         ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
@@ -465,12 +484,16 @@ def _create_plot_figure(
     chart_type: str,
     hover_name_col: str = "name",
     plot_style: dict[str, int] | None = None,
+    z_key: str | None = None,
+    color_range: dict[str, float] | None = None,
 ) -> Any:
     """plotlyのFigureオブジェクトを作成
 
     Args:
         hover_name_col: ホバー時に表示する列名（デフォルト: "name"）
         plot_style: スタイル設定辞書（marker_size, line_width, font_size）
+        z_key: コンタープロット用Z軸キー（色分け変数）
+        color_range: カラーバー範囲 {"vmin": float, "vmax": float}
     """
     # hover_name列がdfに存在しなければ"name"にフォールバック
     hn = hover_name_col if hover_name_col in df.columns else "name"
@@ -496,6 +519,26 @@ def _create_plot_figure(
             title=f"{y_key} by name",
             template=template,
         )
+    elif chart_type == "コンター":
+        # コンタープロット: Z軸キーで色分けした散布図（連続カラースケール）
+        contour_z = z_key if z_key and z_key in df.columns else color
+        cr = color_range or {}
+        range_color = None
+        if cr.get("vmin") is not None or cr.get("vmax") is not None:
+            vmin = cr.get("vmin", df[contour_z].min() if contour_z and contour_z in df.columns else 0)
+            vmax = cr.get("vmax", df[contour_z].max() if contour_z and contour_z in df.columns else 1)
+            range_color = [vmin, vmax]
+        fig = px.scatter(
+            df,
+            x=x_key,
+            y=y_key,
+            color=contour_z if contour_z and contour_z in df.columns else None,
+            hover_name=hn if hn in df.columns else None,
+            title=f"{y_key} vs {x_key}" + (f" (色: {contour_z})" if contour_z else ""),
+            template=template,
+            color_continuous_scale="Viridis",
+            range_color=range_color,
+        )
     else:
         fig = px.line(
             df,
@@ -511,7 +554,7 @@ def _create_plot_figure(
     # マーカーサイズ: plot_styleに指定があればそちらを優先、なければデフォルト16
     # barグラフはmarker.sizeプロパティを持たないため除外
     marker_size = (plot_style or {}).get("marker_size", 16)
-    if chart_type != "棒グラフ":
+    if chart_type not in ("棒グラフ",):
         fig.update_traces(marker=dict(size=marker_size))
 
     # 線幅: plot_styleに指定があれば適用

@@ -161,7 +161,8 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         max_display = cols_per_row * rows_per_page
         images = images[:max_display]
 
-        return _generate_gallery_html_grid(images, cols_per_row, project_root, source)
+        max_image_bytes = getattr(dashboard_config, "gallery_max_image_bytes", 0)
+        return _generate_gallery_html_grid(images, cols_per_row, project_root, source, max_image_bytes=max_image_bytes)
 
 
 # ====================================================================
@@ -447,6 +448,7 @@ def _generate_gallery_html_grid(
     cols_per_row: int,
     project_root: Path,
     source: str,
+    max_image_bytes: int = 0,
 ) -> str:
     """画像をHTMLグリッドとして生成（base64エンコード埋め込み）
 
@@ -455,6 +457,7 @@ def _generate_gallery_html_grid(
         cols_per_row: 1行あたりの列数
         project_root: プロジェクトルート
         source: "output" or "property"
+        max_image_bytes: 1画像あたりの最大バイト数（0=無制限）
 
     Returns:
         HTMLグリッド文字列
@@ -463,7 +466,7 @@ def _generate_gallery_html_grid(
     import mimetypes
 
     parts: list[str] = []
-    parts.append(f'<p class="caption">{len(images)} 件</p>')
+    skipped_count = 0
     parts.append(f'<div style="display:grid;grid-template-columns:repeat({cols_per_row},1fr);gap:12px;">')
 
     for img_info in images:
@@ -483,17 +486,26 @@ def _generate_gallery_html_grid(
         ]
 
         if image_path.exists():
-            mime_type = mimetypes.guess_type(str(image_path))[0] or "image/png"
-            try:
-                img_data = image_path.read_bytes()
-                b64 = base64.b64encode(img_data).decode("ascii")
+            file_size = image_path.stat().st_size
+            if max_image_bytes > 0 and file_size > max_image_bytes:
+                size_mb = file_size / (1024 * 1024)
+                limit_mb = max_image_bytes / (1024 * 1024)
                 cell_parts.append(
-                    f'<img src="data:{mime_type};base64,{b64}" '
-                    f'style="max-width:100%;height:auto;border-radius:4px;" '
-                    f'alt="{display_name}">'
+                    f'<p style="color:#f59e0b;font-size:0.8em;">スキップ: {size_mb:.1f}MB（上限 {limit_mb:.1f}MB）</p>'
                 )
-            except OSError:
-                cell_parts.append(f'<p style="color:#ef4444;">読み取りエラー: {image_path_str}</p>')
+                skipped_count += 1
+            else:
+                mime_type = mimetypes.guess_type(str(image_path))[0] or "image/png"
+                try:
+                    img_data = image_path.read_bytes()
+                    b64 = base64.b64encode(img_data).decode("ascii")
+                    cell_parts.append(
+                        f'<img src="data:{mime_type};base64,{b64}" '
+                        f'style="max-width:100%;height:auto;border-radius:4px;" '
+                        f'alt="{display_name}">'
+                    )
+                except OSError:
+                    cell_parts.append(f'<p style="color:#ef4444;">読み取りエラー: {image_path_str}</p>')
         else:
             cell_parts.append(f'<p style="color:#6b7280;">画像なし: {image_path_str}</p>')
 
@@ -508,4 +520,9 @@ def _generate_gallery_html_grid(
         parts.append("\n".join(cell_parts))
 
     parts.append("</div>")
-    return "\n".join(parts)
+
+    caption = f"{len(images)} 件"
+    if skipped_count:
+        caption += f"（{skipped_count} 件サイズ超過でスキップ）"
+    header = f'<p class="caption">{caption}</p>'
+    return header + "\n".join(parts)

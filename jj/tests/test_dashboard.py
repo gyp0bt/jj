@@ -5872,3 +5872,251 @@ class TestStatusSummaryEnhanced:
         assert "nbins" in warning_stats
         assert "min" in warning_stats
         assert "max" in warning_stats
+
+
+# ====================================================================
+# status-039 TODO テスト
+# ====================================================================
+
+
+class TestContourPlot:
+    """コンタープロットのテスト"""
+
+    def test_create_plot_figure_contour(self):
+        """コンターチャートタイプで連続カラースケールが使用される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "y": [4, 5, 6, 7],
+                "z_val": [10.0, 20.0, 30.0, 40.0],
+                "name": ["a", "b", "c", "d"],
+            }
+        )
+        fig = _create_plot_figure(
+            px,
+            df,
+            "x",
+            "y",
+            None,
+            "コンター",
+            z_key="z_val",
+            color_range={"vmin": 0, "vmax": 50},
+        )
+        # コンターは散布図ベースで生成される
+        assert len(fig.data) >= 1
+        assert "色: z_val" in fig.layout.title.text
+
+    def test_create_plot_figure_contour_no_z_key(self):
+        """Z軸キー未指定のコンター"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({"x": [1, 2], "y": [3, 4], "name": ["a", "b"]})
+        fig = _create_plot_figure(px, df, "x", "y", None, "コンター")
+        assert len(fig.data) >= 1
+
+    def test_create_plot_figure_contour_with_color_range(self):
+        """vmin/vmaxによるカラーバー範囲制御"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "y": [4, 5, 6],
+                "temp": [100.0, 200.0, 300.0],
+                "name": ["a", "b", "c"],
+            }
+        )
+        fig = _create_plot_figure(
+            px,
+            df,
+            "x",
+            "y",
+            None,
+            "コンター",
+            z_key="temp",
+            color_range={"vmin": 50, "vmax": 350},
+        )
+        # coloraxis.cmin/cmaxでカラーバー範囲が設定される
+        caxis = fig.layout.coloraxis
+        assert caxis.cmin == 50
+        assert caxis.cmax == 350
+
+
+class TestSavedViewStylePersistence:
+    """SavedViewConfigでplot_style/axis_range/color_rangeの永続化テスト"""
+
+    def test_saved_view_with_plot_style(self):
+        """SavedViewConfigにplot_styleが含まれる"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "styled_plot",
+                "type": "plot",
+                "plot": {
+                    "x": "RF3",
+                    "y": "temp",
+                    "plot_style": {"marker_size": 24, "font_size": 14},
+                    "axis_range": {"x_min": 0, "x_max": 100},
+                },
+            }
+        )
+        assert view.plot["plot_style"]["marker_size"] == 24
+        assert view.plot["axis_range"]["x_min"] == 0
+
+    def test_saved_view_with_contour_config(self):
+        """SavedViewConfigにZ軸とcolor_rangeが含まれる"""
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "contour_plot",
+                "type": "plot",
+                "plot": {
+                    "x": "RF3",
+                    "y": "RF2",
+                    "chart_type": "コンター",
+                    "z": "temperature",
+                    "color_range": {"vmin": 0, "vmax": 500},
+                },
+            }
+        )
+        assert view.plot["z"] == "temperature"
+        assert view.plot["color_range"]["vmin"] == 0
+        assert view.plot["color_range"]["vmax"] == 500
+
+
+class TestGalleryMaxImageBytes:
+    """ギャラリーHTMLの画像ファイルサイズ上限テスト"""
+
+    def test_gallery_max_image_bytes_config(self):
+        """DashboardConfigにgallery_max_image_bytesが設定される"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({"gallery-max-image-bytes": 1048576})
+        assert config.gallery_max_image_bytes == 1048576
+
+    def test_gallery_max_image_bytes_default(self):
+        """空dict時のデフォルトは0（無制限）"""
+        from config import DashboardConfig
+
+        # 空dictはデフォルトパス → gallery_max_image_bytes=0
+        config = DashboardConfig.from_dict({})
+        assert config.gallery_max_image_bytes == 0
+
+    def test_gallery_max_image_bytes_default_with_data(self):
+        """データありでキー未指定時はデフォルト5MB"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({"plot": {"x": "RF3"}})
+        assert config.gallery_max_image_bytes == 5 * 1024 * 1024
+
+    def test_gallery_html_skips_large_images(self):
+        """サイズ上限を超える画像がスキップされる"""
+        import tempfile
+        from pathlib import Path
+
+        from config import DashboardConfig, SavedViewConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            # 小さい画像（OK）
+            small_img = project_root / "small.png"
+            small_img.write_bytes(b"\x89PNG" + b"\x00" * 50)
+            # 大きい画像（スキップ対象）
+            large_img = project_root / "large.png"
+            large_img.write_bytes(b"\x89PNG" + b"\x00" * 200)
+
+            graph = GraphModel(
+                nodes=[
+                    Node(id=1, type="go", name="go_small", format="inp", properties={"path": "a.inp"}),
+                    Node(id=2, type="output", name="small.png", format="png", properties={"path": "small.png"}),
+                    Node(id=3, type="go", name="go_large", format="inp", properties={"path": "b.inp"}),
+                    Node(id=4, type="output", name="large.png", format="png", properties={"path": "large.png"}),
+                ],
+                relations=[
+                    Relation(id=1, label="has_output", node1_id=1, node2_id=2),
+                    Relation(id=2, label="has_output", node1_id=3, node2_id=4),
+                ],
+            )
+            provider = DashboardDataProvider(graph)
+            # 上限100バイトに設定（large.pngの204バイトはスキップ）
+            dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 100})
+            view = SavedViewConfig.from_dict(
+                {
+                    "name": "size_limited_gallery",
+                    "type": "gallery",
+                    "gallery": {"source": "has_output"},
+                }
+            )
+
+            from services.dashboard.components.gallery import GalleryPage
+
+            page = GalleryPage()
+            html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
+            assert "スキップ" in html
+            assert "サイズ超過でスキップ" in html
+            # 小さい画像はbase64で埋め込まれる
+            assert "base64" in html
+
+    def test_gallery_html_no_limit(self):
+        """サイズ上限0（無制限）ではスキップしない"""
+        import tempfile
+        from pathlib import Path
+
+        from config import DashboardConfig, SavedViewConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            img = project_root / "test.png"
+            img.write_bytes(
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+                b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00"
+                b"\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00"
+                b"\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+
+            graph = GraphModel(
+                nodes=[
+                    Node(id=1, type="go", name="go_t", format="inp", properties={"path": "a.inp"}),
+                    Node(id=2, type="output", name="test.png", format="png", properties={"path": "test.png"}),
+                ],
+                relations=[Relation(id=1, label="has_output", node1_id=1, node2_id=2)],
+            )
+            provider = DashboardDataProvider(graph)
+            # gallery_max_image_bytes=0（無制限）
+            dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 0})
+            view = SavedViewConfig.from_dict(
+                {
+                    "name": "unlimited_gallery",
+                    "type": "gallery",
+                    "gallery": {"source": "has_output"},
+                }
+            )
+
+            from services.dashboard.components.gallery import GalleryPage
+
+            page = GalleryPage()
+            html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
+            assert "スキップ" not in html
+            assert "base64" in html
