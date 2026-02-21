@@ -5961,6 +5961,87 @@ class TestContourPlot:
         assert caxis.cmin == 50
         assert caxis.cmax == 350
 
+    def test_create_plot_figure_density_contour(self):
+        """等高線チャートタイプでdensity_contourが使用される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4, 5],
+                "y": [4, 5, 6, 7, 8],
+                "z_val": [10.0, 20.0, 30.0, 40.0, 50.0],
+                "name": ["a", "b", "c", "d", "e"],
+            }
+        )
+        fig = _create_plot_figure(
+            px,
+            df,
+            "x",
+            "y",
+            None,
+            "等高線",
+            z_key="z_val",
+        )
+        assert len(fig.data) >= 1
+        assert "Z: z_val" in fig.layout.title.text
+        # density_contourのトレースタイプはcontourまたはhistogram2dcontour
+        trace_type = fig.data[0].type
+        assert trace_type in ("contour", "histogram2dcontour")
+
+    def test_create_plot_figure_density_contour_no_z(self):
+        """Z軸未指定の等高線（密度のみ）"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [3, 4, 5], "name": ["a", "b", "c"]})
+        fig = _create_plot_figure(px, df, "x", "y", None, "等高線")
+        assert len(fig.data) >= 1
+        assert "密度" in fig.layout.title.text
+
+    def test_create_plot_figure_density_contour_with_color_range(self):
+        """等高線のvmin/vmaxでcontours.start/endが制御される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "y": [4, 5, 6, 7],
+                "temp": [100.0, 200.0, 300.0, 400.0],
+                "name": ["a", "b", "c", "d"],
+            }
+        )
+        fig = _create_plot_figure(
+            px,
+            df,
+            "x",
+            "y",
+            None,
+            "等高線",
+            z_key="temp",
+            color_range={"vmin": 50, "vmax": 350},
+        )
+        assert len(fig.data) >= 1
+        # 等高線の塗りつぶしがVirdis色で設定される
+        trace = fig.data[0]
+        assert trace.contours.coloring == "fill"
+
 
 class TestSavedViewStylePersistence:
     """SavedViewConfigでplot_style/axis_range/color_rangeの永続化テスト"""

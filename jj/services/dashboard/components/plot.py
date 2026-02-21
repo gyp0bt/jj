@@ -38,13 +38,15 @@ class PlotViewConfig(ViewConfig):
             color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
             p_color = st.selectbox("色分け", color_options, index=1, key="_add_view_pcolor")
         with pc4:
-            p_chart = st.selectbox("チャート", ["散布図", "棒グラフ", "線図", "コンター"], key="_add_view_pchart")
+            p_chart = st.selectbox(
+                "チャート", ["散布図", "棒グラフ", "線図", "コンター", "等高線"], key="_add_view_pchart"
+            )
         color_val = p_color if p_color != "なし" else None
 
-        # コンター用: Z軸・vmin/vmax
+        # コンター/等高線用: Z軸・vmin/vmax
         p_z_key: str | None = None
         p_color_range: dict[str, float] = {}
-        if p_chart == "コンター":
+        if p_chart in ("コンター", "等高線"):
             z_options = [k for k in keys if k != px_key and k != py_key]
             if z_options:
                 zc1, zc2, zc3 = st.columns(3)
@@ -165,15 +167,15 @@ class PlotPage(PageComponent[PlotViewConfig]):
             color_default_idx = 1  # デフォルト: 表示名で色分け
             color_key = st.selectbox("色分け", color_options, index=color_default_idx)
         with col4:
-            chart_type = st.selectbox("チャートタイプ", ["散布図", "棒グラフ", "線図", "コンター"])
+            chart_type = st.selectbox("チャートタイプ", ["散布図", "棒グラフ", "線図", "コンター", "等高線"])
 
         if not x_key or not y_key:
             return
 
-        # コンタープロット用: Z軸・カラーバー範囲
+        # コンター/等高線プロット用: Z軸・カラーバー範囲
         z_key: str | None = None
         color_range: dict[str, float] = {}
-        if chart_type == "コンター":
+        if chart_type in ("コンター", "等高線"):
             z_options = [k for k in keys if k != x_key and k != y_key]
             if z_options:
                 cc1, cc2, cc3 = st.columns(3)
