@@ -64,6 +64,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [037](status-037.md) | 2026-02-20 | M2 | status-036 TODO実行: plotlyテーマ横断適用・ProcessPool検証・メッシュフィルタ | claude/execute-status-todos-11ExX |
 | [038](status-038.md) | 2026-02-20 | M2 | status-037 TODO実行: ダークモード視認性テスト・ベンチマーク・キーワード拡充 | claude/execute-status-todos-BqohF |
 | [039](status-039.md) | 2026-02-20 | M2 | HTMLエクスポート: plotスタイル反映・ギャラリー実装 | claude/fix-plot-export-RH76n |
+| [040](status-040.md) | 2026-02-21 | M2 | status-039 TODO実行: スタイル永続化・コンタープロット・ギャラリーサイズ上限 | claude/execute-status-todos-Mlumt |
 
 ---
 

@@ -709,6 +709,7 @@ class DashboardConfig:
     ng_regions: list[dict[str, Any]]  # NG領域定義（矩形/カーブ）
     group_line_key: str | None  # グループ結線キー（同一値のデータ点を結線）
     plot_style: dict[str, int]  # プロットスタイル（marker_size, line_width, font_size）
+    gallery_max_image_bytes: int  # ギャラリーHTMLエクスポート時の1画像あたりの最大バイト数（0=無制限）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -736,6 +737,7 @@ class DashboardConfig:
                 ng_regions=[],
                 group_line_key=None,
                 plot_style={},
+                gallery_max_image_bytes=0,
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -794,6 +796,9 @@ class DashboardConfig:
             ps_val = raw_plot_style.get(ps_key) or raw_plot_style.get(ps_key.replace("_", "-"))
             if ps_val is not None:
                 plot_style[ps_key] = int(ps_val)
+        # ギャラリーHTMLエクスポートの画像サイズ上限（バイト単位、デフォルト: 5MB）
+        raw_max_img = data.get("gallery-max-image-bytes", 5 * 1024 * 1024)
+        gallery_max_image_bytes = int(raw_max_img) if raw_max_img else 0
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             default_filters=default_filters,
@@ -806,6 +811,7 @@ class DashboardConfig:
             ng_regions=ng_regions,
             group_line_key=group_line_key,
             plot_style=plot_style,
+            gallery_max_image_bytes=gallery_max_image_bytes,
         )
 
 
