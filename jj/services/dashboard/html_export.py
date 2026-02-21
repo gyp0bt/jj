@@ -19,7 +19,7 @@ from services.dashboard.query import (
     apply_saved_view_filters,
     select_table_columns,
 )
-from services.dashboard.widgets import get_plotly_template
+from services.dashboard.widgets import build_axis_range, get_plotly_template
 
 if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
@@ -223,17 +223,27 @@ def generate_plot_html(
     if not data:
         return f"<p>'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。</p>"
 
+    # plot_style: ビュー設定 > DashboardConfig > デフォルト
+    plot_style = _resolve_plot_style(plot_config.get("plot_style"), dashboard_config)
+
+    # axis_range: ビュー設定から読み取り
+    axis_range = plot_config.get("axis_range", {})
+
     try:
         import pandas as pd
         import plotly.express as px
 
         df = pd.DataFrame(data)
-        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type, hover_name_col=vn_key)
+        fig = _create_plot_figure(px, df, x_key, y_key, color, chart_type, hover_name_col=vn_key, plot_style=plot_style)
         ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
         if ng_regions:
             _add_ng_regions_to_fig(fig, ng_regions)
         if group_line_key and group_line_key in df.columns:
             _add_group_lines_to_fig(fig, df, x_key, y_key, group_line_key)
+
+        # 軸範囲の適用
+        if axis_range:
+            _apply_axis_range(fig, axis_range)
 
         plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
         caption = f'<p class="caption">データ点数: {len(data)}</p>'
@@ -276,6 +286,12 @@ def generate_array_plot_html(
     filter_dict = saved_view_filters_to_provider_filters(filters) if filters else None
     ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
 
+    # plot_style: ビュー設定 > DashboardConfig > デフォルト
+    plot_style = _resolve_plot_style(ap_config.get("plot_style"), dashboard_config)
+
+    # axis_range: ビュー設定から読み取り
+    axis_range = ap_config.get("axis_range", {})
+
     mode = ap_config.get("mode", "overlay")
     parts: list[str] = []
 
@@ -296,7 +312,7 @@ def generate_array_plot_html(
                 for item in grid_data:
                     idx_str = item.get("index", "")
                     ver_str = item.get("version", "")
-                    label = item["name"]
+                    label = item.get("display_name", item["name"])
                     if idx_str:
                         label += f" (idx{idx_str}"
                         if ver_str:
@@ -312,14 +328,17 @@ def generate_array_plot_html(
                     )
                 if ng_regions:
                     _add_ng_regions_to_fig(fig, ng_regions)
-                fig.update_layout(
+                _apply_default_layout(
+                    fig,
                     title=f"{y_key} vs {x_key}（全条件比較）",
-                    xaxis_title=x_key.split(".")[-1],
-                    yaxis_title=y_key.split(".")[-1],
+                    x_title=x_key.split(".")[-1],
+                    y_title=y_key.split(".")[-1],
                     height=600,
                     showlegend=True,
-                    template=get_plotly_template(),
+                    plot_style=plot_style,
                 )
+                if axis_range:
+                    _apply_axis_range(fig, axis_range)
                 plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
                 parts.append(f'<div class="plotly-graph">{plot_html}</div>')
             else:
@@ -341,19 +360,22 @@ def generate_array_plot_html(
                     )
                     if ng_regions:
                         _add_ng_regions_to_fig(fig, ng_regions)
-                    title = item["name"]
+                    title = item.get("display_name", item["name"])
                     idx_str = item.get("index", "")
                     if idx_str:
                         title += f" (idx{idx_str})"
-                    fig.update_layout(
+                    _apply_default_layout(
+                        fig,
                         title=title,
-                        xaxis_title=x_key.split(".")[-1],
-                        yaxis_title=y_key.split(".")[-1],
-                        margin=dict(l=20, r=20, t=40, b=20),
+                        x_title=x_key.split(".")[-1],
+                        y_title=y_key.split(".")[-1],
                         height=300,
                         showlegend=False,
-                        template=get_plotly_template(),
+                        plot_style=plot_style,
+                        margin=dict(l=20, r=20, t=40, b=20),
                     )
+                    if axis_range:
+                        _apply_axis_range(fig, axis_range)
                     plot_html = fig.to_html(full_html=False, include_plotlyjs=False)
                     parts.append(f'<div class="plotly-graph">{plot_html}</div>')
 
@@ -442,11 +464,13 @@ def _create_plot_figure(
     color: str | None,
     chart_type: str,
     hover_name_col: str = "name",
+    plot_style: dict[str, int] | None = None,
 ) -> Any:
     """plotlyのFigureオブジェクトを作成
 
     Args:
         hover_name_col: ホバー時に表示する列名（デフォルト: "name"）
+        plot_style: スタイル設定辞書（marker_size, line_width, font_size）
     """
     # hover_name列がdfに存在しなければ"name"にフォールバック
     hn = hover_name_col if hover_name_col in df.columns else "name"
@@ -484,25 +508,104 @@ def _create_plot_figure(
             template=template,
         )
 
-    # マーカーサイズをデフォルトで16に設定（散布図・折れ線グラフのみ）
+    # マーカーサイズ: plot_styleに指定があればそちらを優先、なければデフォルト16
     # barグラフはmarker.sizeプロパティを持たないため除外
+    marker_size = (plot_style or {}).get("marker_size", 16)
     if chart_type != "棒グラフ":
-        fig.update_traces(marker=dict(size=16))
+        fig.update_traces(marker=dict(size=marker_size))
 
-    # フォントサイズのデフォルト設定（色はテンプレートに委譲）
+    # 線幅: plot_styleに指定があれば適用
+    line_width = (plot_style or {}).get("line_width")
+    if line_width is not None:
+        fig.update_traces(line=dict(width=line_width))
+
+    # フォントサイズ: plot_styleに指定があればそちらを優先、なければデフォルト20
+    font_sz = (plot_style or {}).get("font_size", 20)
+    title_font_sz = round(font_sz * 24 / 20)
+    legend_font_sz = round(font_sz * 16 / 20)
     fig.update_layout(
-        title_font=dict(size=24),
-        legend=dict(font=dict(size=16)),
+        title_font=dict(size=title_font_sz),
+        legend=dict(font=dict(size=legend_font_sz)),
     )
     fig.update_xaxes(
-        title_font=dict(size=20),
-        tickfont=dict(size=20),
+        title_font=dict(size=font_sz),
+        tickfont=dict(size=font_sz),
     )
     fig.update_yaxes(
-        title_font=dict(size=20),
-        tickfont=dict(size=20),
+        title_font=dict(size=font_sz),
+        tickfont=dict(size=font_sz),
     )
     return fig
+
+
+def _resolve_plot_style(
+    view_style: dict[str, Any] | None,
+    dashboard_config: Any,
+) -> dict[str, int]:
+    """ビュー設定とDashboardConfigからplot_styleをマージして返す
+
+    優先順位: ビュー設定 > DashboardConfig.plot_style > 空dict
+    """
+    base: dict[str, int] = {}
+    if dashboard_config is not None:
+        config_style = getattr(dashboard_config, "plot_style", None)
+        if config_style:
+            base.update(config_style)
+    if view_style and isinstance(view_style, dict):
+        for k in ("marker_size", "line_width", "font_size"):
+            v = view_style.get(k)
+            if v is not None:
+                base[k] = int(v)
+    return base
+
+
+def _apply_axis_range(fig: Any, axis_range: dict[str, Any]) -> None:
+    """軸範囲をFigureに適用
+
+    axis_range: {"x_min": float, "x_max": float, "y_min": float, "y_max": float}
+    """
+    x_range = build_axis_range(axis_range.get("x_min"), axis_range.get("x_max"))
+    y_range = build_axis_range(axis_range.get("y_min"), axis_range.get("y_max"))
+    if x_range:
+        fig.update_xaxes(range=x_range)
+    if y_range:
+        fig.update_yaxes(range=y_range)
+
+
+def _apply_default_layout(
+    fig: Any,
+    title: str,
+    x_title: str,
+    y_title: str,
+    height: int,
+    showlegend: bool,
+    plot_style: dict[str, int] | None = None,
+    margin: dict[str, int] | None = None,
+) -> None:
+    """配列プロットのレイアウトにplot_styleを適用"""
+    font_sz = (plot_style or {}).get("font_size", 20)
+    title_font_sz = round(font_sz * 24 / 20)
+    legend_font_sz = round(font_sz * 16 / 20)
+
+    layout_kwargs: dict[str, Any] = {
+        "title": dict(text=title, font=dict(size=title_font_sz)),
+        "xaxis": dict(title=dict(text=x_title, font=dict(size=font_sz)), tickfont=dict(size=font_sz)),
+        "yaxis": dict(title=dict(text=y_title, font=dict(size=font_sz)), tickfont=dict(size=font_sz)),
+        "legend": dict(font=dict(size=legend_font_sz)),
+        "height": height,
+        "showlegend": showlegend,
+        "template": get_plotly_template(),
+    }
+    if margin:
+        layout_kwargs["margin"] = margin
+    fig.update_layout(**layout_kwargs)
+
+    # マーカーサイズ・線幅の適用
+    if plot_style:
+        if "marker_size" in plot_style:
+            fig.update_traces(marker=dict(size=plot_style["marker_size"]))
+        if "line_width" in plot_style:
+            fig.update_traces(line=dict(width=plot_style["line_width"]))
 
 
 def _add_ng_regions_to_fig(fig: Any, ng_regions: list[dict[str, Any]]) -> None:
