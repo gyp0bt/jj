@@ -660,6 +660,141 @@ def _render_view_edit_form(
                 st.session_state[lf_count_key] = max(1, edit_lf_count - 1)
                 st.rerun()
 
+        # プロット設定の編集UI
+        edit_plot_config: dict[str, Any] = {}
+        if view_type == "plot":
+            st.markdown("**プロット設定**")
+            existing_plot = view_data.get("plot", {})
+            keys = provider.get_property_keys()
+            vn_key = provider._verbose_name_key
+
+            epc1, epc2, epc3, epc4 = st.columns(4)
+            with epc1:
+                ex_x = existing_plot.get("x", "")
+                x_idx = keys.index(ex_x) if ex_x in keys else 0
+                ep_x = st.selectbox("X軸", keys, index=x_idx, key=f"_edit_px_{dyn_idx}") if keys else ""
+            with epc2:
+                ex_y = existing_plot.get("y", "")
+                y_idx = keys.index(ex_y) if ex_y in keys else min(1, len(keys) - 1)
+                ep_y = st.selectbox("Y軸", keys, index=y_idx, key=f"_edit_py_{dyn_idx}") if keys else ""
+            with epc3:
+                color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
+                ex_color = existing_plot.get("color") or "なし"
+                c_idx = color_options.index(ex_color) if ex_color in color_options else 0
+                ep_color = st.selectbox("色分け", color_options, index=c_idx, key=f"_edit_pcolor_{dyn_idx}")
+            with epc4:
+                chart_options = ["散布図", "棒グラフ", "線図", "コンター", "等高線"]
+                ex_chart = existing_plot.get("chart_type", "散布図")
+                ct_idx = chart_options.index(ex_chart) if ex_chart in chart_options else 0
+                ep_chart = st.selectbox("チャート", chart_options, index=ct_idx, key=f"_edit_pchart_{dyn_idx}")
+
+            edit_plot_config = {
+                "x": ep_x,
+                "y": ep_y,
+                "color": ep_color if ep_color != "なし" else None,
+                "chart_type": ep_chart,
+            }
+
+            # コンター/等高線用: Z軸・カラーバー範囲
+            if ep_chart in ("コンター", "等高線"):
+                z_options = [k for k in keys if k != ep_x and k != ep_y]
+                if z_options:
+                    ezc1, ezc2, ezc3 = st.columns(3)
+                    with ezc1:
+                        ex_z = existing_plot.get("z", "")
+                        z_idx = z_options.index(ex_z) if ex_z in z_options else 0
+                        ep_z = st.selectbox("Z軸（色）", z_options, index=z_idx, key=f"_edit_pz_{dyn_idx}")
+                    ex_cr = existing_plot.get("color_range", {})
+                    with ezc2:
+                        ep_vmin = st.number_input(
+                            "vmin",
+                            value=ex_cr.get("vmin"),
+                            key=f"_edit_pvmin_{dyn_idx}",
+                            format="%g",
+                        )
+                    with ezc3:
+                        ep_vmax = st.number_input(
+                            "vmax",
+                            value=ex_cr.get("vmax"),
+                            key=f"_edit_pvmax_{dyn_idx}",
+                            format="%g",
+                        )
+                    if ep_z:
+                        edit_plot_config["z"] = ep_z
+                    ep_cr: dict[str, float] = {}
+                    if ep_vmin is not None:
+                        ep_cr["vmin"] = float(ep_vmin)
+                    if ep_vmax is not None:
+                        ep_cr["vmax"] = float(ep_vmax)
+                    if ep_cr:
+                        edit_plot_config["color_range"] = ep_cr
+
+            # スタイル設定
+            with st.expander("スタイル設定", expanded=False):
+                ex_style = existing_plot.get("plot_style", {})
+                esc1, esc2, esc3 = st.columns(3)
+                with esc1:
+                    ep_marker = st.number_input(
+                        "マーカーサイズ",
+                        value=ex_style.get("marker_size"),
+                        min_value=1,
+                        max_value=50,
+                        key=f"_edit_p_marker_{dyn_idx}",
+                    )
+                with esc2:
+                    ep_lw = st.number_input(
+                        "線幅",
+                        value=ex_style.get("line_width"),
+                        min_value=1,
+                        max_value=20,
+                        key=f"_edit_p_lw_{dyn_idx}",
+                    )
+                with esc3:
+                    ep_fs = st.number_input(
+                        "フォントサイズ",
+                        value=ex_style.get("font_size"),
+                        min_value=6,
+                        max_value=48,
+                        key=f"_edit_p_fs_{dyn_idx}",
+                    )
+                from services.dashboard.widgets import build_style_config
+
+                ep_plot_style = build_style_config(ep_marker, ep_lw, ep_fs)
+                if ep_plot_style:
+                    edit_plot_config["plot_style"] = ep_plot_style
+
+            # 軸範囲設定
+            with st.expander("軸範囲設定", expanded=False):
+                ex_range = existing_plot.get("axis_range", {})
+                erc1, erc2, erc3, erc4 = st.columns(4)
+                with erc1:
+                    ep_xmin = st.number_input(
+                        "X最小", value=ex_range.get("x_min"), key=f"_edit_p_xmin_{dyn_idx}", format="%g"
+                    )
+                with erc2:
+                    ep_xmax = st.number_input(
+                        "X最大", value=ex_range.get("x_max"), key=f"_edit_p_xmax_{dyn_idx}", format="%g"
+                    )
+                with erc3:
+                    ep_ymin = st.number_input(
+                        "Y最小", value=ex_range.get("y_min"), key=f"_edit_p_ymin_{dyn_idx}", format="%g"
+                    )
+                with erc4:
+                    ep_ymax = st.number_input(
+                        "Y最大", value=ex_range.get("y_max"), key=f"_edit_p_ymax_{dyn_idx}", format="%g"
+                    )
+                ep_axis_range: dict[str, float] = {}
+                if ep_xmin is not None:
+                    ep_axis_range["x_min"] = float(ep_xmin)
+                if ep_xmax is not None:
+                    ep_axis_range["x_max"] = float(ep_xmax)
+                if ep_ymin is not None:
+                    ep_axis_range["y_min"] = float(ep_ymin)
+                if ep_ymax is not None:
+                    ep_axis_range["y_max"] = float(ep_ymax)
+                if ep_axis_range:
+                    edit_plot_config["axis_range"] = ep_axis_range
+
         # コネクター設定の編集UI
         edit_cc_values: dict[str, Any] = {}
         is_connector_edit = view_type.startswith("connector:")
@@ -720,6 +855,8 @@ def _render_view_edit_form(
                 view_data["type"] = view_type
                 view_data["filters"] = filters
                 view_data["local_filters"] = local_filters
+                if edit_plot_config:
+                    view_data["plot"] = edit_plot_config
                 view_data["connector_config"] = final_edit_cc
                 st.session_state["_dynamic_views"][dyn_idx] = view_data
                 if project_root is not None:

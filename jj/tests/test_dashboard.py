@@ -6305,3 +6305,90 @@ class TestGalleryMaxImageBytes:
             html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
             assert "スキップ" not in html
             assert "base64" in html
+
+
+class TestViewEditFormPlotConfig:
+    """動的ビュー編集フォームでplot設定が正しく構築・保存される"""
+
+    def test_plot_config_roundtrip(self):
+        """edit_plot_configから構築した辞書がSavedViewConfigで正しく読み取れる"""
+        from config import SavedViewConfig
+
+        # 編集フォームが構築する辞書を模擬
+        edit_plot_config = {
+            "x": "RF3",
+            "y": "temperature",
+            "color": None,
+            "chart_type": "コンター",
+            "z": "stress",
+            "color_range": {"vmin": 0.0, "vmax": 500.0},
+            "plot_style": {"marker_size": 20, "font_size": 16},
+            "axis_range": {"x_min": 0.0, "x_max": 100.0, "y_min": -10.0, "y_max": 50.0},
+        }
+        view_data = {
+            "name": "edited_plot",
+            "type": "plot",
+            "plot": edit_plot_config,
+        }
+
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.plot["x"] == "RF3"
+        assert view.plot["y"] == "temperature"
+        assert view.plot["chart_type"] == "コンター"
+        assert view.plot["z"] == "stress"
+        assert view.plot["color_range"]["vmin"] == 0.0
+        assert view.plot["color_range"]["vmax"] == 500.0
+        assert view.plot["plot_style"]["marker_size"] == 20
+        assert view.plot["plot_style"]["font_size"] == 16
+        assert view.plot["axis_range"]["x_min"] == 0.0
+        assert view.plot["axis_range"]["y_max"] == 50.0
+
+    def test_plot_config_density_contour_roundtrip(self):
+        """等高線タイプのplot設定がround-trip可能"""
+        from config import SavedViewConfig
+
+        edit_plot_config = {
+            "x": "x_coord",
+            "y": "y_coord",
+            "color": "group",
+            "chart_type": "等高線",
+            "z": "density",
+            "color_range": {"vmin": 10.0},
+        }
+        view = SavedViewConfig.from_dict({"name": "density_view", "type": "plot", "plot": edit_plot_config})
+        assert view.plot["chart_type"] == "等高線"
+        assert view.plot["z"] == "density"
+        assert view.plot["color_range"]["vmin"] == 10.0
+        assert "vmax" not in view.plot["color_range"]
+
+    def test_plot_config_minimal(self):
+        """最小限のプロット設定（x, y, chart_typeのみ）"""
+        from config import SavedViewConfig
+
+        edit_plot_config = {
+            "x": "col_a",
+            "y": "col_b",
+            "color": None,
+            "chart_type": "散布図",
+        }
+        view = SavedViewConfig.from_dict({"name": "minimal_plot", "type": "plot", "plot": edit_plot_config})
+        assert view.plot["x"] == "col_a"
+        assert view.plot["chart_type"] == "散布図"
+        assert "plot_style" not in view.plot
+        assert "axis_range" not in view.plot
+
+    def test_build_style_config_all_values(self):
+        """build_style_configで全値が設定される"""
+        from services.dashboard.widgets import build_style_config
+
+        style = build_style_config(24, 3, 14)
+        assert style == {"marker_size": 24, "line_width": 3, "font_size": 14}
+
+    def test_build_style_config_partial(self):
+        """build_style_configでNone値が除外される"""
+        from services.dashboard.widgets import build_style_config
+
+        style = build_style_config(None, 2, None)
+        assert style == {"line_width": 2}
+        assert "marker_size" not in style
+        assert "font_size" not in style
