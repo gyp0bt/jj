@@ -6113,7 +6113,7 @@ class TestGalleryMaxImageBytes:
         assert config.gallery_max_image_bytes == 5 * 1024 * 1024
 
     def test_gallery_html_skips_large_images(self):
-        """サイズ上限を超える画像がスキップされる"""
+        """サイズ上限を超える画像がスキップまたはサムネイル化される"""
         import tempfile
         from pathlib import Path
 
@@ -6124,7 +6124,7 @@ class TestGalleryMaxImageBytes:
             # 小さい画像（OK）
             small_img = project_root / "small.png"
             small_img.write_bytes(b"\x89PNG" + b"\x00" * 50)
-            # 大きい画像（スキップ対象）
+            # 大きい画像（スキップ/サムネイル対象）
             large_img = project_root / "large.png"
             large_img.write_bytes(b"\x89PNG" + b"\x00" * 200)
 
@@ -6141,7 +6141,7 @@ class TestGalleryMaxImageBytes:
                 ],
             )
             provider = DashboardDataProvider(graph)
-            # 上限100バイトに設定（large.pngの204バイトはスキップ）
+            # 上限100バイトに設定（large.pngの204バイトは超過）
             dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 100})
             view = SavedViewConfig.from_dict(
                 {
@@ -6155,10 +6155,114 @@ class TestGalleryMaxImageBytes:
 
             page = GalleryPage()
             html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
-            assert "スキップ" in html
-            assert "サイズ超過でスキップ" in html
+            # PILが利用可能ならサムネイル化、不可ならスキップ
+            assert "スキップ" in html or "サムネイル" in html
             # 小さい画像はbase64で埋め込まれる
             assert "base64" in html
+
+    def test_gallery_html_thumbnail_with_pil(self):
+        """PIL利用可能時、上限超過画像がサムネイル化される"""
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        import io
+        import tempfile
+        from pathlib import Path
+
+        from config import DashboardConfig, SavedViewConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            # 有効なPNG画像を生成（100x100, RGB）
+            img = Image.new("RGB", (100, 100), color=(255, 0, 0))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            png_data = buf.getvalue()
+
+            large_img = project_root / "large.png"
+            large_img.write_bytes(png_data)
+
+            graph = GraphModel(
+                nodes=[
+                    Node(id=1, type="go", name="go_large", format="inp", properties={"path": "a.inp"}),
+                    Node(id=2, type="output", name="large.png", format="png", properties={"path": "large.png"}),
+                ],
+                relations=[Relation(id=1, label="has_output", node1_id=1, node2_id=2)],
+            )
+            provider = DashboardDataProvider(graph)
+            # 上限を非常に小さく設定（PNG画像は確実にこれを超える）
+            dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 10})
+            view = SavedViewConfig.from_dict(
+                {
+                    "name": "thumbnail_gallery",
+                    "type": "gallery",
+                    "gallery": {"source": "has_output"},
+                }
+            )
+
+            from services.dashboard.components.gallery import GalleryPage
+
+            page = GalleryPage()
+            html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
+            # サムネイルが生成される
+            assert "サムネイル" in html
+            assert "base64" in html
+            # スキップではなくサムネイル化
+            assert "スキップ" not in html
+
+    def test_generate_thumbnail_function(self):
+        """_generate_thumbnail関数の直接テスト"""
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        import io
+        import tempfile
+        from pathlib import Path
+
+        from services.dashboard.components.gallery import _generate_thumbnail
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 大きめの画像を生成
+            img = Image.new("RGB", (500, 500), color=(0, 128, 255))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            img_path = Path(tmpdir) / "test.png"
+            img_path.write_bytes(buf.getvalue())
+
+            # サムネイル生成
+            result = _generate_thumbnail(img_path, max_bytes=50000, max_dimension=200)
+            assert result is not None
+            assert len(result) > 0
+            # JPEG形式か確認
+            assert result[:2] == b"\xff\xd8"  # JPEG SOI marker
+
+    def test_generate_thumbnail_rgba(self):
+        """RGBA画像がJPEGサムネイルに変換される"""
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        import io
+        import tempfile
+        from pathlib import Path
+
+        from services.dashboard.components.gallery import _generate_thumbnail
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            img = Image.new("RGBA", (200, 200), color=(255, 0, 0, 128))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            img_path = Path(tmpdir) / "rgba.png"
+            img_path.write_bytes(buf.getvalue())
+
+            result = _generate_thumbnail(img_path, max_bytes=50000)
+            assert result is not None
+            assert result[:2] == b"\xff\xd8"
 
     def test_gallery_html_no_limit(self):
         """サイズ上限0（無制限）ではスキップしない"""
