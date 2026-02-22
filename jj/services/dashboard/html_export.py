@@ -539,6 +539,36 @@ def _create_plot_figure(
             color_continuous_scale="Viridis",
             range_color=range_color,
         )
+    elif chart_type == "等高線":
+        # 等高線プロット: px.density_contourによる密度等高線
+        contour_z = z_key if z_key and z_key in df.columns else None
+        fig = px.density_contour(
+            df,
+            x=x_key,
+            y=y_key,
+            z=contour_z,
+            hover_name=hn if hn in df.columns else None,
+            title=f"{y_key} vs {x_key}" + (f" (Z: {contour_z})" if contour_z else " (密度)"),
+            template=template,
+        )
+        # 等高線の塗りつぶし
+        cr = color_range or {}
+        contours_kwargs: dict[str, Any] = {}
+        if cr.get("vmin") is not None:
+            contours_kwargs["start"] = cr["vmin"]
+        if cr.get("vmax") is not None:
+            contours_kwargs["end"] = cr["vmax"]
+        fig.update_traces(
+            contours_coloring="fill",
+            colorscale="Viridis",
+            **(
+                {
+                    "contours": contours_kwargs,
+                }
+                if contours_kwargs
+                else {}
+            ),
+        )
     else:
         fig = px.line(
             df,
@@ -552,9 +582,9 @@ def _create_plot_figure(
         )
 
     # マーカーサイズ: plot_styleに指定があればそちらを優先、なければデフォルト16
-    # barグラフはmarker.sizeプロパティを持たないため除外
+    # barグラフ・等高線はmarker.sizeプロパティを持たないため除外
     marker_size = (plot_style or {}).get("marker_size", 16)
-    if chart_type not in ("棒グラフ",):
+    if chart_type not in ("棒グラフ", "等高線"):
         fig.update_traces(marker=dict(size=marker_size))
 
     # 線幅: plot_styleに指定があれば適用

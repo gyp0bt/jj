@@ -5961,6 +5961,87 @@ class TestContourPlot:
         assert caxis.cmin == 50
         assert caxis.cmax == 350
 
+    def test_create_plot_figure_density_contour(self):
+        """等高線チャートタイプでdensity_contourが使用される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4, 5],
+                "y": [4, 5, 6, 7, 8],
+                "z_val": [10.0, 20.0, 30.0, 40.0, 50.0],
+                "name": ["a", "b", "c", "d", "e"],
+            }
+        )
+        fig = _create_plot_figure(
+            px,
+            df,
+            "x",
+            "y",
+            None,
+            "等高線",
+            z_key="z_val",
+        )
+        assert len(fig.data) >= 1
+        assert "Z: z_val" in fig.layout.title.text
+        # density_contourのトレースタイプはcontourまたはhistogram2dcontour
+        trace_type = fig.data[0].type
+        assert trace_type in ("contour", "histogram2dcontour")
+
+    def test_create_plot_figure_density_contour_no_z(self):
+        """Z軸未指定の等高線（密度のみ）"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [3, 4, 5], "name": ["a", "b", "c"]})
+        fig = _create_plot_figure(px, df, "x", "y", None, "等高線")
+        assert len(fig.data) >= 1
+        assert "密度" in fig.layout.title.text
+
+    def test_create_plot_figure_density_contour_with_color_range(self):
+        """等高線のvmin/vmaxでcontours.start/endが制御される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3, 4],
+                "y": [4, 5, 6, 7],
+                "temp": [100.0, 200.0, 300.0, 400.0],
+                "name": ["a", "b", "c", "d"],
+            }
+        )
+        fig = _create_plot_figure(
+            px,
+            df,
+            "x",
+            "y",
+            None,
+            "等高線",
+            z_key="temp",
+            color_range={"vmin": 50, "vmax": 350},
+        )
+        assert len(fig.data) >= 1
+        # 等高線の塗りつぶしがVirdis色で設定される
+        trace = fig.data[0]
+        assert trace.contours.coloring == "fill"
+
 
 class TestSavedViewStylePersistence:
     """SavedViewConfigでplot_style/axis_range/color_rangeの永続化テスト"""
@@ -6032,7 +6113,7 @@ class TestGalleryMaxImageBytes:
         assert config.gallery_max_image_bytes == 5 * 1024 * 1024
 
     def test_gallery_html_skips_large_images(self):
-        """サイズ上限を超える画像がスキップされる"""
+        """サイズ上限を超える画像がスキップまたはサムネイル化される"""
         import tempfile
         from pathlib import Path
 
@@ -6043,7 +6124,7 @@ class TestGalleryMaxImageBytes:
             # 小さい画像（OK）
             small_img = project_root / "small.png"
             small_img.write_bytes(b"\x89PNG" + b"\x00" * 50)
-            # 大きい画像（スキップ対象）
+            # 大きい画像（スキップ/サムネイル対象）
             large_img = project_root / "large.png"
             large_img.write_bytes(b"\x89PNG" + b"\x00" * 200)
 
@@ -6060,7 +6141,7 @@ class TestGalleryMaxImageBytes:
                 ],
             )
             provider = DashboardDataProvider(graph)
-            # 上限100バイトに設定（large.pngの204バイトはスキップ）
+            # 上限100バイトに設定（large.pngの204バイトは超過）
             dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 100})
             view = SavedViewConfig.from_dict(
                 {
@@ -6074,10 +6155,114 @@ class TestGalleryMaxImageBytes:
 
             page = GalleryPage()
             html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
-            assert "スキップ" in html
-            assert "サイズ超過でスキップ" in html
+            # PILが利用可能ならサムネイル化、不可ならスキップ
+            assert "スキップ" in html or "サムネイル" in html
             # 小さい画像はbase64で埋め込まれる
             assert "base64" in html
+
+    def test_gallery_html_thumbnail_with_pil(self):
+        """PIL利用可能時、上限超過画像がサムネイル化される"""
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        import io
+        import tempfile
+        from pathlib import Path
+
+        from config import DashboardConfig, SavedViewConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            # 有効なPNG画像を生成（100x100, RGB）
+            img = Image.new("RGB", (100, 100), color=(255, 0, 0))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            png_data = buf.getvalue()
+
+            large_img = project_root / "large.png"
+            large_img.write_bytes(png_data)
+
+            graph = GraphModel(
+                nodes=[
+                    Node(id=1, type="go", name="go_large", format="inp", properties={"path": "a.inp"}),
+                    Node(id=2, type="output", name="large.png", format="png", properties={"path": "large.png"}),
+                ],
+                relations=[Relation(id=1, label="has_output", node1_id=1, node2_id=2)],
+            )
+            provider = DashboardDataProvider(graph)
+            # 上限を非常に小さく設定（PNG画像は確実にこれを超える）
+            dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 10})
+            view = SavedViewConfig.from_dict(
+                {
+                    "name": "thumbnail_gallery",
+                    "type": "gallery",
+                    "gallery": {"source": "has_output"},
+                }
+            )
+
+            from services.dashboard.components.gallery import GalleryPage
+
+            page = GalleryPage()
+            html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
+            # サムネイルが生成される
+            assert "サムネイル" in html
+            assert "base64" in html
+            # スキップではなくサムネイル化
+            assert "スキップ" not in html
+
+    def test_generate_thumbnail_function(self):
+        """_generate_thumbnail関数の直接テスト"""
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        import io
+        import tempfile
+        from pathlib import Path
+
+        from services.dashboard.components.gallery import _generate_thumbnail
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 大きめの画像を生成
+            img = Image.new("RGB", (500, 500), color=(0, 128, 255))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            img_path = Path(tmpdir) / "test.png"
+            img_path.write_bytes(buf.getvalue())
+
+            # サムネイル生成
+            result = _generate_thumbnail(img_path, max_bytes=50000, max_dimension=200)
+            assert result is not None
+            assert len(result) > 0
+            # JPEG形式か確認
+            assert result[:2] == b"\xff\xd8"  # JPEG SOI marker
+
+    def test_generate_thumbnail_rgba(self):
+        """RGBA画像がJPEGサムネイルに変換される"""
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        import io
+        import tempfile
+        from pathlib import Path
+
+        from services.dashboard.components.gallery import _generate_thumbnail
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            img = Image.new("RGBA", (200, 200), color=(255, 0, 0, 128))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            img_path = Path(tmpdir) / "rgba.png"
+            img_path.write_bytes(buf.getvalue())
+
+            result = _generate_thumbnail(img_path, max_bytes=50000)
+            assert result is not None
+            assert result[:2] == b"\xff\xd8"
 
     def test_gallery_html_no_limit(self):
         """サイズ上限0（無制限）ではスキップしない"""
@@ -6120,3 +6305,90 @@ class TestGalleryMaxImageBytes:
             html = page.generate_html(provider, view, dashboard_config, project_root=project_root)
             assert "スキップ" not in html
             assert "base64" in html
+
+
+class TestViewEditFormPlotConfig:
+    """動的ビュー編集フォームでplot設定が正しく構築・保存される"""
+
+    def test_plot_config_roundtrip(self):
+        """edit_plot_configから構築した辞書がSavedViewConfigで正しく読み取れる"""
+        from config import SavedViewConfig
+
+        # 編集フォームが構築する辞書を模擬
+        edit_plot_config = {
+            "x": "RF3",
+            "y": "temperature",
+            "color": None,
+            "chart_type": "コンター",
+            "z": "stress",
+            "color_range": {"vmin": 0.0, "vmax": 500.0},
+            "plot_style": {"marker_size": 20, "font_size": 16},
+            "axis_range": {"x_min": 0.0, "x_max": 100.0, "y_min": -10.0, "y_max": 50.0},
+        }
+        view_data = {
+            "name": "edited_plot",
+            "type": "plot",
+            "plot": edit_plot_config,
+        }
+
+        view = SavedViewConfig.from_dict(view_data)
+        assert view.plot["x"] == "RF3"
+        assert view.plot["y"] == "temperature"
+        assert view.plot["chart_type"] == "コンター"
+        assert view.plot["z"] == "stress"
+        assert view.plot["color_range"]["vmin"] == 0.0
+        assert view.plot["color_range"]["vmax"] == 500.0
+        assert view.plot["plot_style"]["marker_size"] == 20
+        assert view.plot["plot_style"]["font_size"] == 16
+        assert view.plot["axis_range"]["x_min"] == 0.0
+        assert view.plot["axis_range"]["y_max"] == 50.0
+
+    def test_plot_config_density_contour_roundtrip(self):
+        """等高線タイプのplot設定がround-trip可能"""
+        from config import SavedViewConfig
+
+        edit_plot_config = {
+            "x": "x_coord",
+            "y": "y_coord",
+            "color": "group",
+            "chart_type": "等高線",
+            "z": "density",
+            "color_range": {"vmin": 10.0},
+        }
+        view = SavedViewConfig.from_dict({"name": "density_view", "type": "plot", "plot": edit_plot_config})
+        assert view.plot["chart_type"] == "等高線"
+        assert view.plot["z"] == "density"
+        assert view.plot["color_range"]["vmin"] == 10.0
+        assert "vmax" not in view.plot["color_range"]
+
+    def test_plot_config_minimal(self):
+        """最小限のプロット設定（x, y, chart_typeのみ）"""
+        from config import SavedViewConfig
+
+        edit_plot_config = {
+            "x": "col_a",
+            "y": "col_b",
+            "color": None,
+            "chart_type": "散布図",
+        }
+        view = SavedViewConfig.from_dict({"name": "minimal_plot", "type": "plot", "plot": edit_plot_config})
+        assert view.plot["x"] == "col_a"
+        assert view.plot["chart_type"] == "散布図"
+        assert "plot_style" not in view.plot
+        assert "axis_range" not in view.plot
+
+    def test_build_style_config_all_values(self):
+        """build_style_configで全値が設定される"""
+        from services.dashboard.widgets import build_style_config
+
+        style = build_style_config(24, 3, 14)
+        assert style == {"marker_size": 24, "line_width": 3, "font_size": 14}
+
+    def test_build_style_config_partial(self):
+        """build_style_configでNone値が除外される"""
+        from services.dashboard.widgets import build_style_config
+
+        style = build_style_config(None, 2, None)
+        assert style == {"line_width": 2}
+        assert "marker_size" not in style
+        assert "font_size" not in style

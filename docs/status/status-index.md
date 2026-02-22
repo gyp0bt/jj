@@ -65,6 +65,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [038](status-038.md) | 2026-02-20 | M2 | status-037 TODO実行: ダークモード視認性テスト・ベンチマーク・キーワード拡充 | claude/execute-status-todos-BqohF |
 | [039](status-039.md) | 2026-02-20 | M2 | HTMLエクスポート: plotスタイル反映・ギャラリー実装 | claude/fix-plot-export-RH76n |
 | [040](status-040.md) | 2026-02-21 | M2 | status-039 TODO実行: スタイル永続化・コンタープロット・ギャラリーサイズ上限 | claude/execute-status-todos-Mlumt |
+| [041](status-041.md) | 2026-02-21 | M2 | status-040 TODO実行: 等高線モード・サムネイル生成・ビュー編集フォーム | claude/execute-status-todos-2TD9t |
 
 ---
 

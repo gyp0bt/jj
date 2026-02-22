@@ -467,6 +467,7 @@ def _generate_gallery_html_grid(
 
     parts: list[str] = []
     skipped_count = 0
+    resized_count = 0
     parts.append(f'<div style="display:grid;grid-template-columns:repeat({cols_per_row},1fr);gap:12px;">')
 
     for img_info in images:
@@ -488,12 +489,30 @@ def _generate_gallery_html_grid(
         if image_path.exists():
             file_size = image_path.stat().st_size
             if max_image_bytes > 0 and file_size > max_image_bytes:
-                size_mb = file_size / (1024 * 1024)
-                limit_mb = max_image_bytes / (1024 * 1024)
-                cell_parts.append(
-                    f'<p style="color:#f59e0b;font-size:0.8em;">スキップ: {size_mb:.1f}MB（上限 {limit_mb:.1f}MB）</p>'
-                )
-                skipped_count += 1
+                # サイズ超過: サムネイル生成を試みる
+                thumb_data = _generate_thumbnail(image_path, max_image_bytes)
+                if thumb_data is not None:
+                    b64 = base64.b64encode(thumb_data).decode("ascii")
+                    size_mb = file_size / (1024 * 1024)
+                    thumb_kb = len(thumb_data) / 1024
+                    cell_parts.append(
+                        f'<img src="data:image/jpeg;base64,{b64}" '
+                        f'style="max-width:100%;height:auto;border-radius:4px;" '
+                        f'alt="{display_name}">'
+                    )
+                    cell_parts.append(
+                        f'<p style="color:#f59e0b;font-size:0.7em;margin:2px 0 0 0;">'
+                        f"サムネイル: {size_mb:.1f}MB→{thumb_kb:.0f}KB</p>"
+                    )
+                    resized_count += 1
+                else:
+                    size_mb = file_size / (1024 * 1024)
+                    limit_mb = max_image_bytes / (1024 * 1024)
+                    cell_parts.append(
+                        f'<p style="color:#f59e0b;font-size:0.8em;">'
+                        f"スキップ: {size_mb:.1f}MB（上限 {limit_mb:.1f}MB）</p>"
+                    )
+                    skipped_count += 1
             else:
                 mime_type = mimetypes.guess_type(str(image_path))[0] or "image/png"
                 try:
@@ -522,7 +541,62 @@ def _generate_gallery_html_grid(
     parts.append("</div>")
 
     caption = f"{len(images)} 件"
+    notes: list[str] = []
+    if resized_count:
+        notes.append(f"{resized_count} 件サムネイル化")
     if skipped_count:
-        caption += f"（{skipped_count} 件サイズ超過でスキップ）"
+        notes.append(f"{skipped_count} 件スキップ")
+    if notes:
+        caption += f"（{'、'.join(notes)}）"
     header = f'<p class="caption">{caption}</p>'
     return header + "\n".join(parts)
+
+
+def _generate_thumbnail(
+    image_path: Path,
+    max_bytes: int,
+    max_dimension: int = 800,
+) -> bytes | None:
+    """画像のサムネイルを生成してJPEGバイト列を返す
+
+    PILが利用不可の場合はNoneを返す（呼び出し元でスキップにフォールバック）。
+    サムネイルはmax_dimension以下にリサイズし、JPEG品質を調整して
+    max_bytes以下に収める。
+
+    Args:
+        image_path: 元画像のパス
+        max_bytes: 目標最大バイト数
+        max_dimension: サムネイルの最大辺ピクセル数
+
+    Returns:
+        JPEG形式のバイト列、またはNone（PIL不可時）
+    """
+    try:
+        import io
+
+        from PIL import Image
+    except ImportError:
+        return None
+
+    try:
+        with Image.open(image_path) as img:
+            # RGBA→RGB変換（JPEG保存に必要）
+            if img.mode in ("RGBA", "LA", "P"):
+                img = img.convert("RGB")
+            img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
+
+            # 品質を下げながらmax_bytes以下を目指す
+            for quality in (85, 70, 50, 30):
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=quality, optimize=True)
+                data = buf.getvalue()
+                if len(data) <= max_bytes:
+                    return data
+
+            # 最低品質でもmax_bytesを超える場合はさらに縮小
+            img.thumbnail((max_dimension // 2, max_dimension // 2), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=30, optimize=True)
+            return buf.getvalue()
+    except (OSError, ValueError):
+        return None
