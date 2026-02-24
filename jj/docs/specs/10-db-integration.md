@@ -6,7 +6,7 @@
 
 ### 1.1 現状
 
-- **jj**: CAE業務データをグラフ化するPython CLIツール。ローカルのYAMLファイル（`.jj/storage/graph.yaml`）にグラフデータを保存。
+- **jj**: CAE業務データをグラフ化するPython CLIツール。ローカルのYAMLファイル（`.j2/storage/graph.yaml`）にグラフデータを保存。
 - **jjrv**（旧jjrv）: 材料・解析データの組織横断DBを管理するNext.jsアプリケーション。別リポジトリ（`gyp0bt/jjrv`）で運用。
   - **技術スタック**: Next.js 15 / React 19 / TypeScript / Tailwind CSS v4
   - **現行DB**: SQLite（sql.js）

@@ -16,7 +16,7 @@
 ### 責務範囲
 
 - `services/run/` : コマンド実行とトレース機能
-- `.jj/storage/run/` : 実行ログの保存先
+- `.j2/storage/run/` : 実行ログの保存先
 
 ---
 
@@ -97,13 +97,13 @@ jj r --no-trace -- python script.py
 ### 4.1 ログ保存先
 
 ```
-.jj/storage/run/run-<timestamp>.json
+.j2/storage/run/run-<timestamp>.json
 ```
 
 #### 例
 
 ```
-.jj/storage/run/run-2026-02-04-120000.json
+.j2/storage/run/run-2026-02-04-120000.json
 ```
 
 ### 4.2 ログフォーマット
@@ -269,7 +269,7 @@ jj r -- abaqus job=model input=go_sample_v1_idx1.inp cpus=4 memory=8
 
 以下のファイル/ディレクトリは差分検出から除外:
 
-- `.jj/`
+- `.j2/`
 - `.git/`
 - `__pycache__/`
 - `*.pyc`
@@ -307,7 +307,7 @@ jj r -- abaqus job=model input=go_sample_v1_idx1.inp cpus=4 memory=8
 
 1. `submit` 機能を `run --mode=job --remote` に統合
 2. SSH経由の実行も `run` コマンドで統一
-3. リモート実行ログも `.jj/storage/run/` に保存
+3. リモート実行ログも `.j2/storage/run/` に保存
 
 ### 7.3 実装計画
 

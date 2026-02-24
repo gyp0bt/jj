@@ -2855,7 +2855,7 @@ class TestABQCacheCleanup:
 
         storage = GraphStorage()
         project_root = tmp_path
-        cache_dir = project_root / ".jj" / "storage" / "plugin_cache" / "abaqus"
+        cache_dir = project_root / ".j2" / "storage" / "plugin_cache" / "abaqus"
         cache_dir.mkdir(parents=True)
 
         # 古いキャッシュファイルを作成（mtimeを31日前に設定）
@@ -2883,7 +2883,7 @@ class TestABQCacheCleanup:
 
         storage = GraphStorage()
         project_root = tmp_path
-        cache_dir = project_root / ".jj" / "storage" / "plugin_cache" / "abaqus"
+        cache_dir = project_root / ".j2" / "storage" / "plugin_cache" / "abaqus"
         cache_dir.mkdir(parents=True)
 
         # 5つのキャッシュファイルを作成（異なるmtimeで）

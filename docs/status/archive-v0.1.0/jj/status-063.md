@@ -77,7 +77,7 @@ ELSET1,abaqus_elset,100,0.1,1.0,0.5
 
 **設定例**:
 ```yaml
-# .jj/config/config.yaml
+# .j2/config/config.yaml
 cache-max-age-days: 60    # 60日間保持
 cache-max-count: 200      # 最大200ファイル
 ```

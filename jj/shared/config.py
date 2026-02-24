@@ -33,7 +33,7 @@ class Neo4jConfig(BaseModel):
         """jjの設定からNeo4j接続情報を読み込む
 
         優先順位:
-        1. 暗号化クレデンシャル（.jj/config/.credentials）
+        1. 暗号化クレデンシャル（.j2/config/.credentials）
         2. config.yamlのneo4jセクション
         3. デフォルト値
         """

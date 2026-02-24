@@ -3,7 +3,7 @@
 # 実装詳細
 
 ## 目的
-- プロジェクトフォルダを解析し、グラフデータ化して `.jj/storage` に保存する。
+- プロジェクトフォルダを解析し、グラフデータ化して `.j2/storage` に保存する。
 - 外部ソフトは出力先として扱い、jj内部でグラフを完結させる。
 
 ## 採用ライブラリ
@@ -19,7 +19,7 @@
 services/
 ├── graph/                  # プロジェクトツリーのスキャンと初期グラフ生成
 │   ├── __init__.py         # ProjectGraph 生成（scan_directory等）
-│   └── storage/            # .jj/storage への永続化（GraphStorage）
+│   └── storage/            # .j2/storage への永続化（GraphStorage）
 ├── parse/                  # グラフへのtag/property/relation付与
 │   ├── base.py             # AbstractFileParser 抽象基底クラス
 │   ├── file_parse.py       # FileParse/ObsidianFileParse（レガシー）
@@ -44,7 +44,7 @@ services/
 
 その他:
 - `jj_types/`: Pydanticモデル（Node, Relation, GraphModel）
-- `config/`: `.jj/config` と `.pyssh.yaml` を読み込む設定ローダー
+- `config/`: `.j2/config` と `.pyssh.yaml` を読み込む設定ローダー
 - `tests/`: テストコード
 - `assets/`: テストデータ/サンプル
 - `shared/`: jjrvとの共有パッケージ（Neo4jスキーマ契約、型定義）
@@ -87,7 +87,7 @@ class ProjectGraph:
 ```
 
 ### graph/storage
-- `.jj/storage` 配下に解析済みグラフを保存。
+- `.j2/storage` 配下に解析済みグラフを保存。
 - YAML/JSONのテキスト形式を採用。
 - `GraphStorage` が保存・読込・抽出を担当。
 
@@ -182,7 +182,7 @@ def parse(graph: ProjectGraph) -> ProjectGraph:
 - 条件（properties）は以下から取得する。
   - `# props start` と `# props end` の間に書かれた `ncpu=1` や `ver=abq2023` などの宣言。
   - `sys.argv` や `$1` などの引数を、スクリプト内の変数名と対応付けて取得する。
-- 実行ログは `.jj/storage/run/run-<timestamp>.json` に保存する。
+- 実行ログは `.j2/storage/run/run-<timestamp>.json` に保存する。
 
 ### ジョブ型の扱い
 - 自動でのファイル追跡は行わない。

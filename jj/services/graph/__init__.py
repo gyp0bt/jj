@@ -93,7 +93,7 @@ class GraphService:
         """
         ext_set = set(extensions or DEFAULT_EXTENSIONS)
         # デフォルトの除外ディレクトリ
-        default_exclude = {".git", ".jj", "__pycache__", "node_modules", ".venv"}
+        default_exclude = {".git", ".j2", "__pycache__", "node_modules", ".venv"}
         exclude_set = set(exclude_dirs or default_exclude)
 
         files: list[Path] = []

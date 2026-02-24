@@ -15,7 +15,7 @@
 
 ## TODO
 - `FileParse`/`ObsidianFileParse` の具体実装。
-- `.jj/storage` の保存フォーマット（YAML/JSON）確定と `GraphStorage` 実装。
+- `.j2/storage` の保存フォーマット（YAML/JSON）確定と `GraphStorage` 実装。
 - `run` サービスのログ/トレース仕様の確定。
 - `types` のPydanticモデル整備（Node/Relation/GraphModel）。
 - 既存 `main.py` の段階的分割計画を作成。

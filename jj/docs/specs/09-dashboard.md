@@ -167,7 +167,7 @@ go_ファイル一覧をag-gridテーブルで表示。プロパティをカラ�
 **データソース**:
 - Node properties: analysis_status, execution_time
 - .sta/.msgの解析結果
-- run コマンドのログ（`.jj/storage/run/`）
+- run コマンドのログ（`.j2/storage/run/`）
 
 #### Page 5: グラフビュー（オプション）
 

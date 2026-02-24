@@ -46,7 +46,7 @@ jj n --update                 # 差分更新のみ
 
 1. **対象ディレクトリの決定**: デフォルトはカレントディレクトリ
 2. **ファイルリスト取得**: 再帰的に全ファイルを列挙
-3. **除外ルールの適用**: `.jj/`, `.git/` 等を除外
+3. **除外ルールの適用**: `.j2/`, `.git/` 等を除外
 4. **ファイル解析**: 各ファイルを `FileParse` で解析
 
 ### 3.2 除外ルール
@@ -55,7 +55,7 @@ jj n --update                 # 差分更新のみ
 
 ```python
 EXCLUDED_DIRS = [
-    ".jj",
+    ".j2",
     ".git",
     "__pycache__",
     ".venv",
@@ -80,7 +80,7 @@ EXCLUDED_FILES = [
 | メッシュ | `mesh_*.cdb`, `mesh_*.msh` | メッシュデータ |
 | 材料定義 | `material_*.mat` | 材料プロパティ |
 | ステップ定義 | `step_*.inc` | 解析ステップ定義 |
-| 実行履歴 | `.jj/storage/run/*.json` | 実行ログ |
+| 実行履歴 | `.j2/storage/run/*.json` | 実行ログ |
 | その他 | - | 上記に該当しないファイル |
 
 ---
@@ -256,7 +256,7 @@ material_steel_v1_idx1.mat
 #### スナップショット保存
 
 ```
-.jj/storage/snapshot.json
+.j2/storage/snapshot.json
 ```
 
 ```json

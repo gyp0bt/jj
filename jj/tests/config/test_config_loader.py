@@ -64,7 +64,7 @@ class TestPrefixesConfig:
 class TestLoadExtensionsConfig:
     def test_load_with_file(self, tmp_path):
         # Create config dir with extensions.yaml
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         extensions_path = config_dir / "extensions.yaml"
         data = {
@@ -82,7 +82,7 @@ class TestLoadExtensionsConfig:
 
     def test_load_without_file(self, tmp_path):
         # No extensions.yaml file exists
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
 
         config = load_extensions_config(base_dir=tmp_path)
@@ -94,7 +94,7 @@ class TestLoadExtensionsConfig:
 class TestLoadPrefixesConfig:
     def test_load_with_file(self, tmp_path):
         # Create config dir with prefixes.yaml
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         prefixes_path = config_dir / "prefixes.yaml"
         data = {
@@ -111,7 +111,7 @@ class TestLoadPrefixesConfig:
 
     def test_load_without_file(self, tmp_path):
         # No prefixes.yaml file exists
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
 
         config = load_prefixes_config(base_dir=tmp_path)
@@ -171,7 +171,7 @@ class TestInitConfigDir:
 class TestLoadVocabConfig:
     def test_load_with_file(self, tmp_path):
         # Create config dir with vocab.yaml
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         vocab_path = config_dir / "vocab.yaml"
         data = {
@@ -187,7 +187,7 @@ class TestLoadVocabConfig:
 
     def test_load_without_file(self, tmp_path):
         # No vocab.yaml file exists
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
 
         config = load_vocab_config(base_dir=tmp_path)

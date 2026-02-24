@@ -525,7 +525,7 @@ class TestExportCypher:
 
         result_path = connector.export_cypher(graph)
 
-        assert result_path == tmp_path / ".jj" / "storage" / "export.cypher"
+        assert result_path == tmp_path / ".j2" / "storage" / "export.cypher"
         assert result_path.exists()
 
     def test_export_empty_graph(self, tmp_path):

@@ -24,7 +24,7 @@
 services/
 ├── graph/                  # プロジェクトツリーのスキャンと初期グラフ生成
 │   ├── __init__.py         # ProjectGraph 生成ロジック
-│   └── storage/            # グラフデータの永続化(.jj/storage/)
+│   └── storage/            # グラフデータの永続化(.j2/storage/)
 ├── parse/                  # グラフへのtag/property/relation付与
 │   ├── base.py             # AbstractFileParser 抽象基底クラス
 │   ├── file_parse.py       # FileParse/ObsidianFileParse（レガシー）
@@ -124,7 +124,7 @@ class ProjectGraph:
 ### runコマンド層
 
 - [x] `jj r -- <command>` の基本実装
-- [x] 実行ログの保存（`.jj/storage/run/`）
+- [x] 実行ログの保存（`.j2/storage/run/`）
 - [x] メタ情報の記録（duration, user, host, script_path）
 - [x] 単体テスト
 
@@ -134,7 +134,7 @@ class ProjectGraph:
 - [x] `extensions.yaml` の読込機能
 - [x] `prefixes.yaml` の読込機能
 - [x] 各設定モデルの定義（`ExtensionsConfig`, `PrefixesConfig`）
-- [x] `.jj/config/` の初期化処理
+- [x] `.j2/config/` の初期化処理
 - [x] `AppConfig` への統合
 
 ### runコマンド層拡張（Phase 1完了）
@@ -323,7 +323,7 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 - [x] **config-driven include search depth** (status-062)
   - [x] include-search-depth設定項目追加（デフォルト5）
 - [x] **ABQData永続化キャッシュ** (status-062)
-  - [x] pickle形式でディスクに保存（.jj/storage/abq_cache/）
+  - [x] pickle形式でディスクに保存（.j2/storage/abq_cache/）
   - [x] 3段階キャッシュ探索（メモリ→ディスク→新規パース）
 - [x] **軽量パーサーのタイムスタンプ差分** (status-062)
   - [x] IncludesRelationParser/JsonPropertyParser キャッシュ対応

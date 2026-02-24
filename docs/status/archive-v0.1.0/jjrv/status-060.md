@@ -63,7 +63,7 @@ jj (gyp0bt/jj) は以下の機能を持つPython CLIツール:
 ### データフロー
 
 ```
-jj parse → .jj/storage/ → jj export --target neo4j → Neo4j → jjrv
+jj parse → .j2/storage/ → jj export --target neo4j → Neo4j → jjrv
 ```
 
 ### データソース戦略

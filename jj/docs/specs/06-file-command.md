@@ -92,10 +92,10 @@ jj f recv server01:/work/project/result.odb ./results/
 
 ### 3.1 テンプレートの定義
 
-テンプレートは `.jj/templates/` に配置されます。
+テンプレートは `.j2/templates/` に配置されます。
 
 ```
-.jj/templates/
+.j2/templates/
 ├── abaqus/
 │   ├── go.inp.j2
 │   ├── mesh.cdb.j2

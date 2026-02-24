@@ -63,7 +63,7 @@
 1. **設定管理層の統合**
    - `vocab.yaml`, `extensions.yaml`, `prefixes.yaml` の読込実装
    - Pydanticモデルの定義
-   - `.jj/config/` の初期化処理
+   - `.j2/config/` の初期化処理
    - 参照: `docs/specs/03-config.md`
 
 2. **runコマンド層のproperties抽出拡張**
@@ -103,7 +103,7 @@
    - → `docs/specs/04-run-command.md#6-ファイル差分検出` に方針を記載。
 
 3. **設定管理の初期化タイミング**
-   - `.jj/config/` の自動生成タイミング（初回実行時 or `jj init`）を要検討。
+   - `.j2/config/` の自動生成タイミング（初回実行時 or `jj init`）を要検討。
    - デフォルト設定の埋め込み方針。
    - → `docs/specs/03-config.md#4-初期化とデフォルト設定` に方針を記載。
 

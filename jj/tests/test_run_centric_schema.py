@@ -567,7 +567,7 @@ class TestStorageBackwardCompat:
         from services.graph.storage import GraphStorage
 
         storage = GraphStorage()
-        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
         graph_path = storage_dir / "graph.yaml"
 

@@ -34,7 +34,7 @@
 - 既存`GraphStorage.plugin_cache`メカニズムを`"mesh_stats"` namespaceで使用
 - キャッシュキー: メッシュコンテンツハッシュ（ファイルパスではなく内容ベース）
 - キャッシュ値: `{"stats": {...}, "element_quality": {...}, "topology_groups": [...]}`
-- 保存先: `.jj/storage/plugin_cache/mesh_stats/{sha256_hash}.pickle`
+- 保存先: `.j2/storage/plugin_cache/mesh_stats/{sha256_hash}.pickle`
 - 既存のクリーンアップポリシー（30日/100ファイル上限）がそのまま適用される
 
 ### 3. AbaqusMeshParser統合

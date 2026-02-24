@@ -4,8 +4,8 @@ config.yamlに平文パスワードを書く代わりに、暗号化されたク
 ファイルを使用する。暗号鍵はユーザーホームディレクトリに保存される。
 
 保存場所:
-- 暗号鍵: ~/.jj/secret.key（ユーザーホーム、プロジェクト外）
-- クレデンシャル: .jj/config/.credentials（プロジェクト内、.gitignore推奨）
+- 暗号鍵: ~/.j2/secret.key（ユーザーホーム、プロジェクト外）
+- クレデンシャル: .j2/config/.credentials（プロジェクト内、.gitignore推奨）
 
 [READMEへ戻る](../../README.md)
 """
@@ -24,17 +24,17 @@ CREDENTIALS_FILENAME = ".credentials"
 # 暗号鍵ファイル名
 SECRET_KEY_FILENAME = "secret.key"
 # 暗号鍵ディレクトリ（ユーザーホーム配下）
-SECRET_KEY_DIR = ".jj"
+SECRET_KEY_DIR = ".j2"
 
 
 def _get_secret_key_path() -> Path:
-    """暗号鍵のパスを取得（~/.jj/secret.key）"""
+    """暗号鍵のパスを取得（~/.j2/secret.key）"""
     return Path.home() / SECRET_KEY_DIR / SECRET_KEY_FILENAME
 
 
 def _get_credentials_path(project_root: Path) -> Path:
     """クレデンシャルファイルのパスを取得"""
-    return project_root / ".jj" / "config" / CREDENTIALS_FILENAME
+    return project_root / ".j2" / "config" / CREDENTIALS_FILENAME
 
 
 def _ensure_secret_key() -> bytes:

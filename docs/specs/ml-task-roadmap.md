@@ -318,7 +318,7 @@ CAEシミュレーション結果とMLモデルを結ぶ最適化ループを検
 ### 5.1 MLプロファイル定義
 
 ```yaml
-# .jj/config/config.yaml
+# .j2/config/config.yaml
 solver-profiles:
   # ... 既存プロファイル ...
 

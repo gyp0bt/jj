@@ -46,7 +46,7 @@
 
 **設定例**:
 ```yaml
-# .jj/config/config.yaml
+# .j2/config/config.yaml
 include-search-depth: 10  # デフォルト: 5
 ```
 
@@ -103,14 +103,14 @@ include-search-depth: 10  # デフォルト: 5
 **キャッシュ探索順序**:
 ```
 1. インメモリキャッシュ（_parser_cache）→ ヒットなら即座に返す
-2. ディスクキャッシュ（.jj/storage/abq_cache/*.pickle）→ mtime一致なら返す
+2. ディスクキャッシュ（.j2/storage/abq_cache/*.pickle）→ mtime一致なら返す
 3. キャッシュなし → read_inp()で新規パース → 両キャッシュに保存
 ```
 
 **永続化形式**: pickle (protocol=HIGHEST_PROTOCOL)
 - ファイル名: パスのSHA256ハッシュ先頭16文字 + `.pickle`
 - 検証: source_path + mtime の一致でキャッシュ有効性を判定
-- 保存先: `.jj/storage/abq_cache/`
+- 保存先: `.j2/storage/abq_cache/`
 
 ---
 

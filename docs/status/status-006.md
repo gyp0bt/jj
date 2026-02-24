@@ -46,7 +46,7 @@
 
 | 種類 | 場所 | 説明 |
 |------|------|------|
-| 静的ビュー（config定義） | `.jj/config/config.yaml` の `dashboard.saved-views` | YAML定義、永続化 |
+| 静的ビュー（config定義） | `.j2/config/config.yaml` の `dashboard.saved-views` | YAML定義、永続化 |
 | 動的ビュー（セッション中） | `app.py:1201-1286` `_render_saved_views_page()` | `st.session_state["_dynamic_views"]`に保存 |
 | 動的ビュー追加フォーム | `app.py:1634-1724` `_render_view_add_form()` | UIから新規ビュー作成 |
 | 動的ビュー編集フォーム | `app.py:1727-1788` `_render_view_edit_form()` | UIからビュー編集 |

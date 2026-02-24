@@ -41,7 +41,7 @@
 
 #### 概念
 ```
-前回パース時のタイムスタンプ (.jj/storage/parse_timestamps.json)
+前回パース時のタイムスタンプ (.j2/storage/parse_timestamps.json)
     ↓ 比較
 現在のファイルmtime
     ↓

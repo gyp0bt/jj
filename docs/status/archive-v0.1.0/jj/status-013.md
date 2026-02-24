@@ -47,7 +47,7 @@ DEFAULT_PREFIXES = {
 
 #### 1.4 初期化関数の追加
 
-- `init_config_dir()`: `.jj/config/` ディレクトリを初期化
+- `init_config_dir()`: `.j2/config/` ディレクトリを初期化
   - フォルダが既に存在する場合はスキップ（既存設定を保護）
   - vocab.yaml, extensions.yaml, prefixes.yaml をデフォルト設定で生成
 
@@ -109,7 +109,7 @@ status-012で要求されていた以下の機能は、**すでに実装済み**
 2. **ファイル差分検出機能**
    - 実行前後のスナップショット機能（mtime ベース）：実装済み
    - 差分検出ロジック：実装済み
-   - 除外ルール（`.jj/`, `.git/`, `__pycache__/` 等）：実装済み
+   - 除外ルール（`.j2/`, `.git/`, `__pycache__/` 等）：実装済み
    - `trace_files`（生成ファイルのリスト）：実装済み
 
 #### 4.2 既存実装の詳細
@@ -136,7 +136,7 @@ status-012で要求されていた以下の機能は、**すでに実装済み**
   - [x] `ExtensionsConfig`, `PrefixesConfig` の追加
   - [x] `load_extensions()`, `load_prefixes()` の実装
   - [x] デフォルト設定の追加
-- [x] `.jj/config/` の初期化処理
+- [x] `.j2/config/` の初期化処理
   - [x] `init_config_dir()` の実装
   - [x] デフォルト設定ファイルの生成
   - [x] フォルダ存在チェックの実装
@@ -179,7 +179,7 @@ status-012で要求されていた以下の機能は、**すでに実装済み**
 1. **設定管理層の統合**: 完了
    - ExtensionsConfig, PrefixesConfig の追加
    - load_extensions(), load_prefixes() の実装
-   - .jj/config/ の初期化処理
+   - .j2/config/ の初期化処理
    - 単体テストの作成
 
 2. **typesフォルダ名の問題を解決**: 完了
@@ -270,7 +270,7 @@ runコマンド層で検出したファイル差分を、GraphStorageに反映�
 
 ### 優先度2: 初期化処理の統合
 
-`jj n` コマンド初回実行時に、`.jj/config/` が存在しない場合は自動初期化するように修正してください。
+`jj n` コマンド初回実行時に、`.j2/config/` が存在しない場合は自動初期化するように修正してください。
 
 - [ ] `services/service/entry.py` の `run_notes()` 関数に初期化処理を追加
 - [ ] 初回実行時に `init_config_dir()` を呼び出す

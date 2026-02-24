@@ -12,7 +12,7 @@
 - `docs/roadmap.md` と `README.md` を最新状況に合わせて更新。
 
 ## TODO
-- `.jj/storage` の保存フォーマット（YAML/JSON）確定と `GraphStorage` 実装。
+- `.j2/storage` の保存フォーマット（YAML/JSON）確定と `GraphStorage` 実装。
 - 既存submit機能の `run` へのリファクタリング方針作成。
 - `types` のPydanticモデル整備（Node/Relation/GraphModel）。
 - 既存 `main.py` の段階的分割計画を作成。

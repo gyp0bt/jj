@@ -38,7 +38,7 @@ class RunResult:
 
 
 class RunService:
-    def __init__(self, storage_dirname: str = ".jj/storage/run") -> None:
+    def __init__(self, storage_dirname: str = ".j2/storage/run") -> None:
         self.storage_dirname = storage_dirname
 
     def execute(
@@ -140,7 +140,7 @@ class RunService:
         return snapshot
 
     def _iter_files(self, root: Path) -> Iterable[Path]:
-        ignore_names = {".jj", ".git", ".venv", "__pycache__", ".pytest_cache"}
+        ignore_names = {".j2", ".git", ".venv", "__pycache__", ".pytest_cache"}
         for path in root.rglob("*"):
             if any(part in ignore_names for part in path.parts):
                 continue

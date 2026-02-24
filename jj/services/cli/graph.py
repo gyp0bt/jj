@@ -943,7 +943,7 @@ def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
         }
         path = service.credential_set(service_name, creds)
         print(f"クレデンシャルを暗号化して保存しました: {path}")
-        print("※ .gitignoreに .jj/config/.credentials を追加することを推奨します")
+        print("※ .gitignoreに .j2/config/.credentials を追加することを推奨します")
         return 0
 
     elif cred_cmd == "show":

@@ -486,7 +486,7 @@ class TestGraphConfigVocabMerge:
 
         from config import GraphConfig
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
 
         # config.yaml にvocab設定
@@ -543,7 +543,7 @@ class TestExportConfig:
 
         from config import GraphConfig
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -584,7 +584,7 @@ class TestCsvExportUnits:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -611,7 +611,7 @@ class TestCsvExportUnits:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -645,7 +645,7 @@ class TestCsvExportColumns:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -683,7 +683,7 @@ class TestCsvExportColumns:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -778,7 +778,7 @@ class TestCsvExportColumnsGlob:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -823,7 +823,7 @@ class TestCsvExportColumnsGlob:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -869,7 +869,7 @@ class TestCsvExportUnitsGlob:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -915,7 +915,7 @@ class TestCsvExportUnitsGlob:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {
@@ -958,7 +958,7 @@ class TestCsvExportUnitsGlob:
 
         from services.service.info import InfoService
 
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         config_data = {
             "export": {

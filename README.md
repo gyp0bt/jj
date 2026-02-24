@@ -14,7 +14,7 @@ CAE業務データをグラフ構造化し、検索・可視化・横断比較�
 ローカルCAEプロジェクト
     │
     ▼
-[jj parse] ── フォルダ/ファイル解析 → グラフ構築 (.jj/storage/)
+[jj parse] ── フォルダ/ファイル解析 → グラフ構築 (.j2/storage/)
     │
     ├── [jj dashboard] ── Streamlitダッシュボード（ローカル即時確認）
     ├── [jj serve] ──── REST API (FastAPI)
@@ -32,8 +32,8 @@ CAE業務データをグラフ構造化し、検索・可視化・横断比較�
 ```bash
 cd jj
 pip install -e ".[dev]"     # 開発用インストール（コア + テスト依存）
-jj init                      # 設定ファイル初期化（.jj/config/ 生成）
-jj parse                     # プロジェクトをスキャンしグラフ構築 → .jj/storage/graph.yaml
+jj init                      # 設定ファイル初期化（.j2/config/ 生成）
+jj parse                     # プロジェクトをスキャンしグラフ構築 → .j2/storage/graph.yaml
 jj show --summary            # グラフのサマリー表示
 jj export --target csv       # ノード属性をCSVエクスポート
 ```

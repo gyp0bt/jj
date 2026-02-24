@@ -21,7 +21,7 @@ with open("output.txt", "w", encoding="utf-8") as f:
         encoding="utf-8",
     )
 
-    service = RunService(storage_dirname=".jj/storage/run")
+    service = RunService(storage_dirname=".j2/storage/run")
     result = service.execute(
         command=["python", str(script_path), "128"],
         cwd=tmp_path,
@@ -38,7 +38,7 @@ with open("output.txt", "w", encoding="utf-8") as f:
 
 
 def test_run_service_job_mode_skips_trace(tmp_path: Path) -> None:
-    service = RunService(storage_dirname=".jj/storage/run")
+    service = RunService(storage_dirname=".j2/storage/run")
     result = service.execute(
         command=["python", "-c", "print('hello')"],
         cwd=tmp_path,

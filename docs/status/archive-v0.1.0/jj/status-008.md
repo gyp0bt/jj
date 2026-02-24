@@ -7,7 +7,7 @@
 - スクリプト型は差分スナップショットから生成ファイル候補を抽出。
 
 ## 変更点
-- `RunService` を追加し、実行ログを `.jj/storage/run` に保存するようにした。
+- `RunService` を追加し、実行ログを `.j2/storage/run` に保存するようにした。
 - `jj r -- <command>` をCLIに追加し、実行結果・ログパス・トレースを表示するようにした。
 - 実行ログの保存先/仕様を `docs/detail.md` と `services/run/README.md` に追記。
 - READMEとロードマップを更新。

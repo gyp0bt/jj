@@ -55,7 +55,7 @@ class DashboardJsonExporter(AbstractExporter):
         if output_file:
             out_path = Path(output_file)
         else:
-            storage_dir = project_root / ".jj" / "storage"
+            storage_dir = project_root / ".j2" / "storage"
             storage_dir.mkdir(parents=True, exist_ok=True)
             out_path = storage_dir / "dashboard.json"
 
