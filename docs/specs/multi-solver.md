@@ -189,7 +189,7 @@ project/
 ### 3.1 config.yaml への `solver-profiles` セクション追加
 
 ```yaml
-# .jj/config/config.yaml
+# .j2/config/config.yaml
 
 # ソルバープロファイル: ソルバー別のファイル解釈ルール
 solver-profiles:

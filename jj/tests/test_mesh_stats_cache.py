@@ -36,8 +36,8 @@ def config() -> GraphConfig:
 
 @pytest.fixture
 def tmp_project(tmp_path: Path) -> Path:
-    """一時プロジェクトディレクトリ（.jj/storageを作成可能）"""
-    (tmp_path / ".jj" / "storage").mkdir(parents=True)
+    """一時プロジェクトディレクトリ（.j2/storageを作成可能）"""
+    (tmp_path / ".j2" / "storage").mkdir(parents=True)
     return tmp_path
 
 
@@ -389,8 +389,8 @@ class TestMeshStatsCacheIntegration:
 
     def test_end_to_end_cache_sharing(self, config: GraphConfig, tmp_path: Path):
         """E2E: パラメーター違いファイル間でキャッシュ共有される"""
-        # .jj/storage作成
-        (tmp_path / ".jj" / "storage").mkdir(parents=True)
+        # .j2/storage作成
+        (tmp_path / ".j2" / "storage").mkdir(parents=True)
 
         mesh_section = (
             "*NODE\n"

@@ -236,7 +236,7 @@ body_lines: list[str] = [f"- [[O-{filename_only}]]", ""]
   - [x] `ExtensionsConfig`, `PrefixesConfig` の追加
   - [x] `load_extensions()`, `load_prefixes()` の実装
   - [x] デフォルト設定の追加
-- [x] `.jj/config/` の初期化処理
+- [x] `.j2/config/` の初期化処理
   - [x] `init_config_dir()` の実装
   - [x] デフォルト設定ファイルの生成
   - [x] フォルダ存在チェックの実装

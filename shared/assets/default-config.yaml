@@ -1,6 +1,6 @@
 # jj デフォルト設定ファイル
-# このファイルは `jj init` で .jj/config/config.yaml にコピーされます。
-# プロジェクト固有の設定は .jj/config/config.yaml を編集してください。
+# このファイルは `jj init` で .j2/config/config.yaml にコピーされます。
+# プロジェクト固有の設定は .j2/config/config.yaml を編集してください。
 #
 # [READMEへ戻る](../README.md)
 
@@ -221,8 +221,8 @@ path-property-map:
 ignore:
   - ".git"
   - ".git/**"
-  - ".jj"
-  - ".jj/**"
+  - ".j2"
+  - ".j2/**"
   - "__pycache__"
   - "__pycache__/**"
   - "*.pyc"

@@ -7,7 +7,7 @@ from services.graph.storage import GraphStorage
 
 
 def test_graph_storage_save_and_load_yaml(tmp_path: Path) -> None:
-    storage = GraphStorage(storage_dirname=".jj/storage")
+    storage = GraphStorage(storage_dirname=".j2/storage")
     graph = GraphModel(
         nodes=[Node(id=1, type="run", name="job1", format="cmd")],
         relations=[Relation(id=1, label="generated", node1_id=1, node2_id=1)],
@@ -23,7 +23,7 @@ def test_graph_storage_save_and_load_yaml(tmp_path: Path) -> None:
 
 
 def test_graph_storage_detects_existing_json(tmp_path: Path) -> None:
-    storage = GraphStorage(storage_dirname=".jj/storage")
+    storage = GraphStorage(storage_dirname=".j2/storage")
     graph = GraphModel(nodes=[], relations=[])
 
     json_path = storage.save(tmp_path, graph, filename="graph.json")

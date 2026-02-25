@@ -6,7 +6,7 @@
 
 ## ファイル一覧
 
-- `default-config.yaml`: jjのデフォルト設定ファイル。`jj g init`で`.jj/config/config.yaml`にコピーされます。
+- `default-config.yaml`: jjのデフォルト設定ファイル。`jj g init`で`.j2/config/config.yaml`にコピーされます。
 
 ## default-config.yaml の設定項目
 
@@ -30,7 +30,7 @@ path-property-map:
 # 除外パターン（.gitignore相当）
 ignore:
   - ".git"
-  - ".jj"
+  - ".j2"
   ...
 
 # Obsidianエクスポート設定

@@ -30,9 +30,9 @@ except ImportError:
 def project_with_graph(tmp_path: Path) -> Path:
     """テスト用プロジェクトディレクトリを作成
 
-    .jj/storage/graph.yaml にグラフデータを配置する。
+    .j2/storage/graph.yaml にグラフデータを配置する。
     """
-    storage_dir = tmp_path / ".jj" / "storage"
+    storage_dir = tmp_path / ".j2" / "storage"
     storage_dir.mkdir(parents=True)
 
     graph = GraphModel(

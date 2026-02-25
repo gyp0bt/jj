@@ -183,7 +183,7 @@ class AbaqusMeshParser(AbstractFileParser):
 
         キャッシュ探索順序:
         1. インメモリキャッシュ（_parser_cache）
-        2. ディスク永続化キャッシュ（.jj/storage/plugin_cache/abaqus/）
+        2. ディスク永続化キャッシュ（.j2/storage/plugin_cache/abaqus/）
         3. キャッシュなし → read_inp()で新規パースし、両方に保存
         """
         import services.parse.connectors.abaqus as abaqus_mod

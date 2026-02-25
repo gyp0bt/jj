@@ -54,7 +54,7 @@
 - `services/service/graph_command.py`:
   - `ExportDashboardJsonResult`データクラス追加
   - `export_dashboard_json()`メソッド追加
-  - 出力先: `.jj/storage/dashboard.json`（デフォルト）
+  - 出力先: `.j2/storage/dashboard.json`（デフォルト）
 
 #### テスト
 - `tests/test_dashboard.py`: 24テスト追加

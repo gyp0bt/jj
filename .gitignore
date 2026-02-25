@@ -57,11 +57,11 @@ jj/wheels/
 jj/.venv
 
 # Project-specific data (generated at runtime)
-jj/.jj/config/
-jj/.jj/storage/
+jj/.j2/config/
+jj/.j2/storage/
 
-# Test-generated .jj directories
-**/.jj/storage/
+# Test-generated .j2 directories
+**/.j2/storage/
 
 notes
 .obsidian

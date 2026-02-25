@@ -15,7 +15,7 @@
 - `tests/test_file_parse.py` を追加して新命名規則のテストを追加。
 
 ## TODO
-- `.jj/storage` の保存フォーマット（YAML/JSON）確定と `GraphStorage` 実装。
+- `.j2/storage` の保存フォーマット（YAML/JSON）確定と `GraphStorage` 実装。
 - `run` サービスのログ/トレース仕様の確定。
 - `types` のPydanticモデル整備（Node/Relation/GraphModel）。
 - 既存 `main.py` の段階的分割計画を作成。

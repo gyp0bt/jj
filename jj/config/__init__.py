@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-CONFIG_DIRNAME = ".jj/config"
+CONFIG_DIRNAME = ".j2/config"
 CONFIG_FILENAME = "config.yaml"
 SSH_CONFIG_FILENAME = ".pyssh.yaml"
 VOCAB_CONFIG_FILENAME = "vocab.yaml"
@@ -242,7 +242,7 @@ def load_prefixes_config(base_dir: Path | None = None) -> PrefixesConfig:
 
 def init_config_dir(base_dir: Path | None = None) -> None:
     """
-    .jj/config/ ディレクトリを初期化します。
+    .j2/config/ ディレクトリを初期化します。
     フォルダが既に存在する場合は、初期化処理をスキップします。
     """
     config_dir = get_config_dir(base_dir)
@@ -251,7 +251,7 @@ def init_config_dir(base_dir: Path | None = None) -> None:
     if config_dir.exists():
         return
 
-    # .jj/config/ ディレクトリを作成
+    # .j2/config/ ディレクトリを作成
     config_dir.mkdir(parents=True, exist_ok=True)
 
     # vocab.yaml の初期化（空の辞書）

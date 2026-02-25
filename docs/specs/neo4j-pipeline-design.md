@@ -205,7 +205,7 @@ jjrvではstring型IDを使用。変換ルール:
 
 ### 接続情報の管理
 
-- jj: `.jj/credentials` (暗号化) または `config.yaml`
+- jj: `.j2/credentials` (暗号化) または `config.yaml`
 - jjrv: 環境変数 `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
 - 共通: `bolt://localhost:7687` がデフォルト
 

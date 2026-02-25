@@ -74,7 +74,7 @@ jj g init           # 設定ファイルを初期化
 jj g init --overwrite  # 既存ファイルを上書き
 ```
 
-デフォルト設定を`.jj/config/config.yaml`にコピーします。
+デフォルト設定を`.j2/config/config.yaml`にコピーします。
 
 ## ファイル構成の変更
 

@@ -4,7 +4,7 @@ GraphModelのノードとリレーションをNeo4jに投入する。
 既存データのupsert（存在すれば更新、なければ作成）に対応。
 
 接続設定:
-  - .jj/config/config.yaml の neo4j セクション
+  - .j2/config/config.yaml の neo4j セクション
   - またはデフォルト値（bolt://localhost:7687, neo4j/password）
 
 使用方法:
@@ -293,14 +293,14 @@ class Neo4jConnector:
 
         Args:
             graph: エクスポートするグラフデータ
-            output_path: 出力先ファイルパス（デフォルト: .jj/storage/export.cypher）
+            output_path: 出力先ファイルパス（デフォルト: .j2/storage/export.cypher）
             clear_project: プロジェクトデータ削除クエリを含めるか
 
         Returns:
             書き込まれたファイルパス
         """
         if output_path is None:
-            output_path = self.project_root / ".jj" / "storage" / "export.cypher"
+            output_path = self.project_root / ".j2" / "storage" / "export.cypher"
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 

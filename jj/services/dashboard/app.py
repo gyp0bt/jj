@@ -108,7 +108,7 @@ def _get_project_root() -> Path:
 
 
 # ====================================================================
-# ビュー永続化（.jj/storage/saved-views.yaml）
+# ビュー永続化（.j2/storage/saved-views.yaml）
 # ====================================================================
 
 _SAVED_VIEWS_FILENAME = "saved-views.yaml"
@@ -116,13 +116,13 @@ _SAVED_VIEWS_FILENAME = "saved-views.yaml"
 
 def _saved_views_path(project_root: Path) -> Path:
     """保存済みビューファイルのパスを返す"""
-    return project_root / ".jj" / "storage" / _SAVED_VIEWS_FILENAME
+    return project_root / ".j2" / "storage" / _SAVED_VIEWS_FILENAME
 
 
 def _load_persistent_views(project_root: Path) -> list[dict[str, Any]]:
     """永続化されたビューをファイルから読み込む
 
-    .jj/storage/saved-views.yaml が存在しない場合は空リストを返す。
+    .j2/storage/saved-views.yaml が存在しない場合は空リストを返す。
     """
     path = _saved_views_path(project_root)
     if not path.exists():
@@ -139,7 +139,7 @@ def _load_persistent_views(project_root: Path) -> list[dict[str, Any]]:
 def _save_persistent_views(project_root: Path, views: list[dict[str, Any]]) -> None:
     """ビューをファイルに永続化する
 
-    .jj/storage/saved-views.yaml に書き出す。
+    .j2/storage/saved-views.yaml に書き出す。
     """
     path = _saved_views_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -337,7 +337,7 @@ def _render_saved_views_page(
     """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示
 
     config.yamlからの静的ビューに加え、永続化された動的ビューも表示する。
-    動的ビューはUI上で追加・編集・削除が可能で、.jj/storage/saved-views.yaml
+    動的ビューはUI上で追加・編集・削除が可能で、.j2/storage/saved-views.yaml
     にファイル永続化される。
     """
     st.header("保存済みビュー")

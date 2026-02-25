@@ -76,7 +76,7 @@ AbstractFileParser
 
 - **Node**: `id: int, type: str, name: str, format: str, properties: dict[str, Any]`
 - **Relation**: `id: int, label: str, node1_id: int, node2_id: int`
-- グラフは `.jj/storage/graph.yaml` に永続化
+- グラフは `.j2/storage/graph.yaml` に永続化
 
 ---
 

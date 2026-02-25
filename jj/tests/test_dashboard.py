@@ -447,7 +447,7 @@ class TestRestApi:
         # テスト用にgraph.yamlを書き出す
         import yaml
 
-        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
         graph_file = storage_dir / "graph.yaml"
 
@@ -744,7 +744,7 @@ class TestGraphChangeDetection:
         """graph.yamlが存在する場合にパスを返す"""
         from services.dashboard.query import find_graph_path
 
-        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
         graph_file = storage_dir / "graph.yaml"
         graph_file.write_text("nodes: []\nrelations: []\n")
@@ -757,7 +757,7 @@ class TestGraphChangeDetection:
         """graph.jsonが存在する場合にパスを返す"""
         from services.dashboard.query import find_graph_path
 
-        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
         (storage_dir / "graph.json").write_text("{}")
 
@@ -776,7 +776,7 @@ class TestGraphChangeDetection:
         """mtimeがfloatで返される"""
         from services.dashboard.query import get_graph_mtime
 
-        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
         (storage_dir / "graph.yaml").write_text("nodes: []\n")
 
@@ -2867,14 +2867,14 @@ class TestRestApiParse:
         import yaml
 
         # 最小限のconfig.yaml + graph.yaml
-        config_dir = tmp_path / ".jj" / "config"
+        config_dir = tmp_path / ".j2" / "config"
         config_dir.mkdir(parents=True)
         (config_dir / "config.yaml").write_text(
             yaml.safe_dump({"vocab": {}}),
             encoding="utf-8",
         )
 
-        storage_dir = tmp_path / ".jj" / "storage"
+        storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
         graph_file = storage_dir / "graph.yaml"
         graph_file.write_text(
@@ -2982,7 +2982,7 @@ class TestRestApiPropFilter:
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            storage_dir = tmp_path / ".jj" / "storage"
+            storage_dir = tmp_path / ".j2" / "storage"
             storage_dir.mkdir(parents=True)
             graph_data = {
                 "nodes": [n.model_dump() for n in graph.nodes],
@@ -4051,7 +4051,7 @@ class TestQueryModule:
     def test_find_graph_path_yaml(self, tmp_path):
         from services.dashboard.query import find_graph_path
 
-        storage = tmp_path / ".jj" / "storage"
+        storage = tmp_path / ".j2" / "storage"
         storage.mkdir(parents=True)
         (storage / "graph.yaml").write_text("nodes: []\n")
         result = find_graph_path(tmp_path)
@@ -4061,7 +4061,7 @@ class TestQueryModule:
     def test_find_graph_path_json(self, tmp_path):
         from services.dashboard.query import find_graph_path
 
-        storage = tmp_path / ".jj" / "storage"
+        storage = tmp_path / ".j2" / "storage"
         storage.mkdir(parents=True)
         (storage / "graph.json").write_text("{}")
         result = find_graph_path(tmp_path)
@@ -4076,7 +4076,7 @@ class TestQueryModule:
     def test_get_graph_mtime(self, tmp_path):
         from services.dashboard.query import get_graph_mtime
 
-        storage = tmp_path / ".jj" / "storage"
+        storage = tmp_path / ".j2" / "storage"
         storage.mkdir(parents=True)
         (storage / "graph.yaml").write_text("nodes: []\n")
         mtime = get_graph_mtime(tmp_path)

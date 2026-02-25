@@ -17,7 +17,7 @@ jjrv統合設計（status-036）に基づき、Neo4jエクスポートの基盤�
 | `shared/__init__.py` | 共有パッケージ初期化（NodeLabel, RelType, Neo4jConfig等のエクスポート） |
 | `shared/neo4j_schema.py` | Neo4jスキーマ定義（ノードラベル、リレーションシップタイプ、マッピング関数） |
 | `shared/types.py` | Neo4j投入用データ型（Neo4jNodeData, Neo4jRelationData） |
-| `shared/config.py` | Neo4j接続設定（Neo4jConfig）、.jj/config/config.yamlからの読み込み対応 |
+| `shared/config.py` | Neo4j接続設定（Neo4jConfig）、.j2/config/config.yamlからの読み込み対応 |
 | `neo4j/docker-compose.yml` | Neo4j Community Edition 5.x のDocker設定 |
 | `neo4j/init/01-schema.cypher` | 制約・インデックスの初期化スクリプト |
 | `requirements.txt` | `neo4j>=5.0.0` 追加 |
@@ -46,7 +46,7 @@ jjrv統合設計（status-036）に基づき、Neo4jエクスポートの基盤�
 jj export --target neo4j              # Neo4jに直接書き込み
 jj export --target neo4j --clear      # 既存データ削除後に投入
 jj export --target neo4j --parse      # parse → Neo4j投入
-jj export --target cypher             # Cypherファイル出力（.jj/storage/export.cypher）
+jj export --target cypher             # Cypherファイル出力（.j2/storage/export.cypher）
 jj export --target cypher -o out.cypher  # 出力先指定
 
 # Neo4j接続オプション
@@ -127,7 +127,7 @@ jj export --target neo4j --neo4j-uri bolt://host:7687 --neo4j-user admin --neo4j
 - [ ] Phase N3: jjrv Neo4jクライアント（TypeScript側、jjrvリポジトリアクセス復旧後）
 - [ ] Phase N4: クロスリレーション（材料マッチング、`jj import --source neo4j`）
 - [ ] Phase N5: submodule移行
-- [ ] Neo4j接続設定の`.jj/config/config.yaml`への組み込みドキュメント化
+- [ ] Neo4j接続設定の`.j2/config/config.yaml`への組み込みドキュメント化
 - [ ] `jj export --target neo4j --sync`（差分同期）の実装
 - [ ] Streamlitダッシュボードとの連携（Phase 2.5 D1-D2）
 

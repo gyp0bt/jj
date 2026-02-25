@@ -75,8 +75,8 @@ configの `project-name` フィールドを追加。設定されていればroot
 config.yamlに平文パスワードを書く代わりに、暗号化されたクレデンシャルファイルを使用する仕組みを実装。
 
 **設計**:
-- 暗号鍵: `~/.jj/secret.key`（ユーザーホーム、プロジェクト外）
-- クレデンシャル: `.jj/config/.credentials`（プロジェクト内、.gitignore推奨）
+- 暗号鍵: `~/.j2/secret.key`（ユーザーホーム、プロジェクト外）
+- クレデンシャル: `.j2/config/.credentials`（プロジェクト内、.gitignore推奨）
 - 暗号方式: PBKDF2(SHA-256, 100000回) + XOR暗号
 - パーミッション: 鍵・クレデンシャルファイルは0600
 
@@ -142,7 +142,7 @@ jj credential delete                   # 削除
 
 ## TODO / 次のステップ
 
-- [ ] `.gitignore`に`.jj/config/.credentials`を追加する手順をドキュメント化
+- [ ] `.gitignore`に`.j2/config/.credentials`を追加する手順をドキュメント化
 - [ ] `jj init`時に`.gitignore`への自動追記を検討
 - [ ] Windowsパス対応の実機テスト
 - [ ] Neo4j export時のcredential自動読み込みのE2Eテスト
@@ -200,7 +200,7 @@ jj credential delete                   # 削除
                     """プロジェクトのツリー構造をNode/RelationからProjectDirectory/ProjectFileに直してiteration"""
 
             ```
-        - graph.storage: 加工されたグラフデータをローカルファイル(.jj/storage/)に保存
+        - graph.storage: 加工されたグラフデータをローカルファイル(.j2/storage/)に保存
     - export: グラフデータをデフォルトのローカルファイル以外に保存
         - json, neo4j, sqlを予定
     - parse: 

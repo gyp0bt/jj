@@ -46,7 +46,7 @@ def find_graph_path(project_root: Path) -> Path | None:
     Returns:
         graph.yamlのパス。見つからない場合はNone。
     """
-    storage_dir = project_root / ".jj" / "storage"
+    storage_dir = project_root / ".j2" / "storage"
     for ext in _GRAPH_EXTENSIONS:
         p = storage_dir / f"graph.{ext}"
         if p.exists():

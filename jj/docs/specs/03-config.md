@@ -8,7 +8,7 @@
 
 ### 目的
 
-- プロジェクトごとの設定を `.jj/config/` に集約
+- プロジェクトごとの設定を `.j2/config/` に集約
 - SSH接続情報（`.pyssh.yaml`）の読込と管理
 - 語彙マッピング（`vocab.yaml`）の提供
 - ソフト固有設定（拡張子、接頭辞など）の集約
@@ -16,7 +16,7 @@
 ### 責務範囲
 
 - `config/` : 設定ローダーと設定モデル
-- `.jj/config/` : プロジェクト固有設定の保存先
+- `.j2/config/` : プロジェクト固有設定の保存先
 
 ---
 
@@ -29,7 +29,7 @@
 #### 配置場所
 
 ```
-.jj/config/vocab.yaml
+.j2/config/vocab.yaml
 ```
 
 #### フォーマット
@@ -98,7 +98,7 @@ hosts:
 #### 配置場所
 
 ```
-.jj/config/extensions.yaml
+.j2/config/extensions.yaml
 ```
 
 #### フォーマット
@@ -139,7 +139,7 @@ multi_dot:
 #### 配置場所
 
 ```
-.jj/config/prefixes.yaml
+.j2/config/prefixes.yaml
 ```
 
 #### フォーマット
@@ -173,7 +173,7 @@ prefixes:
 | `load_ssh()` | `SSHConfig` | .pyssh.yamlを読み込み |
 | `load_extensions()` | `ExtensionsConfig` | extensions.yamlを読み込み |
 | `load_prefixes()` | `PrefixesConfig` | prefixes.yamlを読み込み |
-| `get_config_dir()` | `Path` | `.jj/config/` のパスを取得 |
+| `get_config_dir()` | `Path` | `.j2/config/` のパスを取得 |
 
 ### 3.2 設定モデル（Pydantic）
 
@@ -221,21 +221,21 @@ class PrefixesConfig(BaseModel):
 
 ## 4. 初期化とデフォルト設定
 
-### 4.1 `.jj/config/` の初期化
+### 4.1 `.j2/config/` の初期化
 
-プロジェクト初回実行時に `.jj/config/` ディレクトリとデフォルト設定を自動生成します。
+プロジェクト初回実行時に `.j2/config/` ディレクトリとデフォルト設定を自動生成します。
 
 #### 初期化条件
 
-**`.jj/config/` フォルダが存在しない場合のみ初期化を実行します。**
+**`.j2/config/` フォルダが存在しない場合のみ初期化を実行します。**
 
 - フォルダが既に存在する場合は、初期化処理をスキップします
 - 既存の設定ファイルは上書きしません
 
 #### 生成タイミング
 
-- `jj n` 初回実行時（`.jj/config/` が存在しない場合）
-- `jj init` コマンド実行時（将来実装、`.jj/config/` が存在しない場合）
+- `jj n` 初回実行時（`.j2/config/` が存在しない場合）
+- `jj init` コマンド実行時（将来実装、`.j2/config/` が存在しない場合）
 
 #### デフォルトファイル
 
@@ -270,7 +270,7 @@ DEFAULT_PREFIXES = {
 
 複数の設定ソースが存在する場合、以下の優先順位で適用されます。
 
-1. プロジェクト固有設定（`.jj/config/`）
+1. プロジェクト固有設定（`.j2/config/`）
 2. コードのデフォルト設定
 3. コマンドライン引数（将来実装）
 
@@ -289,7 +289,7 @@ DEFAULT_PREFIXES = {
 - [ ] `extensions.yaml` の読込機能
 - [ ] `prefixes.yaml` の読込機能
 - [ ] 各設定モデルの定義
-- [ ] `.jj/config/` の初期化処理
+- [ ] `.j2/config/` の初期化処理
 
 ### Phase 3: 設定の拡張（中期）
 
@@ -303,7 +303,7 @@ DEFAULT_PREFIXES = {
 - [ ] 環境変数からの設定上書き
 - [ ] 設定のバージョン管理（migration）
 - [ ] 設定のインポート/エクスポート
-- [ ] チーム共有設定（`.jj/config/shared/`）
+- [ ] チーム共有設定（`.j2/config/shared/`）
 
 ---
 

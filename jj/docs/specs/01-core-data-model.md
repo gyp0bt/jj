@@ -97,8 +97,8 @@ class GraphModel(BaseModel):
 
 ### 3.1 保存先
 
-- デフォルト: `.jj/storage/graph.yaml`
-- JSON形式も対応: `.jj/storage/graph.json`
+- デフォルト: `.j2/storage/graph.yaml`
+- JSON形式も対応: `.j2/storage/graph.json`
 
 ### 3.2 保存形式
 
@@ -159,7 +159,7 @@ relations:
 
 ### Phase 2: GraphStorage実装（完了）
 
-- [x] `.jj/storage/graph.yaml` の保存・読込
+- [x] `.j2/storage/graph.yaml` の保存・読込
 - [x] 基本的なCRUD操作
 
 ### Phase 3: 拡張機能（直近）

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class GraphStorage:
     def __init__(
         self,
-        storage_dirname: str = ".jj/storage",
+        storage_dirname: str = ".j2/storage",
         default_filename: str = "graph.yaml",
     ) -> None:
         self.storage_dirname = storage_dirname

@@ -4,15 +4,15 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
 
 ## 目的と方針
 - プロジェクトフォルダを解析してグラフデータを生成します。
-- jjが保持するデータはテキスト形式（主にYAML）とし、`.jj/storage`に保存します。
-- プロジェクトごとの語彙マッピングなどの設定は`.jj/config`に配置します（例: `vocab.yaml`, `.pyssh.yaml`）。
+- jjが保持するデータはテキスト形式（主にYAML）とし、`.j2/storage`に保存します。
+- プロジェクトごとの語彙マッピングなどの設定は`.j2/config`に配置します（例: `vocab.yaml`, `.pyssh.yaml`）。
 - ObsidianやNeo4jは外部ソフトとして扱い、jj内部で完結したグラフを出力する設計です。
 - グラフデータの一時構築には `networkx` を採用します。
 
 ## コマンド構成
 - グラフ管理（トップレベル）
   - `jj init`: 設定ファイルを初期化（`--overwrite`で上書き）
-  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.jj/storage/graph.yaml`に保存（`--full`で重い解析も含む、`-debug`でエラー時例外raise）
+  - `jj parse`: プロジェクトをスキャンしてグラフデータを`.j2/storage/graph.yaml`に保存（`--full`で重い解析も含む、`-debug`でエラー時例外raise）
   - `jj show`: グラフデータを表示（`--summary`でサマリーのみ）
   - `jj export --target obsidian`: Obsidian向けにエクスポート
   - `jj export --parse`: parseしてからexport
@@ -29,7 +29,7 @@ CAE業務データをグラフデータ化し、ObsidianやNeo4jなどの外部�
   - `jj g ...`: 旧コマンド（互換性維持）
 - `jj r` (run)
   - CAEソフトでの計算実行やプリ/ポスト処理の実行履歴、指定オプションのログ取得を担います。
-  - `jj r -- <command>` でコマンドを実行し、`.jj/storage/run` に実行ログを保存します。
+  - `jj r -- <command>` でコマンドを実行し、`.j2/storage/run` に実行ログを保存します。
   - 実行ログには所要時間/実行ユーザー/ホスト情報を含めます。
 - 凍結中（Phase 3まで）
   - `jj f` (file): ファイルテンプレート生成、関係を保持したフォルダ移動、リネーム、サーバー送受信
@@ -141,11 +141,11 @@ pytest
 - versionが取得できない場合は旧式の `.v1` 形式も補完対象とする。
 
 ## ディレクトリ
-- `.jj/storage/` : 解析で生成したグラフデータ（`graph.yaml`/`graph.json`）
-- `.jj/config/` : プロジェクト固有の設定（例: `vocab.yaml`, `.pyssh.yaml`）
+- `.j2/storage/` : 解析で生成したグラフデータ（`graph.yaml`/`graph.json`）
+- `.j2/config/` : プロジェクト固有の設定（例: `vocab.yaml`, `.pyssh.yaml`）
 - `cli/` : CLIコマンド実装（argparseとCLI出力のみ担当）
   - `cli/graph.py` : `jj g` コマンドの実装
-- `config/` : `.jj/config` や `.pyssh.yaml` を読み込む設定ローダー。
+- `config/` : `.j2/config` や `.pyssh.yaml` を読み込む設定ローダー。
 - `docs/roadmap.md` : 今後の計画
 - `docs/detail.md` : 実装詳細と仕様リンク
 - `services/` : CLI向けサービス群（詳細は各README）

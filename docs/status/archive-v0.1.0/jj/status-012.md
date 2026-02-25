@@ -89,10 +89,10 @@ CAE業務で使用される可能性がある言語を検討しました：
 
 ---
 
-### TODO 3: .jj/configの初期化タイミングとして、他に必要なタイミングはあるか?
+### TODO 3: .j2/configの初期化タイミングとして、他に必要なタイミングはあるか?
 
 #### 現状の方針
-- `.jj/config/` フォルダが存在しない場合のみ自動初期化
+- `.j2/config/` フォルダが存在しない場合のみ自動初期化
 - フォルダが既に存在する場合は初期化処理をスキップ
 - 既存設定は上書きしない
 
@@ -148,7 +148,7 @@ jj config reset --keep-ssh  # SSH設定は保持
 1. **設定管理層の統合**
    - `vocab.yaml`, `extensions.yaml`, `prefixes.yaml` の読込実装
    - Pydanticモデルの定義
-   - `.jj/config/` の初期化処理（フォルダが存在しない場合のみ）
+   - `.j2/config/` の初期化処理（フォルダが存在しない場合のみ）
    - 対応言語: Python, Bash
 
 2. **runコマンド層のproperties抽出拡張**
@@ -191,7 +191,7 @@ status-011のTODOに対して、以下の方針を決定しました：
 
 1. **properties抽出**: Phase 1では Python, Bash のみ対応（Tclは Phase 2で検討）
 2. **スナップショット比較**: mtimeベースで十分（ハッシュ比較は Phase 3で検討）
-3. **.jj/config初期化**: 自動初期化のみで十分（明示的なコマンドは Phase 2で検討）
+3. **.j2/config初期化**: 自動初期化のみで十分（明示的なコマンドは Phase 2で検討）
 
 ### 次のタスク
 
@@ -209,7 +209,7 @@ Phase 1の実装を開始してください。優先順位は以下の通りで�
   - `VocabConfig` モデル
   - `ExtensionsConfig` モデル
   - `PrefixesConfig` モデル
-- [ ] `.jj/config/` の初期化処理
+- [ ] `.j2/config/` の初期化処理
   - 初期化関数の実装（`init_config_dir()`）
   - デフォルト設定ファイルの生成
   - フォルダ存在チェックの実装
@@ -270,7 +270,7 @@ docs: analyze status-011 TODOs and finalize implementation policies
 - Tclは Phase 2での追加を推奨
 - スナップショット比較: mtimeベースで十分と判断
 - ハッシュ比較は Phase 3でオプションとして検討
-- .jj/config初期化: 自動初期化のみで十分と決定
+- .j2/config初期化: 自動初期化のみで十分と決定
 - 明示的な初期化コマンドは Phase 2で検討
 - Phase 1の実装タスクを明確化
 

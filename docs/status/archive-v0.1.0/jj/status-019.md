@@ -118,7 +118,7 @@ $ python main.py g parse
 プロジェクトをスキャン中: /home/user/jj
 === スキャン完了 ===
 ノード数: 82
-保存先: /home/user/jj/.jj/storage/graph.yaml
+保存先: /home/user/jj/.j2/storage/graph.yaml
 ```
 
 ## TODO
