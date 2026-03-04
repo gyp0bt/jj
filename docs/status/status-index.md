@@ -17,7 +17,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M4: 横断ダッシュボード** | 凍結 | jjrv分離により凍結。Streamlitダッシュボードで対応 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
 | **M6: ML/実験/最適化タスク対応** | 進行中 | パーサー9種実装済み（Phase 2-4完了）、サロゲートモデルフレームワーク構築、三層リレーション構築 |
-| **M7: Run中心スキーマ再設計** | 進行中 | Phase 1-3完了: コアモデル・CaeRunDiscoverer・MlTrainingRunDiscoverer |
+| **M7: Run中心スキーマ再設計** | 進行中 | Phase 1-4完了: コアモデル・CaeRunDiscoverer・MlTrainingRunDiscoverer・RunService統合 |
 
 ---
 
@@ -67,6 +67,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [040](status-040.md) | 2026-02-21 | M2 | status-039 TODO実行: スタイル永続化・コンタープロット・ギャラリーサイズ上限 | claude/execute-status-todos-Mlumt |
 | [041](status-041.md) | 2026-02-21 | M2 | status-040 TODO実行: 等高線モード・サムネイル生成・ビュー編集フォーム | claude/execute-status-todos-2TD9t |
 | [042](status-042.md) | 2026-02-24 | M1 | プロジェクトデータディレクトリ .jj → .j2 リネーム | claude/rename-jj-to-j2-QV2ym |
+| [043](status-043.md) | 2026-03-04 | M1/M7 | フォルダフラット化・jjrv分離反映・M7 Phase 4 RunService統合 | claude/update-docs-jjrv-separation-KiW6d |
 
 ---
 
