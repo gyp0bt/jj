@@ -1595,7 +1595,7 @@ class TestInpParameterProps:
         assert "thickness" not in node.properties
 
     def test_parameter_without_props_comment(self, tmp_path, config):
-        """*PARAMETERの後に**propsがない場合はスキップ"""
+        """*PARAMETERの後に**propsがなくてもパラメータを読み取る"""
         from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
 
         inp = tmp_path / "go_idx1.inp"
@@ -1609,7 +1609,8 @@ class TestInpParameterProps:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        assert "width" not in node.properties
+        # **propsコメントの有無に関わらず*PARAMETERブロックを読み取る
+        assert node.properties.get("width") == "5"
 
     def test_non_inp_file_skipped(self, tmp_path, config):
         """INP以外のファイルはパラメータ読み取りをスキップ"""
@@ -3573,6 +3574,7 @@ class TestPymeshImport:
 
     def test_safe_import_pymesh_returns_functions(self):
         """pymeshが正しくインポートできる（絶対インポート）"""
+        pytest.importorskip("pymesh")
         from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
         create_mesher, _get_quality = _safe_import_pymesh()

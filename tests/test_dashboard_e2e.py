@@ -306,6 +306,10 @@ class TestDashboardFilterE2E:
 class TestConnectorSavedViewUnit:
     """コネクター保存済みビューのユニットテスト"""
 
+    @pytest.fixture(autouse=True)
+    def _require_pandas(self):
+        pytest.importorskip("pandas")
+
     def _make_provider(self):
         """テスト用Providerを作成"""
         from services.dashboard.data_provider import DashboardDataProvider
