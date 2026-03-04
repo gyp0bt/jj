@@ -452,8 +452,8 @@ class TestRestApi:
         graph_file = storage_dir / "graph.yaml"
 
         graph_data = {
-            "nodes": [n.model_dump() for n in graph.nodes],
-            "relations": [r.model_dump() for r in graph.relations],
+            "nodes": [n.model_dump(mode="json") for n in graph.nodes],
+            "relations": [r.model_dump(mode="json") for r in graph.relations],
         }
         graph_file.write_text(
             yaml.safe_dump(graph_data, allow_unicode=True),
@@ -2989,8 +2989,8 @@ class TestRestApiPropFilter:
             storage_dir = tmp_path / ".j2" / "storage"
             storage_dir.mkdir(parents=True)
             graph_data = {
-                "nodes": [n.model_dump() for n in graph.nodes],
-                "relations": [r.model_dump() for r in graph.relations],
+                "nodes": [n.model_dump(mode="json") for n in graph.nodes],
+                "relations": [r.model_dump(mode="json") for r in graph.relations],
             }
             (storage_dir / "graph.yaml").write_text(
                 yaml.safe_dump(graph_data, allow_unicode=True),

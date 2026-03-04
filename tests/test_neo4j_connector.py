@@ -706,12 +706,9 @@ class TestExportCLIArgs:
     """export CLIの引数テスト"""
 
     @pytest.fixture(autouse=True)
-    def _skip_if_no_paramiko(self):
-        """paramikoがない環境ではCLIテストをスキップ"""
-        try:
-            from cli.graph import add_top_level_graph_commands  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("paramikoが未インストール（CLI importチェーン依存）")
+    def _import_cli_graph(self):
+        """CLIグラフモジュールのインポート確認"""
+        from services.cli.graph import add_top_level_graph_commands  # noqa: F401
 
     def test_neo4j_target_in_choices(self):
         """neo4jとcypherがtargetの選択肢にある"""
@@ -720,7 +717,7 @@ class TestExportCLIArgs:
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers()
 
-        from cli.graph import add_top_level_graph_commands
+        from services.cli.graph import add_top_level_graph_commands
 
         add_top_level_graph_commands(subparsers)
 
@@ -739,7 +736,7 @@ class TestExportCLIArgs:
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers()
 
-        from cli.graph import add_top_level_graph_commands
+        from services.cli.graph import add_top_level_graph_commands
 
         add_top_level_graph_commands(subparsers)
 

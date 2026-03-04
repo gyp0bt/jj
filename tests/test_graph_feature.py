@@ -2278,7 +2278,7 @@ class TestCliTopLevelCommands:
     def _import_graph_module():
         """cli.graphをインポート（失敗時はpytest.skipで中断）"""
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -2328,7 +2328,7 @@ class TestCliTopLevelCommands:
         parser = argparse.ArgumentParser()
         mod._add_info_args(parser)
         args = parser.parse_args(["go_idx1.inp"])
-        assert args.filename == "go_idx1.inp"
+        assert args.filename == ["go_idx1.inp"]
 
     def test_top_level_commands_registered(self):
         """トップレベルコマンドがサブパーサーに登録される"""
@@ -2763,7 +2763,7 @@ class TestExportParse:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -2876,7 +2876,7 @@ class TestInfoCommandEnhanced:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -2955,7 +2955,7 @@ class TestDiffCommand:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -3018,7 +3018,7 @@ class TestExportCSVJSON:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:

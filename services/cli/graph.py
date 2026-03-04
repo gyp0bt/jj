@@ -295,6 +295,18 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _resolve_file_path(project_root: Path, filename: str) -> Path | None:
+    """プロジェクトルート配下でファイルパスを解決する"""
+    candidate = project_root / filename
+    if candidate.exists():
+        return candidate
+    # 再帰検索
+    matches = list(project_root.rglob(filename))
+    if matches:
+        return matches[0]
+    return None
+
+
 def _add_diff_args(parser: argparse.ArgumentParser) -> None:
     """diffコマンドの引数を追加"""
     parser.add_argument(
