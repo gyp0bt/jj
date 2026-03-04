@@ -3,7 +3,7 @@ t_list = [35, 172]
 
 idx = 4
 v = 2
-for i, t in enumerate(t_list):
+for _i, t in enumerate(t_list):
     for j in org_list:
         filename = f"go_idx{idx}.v{v}.inp"
         with open(j) as f:

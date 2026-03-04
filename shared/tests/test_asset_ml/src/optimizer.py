@@ -4,9 +4,9 @@ import optuna
 
 
 def objective(trial):
-    lr = trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True)
-    batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
-    dropout = trial.suggest_float("dropout", 0.1, 0.5)
+    _lr = trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True)
+    _batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
+    _dropout = trial.suggest_float("dropout", 0.1, 0.5)
     return 0.5  # placeholder
 
 

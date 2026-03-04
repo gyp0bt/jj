@@ -593,7 +593,7 @@ MLプロジェクトのディレクトリ構造はCAEプロジェクトと異な
 
 ## 11. 参考資料
 
-- [コアデータモデル仕様書](../../jj/docs/specs/01-core-data-model.md) — Node/Relation定義
-- [パーサー仕様書](../../jj/docs/specs/02-parser.md) — AbstractFileParser パターン
+- [コアデータモデル仕様書](01-core-data-model.md) — Node/Relation定義
+- [パーサー仕様書](02-parser.md) — AbstractFileParser パターン
 - [マルチソルバー仕様書](multi-solver.md) — プラグイン拡張パターン
 - [CLAUDE.md](../../CLAUDE.md) — プラグイン拡張・CacheProviderパターン

@@ -16,7 +16,7 @@ from config import GraphConfig
 from jj_types import Node, Relation
 from services.graph.project_graph import ProjectGraph
 
-ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
 @pytest.fixture

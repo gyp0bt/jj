@@ -183,8 +183,7 @@ class AbaqusResultParser(AbstractFileParser):
                 node.properties["warnings"] = sta_info["warnings"]
 
             inp_node = input_by_name.get(node.name)
-            # if inp_node:
-            if False:
+            if inp_node:
                 inp_node.properties["analysis_status"] = sta_info["analysis_status"]
                 if sta_info["errors"]:
                     inp_node.properties["sta_errors"] = sta_info["errors"]
@@ -216,8 +215,7 @@ class AbaqusResultParser(AbstractFileParser):
                 node.properties["msg_warnings"] = msg_info["warnings"]
 
             inp_node = input_by_name.get(node.name)
-            # if inp_node:
-            if False:
+            if inp_node:
                 if msg_info["errors"]:
                     inp_node.properties["msg_errors"] = msg_info["errors"]
                 if msg_info["warnings"]:
@@ -252,8 +250,7 @@ class AbaqusResultParser(AbstractFileParser):
                 node.properties["dat_warnings"] = dat_info["warnings"]
 
             inp_node = input_by_name.get(node.name)
-            # if inp_node:
-            if False:
+            if inp_node:
                 if dat_info.get("cpu_time") is not None:
                     inp_node.properties["cpu_time"] = dat_info["cpu_time"]
                 if dat_info.get("wallclock_time") is not None:

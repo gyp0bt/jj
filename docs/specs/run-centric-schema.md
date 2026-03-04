@@ -591,7 +591,7 @@ Run Nodeの追加によりgraph.yamlのサイズが増加する。N個のファ�
 
 ## 11. 参考資料
 
-- [コアデータモデル仕様書](../../jj/docs/specs/01-core-data-model.md) — 既存Node/Relation定義
+- [コアデータモデル仕様書](01-core-data-model.md) — 既存Node/Relation定義
 - [ML対応仕様書](ml-task-roadmap.md) — 三層データフローモデル
 - [サロゲートモデルフレームワーク仕様書](surrogate-model-framework.md) — 層間リレーション設計
-- [runコマンド仕様書](../../jj/docs/specs/04-run-command.md) — 既存RunService設計
+- [runコマンド仕様書](04-run-command.md) — 既存RunService設計

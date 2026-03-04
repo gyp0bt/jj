@@ -1595,7 +1595,7 @@ class TestInpParameterProps:
         assert "thickness" not in node.properties
 
     def test_parameter_without_props_comment(self, tmp_path, config):
-        """*PARAMETERの後に**propsがない場合はスキップ"""
+        """*PARAMETERの後に**propsがなくてもパラメータを読み取る"""
         from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
 
         inp = tmp_path / "go_idx1.inp"
@@ -1609,7 +1609,8 @@ class TestInpParameterProps:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        assert "width" not in node.properties
+        # **propsコメントの有無に関わらず*PARAMETERブロックを読み取る
+        assert node.properties.get("width") == "5"
 
     def test_non_inp_file_skipped(self, tmp_path, config):
         """INP以外のファイルはパラメータ読み取りをスキップ"""
@@ -2277,7 +2278,7 @@ class TestCliTopLevelCommands:
     def _import_graph_module():
         """cli.graphをインポート（失敗時はpytest.skipで中断）"""
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -2327,7 +2328,7 @@ class TestCliTopLevelCommands:
         parser = argparse.ArgumentParser()
         mod._add_info_args(parser)
         args = parser.parse_args(["go_idx1.inp"])
-        assert args.filename == "go_idx1.inp"
+        assert args.filename == ["go_idx1.inp"]
 
     def test_top_level_commands_registered(self):
         """トップレベルコマンドがサブパーサーに登録される"""
@@ -2762,7 +2763,7 @@ class TestExportParse:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -2875,7 +2876,7 @@ class TestInfoCommandEnhanced:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -2954,7 +2955,7 @@ class TestDiffCommand:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
@@ -3017,7 +3018,7 @@ class TestExportCSVJSON:
     @staticmethod
     def _import_graph_module():
         try:
-            import cli.graph as mod
+            import services.cli.graph as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:

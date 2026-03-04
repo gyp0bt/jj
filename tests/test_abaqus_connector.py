@@ -45,7 +45,7 @@ from services.parse.connectors.abaqus.result_parser import parse_sta_file
 # ==========================
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "graph_test1"
-ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
 @pytest.fixture

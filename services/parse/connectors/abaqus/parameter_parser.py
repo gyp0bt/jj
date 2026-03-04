@@ -12,6 +12,7 @@ priority=15: ファイル名解析(10)の後、他のAbaqusパーサーの前に
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 from services.parse.base import AbstractFileParser
@@ -89,20 +90,16 @@ class AbaqusParameterParser(AbstractFileParser):
                             if "=" not in u:
                                 continue
                             k, v = u.split("=", 1)
-                            # Determine if the value is numeric
+                            # 数値の場合は整形、文字列はそのまま保持
                             if v.lstrip("-").isdigit():
                                 v = str(int(v))
-                            elif "." in v:
-                                try:
-                                    v = f"{float(v):.3e}"
-                                except ValueError:
-                                    continue
-                            else:
-                                # Non-numeric string, skip this entry
-                                continue
+                            elif "." in v or "e" in v.lower():
+                                with contextlib.suppress(ValueError):
+                                    float(v)  # validate numeric
+                                # 元の表記を保持（科学表記への変換はしない）
                             if k:
                                 k = vocab.get(k, k)
-                                # v = vocab.get(v, v)
+                                v = vocab.get(v, v)
                                 props[k] = v
                         return props
         except OSError:

@@ -452,8 +452,8 @@ class TestRestApi:
         graph_file = storage_dir / "graph.yaml"
 
         graph_data = {
-            "nodes": [n.model_dump() for n in graph.nodes],
-            "relations": [r.model_dump() for r in graph.relations],
+            "nodes": [n.model_dump(mode="json") for n in graph.nodes],
+            "relations": [r.model_dump(mode="json") for r in graph.relations],
         }
         graph_file.write_text(
             yaml.safe_dump(graph_data, allow_unicode=True),
@@ -2542,6 +2542,7 @@ class TestDashboardPageConnector:
 
     def test_material_connector_generate_html(self):
         """物性一覧コネクターがHTMLを生成できる"""
+        pytest.importorskip("pandas")
         from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
 
         graph = GraphModel(
@@ -2564,6 +2565,7 @@ class TestDashboardPageConnector:
 
     def test_mesh_quality_connector_generate_html(self):
         """メッシュ品質コネクターがHTMLを生成できる"""
+        pytest.importorskip("pandas")
         from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
 
         graph = GraphModel(
@@ -2593,6 +2595,7 @@ class TestDashboardPageConnector:
 
     def test_job_summary_connector_generate_html(self):
         """ジョブサマリーコネクターがHTMLを生成できる"""
+        pytest.importorskip("pandas")
         from services.dashboard.connectors.abaqus import AbaqusJobSummaryPageConnector
 
         graph = GraphModel(
@@ -2619,6 +2622,7 @@ class TestDashboardPageConnector:
 
     def test_generate_connector_pages_html(self):
         """generate_connector_pages_htmlが利用可能なコネクターのHTMLを返す"""
+        pytest.importorskip("pandas")
         import services.dashboard.connectors.abaqus  # noqa: F401
         from services.dashboard.connectors import generate_connector_pages_html
 
@@ -2985,8 +2989,8 @@ class TestRestApiPropFilter:
             storage_dir = tmp_path / ".j2" / "storage"
             storage_dir.mkdir(parents=True)
             graph_data = {
-                "nodes": [n.model_dump() for n in graph.nodes],
-                "relations": [r.model_dump() for r in graph.relations],
+                "nodes": [n.model_dump(mode="json") for n in graph.nodes],
+                "relations": [r.model_dump(mode="json") for r in graph.relations],
             }
             (storage_dir / "graph.yaml").write_text(
                 yaml.safe_dump(graph_data, allow_unicode=True),
@@ -3484,7 +3488,7 @@ class TestMaterialComparisonCsv:
 
     def test_comparison_csv_format(self):
         """CSV変換が正しくフォーマットされる"""
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         data = [
             {"material": "Steel", "col_0": 100.0, "col_1": 0.0},
@@ -5568,6 +5572,7 @@ class TestConnectorSavedViewHtml:
 
     def test_connector_saved_view_html_generation(self):
         """コネクター保存ビューのHTML断片が生成される"""
+        pytest.importorskip("pandas")
         import services.dashboard.connectors.abaqus  # noqa: F401
         from config import SavedViewConfig
         from services.dashboard.connectors import generate_connector_saved_view_html
@@ -5631,6 +5636,7 @@ class TestConnectorSavedViewHtml:
 
     def test_generate_view_html_dispatches_connector(self):
         """generate_view_htmlがコネクタービューを正しくディスパッチする"""
+        pytest.importorskip("pandas")
         import services.dashboard.connectors.abaqus  # noqa: F401
         from config import SavedViewConfig
         from services.dashboard.html_export import generate_view_html

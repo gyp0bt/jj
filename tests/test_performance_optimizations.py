@@ -22,7 +22,7 @@ from services.parse.parsers.csv_array_parser import (
     _read_csv_summary,
 )
 
-ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
 @pytest.fixture

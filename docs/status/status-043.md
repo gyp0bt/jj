@@ -70,8 +70,8 @@ jjrvがあった時代は `jj/` (root) / `jj/jj/` (Python) / `jjrv/` (TypeScript
 - [ ] M7 Phase 6: Neo4j Run Node対応
 - [ ] M6 Phase 5: MLダッシュボードコネクター
 - [ ] プラグイン分離の検討（Abaqusプラグインの外部パッケージ化）
-- [ ] 既存159件の既知テスト失敗の修正（optional依存: pandas/plotly/pymesh/sta解析）
-- [ ] docs/specs内の旧パス参照（`../jj/docs/specs/` → `specs/`）の一括修正
+- [x] 既存159件の既知テスト失敗の修正（optional依存: pandas/plotly/pymesh/sta解析） → status-044で解消
+- [x] docs/specs内の旧パス参照（`../jj/docs/specs/` → `specs/`）の一括修正 → status-044で解消
 
 ## 確認事項・懸念
 

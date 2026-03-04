@@ -1,4 +1,5 @@
 """Surrogate model training script."""
+
 import torch
 import torch.nn as nn
 

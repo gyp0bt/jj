@@ -21,7 +21,7 @@ from services.parse.connectors.abaqus.mesh_parser import (
     _save_mesh_stats_cache,
 )
 
-ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
 @pytest.fixture

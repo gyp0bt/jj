@@ -287,8 +287,8 @@ def get_default_config_path() -> Path:
     local_path = package_dir / "assets" / DEFAULT_CONFIG_ASSET
     if local_path.exists():
         return local_path
-    # Phase R リファクタリングでassetsがshared/に移動された場合のフォールバック
-    shared_path = package_dir.parent / "shared" / "assets" / DEFAULT_CONFIG_ASSET
+    # shared/assets/ に移動された場合のフォールバック
+    shared_path = package_dir / "shared" / "assets" / DEFAULT_CONFIG_ASSET
     if shared_path.exists():
         return shared_path
     return local_path
