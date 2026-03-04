@@ -2558,8 +2558,16 @@ class TestDiffParserTimestamp:
         assert len(diff_nodes) == 1
 
 
+@pytest.mark.skipif(
+    not _has_pandas(),
+    reason="pymesh（modules/pymesh/）の依存パッケージ(pandas)が未インストール",
+)
 class TestPymeshWithModules:
-    """modules/pymeshを使ったテスト"""
+    """modules/pymeshを使ったテスト
+
+    pymeshはmodules/pymesh/に存在するプロジェクト内パッケージ。
+    依存パッケージ（pandas等）が未インストールの場合のみスキップ。
+    """
 
     def test_mesher_with_cached_abq_data(self, tmp_path: Path):
         """cached_abq_dataを渡した場合、read_inp()がスキップされる"""
