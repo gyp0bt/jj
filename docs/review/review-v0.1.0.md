@@ -377,10 +377,6 @@ M1は他の全てに先行する。M2とM3は並行可能（jjとjjrvの片方�
 
 ## 関連ドキュメント
 
-- [jj README](../../jj/README.md)
-- [jjrv README](../../jjrv/README.md)
-- [jj ロードマップ](../../jj/docs/roadmap.md)
-- [jjrv ロードマップ6](../../jjrv/docs/spec-roadmap6.md)
-- [jjrv レビュー00](../../jjrv/docs/review/review-00.md)
-- [jj status-089](../../jj/docs/status/status-089.md)
-- [jjrv status-060](../../jjrv/docs/status/status-060.md)
+- [jj README](../../README.md)
+- [jj ロードマップ](../roadmap.md)
+- [jj status-089](../status/archive-v0.1.0/status-089.md)

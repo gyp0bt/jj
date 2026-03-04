@@ -491,8 +491,8 @@ services/plugins/hfss/
 
 ## 8. 参考資料
 
-- [パーサー仕様書](../../jj/docs/specs/02-parser.md) — FileNameParser, AbstractFileParser
-- [設定管理仕様書](../../jj/docs/specs/03-config.md) — GraphConfig, PathTypeMapConfig
-- [アダプター仕様書](../../jj/docs/specs/07-adapter.md) — ソフト固有フォーマット対応設計
+- [パーサー仕様書](02-parser.md) — FileNameParser, AbstractFileParser
+- [設定管理仕様書](03-config.md) — GraphConfig, PathTypeMapConfig
+- [アダプター仕様書](07-adapter.md) — ソフト固有フォーマット対応設計
 - [v0.1.0レビュー](../review/review-v0.1.0.md) — Abaqus暗黙前提の指摘
 - [CLAUDE.md](../../CLAUDE.md) — プラグイン拡張パターン
