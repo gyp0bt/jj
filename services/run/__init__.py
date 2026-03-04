@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import getpass
 import json
 import re
@@ -9,8 +10,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-from jj_types import GraphModel, Node, Relation
+from config import GraphConfig
+from jj_types import GraphModel, Node, NodeCategory
+from services.graph.project_graph import ProjectGraph
 from services.graph.storage import GraphStorage
 
 __all__ = [
@@ -240,63 +244,104 @@ class RunService:
             json.dump(payload, f, ensure_ascii=False, indent=2)
         return log_path
 
+    def _detect_run_type(self, result: RunResult) -> str:
+        """実行結果からrun_typeを推定する
+
+        スクリプトの内容やコマンドからCAEジョブ/MLトレーニング/スクリプトを判定。
+        """
+        if result.script_path and result.script_path.exists():
+            text = result.script_path.read_text(encoding="utf-8", errors="ignore").lower()
+            # MLトレーニングパターンの検出
+            ml_indicators = ["torch", "tensorflow", "sklearn", "model.fit", "model.train", "optuna"]
+            if any(ind in text for ind in ml_indicators):
+                return "ml_training"
+        # CAEジョブパターンの検出（コマンド名ベース）
+        if result.command:
+            cmd = result.command[0].lower()
+            cae_commands = ["abaqus", "abq", "ccx", "fluent", "lsdyna", "openfoam"]
+            if any(c in cmd for c in cae_commands):
+                return "cae_job"
+        return "script"
+
     def _update_graph_storage(self, project_root: Path, result: RunResult) -> None:
-        """GraphStorageに実行ログと生成ファイルの関係を記録する"""
+        """GraphStorageに実行ログと生成ファイルの関係をRun Nodeとして記録する
+
+        M7 Phase 4: ProjectGraph.add_run_node()を使い、run_input/run_output/run_media
+        構造的リレーションでRunを統一的に記録する。
+        """
         storage = GraphStorage()
-        graph = storage.load(project_root)
-
-        # 次のノードIDを取得
-        next_id = max([n.id for n in graph.nodes], default=0) + 1
-
-        # runノードを作成
-        script_name = result.script_path.name if result.script_path else " ".join(result.command)
-        run_node = Node(
-            id=next_id,
-            type="run",
-            name=script_name,
-            format="log",
-            properties={
-                "exit_code": str(result.exit_code),
-                "started_at": result.started_at,
-                "finished_at": result.finished_at,
-                "duration_seconds": str(result.duration_seconds),
-                "host": result.host,
-                "user": result.user,
-                **result.properties,
-            },
+        graph_model = storage.load(project_root)
+        config = GraphConfig.load(project_root)
+        project_graph = ProjectGraph(
+            nodes=list(graph_model.nodes),
+            relations=list(graph_model.relations),
+            project_root=project_root,
+            config=config,
         )
-        graph.nodes.append(run_node)
-        next_id += 1
 
-        # trace_filesの各ファイルに対してfileノードとgeneratedリレーションを作成
+        script_name = result.script_path.name if result.script_path else " ".join(result.command)
+        run_type = self._detect_run_type(result)
+
+        # スクリプトノードをmediaとして特定
+        media_node_ids: list[int] = []
+        if result.script_path:
+            rel_path = result.script_path.name
+            with contextlib.suppress(ValueError):
+                rel_path = str(result.script_path.relative_to(project_root))
+            for node in project_graph.nodes:
+                path_prop = node.properties.get("path", "")
+                if path_prop == rel_path or node.name == result.script_path.stem:
+                    media_node_ids.append(node.id)
+                    break
+
+        # trace_filesの各ファイルに対してoutputノードIDを収集・作成
+        output_node_ids: list[int] = []
         for trace_file in result.trace_files:
             # 既存のfileノードを検索
             file_node = next(
-                (n for n in graph.nodes if n.type == "file" and n.name == trace_file),
+                (n for n in project_graph.nodes if n.properties.get("path") == trace_file),
                 None,
             )
-
+            if file_node is None:
+                file_node = next(
+                    (n for n in project_graph.nodes if n.name == trace_file),
+                    None,
+                )
             if file_node is None:
                 # fileノードを作成
                 file_node = Node(
-                    id=next_id,
+                    id=project_graph.next_node_id(),
                     type="file",
                     name=trace_file,
-                    format="",
-                    properties={},
+                    format=Path(trace_file).suffix.lstrip(".") if "." in trace_file else "",
+                    properties={"path": trace_file},
+                    category=NodeCategory.FILE,
                 )
-                graph.nodes.append(file_node)
-                next_id += 1
+                project_graph.add_node(file_node)
+            output_node_ids.append(file_node.id)
 
-            # generatedリレーションを作成
-            next_relation_id = max([r.id for r in graph.relations], default=0) + 1
-            relation = Relation(
-                id=next_relation_id,
-                label="generated",
-                node1_id=run_node.id,
-                node2_id=file_node.id,
-            )
-            graph.relations.append(relation)
+        # Run Nodeを生成（add_run_nodeがcategory=RUN、run_input/output/mediaリレーションを構築）
+        run_props: dict[str, Any] = {
+            "exit_code": str(result.exit_code),
+            "started_at": result.started_at,
+            "finished_at": result.finished_at,
+            "duration_seconds": str(result.duration_seconds),
+            "host": result.host,
+            "user": result.user,
+            "command": " ".join(result.command),
+        }
+        run_props.update(result.properties)
+
+        project_graph.add_run_node(
+            name=script_name,
+            run_type=run_type,
+            output_node_ids=output_node_ids,
+            media_node_ids=media_node_ids,
+            properties=run_props,
+            discovery="runtime",
+        )
 
         # GraphStorageに保存
-        storage.save(project_root, graph)
+        graph_model = project_graph.to_graph_model()
+        storage = GraphStorage()
+        storage.save(project_root, graph_model)

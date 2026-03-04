@@ -1,8 +1,7 @@
 """Evaluation script for trained models."""
 
-import torch
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score
+import torch
 
 
 def evaluate(model_path, test_data_path):

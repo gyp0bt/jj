@@ -1,7 +1,7 @@
 """Utility functions (no ML framework imports)."""
 
-import os
 import json
+import os
 
 
 def load_json(path):

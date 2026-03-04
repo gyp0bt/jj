@@ -5,7 +5,6 @@
 ## 開発体制
 
 - Codex と Claude Code の2交代制
-- 実装作業は jj と jjrv の片方ずつで実施（同時変更しない）
 
 ---
 
@@ -104,20 +103,9 @@ docs: Getting Startedセクション追加 (status-002)
 
 ## テスト
 
-### jj（Python）
 ```bash
-cd jj
 pip install -e ".[dev]"
 pytest --tb=short -q
-```
-
-### jjrv（TypeScript）
-```bash
-cd jjrv
-pnpm install --frozen-lockfile
-pnpm lint
-pnpm exec tsc --noEmit
-pnpm build
 ```
 
 ---
@@ -126,10 +114,9 @@ pnpm build
 
 GitHub Actions で以下を自動実行:
 
-| ジョブ | 対象 | 内容 |
-|--------|------|------|
-| python-lint | jj | ruff check + format check |
-| python-test | jj | pytest（コア依存のみ） |
-| ts-lint | jjrv | biome check |
-| ts-typecheck | jjrv | tsc --noEmit |
-| ts-build | jjrv | next build |
+| ジョブ | 内容 |
+|--------|------|
+| python-lint | ruff check + format check |
+| python-test | pytest（コア依存のみ） |
+| python-plugin-integration | プラグインentry_points検証 + 統合テスト |
+| python-dashboard-e2e | Streamlitダッシュボード E2Eテスト |

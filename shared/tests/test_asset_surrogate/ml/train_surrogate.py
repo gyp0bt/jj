@@ -1,7 +1,6 @@
 """Surrogate model training script."""
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 
 
 class SurrogateNet(nn.Module):

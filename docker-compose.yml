@@ -1,4 +1,4 @@
-# jj + jjrv 開発環境 Docker Compose
+# jj 開発環境 Docker Compose
 # Neo4jグラフデータベースの起動・管理
 #
 # 起動: docker compose up -d

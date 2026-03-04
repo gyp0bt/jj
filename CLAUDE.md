@@ -15,7 +15,7 @@
 - **過度な抽象化の回避**: 1回しか使わない処理のためにヘルパーやユーティリティを作らない
 - **暗黙の仮定の排除**: 特定のCAEソフト（Abaqus等）に暗黙的に依存するコアロジックを書かない
 
-### jj（Python）
+### Python規約
 
 | 項目 | 規約 |
 |------|------|
@@ -23,27 +23,39 @@
 | lint/format | `ruff check .` + `ruff format --check .`（E/W/F/I/UP/B/SIM/RUF） |
 | 依存管理 | コア最小（pydantic, pyyaml, networkx, chardet, ftfy, numpy）。optional依存はグループ分け |
 
-### jjrv（TypeScript/Next.js）
-
-| 項目 | 規約 |
-|------|------|
-| lint/format | `biome`（`pnpm lint` / `pnpm format`） |
-| 型安全 | `tsc --noEmit` + `pnpm build` |
-| データソース | SQLite (sql.js) → Neo4j対応予定（IEntityRepository経由で切替） |
-
 ---
 
 ## アーキテクチャの要所
 
-### モジュール構成
+### ディレクトリ構成
 
-| モジュール | 役割 | 技術 |
-|-----------|------|------|
-| **jj** | Python CLI — フォルダ/ファイル解析→グラフデータ化→エクスポート | Python 3.10+, NetworkX, Pydantic, Streamlit |
-| **jjrv** | Web Dashboard — Neo4j経由グラフ可視化 | Next.js 15, React 19, TypeScript, Tailwind CSS v4 |
-| **shared** | 共有パッケージ（Neo4jスキーマ契約、型定義、テストアセット） | Python |
+```
+jj/                            # プロジェクトルート
+├── config/                    # 設定管理
+├── jj_types/                  # データモデル（Node, Relation, GraphModel）
+├── modules/                   # 共通モジュール
+├── services/                  # メインロジック
+│   ├── cli.py                 # CLIエントリポイント
+│   ├── graph/                 # グラフサービス
+│   ├── parse/                 # パーサー群
+│   │   ├── base.py            # AbstractFileParser
+│   │   ├── parsers/           # 組み込みパーサー
+│   │   └── connectors/        # ソルバー別コネクター
+│   ├── export/                # エクスポーター群
+│   ├── dashboard/             # Streamlitダッシュボード
+│   ├── run/                   # Runサービス
+│   └── plugins/               # プラグイン（abaqus, ml, etc.）
+├── shared/                    # 共有パッケージ（Neo4jスキーマ、テストアセット）
+├── tests/                     # テストスイート
+├── docs/                      # ドキュメント
+│   ├── roadmap.md             # v0.2.0 ロードマップ
+│   ├── specs/                 # 仕様書（01〜11 + マルチソルバー等）
+│   └── status/                # 実装状況
+├── pyproject.toml             # パッケージ設定
+└── CLAUDE.md                  # 本ファイル
+```
 
-### AbstractFileParser パターン（jj最重要設計）
+### AbstractFileParser パターン（最重要設計）
 
 ```
 AbstractFileParser
@@ -74,8 +86,9 @@ AbstractFileParser
 
 ### データモデル
 
-- **Node**: `id: int, type: str, name: str, format: str, properties: dict[str, Any]`
+- **Node**: `id: int, type: str, name: str, format: str, properties: dict[str, Any], category: NodeCategory`
 - **Relation**: `id: int, label: str, node1_id: int, node2_id: int`
+- **NodeCategory**: `FILE | DIRECTORY | DATA | REPOSITORY | RUN`
 - グラフは `.j2/storage/graph.yaml` に永続化
 
 ---
@@ -83,21 +96,16 @@ AbstractFileParser
 ## ドキュメント構成
 
 ```
-docs/                          # 共有ドキュメント（v0.2.0〜）
+docs/                          # 全ドキュメント
 ├── roadmap.md                 # v0.2.0 統合ロードマップ
+├── roadmap-v0.1.0.md          # v0.1.0 ロードマップ（アーカイブ）
+├── detail.md                  # 実装詳細
 ├── review/                    # レビュー文書
-├── status/                    # 共有statusファイル
+├── status/                    # statusファイル
 │   ├── status-index.md        # v0.2.0 statusインデックス
 │   ├── status-{NNN}.md        # 実装状況
 │   └── archive-v0.1.0/        # v0.1.0 statusアーカイブ
-├── specs/                     # マルチソルバー仕様書
-jj/docs/                       # jj固有ドキュメント
-├── roadmap.md                 # jj v0.1.0 ロードマップ（アーカイブ）
-├── detail.md                  # 実装詳細
-├── specs/                     # 仕様書（01〜11）
-jjrv/docs/                     # jjrv固有ドキュメント
-├── spec-roadmap{1-6}.md       # RM1〜RM6仕様書
-├── spec-dashboard.md          # ダッシュボード詳細設計
+├── specs/                     # 仕様書（01〜11 + マルチソルバー等）
 ```
 
 ---
