@@ -14,7 +14,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M1.5: ドキュメント再構成** | 完了 | roadmap分離、CLAUDE.md/README.mdスリム化、マルチソルバー仕様書、プラグイン雛形 |
 | **M2: マルチソルバー基盤** | 進行中 | プラグイン雛形作成済み、本実装は検証環境確保後に実施 |
 | **M3: Neo4j統合パイプライン** | 進行中 | jj側完了、jjrv IEntityRepository抽象化完了、接続設定UI・検索アダプター完了 |
-| **M4: jjrv横断ダッシュボード** | 未着手 | Streamlit検証パターンのjjrv移植、横断視認性 |
+| **M4: 横断ダッシュボード** | 凍結 | jjrv分離により凍結。Streamlitダッシュボードで対応 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
 | **M6: ML/実験/最適化タスク対応** | 進行中 | パーサー9種実装済み（Phase 2-4完了）、サロゲートモデルフレームワーク構築、三層リレーション構築 |
 | **M7: Run中心スキーマ再設計** | 進行中 | Phase 1-3完了: コアモデル・CaeRunDiscoverer・MlTrainingRunDiscoverer |
@@ -72,4 +72,4 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 
 ## 過去バージョン
 
-- [v0.1.0 statusインデックス](status-index-v0.1.0.md) — 151件（jj: 90件、jjrv: 61件）
+- [v0.1.0 statusインデックス](status-index-v0.1.0.md) — 151件（jj: 90件、jjrv: 61件・分離済み）

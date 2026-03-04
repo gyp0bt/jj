@@ -6,6 +6,8 @@
 
 v0.1.0が「1つのCAEプロジェクトのグラフ化と可視化」を実現したのに対し、v0.2.0は「複数プロジェクトの横断検索・比較・再利用」「マルチソルバー対応」「機械学習・実験・最適化タスクのデータフローグラフ化」を目指す。
 
+> **jjrv分離について**: jjrv（Next.js Webダッシュボード）はv0.2.0途中で別リポジトリに分離された。M3/M4のjjrv関連タスクは凍結し、jj CLIとStreamlitダッシュボードの開発に集中する。Neo4j統合はjj側のエクスポーターとして維持する。
+
 ---
 
 ## マイルストーン依存関係
@@ -16,11 +18,9 @@ M1: 基盤整備（完了）
  ├──→ M1.5: ドキュメント再構成（完了）
  │     └── マルチソルバー仕様書作成 + コアconfig柔軟性向上 + プラグイン雛形
  │
- └──→ M3: Neo4j統合パイプライン
+ └──→ M3: Neo4j統合パイプライン（jj側エクスポーター完了、jjrv側は分離済み）
        │
-       └──→ M4: jjrv横断ダッシュボード
-             │
-             └──→ M5: ワークフロー自動化
+       └──→ M5: ワークフロー自動化
 
 M2: マルチソルバー検証（検証環境確保後に実施）
 
@@ -105,40 +105,17 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 
 > **原則**: コネクターページを含む全てのページはビュー保存およびHTMLエクスポート機能を持つこと。フィルターロジックはグローバルフィルターに加えてオプショナルでローカルフィルターを持てること。
 
-**ビュー保存/HTMLエクスポート**:
-- PageComponentは既にrender_saved_view() + generate_html()で対応済み
-- DashboardPageConnectorも同等のインターフェースを持ち、SavedViewConfig経由で保存・復元できること
-- SavedViewConfigのview_typeに`connector:{page_label}`形式を追加
-- HTMLエクスポートは保存済みビュー + コネクタービュー + 全ページを統合出力
-
-**フィルター階層化**:
-- **グローバルフィルター**: サイドバーで設定し、全ページ/ビューに適用（type, analysis_status, active）
-- **ローカルフィルター**: 各ページ/ビュー固有のフィルタ（SavedViewConfig.filtersに加え、connector固有フィルタ）
-- 適用順: グローバルフィルター → ローカルフィルター（AND結合）
-- ローカルフィルターはオプショナル（定義しない場合はグローバルフィルターのみ適用）
-
 ---
 
-## M3: Neo4j統合パイプライン
+## M3: Neo4j統合パイプライン — jj側完了
 
 | タスク | 成果物 | 仕様書 |
 |--------|--------|--------|
-| Neo4jスキーマ確定 | スキーマ文書 | [10-db-integration.md](../jj/docs/specs/10-db-integration.md) |
-| ID体系統一 | int→string変換ルール | [10-db-integration.md](../jj/docs/specs/10-db-integration.md) |
-| jjrv Neo4jクライアント | `src/lib/datasource/neo4j-*.ts` | [jjrv RM6](../jjrv/docs/spec-roadmap6.md) |
-| データソース切替 | SQLite↔Neo4j factory | [jjrv RM6](../jjrv/docs/spec-roadmap6.md) |
+| Neo4jスキーマ確定 | スキーマ文書 | [10-db-integration.md](specs/10-db-integration.md) |
+| ID体系統一 | int→string変換ルール | [10-db-integration.md](specs/10-db-integration.md) |
+| Neo4jエクスポーター | `services/export/connectors/neo4j_connector.py` | [08-export.md](specs/08-export.md) |
 
----
-
-## M4: jjrv横断ダッシュボード
-
-**位置づけ**: jj dashboard（Streamlit）で軽量検証した可視化パターンをjjrvに洗練移植し、レポジトリ・ノード・リレーションの横断視認性を実現する。
-
-| タスク | 成果物 | 仕様書 |
-|--------|--------|--------|
-| レポジトリ一覧 | `/repos` ページ | [spec-dashboard.md](../jjrv/docs/spec-dashboard.md) |
-| Streamlit検証パターン移植 | 配列プロット/物性一覧/ジョブサマリー | [09-dashboard.md](../jj/docs/specs/09-dashboard.md) |
-| ノード横断検索 | Cypherクエリ | [10-db-integration.md](../jj/docs/specs/10-db-integration.md) |
+> ~~jjrv Neo4jクライアント・データソース切替~~: jjrv分離により凍結
 
 ---
 
@@ -146,9 +123,9 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 
 | タスク | 成果物 | 仕様書 |
 |--------|--------|--------|
-| runコマンド ジョブ型 | `jj r --mode=job` | [04-run-command.md](../jj/docs/specs/04-run-command.md) |
-| fileコマンド基本 | テンプレート生成、リネーム | [06-file-command.md](../jj/docs/specs/06-file-command.md) |
-| リモート実行統合 | `jj r --remote` | [04-run-command.md](../jj/docs/specs/04-run-command.md) |
+| runコマンド ジョブ型 | `jj r --mode=job` | [04-run-command.md](specs/04-run-command.md) |
+| fileコマンド基本 | テンプレート生成、リネーム | [06-file-command.md](specs/06-file-command.md) |
+| リモート実行統合 | `jj r --remote` | [04-run-command.md](specs/04-run-command.md) |
 
 ---
 
@@ -194,7 +171,7 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 
 ---
 
-## M7: Run中心スキーマ再設計 — Phase 1完了
+## M7: Run中心スキーマ再設計 — Phase 3完了
 
 **位置づけ**: M6（ML/実験/最適化タスク対応）の知見から、jjの最重要管理対象はRunであることが明確化。全てのデータ（CAEジョブ、スクリプト実行、ML学習、物理実験、parse自体）をRunとして統一的にモデル化し、Run比較を中核機能とする。
 
@@ -216,46 +193,32 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 
 ## 仕様書リンク集
 
-### jj仕様書（`jj/docs/specs/`）
+### 仕様書（`docs/specs/`）
 
 | # | ドメイン | ファイル | 関連マイルストーン |
 |---|---------|---------|-------------------|
-| 01 | コアデータモデル | [01-core-data-model.md](../jj/docs/specs/01-core-data-model.md) | 基盤 |
-| 02 | パーサー | [02-parser.md](../jj/docs/specs/02-parser.md) | M1.5, M2 |
-| 03 | 設定管理 | [03-config.md](../jj/docs/specs/03-config.md) | M1.5, M2 |
-| 04 | runコマンド | [04-run-command.md](../jj/docs/specs/04-run-command.md) | M5 |
-| 05 | noteコマンド | [05-note-command.md](../jj/docs/specs/05-note-command.md) | — |
-| 06 | fileコマンド | [06-file-command.md](../jj/docs/specs/06-file-command.md) | M5 |
-| 07 | アダプター | [07-adapter.md](../jj/docs/specs/07-adapter.md) | M2 |
-| 08 | エクスポート | [08-export.md](../jj/docs/specs/08-export.md) | M3 |
-| 09 | ダッシュボード | [09-dashboard.md](../jj/docs/specs/09-dashboard.md) | M4 |
-| 10 | DB統合 | [10-db-integration.md](../jj/docs/specs/10-db-integration.md) | M3, M4 |
-| 11 | ダッシュボード要件 | [11-dashboard-requirements.md](../jj/docs/specs/11-dashboard-requirements.md) | M4 |
-
-### 新規仕様書（`docs/specs/`）
-
-| # | ドメイン | ファイル | 関連マイルストーン |
-|---|---------|---------|-------------------|
+| 01 | コアデータモデル | [01-core-data-model.md](specs/01-core-data-model.md) | 基盤 |
+| 02 | パーサー | [02-parser.md](specs/02-parser.md) | M1.5, M2 |
+| 03 | 設定管理 | [03-config.md](specs/03-config.md) | M1.5, M2 |
+| 04 | runコマンド | [04-run-command.md](specs/04-run-command.md) | M5 |
+| 05 | noteコマンド | [05-note-command.md](specs/05-note-command.md) | — |
+| 06 | fileコマンド | [06-file-command.md](specs/06-file-command.md) | M5 |
+| 07 | アダプター | [07-adapter.md](specs/07-adapter.md) | M2 |
+| 08 | エクスポート | [08-export.md](specs/08-export.md) | M3 |
+| 09 | ダッシュボード | [09-dashboard.md](specs/09-dashboard.md) | M2 |
+| 10 | DB統合 | [10-db-integration.md](specs/10-db-integration.md) | M3 |
+| 11 | ダッシュボード要件 | [11-dashboard-requirements.md](specs/11-dashboard-requirements.md) | M2 |
 | MS-01 | マルチソルバー対応 | [multi-solver.md](specs/multi-solver.md) | M1.5, M2 |
 | MS-02 | 解析結果ディレクトリ再構成 | [results-directory-restructure.md](specs/results-directory-restructure.md) | M2 |
 | MS-03 | ML/実験/最適化タスク対応 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6 |
 | MS-04 | Run中心スキーマ再設計 | [run-centric-schema.md](specs/run-centric-schema.md) | M7 |
-
-### jjrv仕様書（`jjrv/docs/`）
-
-| # | ドメイン | ファイル | 状態 |
-|---|---------|---------|------|
-| RM1 | ユーザー運用 | [spec-roadmap1.md](../jjrv/docs/spec-roadmap1.md) | 完了 |
-| RM2 | 検索・閲覧 | [spec-roadmap2.md](../jjrv/docs/spec-roadmap2.md) | 実装済み |
-| RM3 | 操作性 | [spec-roadmap3.md](../jjrv/docs/spec-roadmap3.md) | 一部実装 |
-| RM4 | 本番運用 | [spec-roadmap4.md](../jjrv/docs/spec-roadmap4.md) | 一部実装 |
-| RM5 | 階層制約 | [spec-roadmap5.md](../jjrv/docs/spec-roadmap5.md) | 設計済み |
-| RM6 | jj統合 | [spec-roadmap6.md](../jjrv/docs/spec-roadmap6.md) | 設計済み |
+| MS-05 | Neo4jパイプライン設計 | [neo4j-pipeline-design.md](specs/neo4j-pipeline-design.md) | M3 |
+| MS-06 | サロゲートモデルフレームワーク | [surrogate-model-framework.md](specs/surrogate-model-framework.md) | M6 |
 
 ---
 
 ## v0.1.0 アーカイブ
 
-v0.1.0のロードマップは [jj/docs/roadmap.md](../jj/docs/roadmap.md) に保存されている（Phase 0〜P、全マイルストーン完了済み）。
+v0.1.0のロードマップは [docs/roadmap-v0.1.0.md](roadmap-v0.1.0.md) に保存されている（Phase 0〜P、全マイルストーン完了済み）。
 
 レビューは [docs/review/review-v0.1.0.md](review/review-v0.1.0.md) を参照。

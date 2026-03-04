@@ -1,67 +1,22 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-jjrv/node_modules
-jjrv/.pnp
-jjrv/.pnp.*
-jjrv/.yarn/*
-!jjrv/.yarn/patches
-!jjrv/.yarn/plugins
-!jjrv/.yarn/releases
-!jjrv/.yarn/versions
-
-# testing
-jjrv/coverage
-
-# next.js
-jjrv/.next/
-jjrv/out/
-
-# production
-jjrv/build
-
-# misc
-jjrv/.DS_Store
-*.pem
-
-# debug
-jjrv/npm-debug.log*
-jjrv/yarn-debug.log*
-jjrv/yarn-error.log*
-jjrv/.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-jjrv/.env*
-
-# vercel
-jjrv/.vercel
-
-# typescript
-*.tsbuildinfo
-jjrv/next-env.d.ts
-
-*storybook.log
-
-# SQLite database
-jjrv/data/
-
 # Python-generated files
 __pycache__/
 *.py[oc]
-jj/build/
-jj/dist/
-jj/wheels/
+build/
+dist/
+wheels/
 *.egg-info
 
 # Virtual environments
-jj/.venv
+.venv
 
 # Project-specific data (generated at runtime)
-jj/.j2/config/
-jj/.j2/storage/
+.j2/config/
+.j2/storage/
 
 # Test-generated .j2 directories
 **/.j2/storage/
 
+# misc
+*.pem
 notes
 .obsidian
