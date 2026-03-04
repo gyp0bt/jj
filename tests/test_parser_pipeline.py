@@ -23,7 +23,7 @@ from services.parse.base import (
     parse,
 )
 
-ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
 # テスト間でレジストリ状態を共有するためのフィクスチャ
@@ -1013,6 +1013,10 @@ class TestPlotlyDarkModeVisibility:
     ハードコードされた色の非存在、テンプレートのFigure適用を検証する。
     """
 
+    @pytest.fixture(autouse=True)
+    def _require_plotly(self):
+        pytest.importorskip("plotly")
+
     def test_dark_template_has_light_font(self):
         """plotly_darkテンプレートのフォント色が明るい色であることを確認"""
         import plotly.io as pio
@@ -1589,7 +1593,7 @@ class TestPoolBenchmark:
     def _collect_inp_files() -> list[Path]:
         """テストアセットからINPファイルを収集"""
         asset_dirs = [
-            Path(__file__).parent.parent.parent / "shared" / "tests" / "test_asset1",
+            Path(__file__).parent.parent / "shared" / "tests" / "test_asset1",
             Path(__file__).parent / "fixtures" / "graph_test1",
         ]
         inp_files = []

@@ -15,7 +15,7 @@ from config import GraphConfig
 from jj_types import Node, Relation
 from services.graph.project_graph import ProjectGraph
 
-ML_ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset_ml"
+ML_ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset_ml"
 
 
 def _make_ml_config() -> GraphConfig:
@@ -1235,7 +1235,7 @@ class TestSurrogateFrameworkE2E:
 # CAE+ML混在 E2Eテスト: test_asset_surrogate
 # ====================================================================
 
-SURROGATE_ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset_surrogate"
+SURROGATE_ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset_surrogate"
 
 
 class TestSurrogateE2EWithCAE:

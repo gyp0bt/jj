@@ -16,7 +16,7 @@ from config import GraphConfig
 from jj_types import Node, Relation
 from services.graph.project_graph import ProjectGraph
 
-ASSET_DIR = Path(__file__).resolve().parent.parent.parent / "shared" / "tests" / "test_asset1"
+ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
 @pytest.fixture
@@ -2224,6 +2224,10 @@ class TestTimestampPersistence:
 class TestMeshTopologyGroups:
     """extract_mesh_topology_groups のテスト"""
 
+    @pytest.fixture(autouse=True)
+    def _require_pymesh(self):
+        pytest.importorskip("pymesh")
+
     def test_single_connected_group(self, tmp_path: Path):
         """ノード共有で全要素が1つの連結成分を形成"""
         from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
@@ -2542,6 +2546,10 @@ class TestDiffParserTimestamp:
 
 class TestPymeshWithModules:
     """modules/pymeshを使ったテスト"""
+
+    @pytest.fixture(autouse=True)
+    def _require_pymesh(self):
+        pytest.importorskip("pymesh")
 
     def test_mesher_with_cached_abq_data(self, tmp_path: Path):
         """cached_abq_dataを渡した場合、read_inp()がスキップされる"""
