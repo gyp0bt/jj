@@ -19,6 +19,16 @@ from services.graph.project_graph import ProjectGraph
 ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_asset1"
 
 
+def _has_pandas() -> bool:
+    """pandasが利用可能かチェック（pymeshの依存パッケージ）"""
+    try:
+        import pandas  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 @pytest.fixture
 def config() -> GraphConfig:
     return GraphConfig.from_dict(
@@ -2221,8 +2231,16 @@ class TestTimestampPersistence:
         assert loaded == {}
 
 
+@pytest.mark.skipif(
+    not _has_pandas(),
+    reason="pymesh（modules/pymesh/）の依存パッケージ(pandas)が未インストール",
+)
 class TestMeshTopologyGroups:
-    """extract_mesh_topology_groups のテスト"""
+    """extract_mesh_topology_groups のテスト
+
+    pymeshはmodules/pymesh/に存在するプロジェクト内パッケージ。
+    pymeshの依存パッケージ（pandas等）が未インストールの場合のみスキップ。
+    """
 
     def test_single_connected_group(self, tmp_path: Path):
         """ノード共有で全要素が1つの連結成分を形成"""

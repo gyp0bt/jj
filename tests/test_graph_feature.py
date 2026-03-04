@@ -3570,15 +3570,34 @@ class TestDatEnrichment:
 
 
 class TestPymeshImport:
-    """pymeshインポート修正の確認テスト"""
+    """pymeshインポート修正の確認テスト
+
+    注意: pymeshはmodules/pymesh/に存在するプロジェクト内パッケージであり、
+    optionalな外部依存ではない。pymeshの依存パッケージ（pandas等）が
+    未インストールの場合のみスキップする。依存パッケージが揃っている環境では
+    このテストは必ず通過しなければならない。
+    """
 
     def test_safe_import_pymesh_returns_functions(self):
-        """pymeshが正しくインポートできる（絶対インポート）"""
+        """pymeshが正しくインポートできる（絶対インポート）
+
+        pymeshはmodules/内のローカルパッケージ。pandasなどの依存が
+        未インストールの場合のみスキップ。依存が揃っていれば必ず通過すること。
+        """
+        import pytest
+
+        try:
+            import pandas  # noqa: F401
+        except ImportError:
+            pytest.skip("pymeshの依存パッケージ(pandas)が未インストール")
+
         from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
         create_mesher, _get_quality = _safe_import_pymesh()
-        # pymeshが利用可能ならNoneでない
-        assert create_mesher is not None, "pymeshのインポートに失敗"
+        assert create_mesher is not None, (
+            "pymeshのインポートに失敗: modules/pymesh/はプロジェクト内パッケージです。"
+            "依存パッケージ不足ではなくimportパスの問題の可能性があります。"
+        )
 
 
 class TestMaterialNameCasePreservation:
