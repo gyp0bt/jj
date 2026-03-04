@@ -68,6 +68,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [041](status-041.md) | 2026-02-21 | M2 | status-040 TODO実行: 等高線モード・サムネイル生成・ビュー編集フォーム | claude/execute-status-todos-2TD9t |
 | [042](status-042.md) | 2026-02-24 | M1 | プロジェクトデータディレクトリ .jj → .j2 リネーム | claude/rename-jj-to-j2-QV2ym |
 | [043](status-043.md) | 2026-03-04 | M1/M7 | フォルダフラット化・jjrv分離反映・M7 Phase 4 RunService統合 | claude/update-docs-jjrv-separation-KiW6d |
+| [044](status-044.md) | 2026-03-04 | M1 | テスト全件通過: パス修正・ResultParser復元・importorskip追加（159→0件） | claude/execute-status-todos-lfDl8 |
 
 ---
 
