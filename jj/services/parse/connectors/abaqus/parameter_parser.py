@@ -67,12 +67,13 @@ class AbaqusParameterParser(AbstractFileParser):
                     s = line.strip()
                     s_l = s.lower().replace(" ", "")
                     if s_l.startswith("*parameter"):
+                        # print(s_l)
                         header = f.readline()
                         if not header:
                             break
-                        header_s = header.strip().lower().replace(" ", "")
-                        if not header_s.startswith("**props"):
-                            continue
+                        # header_s = header.strip().lower().replace(" ", "")
+                        # if not header_s.startswith("**props"):
+                        # continue
                         while True:
                             line2 = f.readline()
                             if not line2:
@@ -88,9 +89,20 @@ class AbaqusParameterParser(AbstractFileParser):
                             if "=" not in u:
                                 continue
                             k, v = u.split("=", 1)
+                            # Determine if the value is numeric
+                            if v.lstrip("-").isdigit():
+                                v = str(int(v))
+                            elif "." in v:
+                                try:
+                                    v = f"{float(v):.3e}"
+                                except ValueError:
+                                    continue
+                            else:
+                                # Non-numeric string, skip this entry
+                                continue
                             if k:
                                 k = vocab.get(k, k)
-                                v = vocab.get(v, v)
+                                # v = vocab.get(v, v)
                                 props[k] = v
                         return props
         except OSError:

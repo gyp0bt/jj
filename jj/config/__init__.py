@@ -699,6 +699,7 @@ class DashboardConfig:
     """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・コネクタ固有設定"""
 
     table_columns: list[str] | None  # テーブルビュー表示カラム（globパターン対応、優先順位順）
+    exclude_table_columns: list[str] | None  # テーブルビュー非表示カラム（globパターン対応）
     default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
     plot_x: str | None  # プロットデフォルトX軸
     plot_y: str | None  # プロットデフォルトY軸
@@ -727,6 +728,7 @@ class DashboardConfig:
         if not data:
             return cls(
                 table_columns=None,
+                exclude_table_columns=None,
                 default_filters={},
                 plot_x=None,
                 plot_y=None,
@@ -741,7 +743,12 @@ class DashboardConfig:
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
-            raise ValueError("dashboard.table-columns must be list[str]")
+            raise ValueError(f"dashboard.table-columns must be list[str] ({type(table_columns)}, {table_columns})")
+        exclude_table_columns = data.get("exclude-table-columns")
+        if exclude_table_columns is not None and not isinstance(exclude_table_columns, list):
+            raise ValueError(
+                f"dashboard.exclude-table-columns must be list[str] ({type(exclude_table_columns)}, {exclude_table_columns})"
+            )
         default_filters = data.get("default-filters", {})
         if not isinstance(default_filters, dict):
             raise ValueError("dashboard.default-filters must be dict")
@@ -801,6 +808,7 @@ class DashboardConfig:
         gallery_max_image_bytes = int(raw_max_img) if raw_max_img else 0
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
+            exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
             default_filters=default_filters,
             plot_x=str(plot["x"]) if plot.get("x") is not None else None,
             plot_y=str(plot["y"]) if plot.get("y") is not None else None,

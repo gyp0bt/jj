@@ -43,8 +43,8 @@
 #     temp: 温度
 vocab:
   idx: 条件
-  ver: バージョン
-  v: バージョン
+  # ver: バージョン
+  # v: バージョン
 
 # ========================================================================
 # トークン→キーマッピング（token-key-map）
@@ -336,6 +336,12 @@ dashboard:
   #     - active
   #     - stress*
   # table-columns:
+  exclude-table-columns:
+    - type
+    - format
+    - daily_notes
+    - daily_sections
+    - verbose_name
 
   # デフォルトフィルタ（ダッシュボード起動時に適用）
   # ビュー間で共有され、session中保持されます。

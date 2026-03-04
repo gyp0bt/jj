@@ -76,6 +76,7 @@ def sort_columns_by_vocab(columns: list[str], vocab: dict[str, str]) -> list[str
 def select_table_columns(
     all_columns: list[str],
     table_columns: list[str] | None,
+    exclude_table_columns: list[str] | None = None,
     vocab: dict[str, str] | None = None,
 ) -> list[str]:
     """config指定に基づいてテーブルカラムをフィルタ・並べ替え
@@ -86,6 +87,7 @@ def select_table_columns(
     Args:
         all_columns: DataFrameの全カラム名
         table_columns: config.dashboard.table-columns（globパターン対応）
+        exclude_table_columns: 表示から除外したいカラム名リスト
         vocab: vocabマッピング（vocab順ソート用）
 
     Returns:
@@ -93,17 +95,19 @@ def select_table_columns(
     """
     # 固定カラム（常に先頭に表示）
     fixed = ["name", "type", "format"]
+    exclude_set: set[str] = set(exclude_table_columns or [])
 
     if table_columns is None:
         # table-columns未指定の場合: 固定カラム + vocab順でソート
-        remaining = [c for c in all_columns if c not in fixed]
+        remaining = [c for c in all_columns if c not in fixed and c not in exclude_set]
         if vocab:
             remaining = sort_columns_by_vocab(remaining, vocab)
-        result = [c for c in fixed if c in all_columns] + remaining
+        result = [c for c in fixed if c in all_columns and c not in exclude_set] + remaining
         return result
 
     ordered: list[str] = []
-    seen: set[str] = set(fixed)
+    # 既に確定した固定カラムと除外対象はスキップ対象にする
+    seen: set[str] = set(fixed) | exclude_set
 
     for pattern in table_columns:
         for col in all_columns:
@@ -121,5 +125,5 @@ def select_table_columns(
                     seen.add(col)
 
     # 固定カラム（存在するもののみ） + 指定カラム
-    result = [c for c in fixed if c in all_columns] + ordered
+    result = [c for c in fixed if c in all_columns and c not in exclude_set] + ordered
     return result

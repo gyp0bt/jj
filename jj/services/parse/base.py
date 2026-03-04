@@ -434,6 +434,7 @@ def parse(
     node_count = len(graph.nodes) or 1  # ゼロ除算防止
 
     for group in groups:
+        # print([i.__name__ for i in group])
         if parallel and len(group) > 1:
             graph = _run_parser_group_parallel(graph, group, debug=debug, max_workers=max_workers)
         else:

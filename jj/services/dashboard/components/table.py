@@ -91,13 +91,17 @@ class TablePage(PageComponent[TableViewConfig]):
         # nameカラムを表示名で置き換え（verbose_nameキーが存在する場合）
         if vn_key in df.columns:
             df["name"] = df[vn_key]
+            df = df.drop(vn_key, axis=1)
 
         # config駆動カラム選択（vocab順ソート対応）
         # グローバルカラム設定がある場合はそちらを優先
         table_columns = getattr(dashboard_config, "table_columns", None)
+        exclude_table_columns = getattr(dashboard_config, "exclude_table_columns", None)
         if not table_columns and provider._global_columns:
             table_columns = provider._global_columns
-        selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
+        selected_cols = select_table_columns(
+            list(df.columns), table_columns, exclude_table_columns=exclude_table_columns, vocab=vocab or {}
+        )
         if selected_cols:
             df = df[[c for c in selected_cols if c in df.columns]]
 
@@ -155,6 +159,7 @@ class TablePage(PageComponent[TableViewConfig]):
         # nameカラムを表示名で置き換え
         if vn_key in df.columns:
             df["name"] = df[vn_key]
+            df = df.drop(vn_key, axis=1)
 
         # config駆動カラム選択（vocab順ソート対応）
         # グローバルカラム設定がある場合はそちらを優先
