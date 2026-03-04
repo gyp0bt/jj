@@ -51,6 +51,7 @@ class RunService:
         cwd: Path | None = None,
         mode: str | None = None,
         record: bool = True,
+        no_parse: bool = False,
     ) -> RunResult:
         if not command:
             raise ValueError("実行コマンドが空です。")
@@ -106,7 +107,7 @@ class RunService:
         if record:
             run_result.log_path = self._write_log(resolved_cwd, run_result)
             if resolved_mode == "script":
-                self._update_graph_storage(resolved_cwd, run_result)
+                self._update_graph_storage(resolved_cwd, run_result, no_parse=no_parse)
 
         return run_result
 
@@ -263,15 +264,37 @@ class RunService:
                 return "cae_job"
         return "script"
 
-    def _update_graph_storage(self, project_root: Path, result: RunResult) -> None:
-        """GraphStorageに実行ログと生成ファイルの関係をRun Nodeとして記録する
+    def _update_graph_storage(self, project_root: Path, result: RunResult, *, no_parse: bool = False) -> None:
+        """parse実行後のグラフにRun Nodeを記録する
 
-        M7 Phase 4: ProjectGraph.add_run_node()を使い、run_input/run_output/run_media
-        構造的リレーションでRunを統一的に記録する。
+        parse-run統合: まずparse_and_save()でプロジェクトを再スキャンし、
+        run実行で生成・変更されたファイルをパーサーパイプラインが検出する。
+        その最新グラフ上にruntimeのRun Nodeを追加する。
+
+        これにより:
+        - trace_filesのノードはparseが正確に生成（手動作成不要）
+        - RunDiscoverer（CaeRunDiscoverer等）がlatent runも同時に発見
+        - parse結果とrun結果が同一グラフで統合される
+
+        Args:
+            project_root: プロジェクトルート
+            result: コマンド実行結果
+            no_parse: Trueの場合、parseをスキップして既存グラフをロード
         """
-        storage = GraphStorage()
-        graph_model = storage.load(project_root)
-        config = GraphConfig.load(project_root)
+        if no_parse:
+            # parseスキップ: 既存グラフをロードして従来通りRun Nodeのみ追加
+            storage = GraphStorage()
+            graph_model = storage.load(project_root)
+            config = GraphConfig.load(project_root)
+        else:
+            from services.graph import GraphService
+
+            graph_service = GraphService(project_root=project_root)
+            # parse_and_saveでプロジェクトを再スキャン
+            # → run実行で生成されたファイルがNodeとして検出される
+            graph_model, _ = graph_service.parse_and_save()
+            config = graph_service.config
+
         project_graph = ProjectGraph(
             nodes=list(graph_model.nodes),
             relations=list(graph_model.relations),
@@ -282,7 +305,7 @@ class RunService:
         script_name = result.script_path.name if result.script_path else " ".join(result.command)
         run_type = self._detect_run_type(result)
 
-        # スクリプトノードをmediaとして特定
+        # parseが生成したノードからスクリプトをmediaとして特定
         media_node_ids: list[int] = []
         if result.script_path:
             rel_path = result.script_path.name
@@ -294,10 +317,9 @@ class RunService:
                     media_node_ids.append(node.id)
                     break
 
-        # trace_filesの各ファイルに対してoutputノードIDを収集・作成
+        # parseが生成したノードからtrace_filesのoutputノードIDを収集
         output_node_ids: list[int] = []
         for trace_file in result.trace_files:
-            # 既存のfileノードを検索
             file_node = next(
                 (n for n in project_graph.nodes if n.properties.get("path") == trace_file),
                 None,
@@ -308,7 +330,7 @@ class RunService:
                     None,
                 )
             if file_node is None:
-                # fileノードを作成
+                # parseで検出されなかったファイル（.j2内等）は手動作成
                 file_node = Node(
                     id=project_graph.next_node_id(),
                     type="file",
@@ -341,7 +363,7 @@ class RunService:
             discovery="runtime",
         )
 
-        # GraphStorageに保存
+        # Run Node追加後のグラフを保存
         graph_model = project_graph.to_graph_model()
         storage = GraphStorage()
         storage.save(project_root, graph_model)

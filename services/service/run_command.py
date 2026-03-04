@@ -28,6 +28,7 @@ class RunCommandService:
         command: list[str],
         cwd: str | Path = ".",
         mode: str | None = None,
+        no_parse: bool = False,
     ) -> RunResult:
         """コマンドを実行する
 
@@ -35,6 +36,7 @@ class RunCommandService:
             command: 実行コマンド（"--"を含む場合は自動除去）
             cwd: 実行ディレクトリ（文字列またはPath）
             mode: 実行モード（None or "auto"で自動判定, "script", "job"）
+            no_parse: Trueの場合、実行後のparse自動実行をスキップ
 
         Returns:
             RunResult: 実行結果
@@ -57,4 +59,5 @@ class RunCommandService:
             command=cleaned,
             cwd=resolved_cwd,
             mode=resolved_mode,
+            no_parse=no_parse,
         )
