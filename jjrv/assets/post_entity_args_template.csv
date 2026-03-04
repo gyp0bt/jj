@@ -1,2 +1,0 @@
-﻿id,name,entityType,userTags,domain,remark,userProps:カテゴリ,userProps:サブカテゴリ,userProps:製品,userProps:事業部,userProps:案件,userProps:依頼番号,bodypath
-1,test,Material,"abaqus,material",abaqus_inp,API(POST)テスト,金属,アルミニウム,製品A,事業部A,案件A,abc,assets/material.inp
