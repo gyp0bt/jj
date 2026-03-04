@@ -9,7 +9,7 @@ for i, t in enumerate(t_list):
         with open(j) as f:
             org_data = f.read()
         data = org_data
-        data = data.replace("t95.v8", f"t{str(int(t))}.v{v}")
+        data = data.replace("t95.v8", f"t{int(t)!s}.v{v}")
         with open(filename, "w") as f:
             f.write(data)
         idx += 1

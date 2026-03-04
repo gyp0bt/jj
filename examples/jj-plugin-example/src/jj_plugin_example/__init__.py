@@ -42,7 +42,7 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（__init_subclass__で自動登録）
-    import jj_plugin_example.parser  # noqa: F401
+    import jj_plugin_example.parser
 
     # ダッシュボードコネクターのインポート（optional）
     try:

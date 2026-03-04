@@ -9,10 +9,10 @@ from __future__ import annotations
 
 def test_parser_registered():
     """ExampleSolverParserがパーサーレジストリに登録される"""
-    from services.parse.base import get_parser_registry
-
     # プラグインをインポート（自動登録される）
     import jj_plugin_example  # noqa: F401
+
+    from services.parse.base import get_parser_registry
 
     registry = get_parser_registry()
     cls_names = [cls.__name__ for cls in registry]
@@ -21,9 +21,9 @@ def test_parser_registered():
 
 def test_dashboard_connector_registered():
     """ExampleSolverPageConnectorがレジストリに登録される"""
-    from services.dashboard.connectors import DashboardPageConnector
-
     import jj_plugin_example  # noqa: F401
+
+    from services.dashboard.connectors import DashboardPageConnector
 
     assert "Exampleサマリー" in DashboardPageConnector._registry
 

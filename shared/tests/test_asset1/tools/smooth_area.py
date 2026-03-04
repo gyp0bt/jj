@@ -1,11 +1,11 @@
 import numpy as np
 from pymesh import mesher
-from pymesh.misc.smoothing import v2 as sm
 from pymesh.misc.smoothing import (
     build_quads_from_labels,
     # area_preserving_laplacian_smoothing_quads,
     # smooth_minimize_area_error_quads,
 )
+from pymesh.misc.smoothing import v2 as sm
 
 mesh_path = "assets/tmp.inp"
 # mesh_path = "assets/tmp3.inp"

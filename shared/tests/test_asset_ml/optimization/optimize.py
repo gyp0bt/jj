@@ -1,8 +1,6 @@
 """Optuna hyperparameter optimization script."""
 
 import optuna
-import torch
-import yaml
 
 
 def objective(trial):

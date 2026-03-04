@@ -2,9 +2,7 @@
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 import yaml
-import numpy as np
 
 
 def load_config(config_path):

@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 
 sys.path.append(os.getcwd())
 
@@ -7,13 +7,12 @@ import glob
 import io
 
 import numpy as np
-import plotly.express as px
-from plotly import graph_objects as go
 import pandas as pd
+import plotly.express as px
+import streamlit as st
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
-
-import streamlit as st
+from plotly import graph_objects as go
 from st_aggrid import AgGrid
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 
@@ -196,7 +195,7 @@ grouped_elements = {
     ]
 }
 
-options_list = {k: [] for k in grouped_elements.keys()}
+options_list = {k: [] for k in grouped_elements}
 
 with st.sidebar.form(key="option_form"):
     for k, v in grouped_elements.items():
