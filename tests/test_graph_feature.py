@@ -3574,7 +3574,6 @@ class TestPymeshImport:
 
     def test_safe_import_pymesh_returns_functions(self):
         """pymeshが正しくインポートできる（絶対インポート）"""
-        pytest.importorskip("pymesh")
         from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
         create_mesher, _get_quality = _safe_import_pymesh()
