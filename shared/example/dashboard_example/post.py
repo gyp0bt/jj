@@ -64,12 +64,7 @@ def parse(s: str) -> dict:
         filename=s,
     )
     data = {
-        k: (
-            float(v)
-            if k not in ["name", "filename", "index", "type", "parsed_name"]
-            else v
-        )
-        for k, v in data.items()
+        k: (float(v) if k not in ["name", "filename", "index", "type", "parsed_name"] else v) for k, v in data.items()
     }
     data["extra_length_ratio"] = (
         # (data["length"] - data["distance"]) / data["length"] * 100.0
@@ -90,9 +85,7 @@ def parse(s: str) -> dict:
     else:
         type = "通常/その他"
 
-    parsed_name = (
-        f"{index}, 電線長:{length}mm, 端末間距離:{distance}mm, 変位量:{displacement}mm"
-    )
+    parsed_name = f"{index}, 電線長:{length}mm, 端末間距離:{distance}mm, 変位量:{displacement}mm"
     data["type"] = type
     data["parsed_name"] = parsed_name
     data["jp_dict"] = {
@@ -133,7 +126,7 @@ st.set_page_config(layout="wide")
 df = pd.read_csv("./reports/area_sk1_results.csv", encoding="shift-jis")
 
 args = parse(df["filename"].values.tolist()[0])
-df.columns = [args["jp_dict"][i] if i in args["jp_dict"] else i for i in df.columns]
+df.columns = [args["jp_dict"].get(i, i) for i in df.columns]
 xcol_list = [
     args["jp_dict"][i]
     for i in [
@@ -148,10 +141,7 @@ xcol_list = [
         "offset",
     ]
 ]
-ycol_list = [
-    args["jp_dict"][i]
-    for i in ["max", "fix", "move", "center", "cumulative_damage_degree"]
-]
+ycol_list = [args["jp_dict"][i] for i in ["max", "fix", "move", "center", "cumulative_damage_degree"]]
 
 names = df[args["jp_dict"]["name"]]
 df = df[
@@ -174,9 +164,7 @@ st.subheader("結果一覧")
 gb = GridOptionsBuilder.from_dataframe(df)
 # gb.configure_pagination()
 gb.configure_side_bar()
-gb.configure_default_column(
-    groupable=True, value=True, enableRowGroup=True, aggFunc="sum", editable=True
-)
+gb.configure_default_column(groupable=True, value=True, enableRowGroup=True, aggFunc="sum", editable=True)
 gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 gridOptions = gb.build()
 response = AgGrid(df, gridOptions=gridOptions, enable_enterprise_modules=True)
@@ -251,9 +239,7 @@ if df_display.shape[0] == 0:
     st.warning("条件が存在しません。")
 
 else:
-    df_xlsx = df_display[
-        [i for i in df.columns if i not in [args["jp_dict"][j] for j in ["filename"]]]
-    ]
+    df_xlsx = df_display[[i for i in df.columns if i not in [args["jp_dict"][j] for j in ["filename"]]]]
     excel_data = create_excel_with_meiryo(df_xlsx)
     st.download_button(
         label="Download Excel",
@@ -282,7 +268,7 @@ else:
     group_keys = ["length", "distance", "acceleration", "rxf", "rxm", "rzm", "offset"]
     group_keys = [args["jp_dict"][i] for i in group_keys]
     grouped_df = df_display.copy().groupby(group_keys)
-    for i, df_i in grouped_df:
+    for _i, df_i in grouped_df:
         fig.add_trace(
             go.Scatter(
                 x=df_i[xcol],
@@ -313,9 +299,7 @@ else:
         fig.update_layout(xaxis_type="log")
 
         if ycol != args["jp_dict"]["cumulative_damage_degree"]:
-            x_values = np.linspace(
-                df_display[xcol].min() * 0.9, df_display[xcol].max() * 1.1, 100
-            )
+            x_values = np.linspace(df_display[xcol].min() * 0.9, df_display[xcol].max() * 1.1, 100)
 
             def baskin(k):
                 return 0.0414 * k ** (-0.11)
@@ -383,9 +367,7 @@ else:
                         if os.path.exists("./reports/" + filename + ".merged.png"):
                             st.image("./reports/" + filename + ".merged.png")
                         else:
-                            st.warning(
-                                f"画像がありません(./reports/{filename}.merged.png)"
-                            )
+                            st.warning(f"画像がありません(./reports/{filename}.merged.png)")
                     case "gif":
                         if os.path.exists("./reports/" + filename + ".gif"):
                             with open("./reports/" + filename + ".gif", "rb") as f:

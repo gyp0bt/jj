@@ -20,9 +20,7 @@ fixed_mask[indices] = True
 node_coord_arr = m.get_node_coord_array()
 elem_arr = m.get_element_array()
 
-quads = build_quads_from_labels(
-    node_coord_arr=node_coord_arr, elem_arr=elem_arr, elem_has_elem_label=True
-)
+quads = build_quads_from_labels(node_coord_arr=node_coord_arr, elem_arr=elem_arr, elem_has_elem_label=True)
 points_new, stats = sm.optimize_quads_soft_equal_area_with_tangent_boundary(
     points0=points[:, 1:-1],
     quads=quads,

@@ -5,8 +5,8 @@ import torch
 
 
 def evaluate(model_path, test_data_path):
-    model = torch.load(model_path, map_location="cpu")
-    data = np.load(test_data_path)
+    _model = torch.load(model_path, map_location="cpu")
+    _data = np.load(test_data_path)
     return {"accuracy": 0.95, "f1": 0.93}
 
 

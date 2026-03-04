@@ -46,9 +46,7 @@ class ExampleSolverPageConnector(DashboardPageConnector):
 
         st.header("Exampleサマリー")
 
-        example_nodes = [
-            n for n in provider.graph.nodes if n.properties.get("example_parsed")
-        ]
+        example_nodes = [n for n in provider.graph.nodes if n.properties.get("example_parsed")]
 
         if not example_nodes:
             st.info("Exampleデータが見つかりません。")
@@ -76,9 +74,7 @@ class ExampleSolverPageConnector(DashboardPageConnector):
         """ExampleサマリーのHTML断片を生成"""
         import pandas as pd
 
-        example_nodes = [
-            n for n in provider.graph.nodes if n.properties.get("example_parsed")
-        ]
+        example_nodes = [n for n in provider.graph.nodes if n.properties.get("example_parsed")]
 
         if not example_nodes:
             return "<p>Exampleデータが見つかりません。</p>"
@@ -93,6 +89,4 @@ class ExampleSolverPageConnector(DashboardPageConnector):
             )
 
         df = pd.DataFrame(rows)
-        return (
-            f"<h3>Exampleサマリー</h3>\n{df.to_html(index=False, classes='dataframe')}"
-        )
+        return f"<h3>Exampleサマリー</h3>\n{df.to_html(index=False, classes='dataframe')}"

@@ -12,8 +12,8 @@ def load_config(config_path):
 
 def train(config):
     model = torch.hub.load("pytorch/vision", config["model"]["name"].lower())
-    optimizer = torch.optim.Adam(model.parameters(), lr=config["training"]["learning_rate"])
-    criterion = nn.CrossEntropyLoss()
+    _optimizer = torch.optim.Adam(model.parameters(), lr=config["training"]["learning_rate"])
+    _criterion = nn.CrossEntropyLoss()
     return model
 
 
