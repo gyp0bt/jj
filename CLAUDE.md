@@ -19,7 +19,7 @@
 
 | 項目 | 規約 |
 |------|------|
-| テスト | `pytest`。`pip install -e ".[dev]"`。optional依存は `importorskip` |
+| テスト | `pytest`。`pip install -e ".[dev]"`。外部optional依存（pandas, plotly等）は `importorskip`。**pymesh（modules/pymesh/）はプロジェクト内パッケージであり、optionalではない。** pymeshのテスト失敗はimportパスや依存パッケージ不足の問題として調査すること。 |
 | lint/format | `ruff check .` + `ruff format --check .`（E/W/F/I/UP/B/SIM/RUF） |
 | 依存管理 | コア最小（pydantic, pyyaml, networkx, chardet, ftfy, numpy）。optional依存はグループ分け |
 

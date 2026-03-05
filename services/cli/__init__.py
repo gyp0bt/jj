@@ -172,6 +172,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pr.add_argument("--cwd", default=".", help="実行ディレクトリ")
     pr.add_argument(
+        "--no-parse",
+        action="store_true",
+        default=False,
+        help="実行後のparse自動実行をスキップ",
+    )
+    pr.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="実行コマンド（-- 以降に指定）",
@@ -345,10 +351,11 @@ def run_run(args: argparse.Namespace) -> int:
     command = list(getattr(args, "command", []) or [])
     mode = getattr(args, "mode", "auto")
     cwd = getattr(args, "cwd", ".")
+    no_parse = getattr(args, "no_parse", False)
 
     service = RunCommandService()
     try:
-        result = service.execute(command=command, cwd=cwd, mode=mode)
+        result = service.execute(command=command, cwd=cwd, mode=mode, no_parse=no_parse)
     except ValueError as e:
         print(str(e))
         return 1
