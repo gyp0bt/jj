@@ -139,12 +139,19 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         if selected_indices:
             groups = OrderedDict((k, v) for k, v in groups.items() if k in selected_indices)
 
+        # Runノード情報の収集
+        run_map = _build_run_map(provider, rows)
+
         st.caption(f"{len(groups)} グループ / {sum(len(v) for v in groups.values())} ノード")
 
+        # Run情報サマリー
+        if run_map:
+            _render_run_summary(run_map)
+
         if view_mode == "グリッド俯瞰":
-            _render_grid_overview(groups, vn_key, version_key, index_key, provider)
+            _render_grid_overview(groups, vn_key, version_key, index_key, provider, run_map)
         else:
-            _render_block_diagram(groups, vn_key, version_key, index_key, provider)
+            _render_block_diagram(groups, vn_key, version_key, index_key, provider, run_map)
 
 
 # ====================================================================
@@ -185,6 +192,7 @@ def _render_grid_overview(
     version_key: str,
     index_key: str,
     provider: DashboardDataProvider,
+    run_map: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """全indexをグリッドで俯瞰表示"""
     import streamlit as st
@@ -240,10 +248,15 @@ def _render_grid_overview(
                         unsafe_allow_html=True,
                     )
                 else:
-                    _render_status_block(row_data, diff_keys)
+                    run_info = run_map.get(row_data["id"]) if run_map else None
+                    _render_status_block(row_data, diff_keys, run_info=run_info)
 
 
-def _render_status_block(row: dict[str, Any], diff_keys: list[str]) -> None:
+def _render_status_block(
+    row: dict[str, Any],
+    diff_keys: list[str],
+    run_info: dict[str, Any] | None = None,
+) -> None:
     """1ノードのステータスブロック（コンパクト）"""
     import streamlit as st
 
@@ -264,12 +277,18 @@ def _render_status_block(row: dict[str, Any], diff_keys: list[str]) -> None:
                 val_str = val_str[:17] + "..."
             diff_lines.append(f"<span style='color:#6b7280;font-size:0.75em;'>{k}: {val_str}</span>")
 
+    # Run情報の追加
+    run_html = ""
+    if run_info:
+        run_html = _format_run_badge(run_info)
+
     diff_html = "<br>".join(diff_lines) if diff_lines else ""
 
     html = (
         f'<div style="padding:8px;border:2px solid {border_color};'
         f'background:{bg_color};border-radius:6px;">'
         f"<div style='font-size:0.85em;font-weight:600;'>{status}</div>"
+        f"{run_html}"
         f"{diff_html}"
         f"</div>"
     )
@@ -287,6 +306,7 @@ def _render_block_diagram(
     version_key: str,
     index_key: str,
     provider: DashboardDataProvider,
+    run_map: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """各indexのブロック図+差分テーブルを詳細表示"""
     import streamlit as st
@@ -300,14 +320,19 @@ def _render_block_diagram(
 
         if len(group_rows) == 1:
             # 単一バージョン: ブロック図のみ
-            _render_single_block(group_rows[0], version_key, vn_key)
+            _render_single_block(group_rows[0], version_key, vn_key, run_map=run_map)
         else:
             # 複数バージョン: ブロック図 + 差分テーブル
-            _render_version_blocks(group_rows, version_key, vn_key, index_key)
+            _render_version_blocks(group_rows, version_key, vn_key, index_key, run_map=run_map)
             _render_diff_table(group_rows, version_key, index_key, vn_key)
 
 
-def _render_single_block(row: dict[str, Any], version_key: str, vn_key: str) -> None:
+def _render_single_block(
+    row: dict[str, Any],
+    version_key: str,
+    vn_key: str,
+    run_map: dict[int, dict[str, Any]] | None = None,
+) -> None:
     """単一バージョンのブロック表示"""
     import streamlit as st
 
@@ -321,12 +346,16 @@ def _render_single_block(row: dict[str, Any], version_key: str, vn_key: str) -> 
     }
     border, bg, text = color_map.get(status, ("#6b7280", "#f9fafb", "#374151"))
 
+    run_info = run_map.get(row["id"]) if run_map else None
+    run_html = _format_run_badge(run_info) if run_info else ""
+
     html = (
         f'<div style="display:inline-block;padding:12px 20px;border:2px solid {border};'
         f'background:{bg};border-radius:8px;min-width:200px;">'
         f'<div style="font-weight:700;color:{text};font-size:1em;">{name}</div>'
         f'<div style="color:#6b7280;font-size:0.8em;">version: {version}</div>'
         f'<div style="color:{text};font-size:0.85em;margin-top:4px;">{status}</div>'
+        f"{run_html}"
         f"</div>"
     )
     st.markdown(html, unsafe_allow_html=True)
@@ -337,6 +366,7 @@ def _render_version_blocks(
     version_key: str,
     vn_key: str,
     index_key: str,
+    run_map: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """複数バージョンを横並びブロックで表示"""
     import streamlit as st
@@ -354,12 +384,16 @@ def _render_version_blocks(
             }
             border, bg, text = color_map.get(status, ("#6b7280", "#f9fafb", "#374151"))
 
+            run_info = run_map.get(row["id"]) if run_map else None
+            run_html = _format_run_badge(run_info) if run_info else ""
+
             html = (
                 f'<div style="padding:12px;border:2px solid {border};'
                 f'background:{bg};border-radius:8px;">'
                 f'<div style="font-weight:700;color:{text};font-size:0.95em;">{name}</div>'
                 f'<div style="color:#6b7280;font-size:0.8em;">version: {version}</div>'
                 f'<div style="color:{text};font-size:0.85em;margin-top:4px;">{status}</div>'
+                f"{run_html}"
                 f"</div>"
             )
             st.markdown(html, unsafe_allow_html=True)
@@ -474,6 +508,77 @@ def _generate_batch_html(
 # ====================================================================
 # ユーティリティ
 # ====================================================================
+
+
+def _build_run_map(
+    provider: DashboardDataProvider,
+    rows: list[dict[str, Any]],
+) -> dict[int, dict[str, Any]]:
+    """各go_ノードに紐付くRunノード情報のマップを構築
+
+    Returns:
+        {node_id: run_info_dict} のマッピング。Runが無い場合は空dict。
+    """
+    run_map: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        node_id = row["id"]
+        run_info = provider.get_run_for_node(node_id)
+        if run_info is not None:
+            run_map[node_id] = run_info
+    return run_map
+
+
+def _render_run_summary(run_map: dict[int, dict[str, Any]]) -> None:
+    """Runノード情報のサマリーを表示"""
+    import streamlit as st
+
+    run_types: dict[str, int] = {}
+    run_statuses: dict[str, int] = {}
+    for info in run_map.values():
+        rt = info.get("run_type", "unknown")
+        rs = info.get("run_status", "unknown")
+        run_types[rt] = run_types.get(rt, 0) + 1
+        run_statuses[rs] = run_statuses.get(rs, 0) + 1
+
+    parts: list[str] = [f"Run紐付き: {len(run_map)}件"]
+    for rt, count in sorted(run_types.items()):
+        parts.append(f"{rt}: {count}")
+    for rs, count in sorted(run_statuses.items()):
+        parts.append(f"{rs}: {count}")
+
+    st.caption(" | ".join(parts))
+
+
+def _format_run_badge(run_info: dict[str, Any]) -> str:
+    """Run情報のHTMLバッジを生成"""
+    run_type = run_info.get("run_type", "")
+    run_status = run_info.get("run_status", "")
+    duration = run_info.get("duration_seconds")
+
+    type_colors = {
+        "cae_job": "#3b82f6",
+        "ml_training": "#8b5cf6",
+        "script": "#f59e0b",
+    }
+    badge_color = type_colors.get(run_type, "#6b7280")
+
+    parts: list[str] = []
+    if run_type:
+        parts.append(run_type)
+    if run_status:
+        parts.append(run_status)
+    if duration is not None:
+        parts.append(f"{float(duration):.1f}s")
+
+    label = " / ".join(parts) if parts else "Run"
+
+    return (
+        f'<div style="margin-top:4px;">'
+        f'<span style="display:inline-block;padding:1px 6px;'
+        f"background:{badge_color};color:#fff;border-radius:4px;"
+        f'font-size:0.7em;">{label}</span>'
+        f"</div>"
+    )
 
 
 def _find_varying_keys(
