@@ -711,6 +711,7 @@ class DashboardConfig:
     group_line_key: str | None  # グループ結線キー（同一値のデータ点を結線）
     plot_style: dict[str, int]  # プロットスタイル（marker_size, line_width, font_size）
     gallery_max_image_bytes: int  # ギャラリーHTMLエクスポート時の1画像あたりの最大バイト数（0=無制限）
+    array_plot_defaults: dict[str, Any]  # 配列プロットデフォルト設定（x, y, x_min, x_max, y_min, y_max）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -740,6 +741,7 @@ class DashboardConfig:
                 group_line_key=None,
                 plot_style={},
                 gallery_max_image_bytes=0,
+                array_plot_defaults={},
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -806,6 +808,26 @@ class DashboardConfig:
         # ギャラリーHTMLエクスポートの画像サイズ上限（バイト単位、デフォルト: 5MB）
         raw_max_img = data.get("gallery-max-image-bytes", 5 * 1024 * 1024)
         gallery_max_image_bytes = int(raw_max_img) if raw_max_img else 0
+        # 配列プロットデフォルト設定
+        raw_array_plot = data.get("array-plot", {})
+        if not isinstance(raw_array_plot, dict):
+            raw_array_plot = {}
+        array_plot_defaults: dict[str, Any] = {}
+        if raw_array_plot.get("x"):
+            array_plot_defaults["x"] = str(raw_array_plot["x"])
+        raw_ap_y = raw_array_plot.get("y")
+        if raw_ap_y:
+            if isinstance(raw_ap_y, list):
+                array_plot_defaults["y"] = [str(k) for k in raw_ap_y]
+            else:
+                array_plot_defaults["y"] = [str(raw_ap_y)]
+        for range_key in ("x_min", "x_max", "y_min", "y_max"):
+            yaml_key = range_key.replace("_", "-")
+            val = raw_array_plot.get(yaml_key)
+            if val is None:
+                val = raw_array_plot.get(range_key)
+            if val is not None:
+                array_plot_defaults[range_key] = float(val)
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -820,6 +842,7 @@ class DashboardConfig:
             group_line_key=group_line_key,
             plot_style=plot_style,
             gallery_max_image_bytes=gallery_max_image_bytes,
+            array_plot_defaults=array_plot_defaults,
         )
 
 

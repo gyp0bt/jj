@@ -6406,3 +6406,193 @@ class TestViewEditFormPlotConfig:
         assert style == {"line_width": 2}
         assert "marker_size" not in style
         assert "font_size" not in style
+
+
+# ====================================================================
+# DashboardConfig array_plot_defaults テスト
+# ====================================================================
+
+
+class TestDashboardConfigArrayPlotDefaults:
+    """DashboardConfig の array_plot_defaults テスト"""
+
+    def test_array_plot_defaults_empty_by_default(self):
+        """デフォルトでarray_plot_defaultsは空辞書"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({})
+        assert config.array_plot_defaults == {}
+
+    def test_array_plot_defaults_with_x_y(self):
+        """x, yキーを指定"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "array-plot": {
+                    "x": "U.U1",
+                    "y": ["RF.RF3", "RF.RF1"],
+                }
+            }
+        )
+        assert config.array_plot_defaults["x"] == "U.U1"
+        assert config.array_plot_defaults["y"] == ["RF.RF3", "RF.RF1"]
+
+    def test_array_plot_defaults_with_ranges(self):
+        """軸範囲を指定"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "array-plot": {
+                    "x-min": 0.0,
+                    "x-max": 10.0,
+                    "y-min": -5.0,
+                    "y-max": 100.0,
+                }
+            }
+        )
+        assert config.array_plot_defaults["x_min"] == 0.0
+        assert config.array_plot_defaults["x_max"] == 10.0
+        assert config.array_plot_defaults["y_min"] == -5.0
+        assert config.array_plot_defaults["y_max"] == 100.0
+
+    def test_array_plot_defaults_underscore_keys(self):
+        """アンダースコア形式のキーも対応"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "array-plot": {
+                    "x_min": 1.0,
+                    "y_max": 50.0,
+                }
+            }
+        )
+        assert config.array_plot_defaults["x_min"] == 1.0
+        assert config.array_plot_defaults["y_max"] == 50.0
+
+    def test_array_plot_defaults_y_as_string(self):
+        """y を文字列で指定するとリストに変換"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "array-plot": {
+                    "y": "RF.RF3",
+                }
+            }
+        )
+        assert config.array_plot_defaults["y"] == ["RF.RF3"]
+
+    def test_array_plot_defaults_invalid_type_ignored(self):
+        """array-plotが辞書でない場合は空辞書"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict({"array-plot": "invalid"})
+        assert config.array_plot_defaults == {}
+
+    def test_array_plot_defaults_full_config(self):
+        """全設定を指定"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "array-plot": {
+                    "x": "U.U1",
+                    "y": ["RF.RF3"],
+                    "x-min": 0.0,
+                    "x-max": 1.0,
+                    "y-min": -10.0,
+                    "y-max": 200.0,
+                }
+            }
+        )
+        assert config.array_plot_defaults["x"] == "U.U1"
+        assert config.array_plot_defaults["y"] == ["RF.RF3"]
+        assert config.array_plot_defaults["x_min"] == 0.0
+        assert config.array_plot_defaults["x_max"] == 1.0
+        assert config.array_plot_defaults["y_min"] == -10.0
+        assert config.array_plot_defaults["y_max"] == 200.0
+
+
+# ====================================================================
+# 配列プロットヘルパー関数テスト
+# ====================================================================
+
+
+class TestArrayPlotHelpers:
+    """配列プロットヘルパー関数のテスト"""
+
+    def test_find_key_index_found(self):
+        """キーが見つかった場合のインデックス"""
+        from services.dashboard.components.array_plot import _find_key_index
+
+        keys = ["RF.time", "RF.RF1", "RF.RF3"]
+        assert _find_key_index(keys, "RF.RF1") == 1
+
+    def test_find_key_index_not_found(self):
+        """キーが見つからない場合は0"""
+        from services.dashboard.components.array_plot import _find_key_index
+
+        keys = ["RF.time", "RF.RF1"]
+        assert _find_key_index(keys, "U.U1") == 0
+
+    def test_find_key_index_none_target(self):
+        """target=Noneの場合は0"""
+        from services.dashboard.components.array_plot import _find_key_index
+
+        assert _find_key_index(["RF.time"], None) == 0
+
+    def test_find_key_index_empty_keys(self):
+        """空リストの場合は0"""
+        from services.dashboard.components.array_plot import _find_key_index
+
+        assert _find_key_index([], "RF.time") == 0
+
+    def test_get_default_y_keys_list(self):
+        """リストから利用可能なキーをフィルタ"""
+        from services.dashboard.components.array_plot import _get_default_y_keys
+
+        options = ["RF.RF1", "RF.RF3", "U.U1"]
+        result = _get_default_y_keys(options, ["RF.RF3", "U.U2"])
+        assert result == ["RF.RF3"]
+
+    def test_get_default_y_keys_string(self):
+        """文字列を自動リスト変換"""
+        from services.dashboard.components.array_plot import _get_default_y_keys
+
+        result = _get_default_y_keys(["RF.RF1", "RF.RF3"], "RF.RF3")
+        assert result == ["RF.RF3"]
+
+    def test_get_default_y_keys_none(self):
+        """Noneの場合は空リスト"""
+        from services.dashboard.components.array_plot import _get_default_y_keys
+
+        assert _get_default_y_keys(["RF.RF1"], None) == []
+
+    def test_get_array_plot_defaults_empty_config(self):
+        """空のDashboardConfigから空辞書を返す"""
+        from config import DashboardConfig
+        from services.dashboard.components.array_plot import _get_array_plot_defaults
+
+        config = DashboardConfig.from_dict({})
+        assert _get_array_plot_defaults(config) == {}
+
+    def test_get_array_plot_defaults_with_values(self):
+        """設定済みDashboardConfigから値を返す"""
+        from config import DashboardConfig
+        from services.dashboard.components.array_plot import _get_array_plot_defaults
+
+        config = DashboardConfig.from_dict({"array-plot": {"x": "U.U1", "y": ["RF.RF3"], "y-min": 0.0, "y-max": 100.0}})
+        defaults = _get_array_plot_defaults(config)
+        assert defaults["x"] == "U.U1"
+        assert defaults["y"] == ["RF.RF3"]
+        assert defaults["y_min"] == 0.0
+        assert defaults["y_max"] == 100.0
+
+    def test_get_array_plot_defaults_none_config(self):
+        """config=Noneの場合は空辞書"""
+        from services.dashboard.components.array_plot import _get_array_plot_defaults
+
+        assert _get_array_plot_defaults(None) == {}
