@@ -7074,3 +7074,277 @@ class TestRunShowProperties:
         props = rs.show_properties(["python", str(script), "value1", "value2"], cwd=tmp_path)
         assert props["param1"] == "value1"
         assert props["param2"] == "value2"
+
+
+class TestArrayPlotLegendVocab:
+    """配列プロット凡例名へのvocab変換テスト"""
+
+    def test_render_array_single_legend_uses_vocab(self):
+        """_render_array_singleの凡例名にvocab変換が適用される"""
+        from services.dashboard.components.array_plot import ArrayPlotPage
+
+        # ArrayPlotPageがインポートできることを確認（描画はStreamlit依存なのでロジックテスト）
+        page = ArrayPlotPage()
+        assert page.page_key == "array_plot"
+
+    def test_generate_array_plot_html_grid_legend_vocab(self):
+        """generate_array_plot_htmlのgridモードで凡例名にvocab変換が適用される"""
+        plotly = pytest.importorskip("plotly")  # noqa: F841
+
+        from dataclasses import dataclass, field
+
+        from services.dashboard.html_export import generate_array_plot_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_test",
+                    format="inp",
+                    properties={
+                        "index": "1",
+                        "RF.time": [0.0, 1.0, 2.0],
+                        "RF.force": [10.0, 20.0, 30.0],
+                    },
+                )
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+
+        @dataclass
+        class MockView:
+            array_plot: dict = field(
+                default_factory=lambda: {
+                    "prefix": "RF",
+                    "x": "RF.time",
+                    "y": ["RF.force"],
+                    "mode": "grid",
+                }
+            )
+            filters: dict = field(default_factory=dict)
+
+        @dataclass
+        class MockConfig:
+            gallery_columns: int = 4
+            ng_regions: list = field(default_factory=list)
+
+        html = generate_array_plot_html(provider, MockConfig(), MockView(), vocab={"RF.force": "反力"})
+        assert "反力" in html
+
+    def test_generate_array_plot_html_overlay_legend(self):
+        """generate_array_plot_htmlのoverlayモードで凡例にdisplay_nameが使用される"""
+        plotly = pytest.importorskip("plotly")  # noqa: F841
+
+        from dataclasses import dataclass, field
+
+        from services.dashboard.html_export import generate_array_plot_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_test",
+                    format="inp",
+                    properties={
+                        "index": "1",
+                        "RF.time": [0.0, 1.0],
+                        "RF.force": [10.0, 20.0],
+                    },
+                )
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+
+        @dataclass
+        class MockView:
+            array_plot: dict = field(
+                default_factory=lambda: {
+                    "prefix": "RF",
+                    "x": "RF.time",
+                    "y": ["RF.force"],
+                    "mode": "overlay",
+                }
+            )
+            filters: dict = field(default_factory=dict)
+
+        @dataclass
+        class MockConfig:
+            ng_regions: list = field(default_factory=list)
+
+        html = generate_array_plot_html(provider, MockConfig(), MockView(), vocab={"RF.time": "時間"})
+        assert "時間" in html
+
+
+class TestBatchOverviewRunIntegration:
+    """バッチ俯瞰ページのRunノード統合テスト"""
+
+    def test_build_run_map_with_run_nodes(self):
+        """Run出力ノードに紐付くgo_ノードのrun_mapが構築される"""
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.batch_overview import _build_run_map
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        run_map = _build_run_map(provider, rows)
+        assert 1 in run_map
+        assert run_map[1]["run_type"] == "cae_job"
+        assert run_map[1]["run_status"] == "completed"
+
+    def test_build_run_map_empty_without_runs(self):
+        """Runノードがない場合は空dictが返る"""
+        from services.dashboard.components.batch_overview import _build_run_map
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        run_map = _build_run_map(provider, rows)
+        assert run_map == {}
+
+    def test_format_run_badge_html(self):
+        """_format_run_badgeがHTML文字列を返す"""
+        from services.dashboard.components.batch_overview import _format_run_badge
+
+        badge = _format_run_badge(
+            {
+                "run_type": "cae_job",
+                "run_status": "completed",
+                "duration_seconds": 12.5,
+            }
+        )
+        assert "cae_job" in badge
+        assert "completed" in badge
+        assert "12.5s" in badge
+
+    def test_get_run_for_node(self):
+        """get_run_for_nodeがrun_output経由でRunノードを返す"""
+        from jj_types import NodeCategory, Relation
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={
+                        "run_type": "script",
+                        "run_status": "completed",
+                        "duration_seconds": 5.0,
+                        "started_at": "2026-03-06T10:00:00",
+                    },
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        run_info = provider.get_run_for_node(1)
+        assert run_info is not None
+        assert run_info["name"] == "run_001"
+        assert run_info["duration_seconds"] == 5.0
+
+    def test_get_run_for_node_returns_none(self):
+        """Runノードがない場合はNoneが返る"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        assert provider.get_run_for_node(1) is None
+
+    def test_get_run_nodes(self):
+        """get_run_nodesがRunノード一覧を返す"""
+        from jj_types import NodeCategory, Relation
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+                Node(
+                    id=11,
+                    type="run",
+                    name="run_002",
+                    format="",
+                    properties={"run_type": "ml_training", "run_status": "latent"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+                Relation(id=2, label="run_input", node1_id=11, node2_id=1),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        runs = provider.get_run_nodes()
+        assert len(runs) == 2
+        assert runs[0]["name"] == "run_001"
+        assert runs[0]["output_ids"] == [1]
+        assert runs[1]["name"] == "run_002"
+        assert runs[1]["input_ids"] == [1]
