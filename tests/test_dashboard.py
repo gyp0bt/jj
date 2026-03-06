@@ -6731,3 +6731,53 @@ class TestParseDefaults:
 
         with pytest.raises(ValueError, match="exclude-dirs must be list"):
             GraphConfig.from_dict({"parse-defaults": {"exclude-dirs": "not-a-list"}})
+
+
+class TestVocabDisplay:
+    """vocab_displayユーティリティのテスト"""
+
+    def test_translate_key(self):
+        """キーのvocab変換"""
+        from modules.vocab_display import translate_key
+
+        vocab = {"height": "高さ", "load": "荷重"}
+        assert translate_key("height", vocab) == "高さ"
+        assert translate_key("unknown", vocab) == "unknown"
+
+    def test_translate_properties(self):
+        """プロパティ辞書の変換"""
+        from modules.vocab_display import translate_properties
+
+        vocab = {"height": "高さ", "load": "荷重"}
+        props = {"height": 10.0, "load": "constant"}
+        result = translate_properties(props, vocab)
+        assert "高さ" in result
+        assert result["高さ"] == 10.0
+        assert result["荷重"] == "constant"
+
+    def test_translate_columns(self):
+        """カラム名リストの変換"""
+        from modules.vocab_display import translate_columns
+
+        vocab = {"height": "高さ", "load": "荷重"}
+        cols = ["name", "height", "load", "active"]
+        result = translate_columns(cols, vocab)
+        assert result == ["name", "高さ", "荷重", "active"]
+
+    def test_reverse_vocab(self):
+        """逆引き辞書の構築"""
+        from modules.vocab_display import reverse_vocab
+
+        vocab = {"height": "高さ", "load": "荷重"}
+        rev = reverse_vocab(vocab)
+        assert rev["高さ"] == "height"
+        assert rev["荷重"] == "load"
+
+    def test_translate_value_nested(self):
+        """ネストされた値の変換"""
+        from modules.vocab_display import translate_value
+
+        vocab = {"steel": "鋼材", "aluminum": "アルミ"}
+        assert translate_value("steel", vocab) == "鋼材"
+        assert translate_value(["steel", "aluminum"], vocab) == ["鋼材", "アルミ"]
+        assert translate_value(42, vocab) == 42
