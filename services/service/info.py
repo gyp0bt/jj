@@ -97,27 +97,20 @@ class InfoService:
                         ):
                             matched_nodes.append(node)
 
-            # インデックスで検索（vocab変換後のキーにも対応）
+            # インデックスで検索（生キー: index）
             if index_filters is not None:
-                idx_key = self._vocab.get("idx", "")
                 for node in graph.nodes:
                     if node in matched_nodes:
                         continue
-                    node_index = str(
-                        node.properties.get("index", "") or (node.properties.get(idx_key, "") if idx_key else "")
-                    )
+                    node_index = str(node.properties.get("index", ""))
                     if node_index and node_index in index_filters:
                         matched_nodes.append(node)
 
-            # バージョンで検索（絞り込みまたは単独検索、vocab変換後のキーにも対応）
+            # バージョンで検索（生キー: version）
             if version_filters is not None:
-                ver_key = self._vocab.get("v", "") or self._vocab.get("ver", "")
 
                 def _get_version(n: Node) -> str:
-                    v = str(n.properties.get("version", ""))
-                    if not v and ver_key:
-                        v = str(n.properties.get(ver_key, ""))
-                    return v
+                    return str(n.properties.get("version", ""))
 
                 if filenames or index_filters is not None:
                     # 既存のマッチ結果から絞り込み

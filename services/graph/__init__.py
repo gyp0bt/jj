@@ -158,12 +158,8 @@ class GraphService:
                 props[mapped_key] = token
                 token_key_mapped_keys.add(mapped_key)
 
-        # vocabを使ってpropsのキーと値を変換
-        translated_props: dict[str, Any] = {}
-        for key, value in props.items():
-            translated_key = self.config.vocab.get(key, key)
-            translated_value = self.config.vocab.get(str(value), str(value)) if isinstance(value, str) else value
-            translated_props[translated_key] = translated_value
+        # 生キーのまま保持（vocab変換は表示時のみ適用）
+        translated_props: dict[str, Any] = dict(props)
 
         # 日付を取得
         date_formatted = parser.get_date_formatted()
@@ -181,18 +177,7 @@ class GraphService:
             **config_props,  # 設定からのプロパティが優先
         }
 
-        # vocabでidx/vのマッピングが定義されている場合、
-        # 英語キー(index/version)を変換後のキーに統一
-        idx_translated = self.config.vocab.get("idx")
-        if idx_translated:
-            index_val = properties.pop("index", "")
-            if index_val and idx_translated not in properties:
-                properties[idx_translated] = index_val
-        v_translated = self.config.vocab.get("v")
-        if v_translated:
-            version_val = properties.pop("version", "")
-            if version_val and v_translated not in properties:
-                properties[v_translated] = version_val
+        # index/versionは生キーで統一（vocab変換は表示時のみ）
 
         # 日付がある場合のみ追加
         if date_formatted:

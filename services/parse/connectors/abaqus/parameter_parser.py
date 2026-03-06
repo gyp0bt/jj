@@ -36,8 +36,6 @@ class AbaqusParameterParser(AbstractFileParser):
     priority = 15
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        vocab = graph.config.vocab
-
         for node in graph.nodes:
             ext = f".{node.format}" if node.format else ""
             if ext.lower() != ".inp":
@@ -47,7 +45,7 @@ class AbaqusParameterParser(AbstractFileParser):
             if not file_path.exists():
                 continue
 
-            props = self._read_parameter_props(file_path, vocab, master_props={})
+            props = self._read_parameter_props(file_path, master_props={})
 
             if props:
                 node.properties.update(props)
@@ -57,7 +55,6 @@ class AbaqusParameterParser(AbstractFileParser):
     @staticmethod
     def _read_parameter_props(
         file_path: object,
-        vocab: dict[str, str],
         master_props: dict[str, str] | None = None,
         _visited: set[object] | None = None,
     ) -> dict[str, str]:
@@ -67,8 +64,8 @@ class AbaqusParameterParser(AbstractFileParser):
         resulting properties into the current context.  Circular includes are
         detected via the ``_visited`` set and ignored.
         """
-        from pathlib import Path
         import re
+        from pathlib import Path
 
         # 初期化
         if master_props is None:
@@ -111,7 +108,6 @@ class AbaqusParameterParser(AbstractFileParser):
                             # 再帰的に子ファイルからプロパティを取得
                             inc_props = AbaqusParameterParser._read_parameter_props(
                                 inc_path,
-                                vocab,
                                 master_props={**master_props, **props},
                                 _visited=_visited,
                             )
@@ -146,22 +142,18 @@ class AbaqusParameterParser(AbstractFileParser):
                                 continue
                             k_raw, v_raw = u.split("=", 1)
 
-                            # ----------------------------------------------
-                            # 1) vocab マッピング
-                            # ----------------------------------------------
-                            k = vocab.get(k_raw, k_raw)
-                            v = vocab.get(v_raw, v_raw)
+                            # 生キーで保持（vocab変換は表示時のみ）
+                            k = k_raw
+                            v = v_raw
 
-                            # ----------------------------------------------
-                            # 2) トークン置換：他のプロパティ参照を解決
-                            # ----------------------------------------------
+                            # トークン置換：他のプロパティ参照を解決
                             combined = {**master_props, **props}
                             tokens = re.split(r"([*+\-/])", v)
                             new_tokens = [
-                                token if token in ("*", "+", "-", "/") else combined.get(vocab.get(token, token), token)
+                                token if token in ("*", "+", "-", "/") else combined.get(token, token)
                                 for token in tokens
                             ]
-                            v = "".join([vocab.get(_v, _v) for _v in new_tokens])
+                            v = "".join(new_tokens)
 
                             # ----------------------------------------------
                             # 3) 可能なら算術式を評価

@@ -1572,9 +1572,9 @@ class TestInpParameterProps:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        # vocabマッピングが適用される
-        assert node.properties.get("width") == "5"
-        assert node.properties.get("thickness") == "20"
+        # 生キーで保存される（vocab変換は表示時のみ）
+        assert node.properties.get("w") == "5"
+        assert node.properties.get("t") == "20"
 
     def test_no_parameter_block(self, tmp_path, config):
         """*PARAMETERブロックがない場合は何も追加されない"""
@@ -1591,7 +1591,7 @@ class TestInpParameterProps:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        assert "width" not in node.properties
+        assert "w" not in node.properties
         assert "thickness" not in node.properties
 
     def test_parameter_without_props_comment(self, tmp_path, config):
@@ -1609,8 +1609,8 @@ class TestInpParameterProps:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        # **propsコメントの有無に関わらず*PARAMETERブロックを読み取る
-        assert node.properties.get("width") == "5"
+        # **propsコメントの有無に関わらず*PARAMETERブロックを読み取る（生キー）
+        assert node.properties.get("w") == "5"
 
     def test_non_inp_file_skipped(self, tmp_path, config):
         """INP以外のファイルはパラメータ読み取りをスキップ"""
@@ -1627,7 +1627,7 @@ class TestInpParameterProps:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        assert "width" not in node.properties
+        assert "w" not in node.properties
 
 
 class TestResultFileAggregation:
@@ -1711,7 +1711,7 @@ class TestTokenKeyMap:
         assert node.properties.get("形状") == "hogehoge24"
 
     def test_token_key_map_with_vocab_value_translation(self, tmp_path):
-        """token-key-map + vocab値変換で最終プロパティが正しい"""
+        """token-key-map + vocab: 値はvocab変換されず生値のまま"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"hogehoge24": "ほげほげ24"},
@@ -1726,8 +1726,8 @@ class TestTokenKeyMap:
         inp.write_text("", encoding="utf-8")
 
         node = svc.file_to_node(inp)
-        # vocabで値が変換される
-        assert node.properties.get("形状") == "ほげほげ24"
+        # vocab変換はparse時に行われないので生値のまま
+        assert node.properties.get("形状") == "hogehoge24"
 
     def test_token_key_map_empty_config(self, tmp_path):
         """token-key-mapが空の場合は通常のトークン解析"""
@@ -1777,7 +1777,7 @@ class TestVocabValueTranslation:
     """
 
     def test_vocab_translates_prop_values(self, tmp_path):
-        """vocabがプロパティ値も変換する"""
+        """vocabはparse時に適用されないので値は生のまま"""
         from services.graph.project_graph import ProjectGraph
         from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
 
@@ -1797,8 +1797,8 @@ class TestVocabValueTranslation:
         pg = ProjectGraph(nodes=[node], relations=[], project_root=tmp_path, config=config)
         AbaqusParameterParser().apply(pg)
 
-        # *PARAMETER/**propsの値がvocabで変換される
-        assert node.properties.get("method") == "静的"
+        # vocab変換はparse時に行われないので生値のまま
+        assert node.properties.get("method") == "static"
 
 
 class TestTokenKeyMapConfig:
@@ -3240,7 +3240,7 @@ class TestVersionKeyUnification:
     """version/バージョンのキー統一テスト"""
 
     def test_vocab_translates_version_key(self, tmp_path):
-        """vocab定義がある場合、versionキーがバージョンに統一される"""
+        """vocab定義があっても、parse時は生キー（index/version）のまま"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "v": "バージョン"},
@@ -3249,12 +3249,9 @@ class TestVersionKeyUnification:
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "go_idx1_v2.inp").write_text("")
         node = svc.file_to_node(tmp_path / "go_idx1_v2.inp")
-        # 英語キーは存在しない
-        assert "version" not in node.properties
-        assert "index" not in node.properties
-        # 日本語キーが存在する
-        assert node.properties.get("条件") == "1"
-        assert node.properties.get("バージョン") == "2"
+        # 生キーが存在する（vocab変換はparse時に行われない）
+        assert node.properties.get("index") == "1"
+        assert node.properties.get("version") == "2"
 
     def test_no_vocab_keeps_english_keys(self, tmp_path):
         """vocab定義がない場合、英語キーが維持される"""
@@ -3266,7 +3263,7 @@ class TestVersionKeyUnification:
         assert node.properties.get("version") == "2"
 
     def test_empty_version_removed_with_vocab(self, tmp_path):
-        """空のversionはvocab定義があれば除去される"""
+        """versionが抽出されない場合は空文字列"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "v": "バージョン"},
@@ -3275,13 +3272,12 @@ class TestVersionKeyUnification:
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "go_idx1_w5.inp").write_text("")
         node = svc.file_to_node(tmp_path / "go_idx1_w5.inp")
-        # 空のversionは除去
-        assert "version" not in node.properties
-        assert "バージョン" not in node.properties  # 空値は追加しない
-        assert node.properties.get("条件") == "1"
+        # versionは空文字列（キーは存在する）
+        assert node.properties.get("version") == ""
+        assert node.properties.get("index") == "1"
 
     def test_implicit_version_translated(self, tmp_path):
-        """暗黙のversionもvocabで変換される"""
+        """暗黙のversionも生キーで格納される"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "v": "バージョン"},
@@ -3290,11 +3286,9 @@ class TestVersionKeyUnification:
         svc = GraphService(project_root=tmp_path, config=config)
         (tmp_path / "material.inp").write_text("")
         node = svc.file_to_node(tmp_path / "material.inp")
-        # material.inpは暗黙のidx=1, v=1
-        assert node.properties.get("条件") == "1"
-        assert node.properties.get("バージョン") == "1"
-        assert "index" not in node.properties
-        assert "version" not in node.properties
+        # material.inpは暗黙のidx=1, v=1（生キーで格納）
+        assert node.properties.get("index") == "1"
+        assert node.properties.get("version") == "1"
 
 
 class TestTokenKeyMapVerboseName:
@@ -3312,9 +3306,9 @@ class TestTokenKeyMapVerboseName:
         (tmp_path / "mesh_hogehoge24_v1_idx1.inp").write_text("")
         node = svc.file_to_node(tmp_path / "mesh_hogehoge24_v1_idx1.inp")
         vn = node.properties.get("verbose_name", "")
-        # "形状ほげほげ24" ではなく "ほげほげ24" のみ
+        # vocab変換はparse時に行われないので生値 "hogehoge24" のみ
         assert "形状" not in vn
-        assert "ほげほげ24" in vn
+        assert "hogehoge24" in vn
 
     def test_verbose_name_tag_uses_translated_value(self, tmp_path):
         """token_key_mapのverbose_name→tagは変換後の値を使用"""
@@ -3770,11 +3764,11 @@ class TestVerboseNameFormat:
     """verbose-name-formatテンプレートのテスト"""
 
     def test_format_basic(self, tmp_path):
-        """フォーマットテンプレートでverbose_nameが生成される"""
+        """フォーマットテンプレートでverbose_nameが生成される（生キー参照）"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "go": "計算入力", "t": "高さ", "F": "荷重"},
-                "verbose-name-format": "条件{条件}(高さ{高さ},荷重{荷重})",
+                "verbose-name-format": "条件{idx}(高さ{t},荷重{F})",
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)
@@ -3784,7 +3778,7 @@ class TestVerboseNameFormat:
         assert vn == "条件1(高さ5,荷重20)"
 
     def test_format_with_original_keys(self, tmp_path):
-        """フォーマットでvocab変換前のキー名も参照可能"""
+        """フォーマットで生キー名を参照可能"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "go": "計算入力"},
@@ -3802,7 +3796,7 @@ class TestVerboseNameFormat:
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件"},
-                "verbose-name-format": "条件{条件}_存在しない{不明}",
+                "verbose-name-format": "条件{idx}_存在しない{不明}",
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)
@@ -3812,7 +3806,7 @@ class TestVerboseNameFormat:
         assert vn == "条件1_存在しない"
 
     def test_format_not_set_uses_legacy(self, tmp_path):
-        """verbose-name-format未設定時は従来方式"""
+        """verbose-name-format未設定時は従来方式（生キー）"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "go": "計算入力"},
@@ -3822,16 +3816,16 @@ class TestVerboseNameFormat:
         (tmp_path / "go_idx2_v1.inp").write_text("")
         node = svc.file_to_node(tmp_path / "go_idx2_v1.inp")
         vn = node.properties.get("verbose_name", "")
-        # 従来方式: タイプ_プロパティ の形式
+        # 従来方式: タイプ翻訳_生キープロパティ の形式
         assert "計算入力" in vn
-        assert "条件2" in vn
+        assert "idx2" in vn
 
     def test_format_with_type_reference(self, tmp_path):
-        """フォーマットで{type}を参照可能"""
+        """フォーマットで{type}を参照可能（生キー使用）"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "条件", "go": "計算入力"},
-                "verbose-name-format": "{type}_{条件}",
+                "verbose-name-format": "{type}_{idx}",
             }
         )
         svc = GraphService(project_root=tmp_path, config=config)

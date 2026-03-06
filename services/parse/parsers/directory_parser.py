@@ -70,16 +70,12 @@ class DirectoryRelationParser(AbstractFileParser):
             }
             idx_val = parser.get_index()
             ver_val = parser.get_version()
-            idx_key = graph.config.vocab.get("idx", "index")
-            ver_key = graph.config.vocab.get("v", "version")
             if idx_val:
-                dir_props[idx_key] = idx_val
+                dir_props["index"] = idx_val
             if ver_val:
-                dir_props[ver_key] = ver_val
+                dir_props["version"] = ver_val
             for pk, pv in parser.get_props().items():
-                tk = graph.config.vocab.get(pk, pk)
-                tv = graph.config.vocab.get(str(pv), str(pv))
-                dir_props[tk] = tv
+                dir_props[pk] = pv
 
             dir_node = Node(
                 id=graph.next_node_id(),
