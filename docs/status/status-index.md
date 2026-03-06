@@ -71,6 +71,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [044](status-044.md) | 2026-03-04 | M1 | テスト全件通過: パス修正・ResultParser復元・importorskip追加（159→0件） | claude/execute-status-todos-lfDl8 |
 | [045](status-045.md) | 2026-03-04 | M7 | Parse-Run統合: jj run後にparse自動実行・--no-parseオプション・pymeshテスト修正 | claude/integrate-parse-run-sujin |
 | [046](status-046.md) | 2026-03-06 | M7/M2 | Run-Propertyトレーサビリティ・Vocab表示時適用・Config classification仕様 | claude/track-feature-implementation-UCgLX |
+| [047](status-047.md) | 2026-03-06 | M4 | 配列プロット クロスグループ軸選択・configデフォルト設定 | claude/dashboard-configurable-axes-FLuI3 |
 
 ---
 
