@@ -17,7 +17,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M4: 横断ダッシュボード** | 凍結 | jjrv分離により凍結。Streamlitダッシュボードで対応 |
 | **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
 | **M6: ML/実験/最適化タスク対応** | 進行中 | パーサー9種実装済み（Phase 2-4完了）、サロゲートモデルフレームワーク構築、三層リレーション構築 |
-| **M7: Run中心スキーマ再設計** | 進行中 | Phase 1-4.5完了: コアモデル・RunDiscoverer群・RunService統合・Parse-Run統合 |
+| **M7: Run中心スキーマ再設計** | 完了 | Phase 1-6完了: コアモデル・RunDiscoverer群・RunService統合・Parse-Run統合・Run比較ダッシュボード・Neo4j対応 |
 
 ---
 
@@ -76,6 +76,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [049](status-049.md) | 2026-03-06 | M7 | Activeフィルタ全ページ適用・バッチ俯瞰ページ追加 | claude/batch-run-visualization-iOJAa |
 | [050](status-050.md) | 2026-03-06 | M2/M7 | プロット軸vocab変換・GalleryDefaults参照・Run --show-properties | claude/execute-status-todos-ifjHD |
 | [051](status-051.md) | 2026-03-06 | M2/M7 | 配列プロット凡例vocab変換・バッチ俯瞰Runノード統合 | claude/execute-status-todos-h9bRM |
+| [052](status-052.md) | 2026-03-06 | M7 | M7完了: バッチ俯瞰Run統合・Run比較ダッシュボード・Neo4j Run Node対応 | claude/execute-status-todos-h9bRM |
 
 ---
 
