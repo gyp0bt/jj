@@ -81,6 +81,8 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
             render_shared_filters,
         )
 
+        vocab = kwargs.get("vocab")
+
         st.header("配列プロットビュー")
 
         array_keys = provider.get_array_property_keys()
@@ -210,6 +212,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 x_range=ap_x_range,
                 y_range=ap_y_range,
                 style=ap_style,
+                vocab=vocab,
             )
         else:
             _render_array_single(
@@ -221,6 +224,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 x_range=ap_x_range,
                 y_range=ap_y_range,
                 style=ap_style,
+                vocab=vocab,
             )
 
     def render_saved_view(
@@ -294,9 +298,12 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                         # NG領域塗りつぶし
                         if ng_regions:
                             _add_ng_regions_to_fig(fig, ng_regions)
+                        from modules.vocab_display import translate_key
+
+                        sv_vocab = kwargs.get("vocab") or {}
                         fig.update_layout(
                             title=plot_data["name"],
-                            xaxis_title=x_key.split(".")[-1],
+                            xaxis_title=translate_key(x_key.split(".")[-1], sv_vocab),
                             yaxis_title="値",
                             height=500,
                             template=get_plotly_template(),
@@ -312,6 +319,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 y_keys,
                 filters=filter_dict,
                 ng_regions=ng_regions,
+                vocab=kwargs.get("vocab"),
             )
 
     def generate_html(
@@ -323,7 +331,8 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
     ) -> str:
         from services.dashboard.html_export import generate_array_plot_html
 
-        return generate_array_plot_html(provider, dashboard_config, view)
+        vocab = kwargs.get("vocab")
+        return generate_array_plot_html(provider, dashboard_config, view, vocab=vocab)
 
 
 # ====================================================================
@@ -340,15 +349,21 @@ def _render_array_overlay(
     x_range: list[float] | None = None,
     y_range: list[float] | None = None,
     style: dict[str, int] | None = None,
+    vocab: dict[str, str] | None = None,
 ) -> None:
     """全条件の配列データを凡例付きで同一グラフに重ね書き"""
     import streamlit as st
 
+    from modules.vocab_display import translate_key
     from services.dashboard.html_export import _add_ng_regions_to_fig
     from services.dashboard.widgets import apply_style_to_fig
 
+    v = vocab or {}
+
     for y_key in y_keys:
-        st.subheader(f"{y_key} vs {x_key}")
+        x_label = translate_key(x_key, v)
+        y_label = translate_key(y_key, v)
+        st.subheader(f"{y_label} vs {x_label}")
         grid_data = provider.get_array_grid_data(x_key, y_key, filters=filters)
         if not grid_data:
             st.info(f"'{x_key}' と '{y_key}' のデータがありません。")
@@ -375,19 +390,19 @@ def _render_array_overlay(
                 _add_ng_regions_to_fig(fig, ng_regions)
             fig.update_layout(
                 title=dict(
-                    text=f"{y_key} vs {x_key}（全条件比較）",
+                    text=f"{y_label} vs {x_label}（全条件比較）",
                     font=dict(size=24),
                 ),
                 xaxis=dict(
                     title=dict(
-                        text=x_key.split(".")[-1],
+                        text=translate_key(x_key.split(".")[-1], v),
                         font=dict(size=20),
                     ),
                     tickfont=dict(size=20),
                 ),
                 yaxis=dict(
                     title=dict(
-                        text=y_key.split(".")[-1],
+                        text=translate_key(y_key.split(".")[-1], v),
                         font=dict(size=20),
                     ),
                     tickfont=dict(size=20),
@@ -420,12 +435,16 @@ def _render_array_single(
     x_range: list[float] | None = None,
     y_range: list[float] | None = None,
     style: dict[str, int] | None = None,
+    vocab: dict[str, str] | None = None,
 ) -> None:
     """配列データの個別ノード表示（複数Y軸重ね書き）"""
     import streamlit as st
 
+    from modules.vocab_display import translate_key
     from services.dashboard.html_export import _add_ng_regions_to_fig
     from services.dashboard.widgets import apply_style_to_fig
+
+    v = vocab or {}
 
     rows = provider.get_go_table()
     if not rows:
@@ -499,7 +518,7 @@ def _render_array_single(
             ),
             xaxis=dict(
                 title=dict(
-                    text=x_key.split(".")[-1],
+                    text=translate_key(x_key.split(".")[-1], v),
                     font=dict(size=20),
                 ),
                 tickfont=dict(size=20),
