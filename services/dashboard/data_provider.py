@@ -245,7 +245,11 @@ class DashboardDataProvider:
                     "discovery": run_node.properties.get("discovery", ""),
                     "duration_seconds": run_node.properties.get("duration_seconds"),
                     "started_at": run_node.properties.get("started_at"),
+                    "finished_at": run_node.properties.get("finished_at"),
                     "command": run_node.properties.get("command"),
+                    "host": run_node.properties.get("host"),
+                    "user": run_node.properties.get("user"),
+                    "exit_code": run_node.properties.get("exit_code"),
                 }
         return None
 

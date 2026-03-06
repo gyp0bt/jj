@@ -7348,3 +7348,252 @@ class TestBatchOverviewRunIntegration:
         assert runs[0]["output_ids"] == [1]
         assert runs[1]["name"] == "run_002"
         assert runs[1]["input_ids"] == [1]
+
+
+class TestBatchOverviewHtmlRunBadge:
+    """バッチ俯瞰HTML生成のRunバッジ統合テスト"""
+
+    def test_generate_batch_html_includes_run_badge(self):
+        """HTML生成にRunバッジが含まれる"""
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.batch_overview import _generate_batch_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed", "duration_seconds": 3.5},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        html = _generate_batch_html(rows, provider)
+        assert "cae_job" in html
+        assert "completed" in html
+        assert "3.5s" in html
+
+    def test_generate_batch_html_no_runs(self):
+        """Runなしの場合、Runバッジが含まれない"""
+        from services.dashboard.components.batch_overview import _generate_batch_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        html = _generate_batch_html(rows, provider)
+        assert "Run紐付き" not in html
+
+    def test_generate_batch_html_run_summary(self):
+        """HTML生成にRunサマリーが含まれる"""
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.batch_overview import _generate_batch_html
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=2,
+                    type="file",
+                    name="go_002",
+                    format="inp",
+                    properties={"index": "2"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+                Node(
+                    id=11,
+                    type="run",
+                    name="run_002",
+                    format="",
+                    properties={"run_type": "ml_training", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+                Relation(id=2, label="run_output", node1_id=11, node2_id=2),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        html = _generate_batch_html(rows, provider)
+        assert "Run紐付き: 2件" in html
+        assert "cae_job: 1" in html
+        assert "ml_training: 1" in html
+
+
+class TestRunDetailsExpander:
+    """Run詳細展開表示のテスト"""
+
+    def test_get_run_for_node_returns_extended_properties(self):
+        """get_run_for_nodeがhost, user, exit_code, finished_atを含む"""
+        from jj_types import NodeCategory, Relation
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={
+                        "run_type": "cae_job",
+                        "run_status": "completed",
+                        "host": "server01",
+                        "user": "admin",
+                        "exit_code": 0,
+                        "started_at": "2026-03-06T10:00:00",
+                        "finished_at": "2026-03-06T10:05:00",
+                        "command": "abaqus job=test",
+                        "duration_seconds": 300.0,
+                    },
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        run_info = provider.get_run_for_node(1)
+        assert run_info is not None
+        assert run_info["host"] == "server01"
+        assert run_info["user"] == "admin"
+        assert run_info["exit_code"] == 0
+        assert run_info["finished_at"] == "2026-03-06T10:05:00"
+        assert run_info["command"] == "abaqus job=test"
+
+    def test_generate_run_summary_html(self):
+        """_generate_run_summary_htmlがサマリーHTMLを返す"""
+        from services.dashboard.components.batch_overview import _generate_run_summary_html
+
+        run_map = {
+            1: {"run_type": "cae_job", "run_status": "completed"},
+            2: {"run_type": "script", "run_status": "failed"},
+        }
+        html = _generate_run_summary_html(run_map)
+        assert "Run紐付き: 2件" in html
+        assert "cae_job: 1" in html
+        assert "script: 1" in html
+
+
+class TestRunComparisonComponent:
+    """Run比較ダッシュボードコンポーネントのテスト"""
+
+    def test_run_comparison_page_registered(self):
+        """RunComparisonPageがレジストリに登録される"""
+        import services.dashboard.components.run_comparison  # noqa: F401
+        from services.dashboard.components import get_page_component
+
+        page = get_page_component("run_comparison")
+        assert page is not None
+        assert page.page_label == "Run比較"
+
+    def test_run_comparison_view_config_registered(self):
+        """RunComparisonViewConfigがレジストリに登録される"""
+        import services.dashboard.components.run_comparison  # noqa: F401
+        from services.dashboard.components import get_view_config
+
+        vc = get_view_config("run_comparison")
+        assert vc is not None
+
+    def test_generate_run_comparison_html(self):
+        """Run比較HTMLが正しく生成される"""
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.run_comparison import _generate_run_comparison_html
+        from services.run.query import RunQueryService
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+            ],
+        )
+        query_svc = RunQueryService(graph)
+        runs = query_svc.get_runs()
+        html = _generate_run_comparison_html(runs, query_svc)
+        assert "Run比較ダッシュボード" in html
+        assert "run_001" in html
+        assert "cae_job" in html
+
+    def test_generate_html_empty_runs(self):
+        """Runなしの場合のHTML生成"""
+        from services.dashboard.components.run_comparison import RunComparisonPage
+
+        graph = GraphModel(
+            nodes=[
+                Node(id=1, type="file", name="go_001", format="inp", properties={}),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        page = RunComparisonPage()
+
+        from unittest.mock import MagicMock
+
+        mock_view = MagicMock()
+        mock_view.filters = {}
+        mock_config = MagicMock()
+
+        html = page.generate_html(provider, mock_view, mock_config)
+        assert "見つかりません" in html
