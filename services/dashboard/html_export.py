@@ -183,6 +183,12 @@ def generate_table_html(
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
 
+    # カラムヘッダーにvocab変換を適用（表示時のみ）
+    if vocab:
+        from modules.vocab_display import translate_key
+
+        df = df.rename(columns={c: translate_key(c, vocab) for c in df.columns})
+
     caption = f'<p class="caption">{len(filtered)} / {len(rows)} 件</p>'
     return caption + df.to_html(index=False, classes="dataframe")
 

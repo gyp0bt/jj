@@ -695,6 +695,37 @@ class SavedViewConfig:
 
 
 @dataclass(frozen=True)
+class PlotStyleDefaults:
+    """プロットスタイルのデフォルト値"""
+
+    marker_size_min: int = 1
+    marker_size_max: int = 50
+    marker_size_default: int = 16
+    line_width_min: int = 1
+    line_width_max: int = 20
+    line_width_default: int = 2
+    font_size_min: int = 6
+    font_size_max: int = 48
+    font_size_default: int = 20
+
+
+@dataclass(frozen=True)
+class GalleryDefaults:
+    """ギャラリーのデフォルト値"""
+
+    columns: int = 5
+    rows: int = 4
+    max_image_bytes: int = 5 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class ParseDefaults:
+    """パーサーのデフォルト値"""
+
+    exclude_dirs: frozenset[str] = frozenset({".git", ".j2", "__pycache__", "node_modules", ".venv"})
+
+
+@dataclass(frozen=True)
 class DashboardConfig:
     """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・コネクタ固有設定"""
 
@@ -712,6 +743,8 @@ class DashboardConfig:
     plot_style: dict[str, int]  # プロットスタイル（marker_size, line_width, font_size）
     gallery_max_image_bytes: int  # ギャラリーHTMLエクスポート時の1画像あたりの最大バイト数（0=無制限）
     array_plot_defaults: dict[str, Any]  # 配列プロットデフォルト設定（x, y, x_min, x_max, y_min, y_max）
+    plot_style_defaults: PlotStyleDefaults  # プロットスタイルデフォルト値
+    gallery_defaults: GalleryDefaults  # ギャラリーデフォルト値
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -742,6 +775,8 @@ class DashboardConfig:
                 plot_style={},
                 gallery_max_image_bytes=0,
                 array_plot_defaults={},
+                plot_style_defaults=PlotStyleDefaults(),
+                gallery_defaults=GalleryDefaults(),
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -828,6 +863,39 @@ class DashboardConfig:
                 val = raw_array_plot.get(range_key)
             if val is not None:
                 array_plot_defaults[range_key] = float(val)
+        # プロットスタイルデフォルト値
+        raw_psd = data.get("plot-style-defaults", {})
+        if not isinstance(raw_psd, dict):
+            raw_psd = {}
+        psd_kwargs: dict[str, int] = {}
+        for psd_key in (
+            "marker_size_min",
+            "marker_size_max",
+            "marker_size_default",
+            "line_width_min",
+            "line_width_max",
+            "line_width_default",
+            "font_size_min",
+            "font_size_max",
+            "font_size_default",
+        ):
+            yaml_key = psd_key.replace("_", "-")
+            psd_val = raw_psd.get(yaml_key) or raw_psd.get(psd_key)
+            if psd_val is not None:
+                psd_kwargs[psd_key] = int(psd_val)
+        plot_style_defaults = PlotStyleDefaults(**psd_kwargs)
+        # ギャラリーデフォルト値
+        raw_gd = data.get("gallery-defaults", {})
+        if not isinstance(raw_gd, dict):
+            raw_gd = {}
+        gd_kwargs: dict[str, Any] = {}
+        if raw_gd.get("columns") is not None:
+            gd_kwargs["columns"] = int(raw_gd["columns"])
+        if raw_gd.get("rows") is not None:
+            gd_kwargs["rows"] = int(raw_gd["rows"])
+        if raw_gd.get("max-image-bytes") is not None:
+            gd_kwargs["max_image_bytes"] = int(raw_gd["max-image-bytes"])
+        gallery_defaults = GalleryDefaults(**gd_kwargs)
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -843,6 +911,8 @@ class DashboardConfig:
             plot_style=plot_style,
             gallery_max_image_bytes=gallery_max_image_bytes,
             array_plot_defaults=array_plot_defaults,
+            plot_style_defaults=plot_style_defaults,
+            gallery_defaults=gallery_defaults,
         )
 
 
@@ -986,6 +1056,7 @@ class GraphConfig:
     solver_profiles: dict[str, SolverProfileConfig]  # ソルバー別設定プロファイル
     solver_detection: SolverDetectionConfig  # ソルバー自動検出ルール
     csv_max_rows: int  # CSV読み込み最大行数（0=無制限、超過時はサマリーモード）
+    parse_defaults: ParseDefaults  # パーサーのデフォルト値
 
     def detect_solver_profile(self, path: str) -> SolverProfileConfig:
         """パスからソルバープロファイルを検出
@@ -1037,6 +1108,19 @@ class GraphConfig:
         raw_vnf = data.get("verbose-name-format")
         verbose_name_format = str(raw_vnf) if raw_vnf is not None else None
 
+        # パーサーデフォルト値
+        raw_pd = data.get("parse-defaults", {})
+        if not isinstance(raw_pd, dict):
+            raw_pd = {}
+        pd_kwargs: dict[str, Any] = {}
+        raw_exclude = raw_pd.get("exclude-dirs")
+        if raw_exclude is not None:
+            if isinstance(raw_exclude, list):
+                pd_kwargs["exclude_dirs"] = frozenset(str(d) for d in raw_exclude)
+            else:
+                raise ValueError("parse-defaults.exclude-dirs must be list[str]")
+        parse_defaults = ParseDefaults(**pd_kwargs)
+
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -1057,6 +1141,7 @@ class GraphConfig:
             solver_profiles=solver_profiles,
             solver_detection=solver_detection,
             csv_max_rows=csv_max_rows,
+            parse_defaults=parse_defaults,
         )
 
     @classmethod

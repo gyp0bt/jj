@@ -170,6 +170,12 @@ class TablePage(PageComponent[TableViewConfig]):
 
                 df[col] = df[col].apply(_parse_json)
 
+        # カラムヘッダーにvocab変換を適用（表示時のみ）
+        if vocab:
+            from modules.vocab_display import translate_key
+
+            df = df.rename(columns={c: translate_key(c, vocab) for c in df.columns})
+
         # AgGridを試行、失敗時はst.dataframeにフォールバック
         if not try_render_aggrid(df):
             st.dataframe(df, use_container_width=True, hide_index=True)
@@ -234,6 +240,12 @@ class TablePage(PageComponent[TableViewConfig]):
         selected_cols = select_table_columns(list(df.columns), table_columns, vocab=vocab or {})
         if selected_cols:
             df = df[[c for c in selected_cols if c in df.columns]]
+
+        # カラムヘッダーにvocab変換を適用（表示時のみ）
+        if vocab:
+            from modules.vocab_display import translate_key
+
+            df = df.rename(columns={c: translate_key(c, vocab) for c in df.columns})
 
         st.dataframe(df, use_container_width=True, hide_index=True)
 
