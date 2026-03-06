@@ -39,6 +39,7 @@ import contextlib  # noqa: E402
 
 # PageComponent/ViewConfig自動登録（インポート時に__init_subclass__で登録される）
 import services.dashboard.components.array_plot  # noqa: E402
+import services.dashboard.components.batch_overview  # noqa: E402
 import services.dashboard.components.card  # noqa: E402
 import services.dashboard.components.gallery  # noqa: E402
 import services.dashboard.components.plot  # noqa: E402

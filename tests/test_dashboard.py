@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import contextlib
+from pathlib import Path
 
 import pytest
 
@@ -6781,3 +6782,153 @@ class TestVocabDisplay:
         assert translate_value("steel", vocab) == "鋼材"
         assert translate_value(["steel", "aluminum"], vocab) == ["鋼材", "アルミ"]
         assert translate_value(42, vocab) == 42
+
+
+# ====================================================================
+# バッチ俯瞰コンポーネント テスト
+# ====================================================================
+
+
+class TestBatchOverviewGrouping:
+    """バッチ俯瞰: indexグルーピング"""
+
+    def test_group_by_index_basic(self):
+        """indexでグルーピングされること"""
+        from services.dashboard.components.batch_overview import _group_by_index
+
+        rows = [
+            {"name": "go_1", "index": "1", "version": "1"},
+            {"name": "go_2", "index": "1", "version": "2"},
+            {"name": "go_3", "index": "2", "version": "1"},
+        ]
+        groups = _group_by_index(rows, "index")
+        assert list(groups.keys()) == ["1", "2"]
+        assert len(groups["1"]) == 2
+        assert len(groups["2"]) == 1
+
+    def test_group_by_index_numeric_sort(self):
+        """index数値がゼロ埋めなしでも数値順ソートされること"""
+        from services.dashboard.components.batch_overview import _group_by_index
+
+        rows = [
+            {"name": "a", "index": "10"},
+            {"name": "b", "index": "2"},
+            {"name": "c", "index": "1"},
+        ]
+        groups = _group_by_index(rows, "index")
+        assert list(groups.keys()) == ["1", "2", "10"]
+
+    def test_group_by_index_missing(self):
+        """indexプロパティが欠けている行は(なし)にグルーピングされること"""
+        from services.dashboard.components.batch_overview import _group_by_index
+
+        rows = [
+            {"name": "go_1", "index": "1"},
+            {"name": "go_2"},
+        ]
+        groups = _group_by_index(rows, "index")
+        assert "(なし)" in groups
+        assert "1" in groups
+
+
+class TestBatchOverviewVaryingKeys:
+    """バッチ俯瞰: 差分プロパティ抽出"""
+
+    def test_find_varying_keys(self):
+        """グループ間で値が異なるキーが抽出されること"""
+        from collections import OrderedDict
+
+        from services.dashboard.components.batch_overview import _find_varying_keys
+
+        groups = OrderedDict(
+            {
+                "1": [
+                    {"name": "a", "index": "1", "version": "1", "verbose_name": "A", "param": 10},
+                    {"name": "b", "index": "1", "version": "2", "verbose_name": "A", "param": 20},
+                ],
+            }
+        )
+        varying = _find_varying_keys(groups, "version", "index", "verbose_name")
+        assert "param" in varying
+        assert "analysis_status" not in varying  # 両方Noneなので同値
+
+    def test_no_varying_keys(self):
+        """全プロパティが同値ならば空リスト"""
+        from collections import OrderedDict
+
+        from services.dashboard.components.batch_overview import _find_varying_keys
+
+        groups = OrderedDict(
+            {
+                "1": [
+                    {"name": "a", "index": "1", "version": "1", "verbose_name": "A", "param": 10},
+                ],
+            }
+        )
+        varying = _find_varying_keys(groups, "version", "index", "verbose_name")
+        # 単一行なので差分なし（paramは1つの値のみ）
+        assert "param" not in varying
+
+
+class TestBatchOverviewHtml:
+    """バッチ俯瞰: HTML生成"""
+
+    def test_generate_batch_html(self):
+        """HTML生成が正常に動作すること"""
+        from services.dashboard.components.batch_overview import _generate_batch_html
+
+        graph = _make_test_graph()
+        provider = DashboardDataProvider(graph)
+        rows = provider.get_go_table()
+        html = _generate_batch_html(rows, provider)
+        assert "バッチラン俯瞰" in html
+        assert "index: 1" in html
+
+    def test_generate_batch_html_empty(self):
+        """空データでHTML生成"""
+        from services.dashboard.components.batch_overview import _generate_batch_html
+
+        graph = GraphModel(nodes=[], relations=[])
+        provider = DashboardDataProvider(graph)
+        html = _generate_batch_html([], provider)
+        assert "ありません" in html
+
+
+class TestSharedFiltersOnAllPages:
+    """全ページでActiveフィルタが適用可能であること（インポートテスト）"""
+
+    def test_plot_page_imports_shared_filters(self):
+        """PlotPageがshared_filtersをインポートしていること"""
+        import importlib
+
+        mod = importlib.import_module("services.dashboard.components.plot")
+        source = Path(mod.__file__).read_text()
+        assert "get_active_filters" in source
+        assert "render_shared_filters" in source
+
+    def test_gallery_page_imports_shared_filters(self):
+        """GalleryPageがshared_filtersをインポートしていること"""
+        import importlib
+
+        mod = importlib.import_module("services.dashboard.components.gallery")
+        source = Path(mod.__file__).read_text()
+        assert "get_active_filters" in source
+        assert "render_shared_filters" in source
+
+    def test_card_page_imports_shared_filters(self):
+        """CardPageがshared_filtersをインポートしていること"""
+        import importlib
+
+        mod = importlib.import_module("services.dashboard.components.card")
+        source = Path(mod.__file__).read_text()
+        assert "get_active_filters" in source
+        assert "render_shared_filters" in source
+
+    def test_status_page_imports_shared_filters(self):
+        """StatusPageがshared_filtersをインポートしていること"""
+        import importlib
+
+        mod = importlib.import_module("services.dashboard.components.status")
+        source = Path(mod.__file__).read_text()
+        assert "get_active_filters" in source
+        assert "render_shared_filters" in source

@@ -40,7 +40,13 @@ class StatusPage(PageComponent[StatusViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        self._render_status(provider)
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
+
+        rows = provider.get_go_table()
+        render_shared_filters(rows)
+        active_filters = get_active_filters()
+
+        self._render_status(provider, active_filters=active_filters)
 
     def render_saved_view(
         self,
@@ -51,13 +57,35 @@ class StatusPage(PageComponent[StatusViewConfig]):
     ) -> None:
         self._render_status(provider)
 
-    def _render_status(self, provider: DashboardDataProvider) -> None:
+    def _render_status(
+        self,
+        provider: DashboardDataProvider,
+        active_filters: dict[str, Any] | None = None,
+    ) -> None:
         """ステータスモニター: 実行ステータス一覧"""
         import streamlit as st
 
         st.header("ステータスモニター")
 
         status = provider.get_status_summary()
+
+        # 共有フィルタ適用: itemsをフィルタ済みgo_tableの名前でフィルタリング
+        if active_filters:
+            filtered_rows = provider.get_go_table(filters=active_filters)
+            filtered_names = {r["name"] for r in filtered_rows}
+            items = [i for i in status["items"] if i["name"] in filtered_names]
+            # サマリーを再計算
+            completed = sum(1 for i in items if i["analysis_status"] == "completed")
+            failed = sum(1 for i in items if i["analysis_status"] == "failed")
+            unknown = len(items) - completed - failed
+            status = {
+                **status,
+                "total": len(items),
+                "completed": completed,
+                "failed": failed,
+                "unknown": unknown,
+                "items": items,
+            }
 
         # サマリーメトリクス
         col1, col2, col3, col4 = st.columns(4)
