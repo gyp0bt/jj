@@ -388,7 +388,7 @@ def generate_array_plot_html(
                             x=item["x_values"],
                             y=item["y_values"],
                             mode="lines+markers",
-                            name=y_key,
+                            name=translate_key(y_key, v),
                         )
                     )
                     if ng_regions:
