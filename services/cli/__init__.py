@@ -178,6 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="実行後のparse自動実行をスキップ",
     )
     pr.add_argument(
+        "--show-properties",
+        action="store_true",
+        default=False,
+        help="コマンドのプロパティを実行せずに表示（dry-run）",
+    )
+    pr.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="実行コマンド（-- 以降に指定）",
@@ -352,8 +358,26 @@ def run_run(args: argparse.Namespace) -> int:
     mode = getattr(args, "mode", "auto")
     cwd = getattr(args, "cwd", ".")
     no_parse = getattr(args, "no_parse", False)
+    show_properties = getattr(args, "show_properties", False)
 
     service = RunCommandService()
+
+    # --show-properties: プロパティ抽出のみ（実行しない）
+    if show_properties:
+        from pathlib import Path
+
+        from services.run import RunService
+
+        rs = RunService()
+        props = rs.show_properties(command, cwd=Path(cwd))
+        if props:
+            print("properties:")
+            for key, value in props.items():
+                print(f"  - {key}: {value}")
+        else:
+            print("プロパティが見つかりません。")
+        return 0
+
     try:
         result = service.execute(command=command, cwd=cwd, mode=mode, no_parse=no_parse)
     except ValueError as e:

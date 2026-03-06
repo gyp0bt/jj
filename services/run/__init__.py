@@ -168,6 +168,15 @@ class RunService:
                 changed.append(rel)
         return sorted(set(changed))
 
+    def show_properties(self, command: list[str], cwd: Path | None = None) -> dict[str, str]:
+        """コマンドのプロパティを実行せずに抽出する（dry-run）"""
+        resolved_cwd = (cwd or Path.cwd()).resolve()
+        script_path = self._detect_script_path(command, resolved_cwd)
+        if not script_path:
+            return {}
+        args = self._extract_script_args(command, script_path)
+        return self._extract_properties(script_path, args)
+
     def _extract_properties(self, script_path: Path, args: list[str]) -> dict[str, str]:
         props: dict[str, str] = {}
         if not script_path.exists():
