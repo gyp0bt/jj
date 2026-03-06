@@ -197,6 +197,7 @@ def generate_plot_html(
     provider: DashboardDataProvider,
     view: Any,
     dashboard_config: Any = None,
+    vocab: dict[str, str] | None = None,
 ) -> str:
     """プロットビューのHTML断片（plotly inlineHTML）"""
     plot_config = view.plot
@@ -259,6 +260,7 @@ def generate_plot_html(
             plot_style=plot_style,
             z_key=z_key,
             color_range=color_range,
+            vocab=vocab,
         )
         ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
         if ng_regions:
@@ -281,9 +283,13 @@ def generate_array_plot_html(
     provider: DashboardDataProvider,
     dashboard_config: Any,
     view: Any,
+    vocab: dict[str, str] | None = None,
 ) -> str:
     """配列プロットビューのHTML断片"""
+    from modules.vocab_display import translate_key
     from services.dashboard.query import saved_view_filters_to_provider_filters
+
+    v = vocab or {}
 
     ap_config = getattr(view, "array_plot", {})
     prefix = ap_config.get("prefix", "")
@@ -329,7 +335,9 @@ def generate_array_plot_html(
                 continue
             grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
 
-            parts.append(f"<h3>{y_key} vs {x_key}</h3>")
+            x_label = translate_key(x_key, v)
+            y_label = translate_key(y_key, v)
+            parts.append(f"<h3>{y_label} vs {x_label}</h3>")
 
             if mode == "overlay":
                 # 全条件比較: 1グラフに全条件を凡例付きで重ね書き
@@ -355,9 +363,9 @@ def generate_array_plot_html(
                     _add_ng_regions_to_fig(fig, ng_regions)
                 _apply_default_layout(
                     fig,
-                    title=f"{y_key} vs {x_key}（全条件比較）",
-                    x_title=x_key.split(".")[-1],
-                    y_title=y_key.split(".")[-1],
+                    title=f"{y_label} vs {x_label}（全条件比較）",
+                    x_title=translate_key(x_key.split(".")[-1], v),
+                    y_title=translate_key(y_key.split(".")[-1], v),
                     height=600,
                     showlegend=True,
                     plot_style=plot_style,
@@ -392,8 +400,8 @@ def generate_array_plot_html(
                     _apply_default_layout(
                         fig,
                         title=title,
-                        x_title=x_key.split(".")[-1],
-                        y_title=y_key.split(".")[-1],
+                        x_title=translate_key(x_key.split(".")[-1], v),
+                        y_title=translate_key(y_key.split(".")[-1], v),
                         height=300,
                         showlegend=False,
                         plot_style=plot_style,
@@ -492,6 +500,7 @@ def _create_plot_figure(
     plot_style: dict[str, int] | None = None,
     z_key: str | None = None,
     color_range: dict[str, float] | None = None,
+    vocab: dict[str, str] | None = None,
 ) -> Any:
     """plotlyのFigureオブジェクトを作成
 
@@ -500,7 +509,13 @@ def _create_plot_figure(
         plot_style: スタイル設定辞書（marker_size, line_width, font_size）
         z_key: コンタープロット用Z軸キー（色分け変数）
         color_range: カラーバー範囲 {"vmin": float, "vmax": float}
+        vocab: vocabマッピング（軸ラベル・タイトルの表示名変換用）
     """
+    from modules.vocab_display import translate_key
+
+    v = vocab or {}
+    x_label = translate_key(x_key, v)
+    y_label = translate_key(y_key, v)
     # hover_name列がdfに存在しなければ"name"にフォールバック
     hn = hover_name_col if hover_name_col in df.columns else "name"
 
@@ -513,7 +528,7 @@ def _create_plot_figure(
             y=y_key,
             color=color,
             hover_name=hn if hn in df.columns else None,
-            title=f"{y_key} vs {x_key}",
+            title=f"{y_label} vs {x_label}",
             template=template,
         )
     elif chart_type == "棒グラフ":
@@ -522,12 +537,13 @@ def _create_plot_figure(
             x=hn if hn in df.columns else "name",
             y=y_key,
             color=color,
-            title=f"{y_key} by name",
+            title=f"{y_label} by name",
             template=template,
         )
     elif chart_type == "コンター":
         # コンタープロット: Z軸キーで色分けした散布図（連続カラースケール）
         contour_z = z_key if z_key and z_key in df.columns else color
+        z_label = translate_key(contour_z, v) if contour_z else ""
         cr = color_range or {}
         range_color = None
         if cr.get("vmin") is not None or cr.get("vmax") is not None:
@@ -540,7 +556,7 @@ def _create_plot_figure(
             y=y_key,
             color=contour_z if contour_z and contour_z in df.columns else None,
             hover_name=hn if hn in df.columns else None,
-            title=f"{y_key} vs {x_key}" + (f" (色: {contour_z})" if contour_z else ""),
+            title=f"{y_label} vs {x_label}" + (f" (色: {z_label})" if contour_z else ""),
             template=template,
             color_continuous_scale="Viridis",
             range_color=range_color,
@@ -548,13 +564,14 @@ def _create_plot_figure(
     elif chart_type == "等高線":
         # 等高線プロット: px.density_contourによる密度等高線
         contour_z = z_key if z_key and z_key in df.columns else None
+        z_label = translate_key(contour_z, v) if contour_z else ""
         fig = px.density_contour(
             df,
             x=x_key,
             y=y_key,
             z=contour_z,
             hover_name=hn if hn in df.columns else None,
-            title=f"{y_key} vs {x_key}" + (f" (Z: {contour_z})" if contour_z else " (密度)"),
+            title=f"{y_label} vs {x_label}" + (f" (Z: {z_label})" if contour_z else " (密度)"),
             template=template,
         )
         # 等高線の塗りつぶし
@@ -582,7 +599,7 @@ def _create_plot_figure(
             y=y_key,
             color=color,
             hover_name=hn if hn in df.columns else None,
-            title=f"{y_key} vs {x_key}",
+            title=f"{y_label} vs {x_label}",
             markers=True,
             template=template,
         )
@@ -607,10 +624,12 @@ def _create_plot_figure(
         legend=dict(font=dict(size=legend_font_sz)),
     )
     fig.update_xaxes(
+        title_text=x_label,
         title_font=dict(size=font_sz),
         tickfont=dict(size=font_sz),
     )
     fig.update_yaxes(
+        title_text=y_label,
         title_font=dict(size=font_sz),
         tickfont=dict(size=font_sz),
     )

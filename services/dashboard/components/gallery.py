@@ -15,6 +15,26 @@ if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
 
 
+def _get_gallery_settings(dashboard_config: Any) -> tuple[int, int, int]:
+    """DashboardConfigからギャラリー設定を取得する
+
+    gallery_defaultsを優先し、gallery_columns/gallery_rowsにフォールバック。
+
+    Returns:
+        (cols_per_row, rows_per_page, max_image_bytes)
+    """
+    gd = getattr(dashboard_config, "gallery_defaults", None)
+    if gd is not None:
+        cols = gd.columns
+        rows = gd.rows
+        max_bytes = gd.max_image_bytes
+    else:
+        cols = getattr(dashboard_config, "gallery_columns", 5)
+        rows = getattr(dashboard_config, "gallery_rows", 4)
+        max_bytes = 0
+    return cols, rows, max_bytes
+
+
 class GalleryViewConfig(ViewConfig):
     """ギャラリービュー設定コンポーネント"""
 
@@ -120,8 +140,7 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
             st.info("条件に一致する画像がありません。")
             return
 
-        cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
-        rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+        cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
         max_display = cols_per_row * rows_per_page
         images = images[:max_display]
 
@@ -163,12 +182,12 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         if not images:
             return "<p>条件に一致する画像がありません。</p>"
 
-        cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
-        rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+        cols_per_row, rows_per_page, max_bytes = _get_gallery_settings(dashboard_config)
         max_display = cols_per_row * rows_per_page
         images = images[:max_display]
 
-        max_image_bytes = getattr(dashboard_config, "gallery_max_image_bytes", 0)
+        # gallery_max_image_bytesが明示設定されていればそちらを優先
+        max_image_bytes = getattr(dashboard_config, "gallery_max_image_bytes", max_bytes)
         return _generate_gallery_html_grid(images, cols_per_row, project_root, source, max_image_bytes=max_image_bytes)
 
 
@@ -234,8 +253,7 @@ def _render_gallery_output_images(
     )
 
     # NxMグリッド設定
-    cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
-    rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+    cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
 
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")
@@ -323,8 +341,7 @@ def _render_gallery_property_images(
     )
 
     # NxMグリッド設定
-    cols_per_row = getattr(dashboard_config, "gallery_columns", 5)
-    rows_per_page = getattr(dashboard_config, "gallery_rows", 4)
+    cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
 
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")

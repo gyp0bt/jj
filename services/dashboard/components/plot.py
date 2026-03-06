@@ -132,6 +132,8 @@ class PlotPage(PageComponent[PlotViewConfig]):
         )
         from services.dashboard.widgets import apply_style_to_fig, build_axis_range, build_style_config
 
+        vocab = kwargs.get("vocab")
+
         st.header("プロットビュー")
 
         # 共有フィルタ
@@ -290,6 +292,7 @@ class PlotPage(PageComponent[PlotViewConfig]):
                 hover_name_col=vn_key,
                 z_key=z_key,
                 color_range=color_range,
+                vocab=vocab,
             )
             # NG領域塗りつぶし
             ng_regions = getattr(dashboard_config, "ng_regions", [])
@@ -329,6 +332,8 @@ class PlotPage(PageComponent[PlotViewConfig]):
             _create_plot_figure,
         )
         from services.dashboard.query import apply_saved_view_filters
+
+        vocab = kwargs.get("vocab")
 
         plot_config = view.plot
         x_key = plot_config.get("x")
@@ -393,6 +398,7 @@ class PlotPage(PageComponent[PlotViewConfig]):
                 hover_name_col=vn_key,
                 z_key=z_key,
                 color_range=color_range,
+                vocab=vocab,
             )
             # NG領域塗りつぶし
             ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
@@ -422,4 +428,5 @@ class PlotPage(PageComponent[PlotViewConfig]):
     ) -> str:
         from services.dashboard.html_export import generate_plot_html
 
-        return generate_plot_html(provider, view, dashboard_config)
+        vocab = kwargs.get("vocab")
+        return generate_plot_html(provider, view, dashboard_config, vocab=vocab)

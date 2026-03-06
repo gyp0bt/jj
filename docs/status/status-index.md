@@ -74,6 +74,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [047](status-047.md) | 2026-03-06 | M4 | 配列プロット クロスグループ軸選択・configデフォルト設定 | claude/dashboard-configurable-axes-FLuI3 |
 | [048](status-048.md) | 2026-03-06 | M2 | Config classification実装・vocab_display UI統合 | claude/execute-status-todos-oFw3W |
 | [049](status-049.md) | 2026-03-06 | M7 | Activeフィルタ全ページ適用・バッチ俯瞰ページ追加 | claude/batch-run-visualization-iOJAa |
+| [050](status-050.md) | 2026-03-06 | M2/M7 | プロット軸vocab変換・GalleryDefaults参照・Run --show-properties | claude/execute-status-todos-ifjHD |
 
 ---
 
