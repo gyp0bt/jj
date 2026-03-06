@@ -71,14 +71,21 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
 
         st.header("画像ギャラリー")
 
+        # 共有フィルタ
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
+
+        rows = provider.get_go_table()
+        render_shared_filters(rows)
+
         # 画像ソース選択
         source_options = ["has_output関係", "プロパティ画像パス"]
         image_source = st.radio("画像ソース", source_options, horizontal=True)
 
+        active_filters = get_active_filters()
         if image_source == "has_output関係":
-            _render_gallery_output_images(provider, project_root, dashboard_config)
+            _render_gallery_output_images(provider, project_root, dashboard_config, active_filters=active_filters)
         else:
-            _render_gallery_property_images(provider, project_root, dashboard_config)
+            _render_gallery_property_images(provider, project_root, dashboard_config, active_filters=active_filters)
 
     def render_saved_view(
         self,
@@ -174,6 +181,7 @@ def _render_gallery_output_images(
     provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
+    active_filters: dict[str, Any] | None = None,
 ) -> None:
     """has_output関係の画像ギャラリー（NxMグリッド・グループ表示対応）"""
     import streamlit as st
@@ -181,6 +189,12 @@ def _render_gallery_output_images(
     from services.dashboard.query import collect_group_keys, filter_images_by_keys
 
     images = provider.get_output_images()
+
+    # 共有フィルタ適用
+    if active_filters:
+        filtered_rows = provider.get_go_table(filters=active_filters)
+        filtered_names = {r["name"] for r in filtered_rows}
+        images = [img for img in images if img.get("go_node_name") in filtered_names]
 
     if not images:
         st.info(
@@ -254,6 +268,7 @@ def _render_gallery_property_images(
     provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
+    active_filters: dict[str, Any] | None = None,
 ) -> None:
     """プロパティ画像パスのギャラリー（キー別一覧・NxMグリッド・グループ表示対応）"""
     import streamlit as st
@@ -261,6 +276,12 @@ def _render_gallery_property_images(
     from services.dashboard.query import collect_group_keys, filter_images_by_keys, normalize_group_key
 
     images = provider.get_property_images()
+
+    # 共有フィルタ適用
+    if active_filters:
+        filtered_rows = provider.get_go_table(filters=active_filters)
+        filtered_names = {r["name"] for r in filtered_rows}
+        images = [img for img in images if img.get("go_node_name") in filtered_names]
 
     if not images:
         st.info(

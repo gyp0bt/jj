@@ -134,6 +134,13 @@ class PlotPage(PageComponent[PlotViewConfig]):
 
         st.header("プロットビュー")
 
+        # 共有フィルタ
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
+
+        rows = provider.get_go_table()
+        render_shared_filters(rows)
+        active_filters = get_active_filters()
+
         # グローバルカラム設定がある場合はフィルタ済みキーを使用
         all_keys = provider.get_property_keys()
         keys = provider.get_filtered_property_keys()
@@ -255,6 +262,12 @@ class PlotPage(PageComponent[PlotViewConfig]):
             extra_keys.append(z_key)
 
         data = provider.get_plot_data(x_key, y_key, color_key=color, extra_keys=extra_keys)
+
+        # 共有フィルタ適用（active/type/statusフィルタ）
+        if active_filters:
+            filtered_rows = provider.get_go_table(filters=active_filters)
+            filtered_names = {r["name"] for r in filtered_rows}
+            data = [d for d in data if d.get("name") in filtered_names]
 
         if not data:
             st.warning(f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。")

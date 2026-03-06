@@ -44,7 +44,14 @@ class CardPage(PageComponent[CardViewConfig]):
 
         st.header("カードビュー")
 
+        # 共有フィルタ
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
+
         rows = provider.get_go_table()
+        render_shared_filters(rows)
+        active_filters = get_active_filters()
+        if active_filters:
+            rows = provider.get_go_table(filters=active_filters)
         if not rows:
             st.info("go_ ファイルが見つかりません。")
             return
