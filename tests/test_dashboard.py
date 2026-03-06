@@ -6932,3 +6932,145 @@ class TestSharedFiltersOnAllPages:
         source = Path(mod.__file__).read_text()
         assert "get_active_filters" in source
         assert "render_shared_filters" in source
+
+
+class TestPlotVocabAxisLabels:
+    """プロット軸ラベルへのvocab変換テスト"""
+
+    def test_create_plot_figure_with_vocab(self):
+        """_create_plot_figureでvocabが軸タイトルに反映される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({"x_key": [1, 2, 3], "y_key": [4, 5, 6], "name": ["a", "b", "c"]})
+        vocab = {"x_key": "X軸表示名", "y_key": "Y軸表示名"}
+        fig = _create_plot_figure(px, df, "x_key", "y_key", None, "散布図", vocab=vocab)
+        assert fig.layout.title.text == "Y軸表示名 vs X軸表示名"
+        assert fig.layout.xaxis.title.text == "X軸表示名"
+        assert fig.layout.yaxis.title.text == "Y軸表示名"
+
+    def test_create_plot_figure_without_vocab(self):
+        """vocab未指定時は生キーがそのまま使用される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame({"x_key": [1, 2, 3], "y_key": [4, 5, 6], "name": ["a", "b", "c"]})
+        fig = _create_plot_figure(px, df, "x_key", "y_key", None, "散布図")
+        assert fig.layout.title.text == "y_key vs x_key"
+        assert fig.layout.xaxis.title.text == "x_key"
+        assert fig.layout.yaxis.title.text == "y_key"
+
+    def test_create_plot_figure_contour_vocab(self):
+        """コンタープロットのタイトルでvocabが反映される"""
+        try:
+            import pandas as pd
+            import plotly.express as px
+        except ImportError:
+            pytest.skip("plotly or pandas not installed")
+
+        from services.dashboard.html_export import _create_plot_figure
+
+        df = pd.DataFrame(
+            {
+                "x": [1, 2, 3],
+                "y": [4, 5, 6],
+                "z": [7, 8, 9],
+                "name": ["a", "b", "c"],
+            }
+        )
+        vocab = {"x": "横軸", "y": "縦軸", "z": "色変数"}
+        fig = _create_plot_figure(px, df, "x", "y", None, "コンター", z_key="z", vocab=vocab)
+        assert "横軸" in fig.layout.title.text
+        assert "縦軸" in fig.layout.title.text
+        assert "色変数" in fig.layout.title.text
+
+
+class TestGalleryDefaultsConfig:
+    """GalleryDefaults設定のギャラリーコンポーネント参照テスト"""
+
+    def test_get_gallery_settings_from_defaults(self):
+        """_get_gallery_settingsがgallery_defaultsから値を取得する"""
+        from dataclasses import dataclass
+
+        from services.dashboard.components.gallery import _get_gallery_settings
+
+        @dataclass
+        class MockDefaults:
+            columns: int = 3
+            rows: int = 2
+            max_image_bytes: int = 1024
+
+        @dataclass
+        class MockConfig:
+            gallery_defaults: MockDefaults = None
+
+            def __post_init__(self):
+                if self.gallery_defaults is None:
+                    self.gallery_defaults = MockDefaults()
+
+        config = MockConfig()
+        cols, rows, max_bytes = _get_gallery_settings(config)
+        assert cols == 3
+        assert rows == 2
+        assert max_bytes == 1024
+
+    def test_get_gallery_settings_fallback(self):
+        """gallery_defaultsがない場合はgallery_columns/rowsにフォールバック"""
+        from dataclasses import dataclass
+
+        from services.dashboard.components.gallery import _get_gallery_settings
+
+        @dataclass
+        class MockConfig:
+            gallery_columns: int = 6
+            gallery_rows: int = 3
+
+        config = MockConfig()
+        cols, rows, max_bytes = _get_gallery_settings(config)
+        assert cols == 6
+        assert rows == 3
+        assert max_bytes == 0
+
+
+class TestRunShowProperties:
+    """jj run --show-properties テスト"""
+
+    def test_show_properties_extracts_from_script(self, tmp_path):
+        """show_propertiesがスクリプトからプロパティを抽出する"""
+        from services.run import RunService
+
+        script = tmp_path / "test_script.py"
+        script.write_text("# props start\nmesh_size = 0.5\nsolver = abaqus\n# props end\nprint('hello')\n")
+        rs = RunService()
+        props = rs.show_properties(["python", str(script)], cwd=tmp_path)
+        assert props["mesh_size"] == "0.5"
+        assert props["solver"] == "abaqus"
+
+    def test_show_properties_no_script(self, tmp_path):
+        """スクリプトでないコマンドは空辞書を返す"""
+        from services.run import RunService
+
+        rs = RunService()
+        props = rs.show_properties(["echo", "hello"], cwd=tmp_path)
+        assert props == {}
+
+    def test_show_properties_with_args(self, tmp_path):
+        """引数マッピングもshow_propertiesで取得できる"""
+        from services.run import RunService
+
+        script = tmp_path / "run.py"
+        script.write_text("import sys\nparam1 = sys.argv[1]\nparam2 = sys.argv[2]\n")
+        rs = RunService()
+        props = rs.show_properties(["python", str(script), "value1", "value2"], cwd=tmp_path)
+        assert props["param1"] == "value1"
+        assert props["param2"] == "value2"
