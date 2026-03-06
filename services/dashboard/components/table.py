@@ -57,12 +57,49 @@ class TablePage(PageComponent[TableViewConfig]):
 
         # 共有フィルタ（サイドバー描画 + 適用）
         render_shared_filters(rows)
+
+        vocab = kwargs.get("vocab")
+
         filtered = apply_filters(
             rows,
             type_filter=st.session_state.get("_filter_type", "すべて"),
             status_filter=st.session_state.get("_filter_status", "すべて"),
             active_only=st.session_state.get("_filter_active", False),
+            vocab=vocab,
         )
+
+        # verbose_nameキー
+        vn_key = provider._verbose_name_key
+        idx_key = provider._index_key
+        ver_key = provider._version_key
+
+        # idx_key と ver_key を int に変換できるか確認し、可能なら idx, ver の順で昇順ソート
+        # TODO: queryとかに関数化して外出しする
+        def _to_int(val):
+            try:
+                if isinstance(val, bool):
+                    return None
+                return int(val)
+            except Exception:
+                return None
+
+        # どちらか一方でも int に変換できる行があるか判定
+        _can_sort = any(
+            _to_int(row.get(idx_key)) is not None or _to_int(row.get(ver_key)) is not None for row in filtered
+        )
+
+        if _can_sort:
+            sentinel = float("inf")
+
+            def _sort_key(row):
+                idx_val = _to_int(row.get(idx_key))
+                ver_val = _to_int(row.get(ver_key))
+                return (
+                    idx_val if idx_val is not None else sentinel,
+                    ver_val if ver_val is not None else sentinel,
+                )
+
+            filtered = sorted(filtered, key=_sort_key)
 
         st.caption(f"{len(filtered)} / {len(rows)} 件")
 
@@ -71,9 +108,6 @@ class TablePage(PageComponent[TableViewConfig]):
             return
 
         import pandas as pd
-
-        # verbose_nameキー
-        vn_key = provider._verbose_name_key
 
         # related_filesはネストしているので除外。float値は指数表記フォーマット。
         display_rows = []
@@ -104,6 +138,38 @@ class TablePage(PageComponent[TableViewConfig]):
         )
         if selected_cols:
             df = df[[c for c in selected_cols if c in df.columns]]
+
+        # Convert JSON columns that may contain NaN values.
+        # For each target column, parse the JSON string (if present) and replace it
+        # with the first element of the list. If the value is NaN or cannot be parsed,
+        # leave it as None (or the original value).
+        import json
+        import pandas as pd
+
+        # message_errorsとdat_errorsのようなlist[str]型の値がある列はパースして1番目要素のみ表示
+        # この対応だけ個別対応なので、将来的にはconfigで対応する。
+        # TODO: この処理をconfig対応にしてかつ関数化しておく
+        for col in ["msg_errors", "dat_errors"]:
+            if col in df.columns:
+
+                def _parse_json(value):
+                    # Preserve missing values as None
+                    if pd.isna(value):
+                        return None
+                    # If the value is already a Python object, use it directly
+                    if isinstance(value, (list, dict)):
+                        data = value
+                    else:
+                        try:
+                            data = value[1:-1].split(",")[0].replace("'", "")
+                            # data = json.loads(str(value))
+                        except Exception:
+                            # If loading fails, keep the original value
+                            # print(value)
+                            return value
+                    return data
+
+                df[col] = df[col].apply(_parse_json)
 
         # AgGridを試行、失敗時はst.dataframeにフォールバック
         if not try_render_aggrid(df):

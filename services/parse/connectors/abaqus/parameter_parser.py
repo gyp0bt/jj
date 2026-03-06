@@ -27,6 +27,10 @@ class AbaqusParameterParser(AbstractFileParser):
     *PARAMETER キーワードの直後に **props コメントがある場合、
     そのブロック内のkey=value形式のパラメータをプロパティとして抽出する。
     vocabマッピングを適用してキーと値を変換する。
+
+    TODO:
+        include関係にある親ファイルから読み取る場合、親ファイルのパラメータを子ファイルに渡して演算式を評価してfloat化します。
+        parameter数式はpythonライクな演算式です。
     """
 
     priority = 15
@@ -43,38 +47,87 @@ class AbaqusParameterParser(AbstractFileParser):
             if not file_path.exists():
                 continue
 
-            props = self._read_parameter_props(file_path, vocab)
+            props = self._read_parameter_props(file_path, vocab, master_props={})
+
             if props:
                 node.properties.update(props)
 
         return graph
 
     @staticmethod
-    def _read_parameter_props(file_path: object, vocab: dict[str, str]) -> dict[str, str]:
-        """INPファイルの*PARAMETER/**propsブロックからプロパティを読み取る"""
-        from pathlib import Path
+    def _read_parameter_props(
+        file_path: object,
+        vocab: dict[str, str],
+        master_props: dict[str, str] | None = None,
+        _visited: set[object] | None = None,
+    ) -> dict[str, str]:
+        """Read *PARAMETER/**props blocks from an INP file (including *include files).
 
-        file_path = Path(str(file_path))
-        if not file_path.exists():
+        The method recursively processes *include directives, merging the
+        resulting properties into the current context.  Circular includes are
+        detected via the ``_visited`` set and ignored.
+        """
+        from pathlib import Path
+        import re
+
+        # 初期化
+        if master_props is None:
+            master_props = {}
+        if _visited is None:
+            _visited = set()
+
+        path = Path(str(file_path)).resolve()
+        if path in _visited:
+            # 循環参照検出 – 何も追加せずに抜ける
+            return {}
+        _visited.add(path)
+
+        if not path.exists():
+            _visited.discard(path)
             return {}
 
         props: dict[str, str] = {}
+
         try:
-            with file_path.open(encoding="utf-8", errors="ignore") as f:
+            with path.open(encoding="utf-8", errors="ignore") as f:
                 while True:
                     line = f.readline()
                     if not line:
                         break
                     s = line.strip()
+                    if not s:
+                        continue
+
                     s_l = s.lower().replace(" ", "")
+
+                    # --------------------------------------------------
+                    # *include 行の処理（再帰的に同メソッドを呼び出す）
+                    # --------------------------------------------------
+                    if s_l.startswith("*include"):
+                        include_match = re.search(r"^\*include\s*,\s*input\s*=\s*([^\s,]+)", s, re.IGNORECASE)
+                        if include_match:
+                            inc_name = include_match.group(1)
+                            inc_path = (path.parent / inc_name).resolve()
+                            # 再帰的に子ファイルからプロパティを取得
+                            inc_props = AbaqusParameterParser._read_parameter_props(
+                                inc_path,
+                                vocab,
+                                master_props={**master_props, **props},
+                                _visited=_visited,
+                            )
+                            # 取得したプロパティを現在のコンテキストにマージ
+                            props.update(inc_props)
+                        continue
+
+                    # --------------------------------------------------
+                    # *parameter ブロックの検出と処理
+                    # --------------------------------------------------
                     if s_l.startswith("*parameter"):
-                        # print(s_l)
+                        # ヘッダー行を読み飛ばす
                         header = f.readline()
                         if not header:
                             break
-                        # header_s = header.strip().lower().replace(" ", "")
-                        # if not header_s.startswith("**props"):
-                        # continue
+
                         while True:
                             line2 = f.readline()
                             if not line2:
@@ -85,23 +138,60 @@ class AbaqusParameterParser(AbstractFileParser):
                             if t.startswith("**"):
                                 continue
                             if t.lstrip().startswith("*"):
+                                # 次のキーワードに到達したらブロック終了
                                 break
+
                             u = t.replace(" ", "")
                             if "=" not in u:
                                 continue
-                            k, v = u.split("=", 1)
-                            # 数値の場合は整形、文字列はそのまま保持
+                            k_raw, v_raw = u.split("=", 1)
+
+                            # ----------------------------------------------
+                            # 1) vocab マッピング
+                            # ----------------------------------------------
+                            k = vocab.get(k_raw, k_raw)
+                            v = vocab.get(v_raw, v_raw)
+
+                            # ----------------------------------------------
+                            # 2) トークン置換：他のプロパティ参照を解決
+                            # ----------------------------------------------
+                            combined = {**master_props, **props}
+                            tokens = re.split(r"([*+\-/])", v)
+                            new_tokens = [
+                                token if token in ("*", "+", "-", "/") else combined.get(vocab.get(token, token), token)
+                                for token in tokens
+                            ]
+                            v = "".join([vocab.get(_v, _v) for _v in new_tokens])
+
+                            # ----------------------------------------------
+                            # 3) 可能なら算術式を評価
+                            # ----------------------------------------------
+                            try:
+                                # 安全性を保つため、組み込み関数は全て除外
+                                result = eval(v, {"__builtins__": None}, {})
+                                if isinstance(result, (int, float)):
+                                    # 整数表記に揃える
+                                    if isinstance(result, float) and result.is_integer():
+                                        v = str(int(result))
+                                    else:
+                                        v = str(result)
+                            except Exception:
+                                # 評価できなければそのまま文字列を保持
+                                pass
+
+                            # ----------------------------------------------
+                            # 4) 数値の整形（整数は整数表記、実数は元表記保持）
+                            # ----------------------------------------------
                             if v.lstrip("-").isdigit():
                                 v = str(int(v))
                             elif "." in v or "e" in v.lower():
                                 with contextlib.suppress(ValueError):
-                                    float(v)  # validate numeric
-                                # 元の表記を保持（科学表記への変換はしない）
-                            if k:
-                                k = vocab.get(k, k)
-                                v = vocab.get(v, v)
-                                props[k] = v
-                        return props
+                                    float(v)  # 検証だけ
+
+                            props[k] = v
         except OSError:
             pass
+        finally:
+            _visited.discard(path)
+
         return props

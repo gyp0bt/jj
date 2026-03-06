@@ -50,6 +50,7 @@ def apply_filters(
     type_filter: str | None = None,
     status_filter: str | None = None,
     active_only: bool = False,
+    vocab: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """汎用フィルタを適用
 
@@ -58,17 +59,27 @@ def apply_filters(
         type_filter: タイプフィルタ（Noneまたは"すべて"で無効）
         status_filter: ステータスフィルタ（Noneまたは"すべて"で無効）
         active_only: Trueの場合activeのみ
+        vocab: 語彙マッピング（キー: 論理名, 値: 実際の列名）
 
     Returns:
         フィルタ適用後の行データ
     """
+    # 語彙が提供されていない場合はデフォルトのキー名を使用
+    type_key = vocab.get("type", "type") if vocab else "type"
+    status_key = vocab.get("status", "analysis_status") if vocab else "analysis_status"
+    active_key = vocab.get("active", "active") if vocab else "active"
+
     filtered = rows
+
     if type_filter and type_filter != "すべて":
-        filtered = [r for r in filtered if r.get("type") == type_filter]
+        filtered = [r for r in filtered if r.get(type_key) == type_filter]
+
     if status_filter and status_filter != "すべて":
-        filtered = [r for r in filtered if r.get("analysis_status") == status_filter]
+        filtered = [r for r in filtered if r.get(status_key) == status_filter]
+
     if active_only:
-        filtered = [r for r in filtered if is_truthy(r.get("active"))]
+        filtered = [r for r in filtered if is_truthy(r.get(active_key))]
+
     return filtered
 
 

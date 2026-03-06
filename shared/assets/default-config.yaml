@@ -43,8 +43,14 @@
 #     temp: 温度
 vocab:
   idx: 条件
-  ver: バージョン
-  v: バージョン
+  v: v
+  active: 〇
+  verbose_name: 表示名
+  wallclock_time: 計算時間
+  cpu_time: 計算時間(CPU時間)
+  analysis_status: 成否
+
+
 
 # ========================================================================
 # トークン→キーマッピング（token-key-map）
@@ -73,7 +79,7 @@ vocab:
 #   → 条件=1, 高さ=5, 荷重=20 の場合 → "1(5,20)"
 #   verbose-name-format: "条件{条件}(高さ{高さ},荷重{荷重})"
 #   → "条件1(高さ5,荷重20)"
-# verbose-name-format:
+verbose-name-format: "条件{条件}(v{v})"
 
 # ========================================================================
 # パスパターンによるファイルタイプ指定（path-type-map）
@@ -86,21 +92,21 @@ vocab:
 #     "*": 計算結果
 path-type-map:
   "**go_* | **go":
-    "*.inp": Abaqusインプット
-    "*.cas.h5": Fluentインプット
-    "*.aedt": HFSSインプット
-    "*.sta": Abaqusステータス
-    "*.dat": Abaqusデータ
-    "*.odb": Abaqus ODB
+    "*.inp": ABQ inp
+    "*.cas.h5": Fluent inp
+    "*.aedt": HFSS inp
+    "*.sta": ABQ sta
+    "*.dat": ABQ dat
+    "*.odb": ABQ  odb
     "*": 計算結果
   "**mesh_* | **mesh":
-    "*.inp": Abaqus用メッシュ
-    "*.msh": Fluent用メッシュ
-    "*.cdb": ANSYS用メッシュ
+    "*.inp": ABQ mesh
+    "*.msh": Fluent mesh
+    "*.cdb": ANSYS mesh
   "**material_* | **material":
-    "*.inp": Abaqus用マテリアル
+    "*.inp": ABQ mat
   "**step_* | **step":
-    "*.inp": Abaqusステップ
+    "*.inp": ABQ step
   "./reports/":
     "*": 報告書
   "./results/":
@@ -335,13 +341,16 @@ dashboard:
   #     - analysis_status
   #     - active
   #     - stress*
-  # table-columns:
   exclude-table-columns:
     - type
     - format
     - daily_notes
     - daily_sections
     - verbose_name
+    - dat_warnings
+    - msg_warnings
+    - cpu_time
+
 
   # デフォルトフィルタ（ダッシュボード起動時に適用）
   # ビュー間で共有され、session中保持されます。

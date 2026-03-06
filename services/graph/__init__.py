@@ -93,6 +93,7 @@ class GraphService:
         """
         ext_set = set(extensions or DEFAULT_EXTENSIONS)
         # デフォルトの除外ディレクトリ
+        # TODO:　configに逃がす
         default_exclude = {".git", ".j2", "__pycache__", "node_modules", ".venv"}
         exclude_set = set(exclude_dirs or default_exclude)
 
@@ -118,7 +119,9 @@ class GraphService:
         return sorted(files)
 
     def file_to_node(self, file_path: Path) -> Node:
-        """ファイルパスからNodeを生成"""
+        """ファイルパスからNodeを生成
+        TODO: これはparseへ移動。またversion, index, activeがハードコードでややこしい。index, versionは特殊かつ必須なのでconfigでversion: vなどを強制。
+        """
         parser = FileParse(file_path)
         file_type = parser.get_file_type()
         props = parser.get_props()

@@ -135,6 +135,10 @@ class DashboardDataProvider:
 
         # verbose_nameのvocab変換後キー名を特定（例: "表示名"）
         self._verbose_name_key = self.vocab.get("verbose_name", "verbose_name")
+        # idx / index キーのvocab変換後キー名を特定（例: "インデックス"）
+        self._index_key = self.vocab.get("idx", "idx")
+        # v / version キーのvocab変換後キー名を特定（例: "バージョン"）
+        self._version_key = self.vocab.get("v", "v")
 
     def get_go_table(
         self,
@@ -346,7 +350,7 @@ class DashboardDataProvider:
                 continue
 
             total += 1
-            status = node.properties.get("analysis_status", "unknown")
+            status = node.properties.get(self.vocab.get("analysis_status", "analysis_status"), "unknown")
 
             if status == "completed":
                 completed += 1
@@ -359,13 +363,21 @@ class DashboardDataProvider:
                 "name": node.name,
                 "analysis_status": status,
             }
-            if "cpu_time" in node.properties:
-                item["cpu_time"] = node.properties["cpu_time"]
-            if "sta_errors" in node.properties:
-                item["errors"] = node.properties["sta_errors"]
-            if "sta_warnings" in node.properties:
-                item["warnings"] = node.properties["sta_warnings"]
-
+            if self.vocab.get("cpu_time", "cpu_time") in node.properties:
+                # TODO: sta, dat, msgのwarningsは個別に表示する
+                item["cpu_time"] = node.properties[self.vocab.get("cpu_time", "cpu_time")]
+                errors = (
+                    node.properties.get(self.vocab.get("sta_errors", "sta_errors"), [])
+                    + node.properties.get(self.vocab.get("msg_errors", "msg_errors"), [])
+                    + node.properties.get(self.vocab.get("dat_errors", "dat_errors"), [])
+                )
+                item["errors"] = errors
+                warnings = (
+                    node.properties.get(self.vocab.get("sta_warnings", "sta_warnings"), [])
+                    + node.properties.get(self.vocab.get("msg_warnings", "msg_warnings"), [])
+                    + node.properties.get(self.vocab.get("dat_warnings", "dat_warnings"), [])
+                )
+                item["warnings"] = warnings
             items.append(item)
 
         # CPU時間統計
@@ -767,6 +779,13 @@ class DashboardDataProvider:
             "series": series,
         }
 
+    def _get_vocab_mapped_filters(self, filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """vocabに対応するキーにfiltersを変換する"""
+        if filters is None:
+            return filters
+        filters = {self.vocab.get(k, k): v for k, v in filters.items()}
+        return filters
+
     def get_array_grid_data(
         self,
         x_key: str,
@@ -910,12 +929,14 @@ class DashboardDataProvider:
 
         return row
 
-    @staticmethod
-    def _matches_filters(row: dict[str, Any], filters: dict[str, Any]) -> bool:
+    # @staticmethod
+    def _matches_filters(self, row: dict[str, Any], filters: dict[str, Any]) -> bool:
         """行がフィルタ条件に一致するか判定
 
         bool値はYAML由来(True/False)と文字列("true"/"false")の両方に対応。
+        self.vocabでキーをmappingする処理を追加
         """
+        filters = self._get_vocab_mapped_filters(filters)
         for key, value in filters.items():
             row_value = row.get(key)
             if row_value is None:

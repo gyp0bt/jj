@@ -97,13 +97,16 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
 
         with col2:
-            x_key = st.selectbox("X軸", prefix_keys, index=0)
+            # TODO: configでデフォルトキー指定できるようにする
+            x_key = st.selectbox("X軸", prefix_keys, index=len(prefix_keys) - 1)
         with col3:
+            # y_options = [k for k in prefix_keys if k != x_key]
             y_options = [k for k in prefix_keys if k != x_key]
             if not y_options:
                 st.warning("Y軸に使用できるキーがありません。")
                 return
-            y_keys = st.multiselect("Y軸", y_options, default=y_options[:1])
+            # TODO: configでデフォルトキー指定できるようにする
+            y_keys = st.multiselect("Y軸", y_options, default=y_options[2])
 
         if not y_keys:
             st.info("Y軸を選択してください。")
@@ -114,15 +117,16 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
 
         # 軸範囲設定（number_input）
         with st.expander("軸範囲設定", expanded=False):
+            # TODO: configでデフォルト指定できるようにする
             rc1, rc2, rc3, rc4 = st.columns(4)
             with rc1:
                 ax_x_min = st.number_input("X最小", value=None, key="_ap_x_min", format="%g")
             with rc2:
                 ax_x_max = st.number_input("X最大", value=None, key="_ap_x_max", format="%g")
             with rc3:
-                ax_y_min = st.number_input("Y最小", value=None, key="_ap_y_min", format="%g")
+                ax_y_min = st.number_input("Y最小", value=0.0, key="_ap_y_min", format="%g")
             with rc4:
-                ax_y_max = st.number_input("Y最大", value=None, key="_ap_y_max", format="%g")
+                ax_y_max = st.number_input("Y最大", value=1.0, key="_ap_y_max", format="%g")
 
         # スタイル設定
         with st.expander("スタイル設定", expanded=False):

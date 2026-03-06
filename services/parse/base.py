@@ -436,6 +436,7 @@ def parse(
     for group in groups:
         # print([i.__name__ for i in group])
         if parallel and len(group) > 1:
+            print([i.__name__ for i in group])
             graph = _run_parser_group_parallel(graph, group, debug=debug, max_workers=max_workers)
         else:
             for parser_cls in group:

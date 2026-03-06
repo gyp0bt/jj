@@ -15,6 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Generic, TypeVar
 
+# TODO: ハードコードはconfigに逃がす
 DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".cas.h5",
     ".dat.h5",

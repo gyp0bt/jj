@@ -82,3 +82,11 @@ jj run python train.py
 
 - parse_and_save()はプロジェクト全体を再スキャンするため、大規模プロジェクトでは`jj run`後の遅延が発生する可能性あり。`--no-parse`でスキップ可能だが、タイムスタンプ差分parseの活用で軽減すべき
 - pymeshのテスト失敗がCIで繰り返し発生している。CLAUDE.mdに規約を明記したが、CI環境にpandas/scipyをインストールして根本解決すべき
+
+## 26/3/6追記
+- AbaqusParameterParserのパラメータ数式を、観測済みパラメータから評価するように修正
+- dashboardの細かなスタイル修正
+- parserとdashboardのあちこちにTODOをハードコード
+## 追加TODO
+- [ ] dashboard等であちこちハードコードになっている値があり探索が困難。configは完全にクラス化して明示列挙したい
+- [ ] vocabの変換前と後が混在していて非常に複雑。なのでparse時はvocabを適用せず、ダッシュボードやCLI出力時のみparseする仕様に大幅変更
