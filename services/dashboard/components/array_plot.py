@@ -285,22 +285,23 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                     try:
                         import plotly.graph_objects as go
 
+                        from modules.vocab_display import translate_key
+
+                        sv_vocab = kwargs.get("vocab") or {}
                         fig = go.Figure()
                         for s in plot_data["series"]:
+                            series_label = translate_key(s["key"].split(".")[-1], sv_vocab)
                             fig.add_trace(
                                 go.Scatter(
                                     x=plot_data["x_values"],
                                     y=s["values"],
                                     mode="lines+markers",
-                                    name=s["key"].split(".")[-1],
+                                    name=series_label,
                                 )
                             )
                         # NG領域塗りつぶし
                         if ng_regions:
                             _add_ng_regions_to_fig(fig, ng_regions)
-                        from modules.vocab_display import translate_key
-
-                        sv_vocab = kwargs.get("vocab") or {}
                         fig.update_layout(
                             title=plot_data["name"],
                             xaxis_title=translate_key(x_key.split(".")[-1], sv_vocab),
@@ -498,12 +499,13 @@ def _render_array_single(
 
         fig = go.Figure()
         for s in plot_data["series"]:
+            series_label = translate_key(s["key"].split(".")[-1], v)
             fig.add_trace(
                 go.Scatter(
                     x=plot_data["x_values"],
                     y=s["values"],
                     mode="lines+markers",
-                    name=s["key"].split(".")[-1],
+                    name=series_label,
                 )
             )
         # NG領域塗りつぶし
