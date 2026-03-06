@@ -31,16 +31,25 @@ class ArrayPlotViewConfig(ViewConfig):
         array_keys = provider.get_array_property_keys()
         if not array_keys:
             return {"array_plot": {}}
-        prefixes = sorted({k.split(".")[0] for k in array_keys})
         ac1, ac2 = st.columns(2)
         with ac1:
-            ap_prefix = st.selectbox("プレフィックス", prefixes, key="_add_view_ap_prefix")
-        with ac2:
             ap_mode = st.selectbox("モード", ["overlay", "single"], key="_add_view_ap_mode")
-        prefix_keys = [k for k in array_keys if k.startswith(ap_prefix + ".")]
-        ap_x = st.selectbox("X軸", prefix_keys, key="_add_view_ap_x") if prefix_keys else ""
-        ap_y_options = [k for k in prefix_keys if k != ap_x]
-        ap_y = st.multiselect("Y軸", ap_y_options, key="_add_view_ap_y")
+        with ac2:
+            cross_group = st.checkbox("クロスグループ選択", value=False, key="_add_view_ap_cross")
+        if cross_group:
+            # 全配列キーから自由にX/Yを選択
+            ap_x = st.selectbox("X軸", array_keys, key="_add_view_ap_x") if array_keys else ""
+            ap_y_options = [k for k in array_keys if k != ap_x]
+            ap_y = st.multiselect("Y軸", ap_y_options, key="_add_view_ap_y")
+            ap_prefix = ""
+        else:
+            # 従来のプレフィックスグループ内選択
+            prefixes = sorted({k.split(".")[0] for k in array_keys})
+            ap_prefix = st.selectbox("プレフィックス", prefixes, key="_add_view_ap_prefix")
+            prefix_keys = [k for k in array_keys if k.startswith(ap_prefix + ".")]
+            ap_x = st.selectbox("X軸", prefix_keys, key="_add_view_ap_x") if prefix_keys else ""
+            ap_y_options = [k for k in prefix_keys if k != ap_x]
+            ap_y = st.multiselect("Y軸", ap_y_options, key="_add_view_ap_y")
         return {
             "array_plot": {
                 "prefix": ap_prefix,
@@ -85,28 +94,53 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         rows = provider.get_go_table()
         render_shared_filters(rows)
 
+        # configからデフォルト値を取得
+        ap_defaults = _get_array_plot_defaults(dashboard_config)
+
         # 接頭辞グループの抽出（例: RF, stress）
         prefixes = sorted({k.split(".")[0] for k in array_keys})
 
-        # UI: 接頭辞選択 → X/Y軸選択
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            selected_prefix = st.selectbox("データグループ", prefixes)
+        # クロスグループ選択モード
+        cross_group = st.checkbox("クロスグループ選択（異なるデータグループ間でX/Y選択）", value=False)
 
-        # 選択された接頭辞のキーのみ
-        prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
+        if cross_group:
+            # 全配列キーから自由にX/Yを選択
+            col_x, col_y = st.columns(2)
+            with col_x:
+                default_x_idx = _find_key_index(array_keys, ap_defaults.get("x"))
+                x_key = st.selectbox("X軸", array_keys, index=default_x_idx)
+            with col_y:
+                y_options = [k for k in array_keys if k != x_key]
+                if not y_options:
+                    st.warning("Y軸に使用できるキーがありません。")
+                    return
+                default_y = _get_default_y_keys(y_options, ap_defaults.get("y"))
+                y_keys = st.multiselect("Y軸", y_options, default=default_y)
+        else:
+            # 従来のプレフィックスグループ内選択
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                selected_prefix = st.selectbox("データグループ", prefixes)
 
-        with col2:
-            # TODO: configでデフォルトキー指定できるようにする
-            x_key = st.selectbox("X軸", prefix_keys, index=len(prefix_keys) - 1)
-        with col3:
-            # y_options = [k for k in prefix_keys if k != x_key]
-            y_options = [k for k in prefix_keys if k != x_key]
-            if not y_options:
-                st.warning("Y軸に使用できるキーがありません。")
-                return
-            # TODO: configでデフォルトキー指定できるようにする
-            y_keys = st.multiselect("Y軸", y_options, default=y_options[2])
+            # 選択された接頭辞のキーのみ
+            prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
+
+            with col2:
+                default_x_idx = _find_key_index(prefix_keys, ap_defaults.get("x"))
+                if default_x_idx == 0 and not ap_defaults.get("x"):
+                    default_x_idx = len(prefix_keys) - 1
+                x_key = st.selectbox("X軸", prefix_keys, index=default_x_idx)
+            with col3:
+                y_options = [k for k in prefix_keys if k != x_key]
+                if not y_options:
+                    st.warning("Y軸に使用できるキーがありません。")
+                    return
+                default_y = _get_default_y_keys(y_options, ap_defaults.get("y"))
+                if not default_y and len(y_options) > 2:
+                    default_y = [y_options[2]]
+                elif not default_y and y_options:
+                    default_y = [y_options[0]]
+                y_keys = st.multiselect("Y軸", y_options, default=default_y)
 
         if not y_keys:
             st.info("Y軸を選択してください。")
@@ -115,18 +149,17 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         # 表示モード: 全条件比較 or 個別ノード
         view_mode = st.radio("表示モード", ["全条件比較", "個別ノード"], horizontal=True)
 
-        # 軸範囲設定（number_input）
+        # 軸範囲設定（number_input） - configデフォルト対応
         with st.expander("軸範囲設定", expanded=False):
-            # TODO: configでデフォルト指定できるようにする
             rc1, rc2, rc3, rc4 = st.columns(4)
             with rc1:
-                ax_x_min = st.number_input("X最小", value=None, key="_ap_x_min", format="%g")
+                ax_x_min = st.number_input("X最小", value=ap_defaults.get("x_min"), key="_ap_x_min", format="%g")
             with rc2:
-                ax_x_max = st.number_input("X最大", value=None, key="_ap_x_max", format="%g")
+                ax_x_max = st.number_input("X最大", value=ap_defaults.get("x_max"), key="_ap_x_max", format="%g")
             with rc3:
-                ax_y_min = st.number_input("Y最小", value=0.0, key="_ap_y_min", format="%g")
+                ax_y_min = st.number_input("Y最小", value=ap_defaults.get("y_min", 0.0), key="_ap_y_min", format="%g")
             with rc4:
-                ax_y_max = st.number_input("Y最大", value=1.0, key="_ap_y_max", format="%g")
+                ax_y_max = st.number_input("Y最大", value=ap_defaults.get("y_max", 1.0), key="_ap_y_max", format="%g")
 
         # スタイル設定
         with st.expander("スタイル設定", expanded=False):
@@ -476,3 +509,46 @@ def _render_array_single(
         st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         st.warning("plotlyが必要です: pip install plotly")
+
+
+# ====================================================================
+# ヘルパー関数
+# ====================================================================
+
+
+def _get_array_plot_defaults(dashboard_config: DashboardConfig) -> dict[str, Any]:
+    """DashboardConfigからarray_plotデフォルト設定を取得
+
+    config.yamlの dashboard.array-plot セクションから以下を読み取る:
+    - x: デフォルトX軸キー
+    - y: デフォルトY軸キー（リスト）
+    - x_min, x_max, y_min, y_max: デフォルト軸範囲
+
+    Returns:
+        デフォルト設定の辞書
+    """
+    if not dashboard_config:
+        return {}
+    ap_config = getattr(dashboard_config, "array_plot_defaults", None)
+    if not ap_config or not isinstance(ap_config, dict):
+        return {}
+    return ap_config
+
+
+def _find_key_index(keys: list[str], target: str | None) -> int:
+    """キーリスト内でtargetのインデックスを返す。見つからなければ0"""
+    if not target or not keys:
+        return 0
+    try:
+        return keys.index(target)
+    except ValueError:
+        return 0
+
+
+def _get_default_y_keys(y_options: list[str], config_y: str | list[str] | None) -> list[str]:
+    """configからデフォルトY軸キーを取得"""
+    if not config_y:
+        return []
+    if isinstance(config_y, str):
+        config_y = [config_y]
+    return [k for k in config_y if k in y_options]
