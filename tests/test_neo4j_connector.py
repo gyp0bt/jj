@@ -977,3 +977,82 @@ class TestPropertyKeyConstants:
 
         assert "version_diff" in TYPE_TO_LABEL
         assert TYPE_TO_LABEL["version_diff"] == NodeLabel.JJ_FILE
+
+
+class TestNeo4jRunNodeSupport:
+    """Neo4j Runノード対応テスト（M7 Phase 6）"""
+
+    def test_run_type_maps_to_jj_run_label(self):
+        """type='run'のノードがJJRunラベルにマッピングされる"""
+        assert get_neo4j_label("run") == NodeLabel.JJ_RUN
+
+    def test_run_relations_in_label_to_reltype(self):
+        """run_input/output/mediaがLABEL_TO_RELTYPEに含まれる"""
+        assert "run_input" in LABEL_TO_RELTYPE
+        assert "run_output" in LABEL_TO_RELTYPE
+        assert "run_media" in LABEL_TO_RELTYPE
+        assert LABEL_TO_RELTYPE["run_input"] == RelType.RUN_INPUT
+        assert LABEL_TO_RELTYPE["run_output"] == RelType.RUN_OUTPUT
+        assert LABEL_TO_RELTYPE["run_media"] == RelType.RUN_MEDIA
+
+    def test_get_neo4j_reltype_for_run_relations(self):
+        """get_neo4j_reltypeがRunリレーションを正しく変換する"""
+        assert get_neo4j_reltype("run_input") == "RUN_INPUT"
+        assert get_neo4j_reltype("run_output") == "RUN_OUTPUT"
+        assert get_neo4j_reltype("run_media") == "RUN_MEDIA"
+
+    def test_build_node_properties_includes_category(self):
+        """_build_node_propertiesがcategoryフィールドを含む"""
+        from jj_types import NodeCategory
+
+        node = Node(
+            id=10,
+            type="run",
+            name="run_001",
+            format="",
+            properties={"run_type": "cae_job", "run_status": "completed"},
+            category=NodeCategory.RUN,
+        )
+        props = _build_node_properties(node, "test_project")
+        assert props["category"] == "run"
+        assert props["type"] == "run"
+        assert props["run_type"] == "cae_job"
+
+    def test_build_node_properties_category_default(self):
+        """デフォルトのFILEカテゴリが正しくセットされる"""
+        node = Node(id=1, type="file", name="test", format="inp", properties={})
+        props = _build_node_properties(node, "test_project")
+        assert props["category"] == "file"
+
+    def test_run_node_cypher_export(self, tmp_path):
+        """Neo4jConnectorがRunノードを正しくCypherとして出力する"""
+        from jj_types import NodeCategory
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="go_001",
+                    format="inp",
+                    properties={"index": "1"},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_001",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+            ],
+        )
+        output_file = tmp_path / "test.cypher"
+        connector = Neo4jConnector(project_root=tmp_path)
+        connector.export_cypher(graph, output_path=output_file)
+        content = output_file.read_text()
+        assert "JJRun" in content
+        assert "RUN_OUTPUT" in content
