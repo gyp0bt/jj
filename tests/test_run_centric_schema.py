@@ -23,6 +23,8 @@ from services.graph.project_graph import ProjectGraph
 from services.parse.run_discoverer import AbstractRunDiscoverer, RunCandidate
 from services.run.query import (
     ComparisonAxis,
+    PropertyTrace,
+    RunPropertySummary,
     RunQueryService,
 )
 
@@ -616,3 +618,201 @@ class TestStorageBackwardCompat:
         assert loaded.nodes[1].category == NodeCategory.RUN
         assert loaded.nodes[2].category == NodeCategory.DATA
         assert loaded.relations[0].label == RUN_INPUT
+
+
+# =========================================================
+# Run-Propertyトレーサビリティ テスト
+# =========================================================
+
+
+def _build_traceability_graph() -> GraphModel:
+    """トレーサビリティテスト用グラフ
+
+    2つのCAE Runが各々出力ノード（プロパティ付き）を持つ。
+    """
+    nodes = [
+        Node(id=1, type="go", name="go_idx1.inp", format="inp", properties={"path": "go_idx1.inp"}),
+        Node(
+            id=2,
+            type="file",
+            name="go_idx1.odb",
+            format="odb",
+            properties={"path": "go_idx1.odb", "stress_max": 450.0, "analysis_status": "completed"},
+        ),
+        Node(
+            id=3,
+            type="file",
+            name="go_idx1.sta",
+            format="sta",
+            properties={"path": "go_idx1.sta", "wallclock_time": "120.5"},
+        ),
+        Node(id=4, type="go", name="go_idx2.inp", format="inp", properties={"path": "go_idx2.inp"}),
+        Node(
+            id=5,
+            type="file",
+            name="go_idx2.odb",
+            format="odb",
+            properties={"path": "go_idx2.odb", "stress_max": 380.0, "analysis_status": "completed"},
+        ),
+        # Run nodes
+        Node(
+            id=100,
+            type="cae_job",
+            name="go_idx1 abaqus解析",
+            format="",
+            category=NodeCategory.RUN,
+            properties={
+                "run_type": "cae_job",
+                "run_status": "completed",
+                "started_at": "2026-03-01T10:00:00+00:00",
+                "solver": "abaqus",
+            },
+        ),
+        Node(
+            id=101,
+            type="cae_job",
+            name="go_idx2 abaqus解析",
+            format="",
+            category=NodeCategory.RUN,
+            properties={
+                "run_type": "cae_job",
+                "run_status": "completed",
+                "started_at": "2026-03-01T11:00:00+00:00",
+                "solver": "abaqus",
+            },
+        ),
+    ]
+    relations = [
+        # Run 100: input=inp1, output=odb1+sta1
+        Relation(id=1, label=RUN_INPUT, node1_id=100, node2_id=1),
+        Relation(id=2, label=RUN_OUTPUT, node1_id=100, node2_id=2),
+        Relation(id=3, label=RUN_OUTPUT, node1_id=100, node2_id=3),
+        # Run 101: input=inp2, output=odb2
+        Relation(id=4, label=RUN_INPUT, node1_id=101, node2_id=4),
+        Relation(id=5, label=RUN_OUTPUT, node1_id=101, node2_id=5),
+    ]
+    return GraphModel(nodes=nodes, relations=relations)
+
+
+class TestRunPropertyTraceability:
+    """Run-Propertyトレーサビリティのテスト"""
+
+    def test_get_run_properties(self):
+        """Run→Property: Runの出力ノードからプロパティ一覧を取得"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+        run1 = next(r for r in svc.get_runs() if r.id == 100)
+
+        traces = svc.get_run_properties(run1)
+        # odb(stress_max, analysis_status) + sta(wallclock_time) = 3プロパティ（pathは除外）
+        keys = {t.property_key for t in traces}
+        assert "stress_max" in keys
+        assert "analysis_status" in keys
+        assert "wallclock_time" in keys
+        assert "path" not in keys  # _RUN_META_KEYSで除外
+
+        # すべてのtraceがrun1を指す
+        for t in traces:
+            assert t.run_id == 100
+            assert t.run_name == "go_idx1 abaqus解析"
+            assert t.timestamp == "2026-03-01T10:00:00+00:00"
+
+    def test_get_property_source_runs(self):
+        """Property→Run: ノードのプロパティの生成元Runを逆引き"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+        odb_node = next(n for n in graph.nodes if n.id == 2)
+
+        traces = svc.get_property_source_runs(odb_node)
+        assert len(traces) > 0
+        # odb_nodeはRun 100の出力
+        run_ids = {t.run_id for t in traces}
+        assert 100 in run_ids
+        assert 101 not in run_ids
+
+    def test_get_run_property_summary(self):
+        """Runのプロパティ生成サマリー"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+        run1 = next(r for r in svc.get_runs() if r.id == 100)
+
+        summary = svc.get_run_property_summary(run1)
+        assert isinstance(summary, RunPropertySummary)
+        assert summary.run_node.id == 100
+        assert len(summary.output_nodes) == 2  # odb + sta
+        assert summary.total_property_count == 3
+        assert "stress_max" in summary.unique_keys
+        assert "wallclock_time" in summary.unique_keys
+
+    def test_find_runs_by_property_key(self):
+        """プロパティキーからRunを検索"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+
+        traces = svc.find_runs_by_property("stress_max")
+        assert len(traces) == 2  # Run 100(odb1) + Run 101(odb2)
+        run_ids = {t.run_id for t in traces}
+        assert run_ids == {100, 101}
+
+    def test_find_runs_by_property_key_and_value(self):
+        """プロパティキー+値からRunを検索"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+
+        traces = svc.find_runs_by_property("stress_max", 450.0)
+        assert len(traces) == 1
+        assert traces[0].run_id == 100
+        assert traces[0].property_value == 450.0
+
+    def test_find_runs_by_property_no_match(self):
+        """一致しないプロパティキーの検索"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+
+        traces = svc.find_runs_by_property("nonexistent_key")
+        assert traces == []
+
+    def test_property_trace_data(self):
+        """PropertyTraceの各フィールドが正しいこと"""
+        graph = _build_traceability_graph()
+        svc = RunQueryService(graph)
+
+        traces = svc.find_runs_by_property("wallclock_time")
+        assert len(traces) == 1
+        t = traces[0]
+        assert isinstance(t, PropertyTrace)
+        assert t.run_id == 100
+        assert t.run_name == "go_idx1 abaqus解析"
+        assert t.node_id == 3  # sta file
+        assert t.node_name == "go_idx1.sta"
+        assert t.property_key == "wallclock_time"
+        assert t.property_value == "120.5"
+        assert t.timestamp == "2026-03-01T10:00:00+00:00"
+
+    def test_empty_graph_traceability(self):
+        """空グラフでのトレーサビリティ"""
+        graph = GraphModel.empty()
+        svc = RunQueryService(graph)
+        assert svc.find_runs_by_property("any_key") == []
+
+    def test_run_without_outputs_traceability(self):
+        """出力なしRunのトレーサビリティ"""
+        nodes = [
+            Node(
+                id=100,
+                type="script",
+                name="dry run",
+                format="",
+                category=NodeCategory.RUN,
+                properties={"run_type": "script", "run_status": "completed"},
+            ),
+        ]
+        graph = GraphModel(nodes=nodes, relations=[])
+        svc = RunQueryService(graph)
+
+        traces = svc.get_run_properties(nodes[0])
+        assert traces == []
+
+        summary = svc.get_run_property_summary(nodes[0])
+        assert summary.total_property_count == 0
+        assert summary.output_nodes == []

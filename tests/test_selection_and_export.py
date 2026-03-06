@@ -199,56 +199,118 @@ class TestFlattenProperties:
 # VocabFinalizer テスト
 # =========
 class TestVocabFinalizer:
-    def test_vocab_applied_to_property_keys(self):
-        from services.parse.parsers.vocab_finalizer import _apply_vocab_to_dict
+    """VocabFinalizerは廃止済み（空操作）。プロパティは変更されないことを確認。"""
 
-        vocab = {"stress": "応力", "displacement": "変位"}
-        props = {"stress": {"0": 0.5}, "displacement": 1.2, "other": "val"}
-        result = _apply_vocab_to_dict(props, vocab)
-        assert "応力" in result
-        assert "変位" in result
-        assert "other" in result
-        assert "stress" not in result
-        assert "displacement" not in result
+    def test_vocab_finalizer_is_noop(self):
+        """VocabFinalizer.apply()はグラフを変更しない"""
+        from config import GraphConfig
+        from services.graph.project_graph import ProjectGraph
+        from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
-    def test_vocab_applied_to_string_values(self):
-        from services.parse.parsers.vocab_finalizer import _apply_vocab_to_dict
+        config = GraphConfig.from_dict({"vocab": {"stress": "応力"}})
+        node = Node(
+            id=1,
+            type="go",
+            name="test",
+            format="inp",
+            properties={"stress": {"0": 0.5}, "displacement": 1.2, "other": "val"},
+        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root="/tmp", config=config)
+        result = VocabFinalizer().apply(pg)
+        # プロパティは変更されない（生キーのまま）
+        assert "stress" in result.nodes[0].properties
+        assert "displacement" in result.nodes[0].properties
+        assert "other" in result.nodes[0].properties
 
-        vocab = {"active": "アクティブ", "true": "有効"}
-        props = {"active": "true", "count": 5}
-        result = _apply_vocab_to_dict(props, vocab)
-        assert result == {"アクティブ": "有効", "count": 5}
+    def test_properties_unchanged_with_string_values(self):
+        """文字列値もvocab変換されない"""
+        from config import GraphConfig
+        from services.graph.project_graph import ProjectGraph
+        from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
-    def test_vocab_applied_to_nested_dict(self):
-        from services.parse.parsers.vocab_finalizer import _apply_vocab_to_dict
+        config = GraphConfig.from_dict({"vocab": {"active": "アクティブ", "true": "有効"}})
+        node = Node(
+            id=1,
+            type="go",
+            name="test",
+            format="inp",
+            properties={"active": "true", "count": 5},
+        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root="/tmp", config=config)
+        result = VocabFinalizer().apply(pg)
+        assert result.nodes[0].properties == {"active": "true", "count": 5}
 
-        vocab = {"min": "最小", "max": "最大"}
-        props = {"quality": {"min": 0.1, "max": 0.9}}
-        result = _apply_vocab_to_dict(props, vocab)
-        assert result == {"quality": {"最小": 0.1, "最大": 0.9}}
+    def test_properties_unchanged_with_nested_dict(self):
+        """ネストされた辞書もvocab変換されない"""
+        from config import GraphConfig
+        from services.graph.project_graph import ProjectGraph
+        from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
-    def test_vocab_applied_to_list_values(self):
-        from services.parse.parsers.vocab_finalizer import _apply_vocab_to_value
+        config = GraphConfig.from_dict({"vocab": {"min": "最小", "max": "最大"}})
+        node = Node(
+            id=1,
+            type="go",
+            name="test",
+            format="inp",
+            properties={"quality": {"min": 0.1, "max": 0.9}},
+        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root="/tmp", config=config)
+        result = VocabFinalizer().apply(pg)
+        assert result.nodes[0].properties == {"quality": {"min": 0.1, "max": 0.9}}
 
-        vocab = {"warning": "警告", "error": "エラー"}
-        result = _apply_vocab_to_value(["warning", "error", "info"], vocab)
-        assert result == ["警告", "エラー", "info"]
+    def test_properties_unchanged_with_list_values(self):
+        """リスト値もvocab変換されない"""
+        from config import GraphConfig
+        from services.graph.project_graph import ProjectGraph
+        from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
-    def test_no_double_replacement(self):
-        from services.parse.parsers.vocab_finalizer import _apply_vocab_to_dict
+        config = GraphConfig.from_dict({"vocab": {"warning": "警告", "error": "エラー"}})
+        node = Node(
+            id=1,
+            type="go",
+            name="test",
+            format="inp",
+            properties={"messages": ["warning", "error", "info"]},
+        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root="/tmp", config=config)
+        result = VocabFinalizer().apply(pg)
+        assert result.nodes[0].properties["messages"] == ["warning", "error", "info"]
 
-        vocab = {"stress": "応力"}
-        # 既に変換済みの値はそのまま
-        props = {"応力": {"0": 0.5}}
-        result = _apply_vocab_to_dict(props, vocab)
-        assert result == {"応力": {"0": 0.5}}
+    def test_already_translated_values_unchanged(self):
+        """既に日本語キーのプロパティも変更されない"""
+        from config import GraphConfig
+        from services.graph.project_graph import ProjectGraph
+        from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
-    def test_empty_vocab(self):
-        from services.parse.parsers.vocab_finalizer import _apply_vocab_to_dict
+        config = GraphConfig.from_dict({"vocab": {"stress": "応力"}})
+        node = Node(
+            id=1,
+            type="go",
+            name="test",
+            format="inp",
+            properties={"応力": {"0": 0.5}},
+        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root="/tmp", config=config)
+        result = VocabFinalizer().apply(pg)
+        assert result.nodes[0].properties == {"応力": {"0": 0.5}}
 
-        props = {"stress": 1.0, "count": 5}
-        result = _apply_vocab_to_dict(props, {})
-        assert result == {"stress": 1.0, "count": 5}
+    def test_empty_vocab_properties_unchanged(self):
+        """空vocabでもプロパティは変更されない"""
+        from config import GraphConfig
+        from services.graph.project_graph import ProjectGraph
+        from services.parse.parsers.vocab_finalizer import VocabFinalizer
+
+        config = GraphConfig.from_dict({"vocab": {}})
+        node = Node(
+            id=1,
+            type="go",
+            name="test",
+            format="inp",
+            properties={"stress": 1.0, "count": 5},
+        )
+        pg = ProjectGraph(nodes=[node], relations=[], project_root="/tmp", config=config)
+        result = VocabFinalizer().apply(pg)
+        assert result.nodes[0].properties == {"stress": 1.0, "count": 5}
 
 
 # =========
@@ -257,7 +319,7 @@ class TestVocabFinalizer:
 class TestSearchNodesVocab:
     @pytest.fixture
     def vocab_graph(self):
-        """vocab変換後のキー名でindex/versionが格納されたグラフ"""
+        """生キー（index/version）でindex/versionが格納されたグラフ"""
         return GraphModel(
             nodes=[
                 Node(
@@ -265,21 +327,21 @@ class TestSearchNodesVocab:
                     type="Abaqusインプット",
                     name="go_idx1.v1",
                     format="inp",
-                    properties={"path": "go_idx1.v1.inp", "条件": "1", "バージョン": "1"},
+                    properties={"path": "go_idx1.v1.inp", "index": "1", "version": "1"},
                 ),
                 Node(
                     id=2,
                     type="Abaqusインプット",
                     name="go_idx2.v3",
                     format="inp",
-                    properties={"path": "go_idx2.v3.inp", "条件": "2", "バージョン": "3"},
+                    properties={"path": "go_idx2.v3.inp", "index": "2", "version": "3"},
                 ),
                 Node(
                     id=3,
                     type="メッシュ",
                     name="mesh",
                     format="inp",
-                    properties={"path": "mesh.inp", "条件": "1", "バージョン": "1"},
+                    properties={"path": "mesh.inp", "index": "1", "version": "1"},
                 ),
             ],
             relations=[],

@@ -549,7 +549,7 @@ class TestFrontmatterPropertyTypes:
         return ObsidianConnector(project_root=tmp_path)
 
     def test_int_properties_in_frontmatter(self, connector):
-        """整数値がintとしてfrontmatterに入る（vocabで変換後のキー名を使用）"""
+        """整数値がintとしてfrontmatterに入る（生キーindex/versionを使用）"""
         node = Node(
             id=1,
             type="go",
@@ -558,13 +558,11 @@ class TestFrontmatterPropertyTypes:
             properties={"path": "go_idx1_v1.inp", "index": "1", "version": "2", "w": "5"},
         )
         fm = connector.node_to_frontmatter(node)
-        # デフォルトvocab: idx→条件, v→バージョン
-        idx_key = connector.graph_config.vocab.get("idx", "idx")
-        ver_key = connector.graph_config.vocab.get("v", connector.graph_config.vocab.get("ver", "ver"))
-        assert fm[idx_key] == 1
-        assert isinstance(fm[idx_key], int)
-        assert fm[ver_key] == 2
-        assert isinstance(fm[ver_key], int)
+        # 生キー: index, version
+        assert fm["index"] == 1
+        assert isinstance(fm["index"], int)
+        assert fm["version"] == 2
+        assert isinstance(fm["version"], int)
         assert fm["w"] == 5
         assert isinstance(fm["w"], int)
 
@@ -912,7 +910,7 @@ class TestVocabPropsUnification:
         return ObsidianConnector(project_root=tmp_path)
 
     def test_default_vocab_idx_to_jouken(self, connector):
-        """デフォルトvocabでidx→条件に変換される"""
+        """生キーindexがそのままfrontmatterに入る"""
         node = Node(
             id=1,
             type="go",
@@ -921,15 +919,12 @@ class TestVocabPropsUnification:
             properties={"path": "go.inp", "index": "1", "version": "1"},
         )
         fm = connector.node_to_frontmatter(node)
-        # デフォルトvocab: idx→条件
-        assert "条件" in fm
-        assert fm["条件"] == 1
-        # 変換前のキーは存在しない
-        assert "index" not in fm
-        assert "idx" not in fm
+        # 生キー: index
+        assert "index" in fm
+        assert fm["index"] == 1
 
     def test_default_vocab_ver_to_version(self, connector):
-        """デフォルトvocabでv→バージョンに変換される"""
+        """生キーversionがそのままfrontmatterに入る"""
         node = Node(
             id=1,
             type="go",
@@ -938,16 +933,12 @@ class TestVocabPropsUnification:
             properties={"path": "go.inp", "index": "1", "version": "2"},
         )
         fm = connector.node_to_frontmatter(node)
-        # デフォルトvocab: v→バージョン
-        assert "バージョン" in fm
-        assert fm["バージョン"] == 2
-        # 変換前のキーは存在しない
-        assert "version" not in fm
-        assert "ver" not in fm
-        assert "v" not in fm
+        # 生キー: version
+        assert "version" in fm
+        assert fm["version"] == 2
 
     def test_no_duplicate_keys(self, connector):
-        """translated_propsとindex/versionで重複が生じない"""
+        """生キーindex/versionで統一される"""
         node = Node(
             id=1,
             type="go",
@@ -957,17 +948,17 @@ class TestVocabPropsUnification:
                 "path": "go.inp",
                 "index": "1",
                 "version": "2",
-                "条件": "99",  # 事前にvocab変換済みの重複
+                "条件": "99",  # 別キーとして残る
                 "バージョン": "99",
             },
         )
         fm = connector.node_to_frontmatter(node)
-        # indexの値が優先される
-        assert fm["条件"] == 1
-        assert fm["バージョン"] == 2
+        # 生キーindex/versionの値が使用される
+        assert fm["index"] == 1
+        assert fm["version"] == 2
 
     def test_custom_vocab_connector(self, tmp_path):
-        """カスタムvocabで任意のキー名に変換"""
+        """カスタムvocabでも生キーindex/versionで統一"""
         config = GraphConfig.from_dict(
             {
                 "vocab": {"idx": "No.", "v": "Rev"},
@@ -982,15 +973,12 @@ class TestVocabPropsUnification:
             properties={"path": "go.inp", "index": "3", "version": "5"},
         )
         fm = connector.node_to_frontmatter(node)
-        assert fm["No."] == 3
-        assert fm["Rev"] == 5
-        assert "idx" not in fm
-        assert "ver" not in fm
-        assert "index" not in fm
-        assert "version" not in fm
+        # 生キーindex/versionで統一
+        assert fm["index"] == 3
+        assert fm["version"] == 5
 
     def test_empty_vocab_falls_back_to_idx_ver(self, tmp_path):
-        """vocabが空の場合はidx/verにフォールバック"""
+        """vocabが空でも生キーindex/versionで統一"""
         config = GraphConfig.from_dict({"vocab": {}})
         connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
         node = Node(
@@ -1001,11 +989,11 @@ class TestVocabPropsUnification:
             properties={"path": "go.inp", "index": "1", "version": "1"},
         )
         fm = connector.node_to_frontmatter(node)
-        assert "idx" in fm
-        assert "ver" in fm
+        assert "index" in fm
+        assert "version" in fm
 
     def test_base_order_uses_vocab_keys(self, connector, tmp_path):
-        """baseファイルのorderがvocab変換後のキー名を使用"""
+        """baseファイルのorderが生キー名（index/version）を使用"""
         graph = GraphModel(
             nodes=[
                 Node(
@@ -1028,12 +1016,9 @@ class TestVocabPropsUnification:
         written = connector.export_graph(graph)
         idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
-        # vocab変換後のキー名がorderに含まれる
-        assert "- 条件" in content or "条件" in content
-        assert "- バージョン" in content or "バージョン" in content
-        # 変換前のキー名がorderに含まれない
-        assert "- idx\n" not in content
-        assert "- ver\n" not in content
+        # 生キー名がorderに含まれる
+        assert "- index" in content or "index" in content
+        assert "- version" in content or "version" in content
 
     def test_base_sort_uses_vocab_keys(self, connector, tmp_path):
         """baseファイルのsortがvocab変換後のキー名を使用"""
@@ -1059,14 +1044,8 @@ class TestVocabPropsUnification:
         written = connector.export_graph(graph)
         idx_base = next(p for p in written if p.name == "go_idx1.base")
         content = idx_base.read_text(encoding="utf-8")
-        # sortのproperty名もvocab変換済み
-        assert (
-            "property: 条件" in content
-            or "property: '\\u6761\\u4EF6'" in content
-            or 'property: "\\u6761\\u4EF6"' in content
-            or "条件" in content
-        )
-        assert "property: idx" not in content
+        # sortのproperty名は生キー（index）
+        assert "property: index" in content
 
     def test_base_no_file_links(self, connector, tmp_path):
         """baseファイルにfile.linksが含まれない"""

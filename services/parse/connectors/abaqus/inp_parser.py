@@ -133,7 +133,6 @@ class AbaqusInpParser(AbstractFileParser):
         """
         mat_nodes: list[Node] = []
         mat_relations: list[Relation] = []
-        vocab = graph.config.vocab
         token_key_map = graph.config.token_key_map
 
         for node in list(graph.nodes):
@@ -176,26 +175,18 @@ class AbaqusInpParser(AbstractFileParser):
                         else:
                             mat_tags.append(token)
 
-                # vocabでpropsのキーと値を変換
-                translated_props: dict[str, Any] = {}
-                for key, value in mat_props.items():
-                    tk = vocab.get(key, key)
-                    tv = vocab.get(str(value), str(value))
-                    translated_props[tk] = tv
+                # 生キーのまま保持（vocab変換は表示時のみ）
+                translated_props: dict[str, Any] = dict(mat_props)
 
-                # verbose_name構築
-                translated_mapped_keys: set[str] = set()
-                for mk in token_key_mapped_keys:
-                    translated_mapped_keys.add(vocab.get(mk, mk))
-
+                # verbose_name構築（生キーベース）
                 verbose_parts: list[str] = []
                 for key, value in translated_props.items():
-                    if key in translated_mapped_keys or key in token_key_mapped_keys:
+                    if key in token_key_mapped_keys:
                         verbose_parts.append(str(value))
                     else:
                         verbose_parts.append(f"{key}{value}")
                 for tag in mat_tags:
-                    verbose_parts.append(vocab.get(tag, tag))
+                    verbose_parts.append(tag)
 
                 verbose_name = "_".join(verbose_parts) if verbose_parts else mat_name
 
@@ -258,10 +249,8 @@ class AbaqusInpParser(AbstractFileParser):
                 continue
 
             mat_names = sorted(source_materials[node.id])
-            vocab = graph.config.vocab
-            type_name = vocab.get("material", "material")
 
-            vn_parts = [type_name, *mat_names]
+            vn_parts = ["material", *mat_names]
             verbose_name = "_".join(vn_parts)
             node.properties["verbose_name"] = verbose_name
 

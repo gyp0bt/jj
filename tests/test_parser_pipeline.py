@@ -384,18 +384,18 @@ class TestGoNodeParametersPipeline:
     """go_*.inpのAbaqusパラメータが実データパイプラインで正しく抽出されるか"""
 
     def test_go_idx1_v3_parameter_values(self, graph: GraphModel):
-        """go_idx1.v3.inp: s_coh=100.0, K_coh=100.e3, target_strain=35.0"""
+        """go_idx1.v3.inp: s_coh=100, K_coh=100000, target_strain=35（整数表記に整形）"""
         node = _find_node(graph, name="go_idx1.v3", format="inp")
         assert node is not None
-        assert node.properties["s_coh"] == "100.0"
-        assert node.properties["K_coh"] == "100.e3"
-        assert node.properties["target_strain"] == "35.0"
+        assert node.properties["s_coh"] == "100"
+        assert node.properties["K_coh"] == "100000"
+        assert node.properties["target_strain"] == "35"
 
     def test_go_idx2_v3_different_s_coh(self, graph: GraphModel):
-        """go_idx2.v3.inp: s_coh=150.0（idx1と異なる値）"""
+        """go_idx2.v3.inp: s_coh=150（idx1と異なる値、整数表記）"""
         node = _find_node(graph, name="go_idx2.v3", format="inp")
         assert node is not None
-        assert node.properties["s_coh"] == "150.0"
+        assert node.properties["s_coh"] == "150"
 
     def test_go_idx0_v29_parameters(self, graph: GraphModel):
         """go_idx0.v29.inp: damage_stabilization=0.05（他のidxと異なる）"""
@@ -404,10 +404,10 @@ class TestGoNodeParametersPipeline:
         assert node.properties["damage_stabilization"] == "0.05"
 
     def test_old_go_idx3_v1_parameters(self, graph: GraphModel):
-        """old/go_idx3.v1.inp: s_coh=200.0（old/のファイルもパラメータ抽出される）"""
+        """old/go_idx3.v1.inp: s_coh=200（old/のファイルもパラメータ抽出される、整数表記）"""
         node = _find_node(graph, name="go_idx3.v1", format="inp")
         assert node is not None
-        assert node.properties["s_coh"] == "200.0"
+        assert node.properties["s_coh"] == "200"
 
 
 class TestJsonPropertyPropagationPipeline:

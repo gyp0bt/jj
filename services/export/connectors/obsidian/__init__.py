@@ -342,50 +342,30 @@ class ObsidianConnector:
             - 小数文字列 → float
 
             index/idx/番号 や version/ver/バージョン が混在する場合、
-            vocabで変換したキー名を正として統一し、変換前のキーは破棄する。
+            生キー（index, version）を正として統一する。
 
             ネストされた辞書は"."区切りで平坦化される（CSV exportと同様）。
         """
         # ネストされた辞書を平坦化してからコピー
         props = self._flatten_properties(dict(node.properties))
-        vocab = self.graph_config.vocab
 
-        # vocab変換後のキー名を正とする
-        idx_canonical = vocab.get("idx", "idx")
-        ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
+        # 生キーで統一: index/idx のバリアントを "index" に正規化
+        idx_keys = ["index", "idx"]
+        ver_keys = ["version", "v", "ver"]
 
-        # index/version の全バリアントキーを収集（rawキー優先順）
-        idx_keys_ordered = ["index", "idx"]
-        ver_keys_ordered = ["version", "v", "ver"]
-        # vocab変換後キーを末尾に追加
-        for k in ("idx", "index"):
-            translated = vocab.get(k)
-            if translated and translated not in idx_keys_ordered:
-                idx_keys_ordered.append(translated)
-        if idx_canonical not in idx_keys_ordered:
-            idx_keys_ordered.append(idx_canonical)
-        for k in ("ver", "v", "version"):
-            translated = vocab.get(k)
-            if translated and translated not in ver_keys_ordered:
-                ver_keys_ordered.append(translated)
-        if ver_canonical not in ver_keys_ordered:
-            ver_keys_ordered.append(ver_canonical)
-
-        # rawキーを優先して値を取得し、全バリアントを除去
         index_value = ""
-        for k in idx_keys_ordered:
+        for k in idx_keys:
             val = props.pop(k, "")
             if val and not index_value:
                 index_value = val
         version_value = ""
-        for k in ver_keys_ordered:
+        for k in ver_keys:
             val = props.pop(k, "")
             if val and not version_value:
                 version_value = val
 
-        # 正規化されたキー名で設定
-        props[idx_canonical] = index_value
-        props[ver_canonical] = version_value
+        props["index"] = index_value
+        props["version"] = version_value
 
         # ファイル情報をpropertyとして追加
         props["node_type"] = node.type
@@ -664,21 +644,13 @@ class ObsidianConnector:
         return content
 
     def _get_node_index(self, node: Node) -> str:
-        """ノードからindex値を取得（vocab変換後キーにも対応）"""
+        """ノードからindex値を取得（生キー: index）"""
         idx = node.properties.get("index", "")
-        if not idx:
-            idx_key = self.graph_config.vocab.get("idx", "")
-            if idx_key:
-                idx = node.properties.get(idx_key, "")
         return str(idx) if idx else ""
 
     def _get_node_version(self, node: Node) -> str:
-        """ノードからversion値を取得（vocab変換後キーにも対応）"""
+        """ノードからversion値を取得（生キー: version）"""
         ver = node.properties.get("version", "")
-        if not ver:
-            ver_key = self.graph_config.vocab.get("v", "") or self.graph_config.vocab.get("ver", "")
-            if ver_key:
-                ver = node.properties.get(ver_key, "")
         return str(ver) if ver else ""
 
     def _build_version_groups(self, nodes: list[Node]) -> dict[tuple[str, str], list[Node]]:
@@ -953,66 +925,52 @@ class ObsidianConnector:
             common = common & ks
         return sorted(common)
 
-    def _vocab_translate_order(self, order: list[str]) -> list[str]:
-        """orderリスト内のキー名をvocabで変換
+    def _normalize_order_keys(self, order: list[str]) -> list[str]:
+        """orderリスト内のキー名を生キーに正規化
 
-        index/idx → vocab変換後キー、version/ver/v → vocab変換後キー、
-        その他のキーもvocabにあれば変換。重複は除去。
+        idx → index、v/ver → version に統一。重複は除去。
 
         Args:
             order: 元のorderリスト
 
         Returns:
-            vocab変換後のorderリスト（重複なし）
+            生キーに正規化されたorderリスト（重複なし）
         """
-        vocab = self.graph_config.vocab
-        idx_canonical = vocab.get("idx", "idx")
-        ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
-
-        # 変換マッピング
         key_map: dict[str, str] = {
-            "idx": idx_canonical,
-            "index": idx_canonical,
-            "ver": ver_canonical,
-            "v": ver_canonical,
-            "version": ver_canonical,
+            "idx": "index",
+            "ver": "version",
+            "v": "version",
         }
 
         translated: list[str] = []
         seen: set[str] = set()
         for key in order:
-            new_key = key_map.get(key, vocab.get(key, key))
+            new_key = key_map.get(key, key)
             if new_key not in seen:
                 translated.append(new_key)
                 seen.add(new_key)
         return translated
 
-    def _vocab_translate_sort(self, sort_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """sortリスト内のpropertyキー名をvocabで変換
+    def _normalize_sort_keys(self, sort_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """sortリスト内のpropertyキー名を生キーに正規化
 
         Args:
             sort_list: 元のsortリスト
 
         Returns:
-            vocab変換後のsortリスト
+            生キーに正規化されたsortリスト
         """
-        vocab = self.graph_config.vocab
-        idx_canonical = vocab.get("idx", "idx")
-        ver_canonical = vocab.get("v", vocab.get("ver", "ver"))
-
         key_map: dict[str, str] = {
-            "idx": idx_canonical,
-            "index": idx_canonical,
-            "ver": ver_canonical,
-            "v": ver_canonical,
-            "version": ver_canonical,
+            "idx": "index",
+            "ver": "version",
+            "v": "version",
         }
 
         translated: list[dict[str, Any]] = []
         for entry in sort_list:
             new_entry = dict(entry)
             prop = new_entry.get("property", "")
-            new_entry["property"] = key_map.get(prop, vocab.get(prop, prop))
+            new_entry["property"] = key_map.get(prop, prop)
             translated.append(new_entry)
         return translated
 
@@ -1060,10 +1018,10 @@ class ObsidianConnector:
             for prop in intersection_props:
                 if prop not in order:
                     order.append(prop)
-            custom_view["order"] = self._vocab_translate_order(order)
+            custom_view["order"] = self._normalize_order_keys(order)
             # sortのpropertyもvocab変換
             if "sort" in custom_view:
-                custom_view["sort"] = self._vocab_translate_sort(list(custom_view["sort"]))
+                custom_view["sort"] = self._normalize_sort_keys(list(custom_view["sort"]))
             views.append(custom_view)
 
         data = {"views": views}

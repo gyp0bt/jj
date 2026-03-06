@@ -183,22 +183,12 @@ class ProjectGraph:
         return result
 
     def get_node_index(self, node: Node) -> str:
-        """ノードからindex値を取得（vocab変換後のキーにも対応）"""
-        idx = node.properties.get("index", "")
-        if not idx:
-            translated_key = self.config.vocab.get("idx")
-            if translated_key:
-                idx = str(node.properties.get(translated_key, ""))
-        return idx
+        """ノードからindex値を取得（生キー: index）"""
+        return str(node.properties.get("index", ""))
 
     def get_node_version(self, node: Node) -> str:
-        """ノードからversion値を取得（vocab変換後のキーにも対応）"""
-        ver = node.properties.get("version", "")
-        if not ver:
-            translated_key = self.config.vocab.get("v")
-            if translated_key:
-                ver = str(node.properties.get(translated_key, ""))
-        return ver
+        """ノードからversion値を取得（生キー: version）"""
+        return str(node.properties.get("version", ""))
 
     def remove_nodes(self, node_ids: set[int]) -> None:
         """指定IDのノードとそれに関わるリレーションを除去"""

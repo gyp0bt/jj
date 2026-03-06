@@ -1,7 +1,8 @@
-"""Run検索・比較サービス
+"""Run検索・比較・トレーサビリティサービス
 
 RunQueryServiceはGraphModelに対してRunの検索・比較・分析を提供する。
 ComparisonGroupは比較対象のRunグループを表現する。
+PropertyTraceはRun-Property双方向追跡の中間表現。
 
 [READMEへ戻る](../../../README.md)
 """
@@ -63,8 +64,54 @@ class RunDiff:
     property_diffs: dict[str, tuple[Any, Any]] = field(default_factory=dict)
 
 
+@dataclass
+class PropertyTrace:
+    """プロパティの帰属情報
+
+    Run-Property双方向追跡の単位。あるプロパティがどのRunの
+    どの出力ノードに由来するかを表現する。
+    """
+
+    run_id: int
+    run_name: str
+    node_id: int
+    node_name: str
+    property_key: str
+    property_value: Any
+    timestamp: str | None = None
+
+
+@dataclass
+class RunPropertySummary:
+    """Runのプロパティ生成サマリー"""
+
+    run_node: Node
+    output_nodes: list[Node] = field(default_factory=list)
+    properties_by_node: dict[int, list[PropertyTrace]] = field(default_factory=dict)
+    total_property_count: int = 0
+    unique_keys: set[str] = field(default_factory=set)
+
+
+# Runメタプロパティ（Run自体の管理用キーで、出力ノードのプロパティではない）
+_RUN_META_KEYS = frozenset(
+    {
+        "run_type",
+        "run_status",
+        "discovery",
+        "exit_code",
+        "started_at",
+        "finished_at",
+        "duration_seconds",
+        "host",
+        "user",
+        "command",
+        "path",
+    }
+)
+
+
 class RunQueryService:
-    """Runの検索・比較・分析"""
+    """Runの検索・比較・トレーサビリティ分析"""
 
     def __init__(self, graph: GraphModel) -> None:
         self._graph = graph
@@ -193,3 +240,118 @@ class RunQueryService:
             diff_media=(diff_media_a, diff_media_b),
             property_diffs=prop_diffs,
         )
+
+    # --- トレーサビリティ ---
+
+    def get_run_properties(self, run_node: Node) -> list[PropertyTrace]:
+        """Run→Property: Runが生成/変更したプロパティを出力ノードから収集
+
+        run_outputリレーション経由で出力ノードを辿り、
+        各ノードのプロパティをPropertyTraceとして返す。
+        """
+        io = self.get_run_io(run_node)
+        traces: list[PropertyTrace] = []
+        timestamp = run_node.properties.get("started_at")
+
+        for out_node in io.outputs:
+            for key, value in out_node.properties.items():
+                if key.startswith("_") or key in _RUN_META_KEYS:
+                    continue
+                traces.append(
+                    PropertyTrace(
+                        run_id=run_node.id,
+                        run_name=run_node.name,
+                        node_id=out_node.id,
+                        node_name=out_node.name,
+                        property_key=key,
+                        property_value=value,
+                        timestamp=timestamp,
+                    )
+                )
+
+        return traces
+
+    def get_property_source_runs(self, node: Node) -> list[PropertyTrace]:
+        """Property→Run: ノードのプロパティを生成したRunを逆引き
+
+        全Runのrun_outputリレーションを走査し、対象ノードを出力に含むRunを特定する。
+        """
+        runs = self.get_runs()
+        traces: list[PropertyTrace] = []
+
+        for run_node in runs:
+            io = self.get_run_io(run_node)
+            output_ids = {n.id for n in io.outputs}
+            if node.id not in output_ids:
+                continue
+
+            timestamp = run_node.properties.get("started_at")
+            for key, value in node.properties.items():
+                if key.startswith("_") or key in _RUN_META_KEYS:
+                    continue
+                traces.append(
+                    PropertyTrace(
+                        run_id=run_node.id,
+                        run_name=run_node.name,
+                        node_id=node.id,
+                        node_name=node.name,
+                        property_key=key,
+                        property_value=value,
+                        timestamp=timestamp,
+                    )
+                )
+
+        return traces
+
+    def get_run_property_summary(self, run_node: Node) -> RunPropertySummary:
+        """Runのプロパティ生成サマリーを返す"""
+        io = self.get_run_io(run_node)
+        traces = self.get_run_properties(run_node)
+
+        props_by_node: dict[int, list[PropertyTrace]] = {}
+        unique_keys: set[str] = set()
+
+        for trace in traces:
+            props_by_node.setdefault(trace.node_id, []).append(trace)
+            unique_keys.add(trace.property_key)
+
+        return RunPropertySummary(
+            run_node=run_node,
+            output_nodes=io.outputs,
+            properties_by_node=props_by_node,
+            total_property_count=len(traces),
+            unique_keys=unique_keys,
+        )
+
+    def find_runs_by_property(self, property_key: str, property_value: Any = None) -> list[PropertyTrace]:
+        """プロパティキー（+値）から関連するRunを検索
+
+        全Runの出力ノードを走査し、指定キーを持つプロパティのRunを返す。
+        property_valueが指定された場合、値の一致も条件に含む。
+        """
+        runs = self.get_runs()
+        traces: list[PropertyTrace] = []
+
+        for run_node in runs:
+            io = self.get_run_io(run_node)
+            timestamp = run_node.properties.get("started_at")
+
+            for out_node in io.outputs:
+                if property_key not in out_node.properties:
+                    continue
+                value = out_node.properties[property_key]
+                if property_value is not None and value != property_value:
+                    continue
+                traces.append(
+                    PropertyTrace(
+                        run_id=run_node.id,
+                        run_name=run_node.name,
+                        node_id=out_node.id,
+                        node_name=out_node.name,
+                        property_key=property_key,
+                        property_value=value,
+                        timestamp=timestamp,
+                    )
+                )
+
+        return traces

@@ -318,14 +318,9 @@ def _nodes_have_same_props(
     Args:
         node1: 比較元ノード
         node2: 比較先ノード
-        vocab: config.vocabマッピング。idxのvocab変換後キーも比較対象に含める。
+        vocab: 後方互換のため残すが未使用（生キーで統一）
     """
     compare_keys: set[str] = {"index", "w", "t"}
-    # vocabでidxが変換されている場合、変換後のキーも比較対象に含める
-    if vocab:
-        idx_translated = vocab.get("idx")
-        if idx_translated:
-            compare_keys.add(idx_translated)
 
     for key in compare_keys:
         val1 = node1.properties.get(key, "")

@@ -143,7 +143,6 @@ class TablePage(PageComponent[TableViewConfig]):
         # For each target column, parse the JSON string (if present) and replace it
         # with the first element of the list. If the value is NaN or cannot be parsed,
         # leave it as None (or the original value).
-        import json
         import pandas as pd
 
         # message_errorsとdat_errorsのようなlist[str]型の値がある列はパースして1番目要素のみ表示

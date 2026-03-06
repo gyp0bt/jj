@@ -68,13 +68,8 @@ class MeshInheritParser(AbstractFileParser):
     priority = 81  # IncludesRelationParser(40), AbaqusMeshParser(80)の後
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        # vocab変換後のidx/vキーも除外対象に追加
+        # 生キーで統一（vocab変換は表示時のみ）
         skip_keys = set(_SKIP_KEYS)
-        vocab = graph.config.vocab
-        for raw_key in ("idx", "v", "ver"):
-            translated = vocab.get(raw_key)
-            if translated:
-                skip_keys.add(translated)
 
         # includes関係マップ: node1_id(go) → [node2_id(included)]
         includes_map: dict[int, list[int]] = defaultdict(list)

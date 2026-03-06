@@ -36,26 +36,31 @@ def get_base_key(column: str) -> str:
 def sort_columns_by_vocab(columns: list[str], vocab: dict[str, str]) -> list[str]:
     """vocab順でカラムをソート
 
-    vocab辞書の値（日本語表記）の出現順を優先し、
+    vocab辞書のキー（生キー）の定義順を優先し、
     vocabに含まれないカラムは文字列昇順で後に配置する。
+
+    生キーで保存されたプロパティに対して、vocabのキー定義順でソートする。
+    vocab値（表示名）でもマッチ可能（後方互換）。
 
     接頭辞エスケープキー（child_name:key）はベースキー（key部分）で
     vocab照合を試み、ベースキーの直後にソートされる。
 
     Args:
-        columns: ソート対象のカラムリスト
-        vocab: vocabマッピング
+        columns: ソート対象のカラムリスト（生キー）
+        vocab: vocabマッピング（生キー→表示名）
 
     Returns:
         vocab順 -> 文字列昇順のリスト
     """
+    # 生キー順序を構築
     vocab_order: dict[str, int] = {}
-    for idx, v in enumerate(vocab.values()):
-        if v not in vocab_order:
-            vocab_order[v] = idx
     for idx, k in enumerate(vocab.keys()):
         if k not in vocab_order:
-            vocab_order[k] = len(vocab) + idx
+            vocab_order[k] = idx
+    # vocab値（表示名）でもマッチ可能（後方互換）
+    for idx, v in enumerate(vocab.values()):
+        if v not in vocab_order:
+            vocab_order[v] = len(vocab) + idx
 
     max_order = len(vocab_order) + len(vocab)
 

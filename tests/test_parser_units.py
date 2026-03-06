@@ -4469,7 +4469,7 @@ class TestDisplayNameParser:
         assert go_node.properties["verbose_name"] == "条件1(高さ20)"
 
     def test_verbose_name_format_with_vocab(self, config: GraphConfig, tmp_path: Path):
-        """vocab変換後のキー名でもフォーマットが展開される"""
+        """生キーでフォーマットが展開され、verbose_nameキーに格納される"""
         from services.parse.parsers.display_name_parser import DisplayNameParser
 
         config_data = {
@@ -4488,7 +4488,7 @@ class TestDisplayNameParser:
                 type="go",
                 name="go_idx1_t20",
                 format="inp",
-                properties={"path": "go_idx1_t20.inp", "条件": "1", "高さ": "20"},
+                properties={"path": "go_idx1_t20.inp", "idx": "1", "t": "20"},
             ),
         ]
         graph = _make_graph(nodes, config=cfg, project_root=tmp_path)
@@ -4496,8 +4496,8 @@ class TestDisplayNameParser:
 
         go_node = result.get_node_by_id(1)
         assert go_node is not None
-        # vocab変換後のキー（表示名）に格納される
-        assert go_node.properties["表示名"] == "条件1(高さ20)"
+        # 生キー（verbose_name）に格納される
+        assert go_node.properties["verbose_name"] == "条件1(高さ20)"
 
     def test_no_format_skips(self, config: GraphConfig, tmp_path: Path):
         """verbose_name_format未設定ではスキップされる"""
