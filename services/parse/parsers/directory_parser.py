@@ -208,11 +208,11 @@ class DirectoryRelationParser(AbstractFileParser):
             graph: ProjectGraph
             max_depth: ディレクトリの最大深さ（None=無制限）
         """
-        default_exclude = {".git", ".j2", "__pycache__", "node_modules", ".venv"}
+        exclude_dirs = graph.config.parse_defaults.exclude_dirs
 
         dirs_found: list[Path] = []
         for root, dirs, _ in os.walk(graph.project_root):
-            dirs[:] = [d for d in dirs if d not in default_exclude]
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
 
             root_path = Path(root)
             for dirname in dirs:

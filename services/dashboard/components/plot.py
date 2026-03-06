@@ -215,15 +215,30 @@ class PlotPage(PageComponent[PlotViewConfig]):
         # スタイル設定
         with st.expander("スタイル設定", expanded=False):
             sc1, sc2, sc3 = st.columns(3)
+            psd = dashboard_config.plot_style_defaults
             with sc1:
                 plot_marker_size = st.number_input(
-                    "マーカーサイズ", value=None, min_value=1, max_value=50, key="_plot_marker_size"
+                    "マーカーサイズ",
+                    value=None,
+                    min_value=psd.marker_size_min,
+                    max_value=psd.marker_size_max,
+                    key="_plot_marker_size",
                 )
             with sc2:
-                plot_line_width = st.number_input("線幅", value=None, min_value=1, max_value=20, key="_plot_line_width")
+                plot_line_width = st.number_input(
+                    "線幅",
+                    value=None,
+                    min_value=psd.line_width_min,
+                    max_value=psd.line_width_max,
+                    key="_plot_line_width",
+                )
             with sc3:
                 plot_font_size = st.number_input(
-                    "フォントサイズ", value=None, min_value=6, max_value=48, key="_plot_font_size"
+                    "フォントサイズ",
+                    value=None,
+                    min_value=psd.font_size_min,
+                    max_value=psd.font_size_max,
+                    key="_plot_font_size",
                 )
 
         plot_style = build_style_config(plot_marker_size, plot_line_width, plot_font_size)

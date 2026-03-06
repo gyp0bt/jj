@@ -6596,3 +6596,138 @@ class TestArrayPlotHelpers:
         from services.dashboard.components.array_plot import _get_array_plot_defaults
 
         assert _get_array_plot_defaults(None) == {}
+
+
+class TestPlotStyleDefaults:
+    """PlotStyleDefaults のテスト"""
+
+    def test_default_values(self):
+        """デフォルト値が正しいこと"""
+        from config import PlotStyleDefaults
+
+        psd = PlotStyleDefaults()
+        assert psd.marker_size_min == 1
+        assert psd.marker_size_max == 50
+        assert psd.marker_size_default == 16
+        assert psd.line_width_min == 1
+        assert psd.line_width_max == 20
+        assert psd.line_width_default == 2
+        assert psd.font_size_min == 6
+        assert psd.font_size_max == 48
+        assert psd.font_size_default == 20
+
+    def test_custom_values(self):
+        """カスタム値を指定可能"""
+        from config import PlotStyleDefaults
+
+        psd = PlotStyleDefaults(marker_size_min=5, marker_size_max=100, font_size_default=24)
+        assert psd.marker_size_min == 5
+        assert psd.marker_size_max == 100
+        assert psd.font_size_default == 24
+
+    def test_from_dashboard_config(self):
+        """DashboardConfig経由で読み込み"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "plot-style-defaults": {
+                    "marker-size-min": 2,
+                    "marker-size-max": 80,
+                    "line-width-default": 3,
+                }
+            }
+        )
+        assert config.plot_style_defaults.marker_size_min == 2
+        assert config.plot_style_defaults.marker_size_max == 80
+        assert config.plot_style_defaults.line_width_default == 3
+        # 未指定のフィールドはデフォルト値
+        assert config.plot_style_defaults.font_size_min == 6
+
+    def test_empty_dashboard_config(self):
+        """空のDashboardConfigではデフォルトのPlotStyleDefaults"""
+        from config import DashboardConfig, PlotStyleDefaults
+
+        config = DashboardConfig.from_dict({})
+        assert config.plot_style_defaults == PlotStyleDefaults()
+
+
+class TestGalleryDefaults:
+    """GalleryDefaults のテスト"""
+
+    def test_default_values(self):
+        """デフォルト値が正しいこと"""
+        from config import GalleryDefaults
+
+        gd = GalleryDefaults()
+        assert gd.columns == 5
+        assert gd.rows == 4
+        assert gd.max_image_bytes == 5 * 1024 * 1024
+
+    def test_from_dashboard_config(self):
+        """DashboardConfig経由で読み込み"""
+        from config import DashboardConfig
+
+        config = DashboardConfig.from_dict(
+            {
+                "gallery-defaults": {
+                    "columns": 3,
+                    "rows": 6,
+                    "max-image-bytes": 10485760,
+                }
+            }
+        )
+        assert config.gallery_defaults.columns == 3
+        assert config.gallery_defaults.rows == 6
+        assert config.gallery_defaults.max_image_bytes == 10485760
+
+    def test_empty_dashboard_config(self):
+        """空のDashboardConfigではデフォルトのGalleryDefaults"""
+        from config import DashboardConfig, GalleryDefaults
+
+        config = DashboardConfig.from_dict({})
+        assert config.gallery_defaults == GalleryDefaults()
+
+
+class TestParseDefaults:
+    """ParseDefaults のテスト"""
+
+    def test_default_values(self):
+        """デフォルトの除外ディレクトリが正しいこと"""
+        from config import ParseDefaults
+
+        pd = ParseDefaults()
+        assert ".git" in pd.exclude_dirs
+        assert ".j2" in pd.exclude_dirs
+        assert "__pycache__" in pd.exclude_dirs
+        assert "node_modules" in pd.exclude_dirs
+        assert ".venv" in pd.exclude_dirs
+
+    def test_from_graph_config(self):
+        """GraphConfig経由で読み込み"""
+        from config import GraphConfig
+
+        config = GraphConfig.from_dict(
+            {
+                "parse-defaults": {
+                    "exclude-dirs": [".git", ".j2", "build"],
+                }
+            }
+        )
+        assert config.parse_defaults.exclude_dirs == frozenset({".git", ".j2", "build"})
+
+    def test_empty_graph_config(self):
+        """空のGraphConfigではデフォルトのParseDefaults"""
+        from config import GraphConfig, ParseDefaults
+
+        config = GraphConfig.from_dict({})
+        assert config.parse_defaults == ParseDefaults()
+
+    def test_invalid_exclude_dirs_type(self):
+        """exclude-dirsが不正な型の場合はValueError"""
+        import pytest
+
+        from config import GraphConfig
+
+        with pytest.raises(ValueError, match="exclude-dirs must be list"):
+            GraphConfig.from_dict({"parse-defaults": {"exclude-dirs": "not-a-list"}})

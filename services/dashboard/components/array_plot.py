@@ -164,15 +164,30 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         # スタイル設定
         with st.expander("スタイル設定", expanded=False):
             sc1, sc2, sc3 = st.columns(3)
+            psd = dashboard_config.plot_style_defaults
             with sc1:
                 ap_marker_size = st.number_input(
-                    "マーカーサイズ", value=None, min_value=1, max_value=50, key="_ap_marker_size"
+                    "マーカーサイズ",
+                    value=None,
+                    min_value=psd.marker_size_min,
+                    max_value=psd.marker_size_max,
+                    key="_ap_marker_size",
                 )
             with sc2:
-                ap_line_width = st.number_input("線幅", value=None, min_value=1, max_value=20, key="_ap_line_width")
+                ap_line_width = st.number_input(
+                    "線幅",
+                    value=None,
+                    min_value=psd.line_width_min,
+                    max_value=psd.line_width_max,
+                    key="_ap_line_width",
+                )
             with sc3:
                 ap_font_size = st.number_input(
-                    "フォントサイズ", value=None, min_value=6, max_value=48, key="_ap_font_size"
+                    "フォントサイズ",
+                    value=None,
+                    min_value=psd.font_size_min,
+                    max_value=psd.font_size_max,
+                    key="_ap_font_size",
                 )
 
         ap_x_range = build_axis_range(ax_x_min, ax_x_max)

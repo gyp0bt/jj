@@ -92,9 +92,7 @@ class GraphService:
             スキャンされたファイルパスのリスト
         """
         ext_set = set(extensions or DEFAULT_EXTENSIONS)
-        # デフォルトの除外ディレクトリ
-        # TODO:　configに逃がす
-        default_exclude = {".git", ".j2", "__pycache__", "node_modules", ".venv"}
+        default_exclude = self.config.parse_defaults.exclude_dirs
         exclude_set = set(exclude_dirs or default_exclude)
 
         files: list[Path] = []
