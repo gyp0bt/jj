@@ -28,7 +28,6 @@ from jj_types import GraphModel, Node, Relation
 from services.graph.storage import GraphStorage
 from services.parse.base import parse as run_parser_pipeline
 from services.parse.file_parse import (
-    DEFAULT_EXTENSIONS,
     NO_NODE_EXTENSIONS,
     FileParse,
 )
@@ -85,13 +84,13 @@ class GraphService:
         """プロジェクトルートからファイルをスキャン
 
         Args:
-            extensions: 対象拡張子（デフォルト: DEFAULT_EXTENSIONS）
+            extensions: 対象拡張子（デフォルト: config.default_extensions）
             exclude_dirs: 除外するディレクトリ名（ignore設定とマージ）
 
         Returns:
             スキャンされたファイルパスのリスト
         """
-        ext_set = set(extensions or DEFAULT_EXTENSIONS)
+        ext_set = set(extensions or self.config.default_extensions)
         default_exclude = self.config.parse_defaults.exclude_dirs
         exclude_set = set(exclude_dirs or default_exclude)
 
@@ -344,13 +343,13 @@ class GraphService:
     ) -> set[str]:
         """スキャン対象の拡張子セットを構築
 
-        明示的にextensionsが指定されない場合、DEFAULT_EXTENSIONSに加えて
+        明示的にextensionsが指定されない場合、config.default_extensionsに加えて
         file-relations設定のinput/result/asset拡張子を自動マージする。
         これにより、CLIからのjj g parse実行時に.inp, .odb, .sta等も確実にスキャンされる。
         """
         if extensions is not None:
             return set(extensions)
-        ext_set = set(DEFAULT_EXTENSIONS)
+        ext_set = set(self.config.default_extensions)
         ext_set.update(self.config.file_relations.input_extensions)
         ext_set.update(self.config.file_relations.result_extensions)
         ext_set.update(self.config.file_relations.asset_extensions)
@@ -374,7 +373,7 @@ class GraphService:
         パース完了後にタイムスタンプを保存する。
 
         Args:
-            extensions: 対象拡張子（Noneの場合はDEFAULT_EXTENSIONS + config file-relationsを使用）
+            extensions: 対象拡張子（Noneの場合はconfig.default_extensions + file-relationsを使用）
             exclude_dirs: 除外ディレクトリ
             full_mode: Trueの場合、requires_full=Trueのパーサーも実行する
             debug: デバッグモード（True: パーサーエラーをraise）

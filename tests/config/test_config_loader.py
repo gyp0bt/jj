@@ -126,29 +126,29 @@ class TestInitConfigDir:
         config_dir = get_config_dir(tmp_path)
         assert config_dir.exists()
 
-        # Check that default files are created
+        # Check that minimal files are created
         vocab_path = config_dir / "vocab.yaml"
-        extensions_path = config_dir / "extensions.yaml"
-        prefixes_path = config_dir / "prefixes.yaml"
+        config_path = config_dir / "config.yaml"
 
         assert vocab_path.exists()
-        assert extensions_path.exists()
-        assert prefixes_path.exists()
+        assert config_path.exists()
+
+        # extensions.yaml/prefixes.yamlは二層config方式で不要になった
+        extensions_path = config_dir / "extensions.yaml"
+        prefixes_path = config_dir / "prefixes.yaml"
+        assert not extensions_path.exists()
+        assert not prefixes_path.exists()
 
         # Check vocab.yaml content
         with vocab_path.open("r", encoding="utf-8") as f:
             vocab_data = yaml.safe_load(f)
         assert vocab_data == {"mapping": {}, "categories": {}}
 
-        # Check extensions.yaml content
-        with extensions_path.open("r", encoding="utf-8") as f:
-            extensions_data = yaml.safe_load(f)
-        assert extensions_data == DEFAULT_EXTENSIONS
-
-        # Check prefixes.yaml content
-        with prefixes_path.open("r", encoding="utf-8") as f:
-            prefixes_data = yaml.safe_load(f)
-        assert prefixes_data == {"prefixes": DEFAULT_PREFIXES}
+        # Check config.yaml is a template (comments only, no actual config)
+        with config_path.open("r", encoding="utf-8") as f:
+            config_content = f.read()
+        assert "project-name" in config_content
+        assert "default-config.yaml" in config_content
 
     def test_init_skips_if_exists(self, tmp_path):
         # Create config directory and files

@@ -15,8 +15,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Generic, TypeVar
 
-# デフォルト拡張子リスト。default-config.yamlのdefault-extensionsセクションにも定義済み。
-# T2（Config二層分離）完了後、ConfigLoader経由の取得に移行予定。
+# デフォルト拡張子リスト（フォールバック用）。
+# GraphConfig.default_extensions がconfig経由で同じリストを提供する。
+# GraphService等ではconfig経由で取得し、この定数は直接参照しない。
 DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".cas.h5",
     ".dat.h5",
