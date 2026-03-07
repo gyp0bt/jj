@@ -258,25 +258,27 @@ jj watch go_sample_v3_idx1
 
 > **現状の課題**: 投入→完了待ち→回収でプロセスを維持するのが非効率
 
-**推奨パターン: ポーリング回収**
+**回収パターン**
 
 ```bash
-# パターン1: 手動（現行踏襲だがステート管理で楽に）
+# パターン1: 手動（最小構成）
 jj submit go_sample_v3_idx1
 # ... 数時間後 ...
 jj job status          # 完了確認
 jj collect --completed # 完了分一括回収
 
-# パターン2: cron/タスクスケジューラ（推奨）
-# crontab: */30 * * * * cd /path/to/project && jj collect --completed --quiet
+# パターン2: Prefect Deployment（推奨）
+jj prefect deploy --schedule "*/30 * * * *" collect --completed
 # → 30分ごとに完了ジョブを自動回収
+# → Prefect UIでスケジュール管理・実行履歴閲覧
+# → Windows/Linux問わず同一コマンドで動作
 
 # パターン3: ワンショット待機（小規模ジョブ向け）
 jj submit go_sample_v3_idx1 --wait --collect
 # → 完了まで監視し、完了したら自動回収して終了
 ```
 
-**推奨はパターン2（cron）**: プロセス不要で、完了次第自動回収。`--quiet` フラグで出力抑制し、回収があった場合のみログ出力。Windows環境ではタスクスケジューラで同等の設定が可能。
+**推奨はパターン2（Prefect Deployment）**: OS固有のスケジューラ（cron/タスクスケジューラ）に依存せず、Prefect UIで統一管理。Windows環境でも追加設定不要。
 
 ### T5-9: Prefect統合 — Run中心スキーマとの融合
 
@@ -295,7 +297,7 @@ jj Run                    ←→  Prefect Flow Run
 Prefectが提供するもの:
 - **美しい監視ダッシュボード**（Streamlitで自作するより遥かに完成度が高い）
 - **リトライ・タイムアウト・通知**が宣言的に書ける
-- **スケジューリング**（cronの代替）
+- **スケジューリング**（OS依存なし、Prefect UIで管理）
 - **実行履歴・ログの自動蓄積**
 
 #### 設計方針: Prefect Optional + Graceful Degradation
@@ -410,7 +412,7 @@ jj prefect down            # サーバー停止
 
 # パターン3: Prefect Deployment（スケジューリング）
 jj prefect deploy --schedule "*/30 * * * *" collect --completed
-# → 30分ごとに完了ジョブを自動回収（cronの代替）
+# → 30分ごとに完了ジョブを自動回収
 # → Prefect UIでスケジュール管理・実行履歴閲覧
 ```
 
@@ -736,7 +738,7 @@ Week 9-12:
 | 音声文字起こし | whisper.cpp / faster-whisper | ローカル完結 |
 | Config merge | deep merge（ユーザー優先） | シンプルで予測可能 |
 | フィルタ共有 | session_state + トグル | 最小限の実装で両立 |
-| cron回収 | Prefect Deployment（推奨）/ OS標準cron（フォールバック） | Prefect UIでスケジュール管理可能 |
+| 定期回収 | Prefect Deployment | OS依存なし、UIで管理 |
 
 ---
 
