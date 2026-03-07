@@ -456,6 +456,22 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
     )
     _add_serve_args(serve_parser)
 
+    # jj config
+    config_parser = subparsers.add_parser(
+        "config",
+        help="設定ファイル管理",
+    )
+    config_sub = config_parser.add_subparsers(dest="config_command")
+    migrate_parser = config_sub.add_parser(
+        "migrate",
+        help="レガシー設定（extensions.yaml, prefixes.yaml）をconfig.yamlに統合",
+    )
+    migrate_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="差分を確認するのみ（書き込まない）",
+    )
+
 
 def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
     """graphサブコマンドをパーサーに追加（jj g互換）"""
@@ -565,6 +581,14 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return _run_dashboard(project_root, args)
     elif cmd == "serve":
         return _run_serve(project_root, args)
+    elif cmd == "config":
+        config_command = getattr(args, "config_command", None)
+        if config_command == "migrate":
+            return _run_config_migrate(project_root, args)
+        else:
+            print("使用方法: jj config <サブコマンド>")
+            print("  migrate  レガシー設定をconfig.yamlに統合")
+            return 1
     else:
         print(f"不明なコマンド: {cmd}")
         return 1
@@ -573,6 +597,47 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
 # =========
 # 各コマンド実行（CLI層：出力整形のみ）
 # =========
+
+
+def _run_config_migrate(project_root: Path, args: argparse.Namespace) -> int:
+    """config migrateサブコマンドを実行"""
+    from config import migrate_legacy_configs
+
+    check_only = getattr(args, "check", False)
+
+    try:
+        result = migrate_legacy_configs(base_dir=project_root, check_only=check_only)
+        legacy_files = result["legacy_files"]
+        changes = result["changes"]
+
+        if not legacy_files:
+            print("レガシー設定ファイルは見つかりませんでした。")
+            print("（extensions.yaml / prefixes.yaml が存在しません）")
+            return 0
+
+        if not changes:
+            print("レガシー設定ファイルが見つかりましたが、デフォルト値と同一のため変更不要です。")
+            for f in legacy_files:
+                print(f"  {f}")
+            return 0
+
+        if check_only:
+            print("以下の差分が検出されました（--check: 書き込みなし）:")
+        else:
+            print("以下の設定をconfig.yamlに統合しました:")
+
+        for change in changes:
+            print(f"  - {change}")
+
+        if not check_only:
+            print("\nレガシーファイルは手動で削除できます:")
+            for f in legacy_files:
+                print(f"  rm {f}")
+
+        return 0
+    except Exception as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        return 1
 
 
 def _run_init(project_root: Path, args: argparse.Namespace) -> int:

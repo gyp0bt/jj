@@ -430,6 +430,7 @@ def dispatch(args: argparse.Namespace) -> int:
         "credential",
         "dashboard",
         "serve",
+        "config",
     ):
         return run_top_level_graph_command(cmd, args)
 

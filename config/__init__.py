@@ -283,6 +283,90 @@ def init_config_dir(base_dir: Path | None = None) -> None:
         f.write(config_template)
 
 
+def migrate_legacy_configs(
+    base_dir: Path | None = None,
+    check_only: bool = False,
+) -> dict[str, Any]:
+    """レガシー設定ファイル（extensions.yaml, prefixes.yaml）をconfig.yamlに統合する。
+
+    Args:
+        base_dir: プロジェクトルート（Noneの場合はcwd）
+        check_only: Trueの場合、差分を返すのみで書き込まない
+
+    Returns:
+        マイグレーション結果:
+          - "changes": list[str] — 検出された変更の説明
+          - "merged": dict — config.yamlにマージするデータ
+          - "legacy_files": list[Path] — 検出されたレガシーファイル
+    """
+    config_dir = get_config_dir(base_dir)
+    changes: list[str] = []
+    merged: dict[str, Any] = {}
+    legacy_files: list[Path] = []
+
+    # extensions.yaml の検出・差分抽出
+    ext_path = config_dir / EXTENSIONS_CONFIG_FILENAME
+    if ext_path.exists():
+        legacy_files.append(ext_path)
+        ext_data = read_yaml(ext_path)
+        if ext_data and isinstance(ext_data, dict):
+            # デフォルトとの差分を抽出
+            ext_diff: dict[str, list[str]] = {}
+            for key, values in ext_data.items():
+                if not isinstance(values, list):
+                    continue
+                default_values = DEFAULT_EXTENSIONS.get(key, [])
+                if sorted(values) != sorted(default_values):
+                    ext_diff[key] = values
+                    changes.append(f"extensions.{key}: {default_values} → {values}")
+            if ext_diff:
+                merged["default-extensions"] = ext_diff
+
+    # prefixes.yaml の検出・差分抽出
+    pfx_path = config_dir / PREFIXES_CONFIG_FILENAME
+    if pfx_path.exists():
+        legacy_files.append(pfx_path)
+        pfx_data = read_yaml(pfx_path)
+        if pfx_data and isinstance(pfx_data, dict):
+            prefixes = pfx_data.get("prefixes", pfx_data)
+            if isinstance(prefixes, dict):
+                pfx_diff: dict[str, str] = {}
+                for key, val in prefixes.items():
+                    default_val = DEFAULT_PREFIXES.get(key)
+                    if default_val != val or key not in DEFAULT_PREFIXES:
+                        pfx_diff[key] = val
+                        changes.append(f"prefixes.{key}: {default_val} → {val}")
+                if pfx_diff:
+                    merged["prefixes"] = pfx_diff
+
+    if not check_only and merged:
+        # config.yaml にマージ
+        config_path = config_dir / CONFIG_FILENAME
+        existing: dict[str, Any] = {}
+        if config_path.exists():
+            raw = read_yaml(config_path)
+            if isinstance(raw, dict):
+                existing = raw
+
+        # マージ（既存設定を優先、新規キーのみ追加）
+        for key, value in merged.items():
+            if key not in existing:
+                existing[key] = value
+            elif isinstance(existing[key], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    if k not in existing[key]:
+                        existing[key][k] = v
+
+        with config_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(existing, f, allow_unicode=True, sort_keys=False)
+
+    return {
+        "changes": changes,
+        "merged": merged,
+        "legacy_files": legacy_files,
+    }
+
+
 # =============================================================================
 # 拡張設定モデル (path-type-map, path-property-map, ignore等)
 # =============================================================================
