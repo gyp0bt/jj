@@ -943,6 +943,27 @@ class TestDashboardConfig:
         assert "material-curve-columns" in abq
         assert abq["material-curve-columns"]["plastic"]["columns"] == ["stress", "strain"]
 
+    def test_list_summary_columns_default(self):
+        """list-summary-columnsのデフォルト値"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.list_summary_columns == ["msg_errors", "dat_errors"]
+
+    def test_list_summary_columns_custom(self):
+        """list-summary-columnsのカスタム設定"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({"list-summary-columns": ["msg_errors", "sta_errors"]})
+        assert cfg.list_summary_columns == ["msg_errors", "sta_errors"]
+
+    def test_list_summary_columns_invalid(self):
+        """list-summary-columnsが不正な型"""
+        from config import DashboardConfig
+
+        with pytest.raises(ValueError, match="list-summary-columns"):
+            DashboardConfig.from_dict({"list-summary-columns": "invalid"})
+
 
 # ====================================================================
 # get_property_images テスト

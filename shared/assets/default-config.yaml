@@ -397,6 +397,14 @@ dashboard:
   #     y: RF3
   # plot:
 
+  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
+  # デフォルト: ["msg_errors", "dat_errors"]
+  # 使用例:
+  #   list-summary-columns:
+  #     - msg_errors
+  #     - dat_errors
+  #     - sta_errors
+
   # ギャラリーのグリッド列数（デフォルト: 5）
   # 使用例:
   #   gallery-columns: 3

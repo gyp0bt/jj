@@ -750,6 +750,7 @@ class DashboardConfig:
     array_plot_defaults: dict[str, Any]  # 配列プロットデフォルト設定（x, y, x_min, x_max, y_min, y_max）
     plot_style_defaults: PlotStyleDefaults  # プロットスタイルデフォルト値
     gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
+    list_summary_columns: list[str]  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -779,6 +780,7 @@ class DashboardConfig:
                 array_plot_defaults={},
                 plot_style_defaults=PlotStyleDefaults(),
                 gallery_defaults=GalleryDefaults(),
+                list_summary_columns=["msg_errors", "dat_errors"],
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -906,6 +908,14 @@ class DashboardConfig:
             raise ValueError("gallery-defaults.columns must be >= 1")
         if gallery_defaults.rows < 1:
             raise ValueError("gallery-defaults.rows must be >= 1")
+        # list-summary-columns: list[str]型カラムの先頭要素のみ表示
+        raw_lsc = data.get("list-summary-columns")
+        if raw_lsc is not None:
+            if not isinstance(raw_lsc, list):
+                raise ValueError("dashboard.list-summary-columns must be list[str]")
+            list_summary_columns = [str(c) for c in raw_lsc]
+        else:
+            list_summary_columns = ["msg_errors", "dat_errors"]
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -920,6 +930,7 @@ class DashboardConfig:
             array_plot_defaults=array_plot_defaults,
             plot_style_defaults=plot_style_defaults,
             gallery_defaults=gallery_defaults,
+            list_summary_columns=list_summary_columns,
         )
 
 
