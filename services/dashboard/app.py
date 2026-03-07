@@ -222,6 +222,20 @@ def main() -> None:
         st.session_state["_graph_mtime"] = get_graph_mtime(project_root)
         st.rerun()
 
+    # Re-parseボタン: プロジェクトを再解析してグラフを更新
+    if st.sidebar.button("Re-parse"):
+        with st.spinner("Parsing..."):
+            try:
+                from services.graph import GraphService
+
+                gs = GraphService(project_root)
+                gs.parse_and_save()
+                st.session_state["_graph_mtime"] = get_graph_mtime(project_root)
+                st.sidebar.success("Re-parse 完了")
+                st.rerun()
+            except Exception as e:
+                st.sidebar.error(f"Re-parse 失敗: {e}")
+
     # 自動リフレッシュ設定
     auto_refresh = st.sidebar.checkbox("自動リフレッシュ", value=False)
     if auto_refresh:
