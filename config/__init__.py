@@ -244,6 +244,10 @@ def init_config_dir(base_dir: Path | None = None) -> None:
     """
     .j2/config/ ディレクトリを初期化します。
     フォルダが既に存在する場合は、初期化処理をスキップします。
+
+    二層config方式: デフォルト値はdefault-config.yamlが提供し、
+    ユーザーはconfig.yamlで必要な部分のみ上書きする。
+    extensions.yaml/prefixes.yamlは生成しない（フォールバックで動作）。
     """
     config_dir = get_config_dir(base_dir)
 
@@ -263,16 +267,20 @@ def init_config_dir(base_dir: Path | None = None) -> None:
     with vocab_path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(vocab_data, f, allow_unicode=True, sort_keys=False)
 
-    # extensions.yaml の初期化
-    extensions_path = config_dir / EXTENSIONS_CONFIG_FILENAME
-    with extensions_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(DEFAULT_EXTENSIONS, f, allow_unicode=True, sort_keys=False)
-
-    # prefixes.yaml の初期化
-    prefixes_path = config_dir / PREFIXES_CONFIG_FILENAME
-    prefixes_data = {"prefixes": DEFAULT_PREFIXES}
-    with prefixes_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(prefixes_data, f, allow_unicode=True, sort_keys=False)
+    # config.yaml の初期化（最小テンプレート）
+    # デフォルト値はdefault-config.yamlで提供されるため、
+    # ユーザーは上書きしたい項目のみ記述する
+    config_path = config_dir / CONFIG_FILENAME
+    config_template = (
+        "# jj プロジェクト設定\n"
+        "# デフォルト値は default-config.yaml で定義されています。\n"
+        "# ここにはプロジェクト固有の上書き設定のみ記述してください。\n"
+        "# 参照: jj/shared/assets/default-config.yaml\n"
+        "\n"
+        "# project-name: my-project\n"
+    )
+    with config_path.open("w", encoding="utf-8") as f:
+        f.write(config_template)
 
 
 # =============================================================================
@@ -1056,6 +1064,7 @@ class GraphConfig:
     solver_detection: SolverDetectionConfig  # ソルバー自動検出ルール
     csv_max_rows: int  # CSV読み込み最大行数（0=無制限、超過時はサマリーモード）
     parse_defaults: ParseDefaults  # パーサーのデフォルト値
+    default_extensions: tuple[str, ...]  # ファイル名マッチング用デフォルト拡張子リスト
 
     def detect_solver_profile(self, path: str) -> SolverProfileConfig:
         """パスからソルバープロファイルを検出
@@ -1120,6 +1129,19 @@ class GraphConfig:
                 raise ValueError("parse-defaults.exclude-dirs must be list[str]")
         parse_defaults = ParseDefaults(**pd_kwargs)
 
+        # default-extensions: ファイル名マッチング用デフォルト拡張子リスト
+        raw_de = data.get("default-extensions")
+        if raw_de is not None:
+            if isinstance(raw_de, list):
+                default_extensions = tuple(str(e) for e in raw_de)
+            else:
+                raise ValueError("default-extensions must be list[str]")
+        else:
+            # YAML未定義時のフォールバック（file_parse.pyと同じリスト）
+            from services.parse.file_parse import DEFAULT_EXTENSIONS as _FALLBACK_EXTS
+
+            default_extensions = _FALLBACK_EXTS
+
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -1141,6 +1163,7 @@ class GraphConfig:
             solver_detection=solver_detection,
             csv_max_rows=csv_max_rows,
             parse_defaults=parse_defaults,
+            default_extensions=default_extensions,
         )
 
     @classmethod

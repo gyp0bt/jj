@@ -10,8 +10,8 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 
 | トラック | 状態 | 概要 |
 |---------|------|------|
-| **T1: コードベースTODO解消** | 進行中 | #3(active判定), #4(DEFAULT_EXTENSIONS), #13(GalleryDefaults)完了。残: #1,#2,#5,#6 |
-| **T2: Config二層分離** | 未着手 | default-config + user-configのdeep merge |
+| **T1: コードベースTODO解消** | 進行中 | #1,#3,#4完了、#13(GalleryDefaults)完了。残: #2,#5,#6 |
+| **T2: Config二層分離** | 進行中 | default_extensions config化・init最小化完了。残: migrateコマンド・legacy非推奨化 |
 | **T3: M6 Phase 5 MLダッシュボード** | 未着手 | MLOverviewPage, 三層データフロー可視化 |
 | **T4: Deprecation Warning修正** | 完了 | 問題なし。全APIモダン版使用確認済み |
 | **T5: リモートジョブ実行基盤** | 未着手 | jj submit/watch/collect + Prefect統合 |
@@ -91,6 +91,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [051](status-051.md) | 2026-03-06 | M2/M7 | 配列プロット凡例vocab変換・バッチ俯瞰Runノード統合 | claude/execute-status-todos-h9bRM |
 | [052](status-052.md) | 2026-03-06 | M7 | M7完了: バッチ俯瞰Run統合・Run比較ダッシュボード・Neo4j Run Node対応 | claude/execute-status-todos-h9bRM |
 | [053](status-053.md) | 2026-03-07 | v0.3.0 | 中期計画v0.3統合・T1(#3,#4)・T4完了・T6-1・GalleryDefaults解消 | claude/integrate-midterm-plan-j9Zm2 |
+| [054](status-054.md) | 2026-03-07 | v0.3.0 | T1#1ソートロジック関数化・T2 Config二層分離基盤 | claude/execute-status-todos-aoOqK |
 
 ---
 

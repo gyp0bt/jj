@@ -377,6 +377,63 @@ class TestApplyPropFilters:
 # ====================================================================
 
 
+class TestSortRowsByIndex:
+    """sort_rows_by_index のテスト"""
+
+    def test_sort_by_idx(self):
+        from services.query import sort_rows_by_index
+
+        rows = [{"idx": "3"}, {"idx": "1"}, {"idx": "2"}]
+        result = sort_rows_by_index(rows, "idx", "ver")
+        assert [r["idx"] for r in result] == ["1", "2", "3"]
+
+    def test_sort_by_idx_and_ver(self):
+        from services.query import sort_rows_by_index
+
+        rows = [
+            {"idx": "2", "ver": "1"},
+            {"idx": "1", "ver": "2"},
+            {"idx": "1", "ver": "1"},
+        ]
+        result = sort_rows_by_index(rows, "idx", "ver")
+        assert [(r["idx"], r["ver"]) for r in result] == [
+            ("1", "1"),
+            ("1", "2"),
+            ("2", "1"),
+        ]
+
+    def test_no_sortable_values(self):
+        from services.query import sort_rows_by_index
+
+        rows = [{"name": "c"}, {"name": "a"}, {"name": "b"}]
+        result = sort_rows_by_index(rows, "idx", "ver")
+        assert result is rows  # 元のリストがそのまま返る
+
+    def test_empty_list(self):
+        from services.query import sort_rows_by_index
+
+        result = sort_rows_by_index([], "idx", "ver")
+        assert result == []
+
+    def test_bool_values_ignored(self):
+        from services.query import sort_rows_by_index
+
+        rows = [{"idx": True, "ver": "1"}, {"idx": "2", "ver": "1"}]
+        result = sort_rows_by_index(rows, "idx", "ver")
+        # bool値はint変換対象外だが、2行目がsortable → ソートは実行される
+        assert len(result) == 2
+
+    def test_mixed_sortable(self):
+        from services.query import sort_rows_by_index
+
+        rows = [{"idx": "3"}, {"idx": "abc"}, {"idx": "1"}]
+        result = sort_rows_by_index(rows, "idx", "ver")
+        # "abc"はint変換不可→sentinelで末尾
+        assert result[0]["idx"] == "1"
+        assert result[1]["idx"] == "3"
+        assert result[2]["idx"] == "abc"
+
+
 class TestSortColumnsByVocab:
     """sort_columns_by_vocab のテスト"""
 

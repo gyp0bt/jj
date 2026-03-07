@@ -28,6 +28,7 @@ from services.query.filters import (  # noqa: F401
 from services.query.sort import (  # noqa: F401
     select_table_columns,
     sort_columns_by_vocab,
+    sort_rows_by_index,
 )
 
 # ====================================================================

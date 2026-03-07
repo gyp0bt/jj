@@ -86,7 +86,7 @@ verbose-name-format: "条件{条件}(v{v})"
 # ========================================================================
 # ファイル名から拡張子をマッチングする際の候補リスト。
 # 複合拡張子（.cas.h5等）は先にマッチされる。
-# T2（Config二層分離）完了後にConfigLoader経由で参照される。
+# GraphConfig.default_extensions 経由で参照される。
 default-extensions:
   - ".cas.h5"
   - ".dat.h5"
