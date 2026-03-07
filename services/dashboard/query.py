@@ -30,6 +30,7 @@ from services.query.sort import (  # noqa: F401
     sort_columns_by_vocab,
     sort_rows_by_index,
 )
+from services.query.transform import summarize_list_columns  # noqa: F401
 
 # ====================================================================
 # graph.yaml 検知ユーティリティ（dashboard固有）

@@ -17,6 +17,9 @@ API固有だったprops条件式フィルタ（props.KEY.OPERATOR=VALUE）を
     ソート:
         sort_columns_by_vocab, select_table_columns, sort_rows_by_index
 
+    変換:
+        summarize_list_columns, summarize_list_value
+
 [READMEへ戻る](../../../README.md)
 """
 
@@ -39,6 +42,7 @@ from services.query.sort import (
     sort_columns_by_vocab,
     sort_rows_by_index,
 )
+from services.query.transform import summarize_list_columns, summarize_list_value
 
 __all__ = [
     "OPERATORS",
@@ -54,4 +58,6 @@ __all__ = [
     "select_table_columns",
     "sort_columns_by_vocab",
     "sort_rows_by_index",
+    "summarize_list_columns",
+    "summarize_list_value",
 ]

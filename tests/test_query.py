@@ -724,3 +724,109 @@ class TestBackwardCompatibility:
 
         result = saved_view_filters_to_provider_filters({"type": "go"})
         assert result == {"type": "go"}
+
+
+# ====================================================================
+# transform.py テスト
+# ====================================================================
+
+
+class TestSummarizeListValue:
+    """summarize_list_value のテスト"""
+
+    def test_none_returns_none(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value(None) is None
+
+    def test_nan_returns_none(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value(float("nan")) is None
+
+    def test_empty_list_returns_none(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value([]) is None
+
+    def test_list_returns_first_element(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value(["error1", "error2"]) == "error1"
+
+    def test_single_element_list(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value(["only"]) == "only"
+
+    def test_dict_returns_as_is(self):
+        from services.query.transform import summarize_list_value
+
+        d = {"key": "value"}
+        assert summarize_list_value(d) == d
+
+    def test_string_list_format(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value("['error1','error2']") == "error1"
+
+    def test_string_empty_list_format(self):
+        from services.query.transform import summarize_list_value
+
+        result = summarize_list_value("[]")
+        assert result is None
+
+    def test_plain_string(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value("hello") == "ell"  # [1:-1] → "ell", split(",")[0] → "ell"
+
+    def test_integer_returns_as_is(self):
+        from services.query.transform import summarize_list_value
+
+        assert summarize_list_value(42) == 42
+
+
+class TestSummarizeListColumns:
+    """summarize_list_columns のテスト"""
+
+    def test_basic_columns(self):
+        pd = pytest.importorskip("pandas")
+        from services.query.transform import summarize_list_columns
+
+        df = pd.DataFrame(
+            {
+                "name": ["a", "b"],
+                "msg_errors": [["err1", "err2"], []],
+                "dat_errors": [["dat_err"], None],
+            }
+        )
+        result = summarize_list_columns(df, ["msg_errors", "dat_errors"])
+        assert result["msg_errors"].iloc[0] == "err1"
+        assert pd.isna(result["msg_errors"].iloc[1])
+        assert result["dat_errors"].iloc[0] == "dat_err"
+        assert pd.isna(result["dat_errors"].iloc[1])
+
+    def test_nonexistent_column_ignored(self):
+        pd = pytest.importorskip("pandas")
+        from services.query.transform import summarize_list_columns
+
+        df = pd.DataFrame({"name": ["a"]})
+        result = summarize_list_columns(df, ["nonexistent"])
+        assert list(result.columns) == ["name"]
+
+    def test_original_df_unchanged(self):
+        pd = pytest.importorskip("pandas")
+        from services.query.transform import summarize_list_columns
+
+        df = pd.DataFrame({"msg_errors": [["err1", "err2"]]})
+        summarize_list_columns(df, ["msg_errors"])
+        assert df["msg_errors"].tolist() == [["err1", "err2"]]
+
+    def test_empty_columns_list(self):
+        pd = pytest.importorskip("pandas")
+        from services.query.transform import summarize_list_columns
+
+        df = pd.DataFrame({"msg_errors": [["err1"]]})
+        result = summarize_list_columns(df, [])
+        assert result["msg_errors"].tolist() == [["err1"]]

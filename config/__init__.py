@@ -223,19 +223,47 @@ class PrefixesConfig:
 
 
 def load_extensions_config(base_dir: Path | None = None) -> ExtensionsConfig:
+    """拡張子設定を読み込む。
+
+    .. deprecated::
+        extensions.yaml は非推奨です。config.yaml の default-extensions を使用してください。
+        既存プロジェクトは ``jj config migrate`` で自動移行できます。
+    """
     config_dir = get_config_dir(base_dir)
     path = config_dir / EXTENSIONS_CONFIG_FILENAME
     if not path.exists():
         return ExtensionsConfig.from_dict(DEFAULT_EXTENSIONS)
+    import warnings
+
+    warnings.warn(
+        "extensions.yaml は非推奨です。config.yaml の default-extensions を使用してください。"
+        " `jj config migrate` で自動移行できます。",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     data = read_yaml(path)
     return ExtensionsConfig.from_dict(data)
 
 
 def load_prefixes_config(base_dir: Path | None = None) -> PrefixesConfig:
+    """プレフィックス設定を読み込む。
+
+    .. deprecated::
+        prefixes.yaml は非推奨です。config.yaml の path-type-map を使用してください。
+        既存プロジェクトは ``jj config migrate`` で自動移行できます。
+    """
     config_dir = get_config_dir(base_dir)
     path = config_dir / PREFIXES_CONFIG_FILENAME
     if not path.exists():
         return PrefixesConfig.from_dict({"prefixes": DEFAULT_PREFIXES})
+    import warnings
+
+    warnings.warn(
+        "prefixes.yaml は非推奨です。config.yaml の path-type-map を使用してください。"
+        " `jj config migrate` で自動移行できます。",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     data = read_yaml(path)
     return PrefixesConfig.from_dict(data)
 
@@ -281,6 +309,90 @@ def init_config_dir(base_dir: Path | None = None) -> None:
     )
     with config_path.open("w", encoding="utf-8") as f:
         f.write(config_template)
+
+
+def migrate_legacy_configs(
+    base_dir: Path | None = None,
+    check_only: bool = False,
+) -> dict[str, Any]:
+    """レガシー設定ファイル（extensions.yaml, prefixes.yaml）をconfig.yamlに統合する。
+
+    Args:
+        base_dir: プロジェクトルート（Noneの場合はcwd）
+        check_only: Trueの場合、差分を返すのみで書き込まない
+
+    Returns:
+        マイグレーション結果:
+          - "changes": list[str] — 検出された変更の説明
+          - "merged": dict — config.yamlにマージするデータ
+          - "legacy_files": list[Path] — 検出されたレガシーファイル
+    """
+    config_dir = get_config_dir(base_dir)
+    changes: list[str] = []
+    merged: dict[str, Any] = {}
+    legacy_files: list[Path] = []
+
+    # extensions.yaml の検出・差分抽出
+    ext_path = config_dir / EXTENSIONS_CONFIG_FILENAME
+    if ext_path.exists():
+        legacy_files.append(ext_path)
+        ext_data = read_yaml(ext_path)
+        if ext_data and isinstance(ext_data, dict):
+            # デフォルトとの差分を抽出
+            ext_diff: dict[str, list[str]] = {}
+            for key, values in ext_data.items():
+                if not isinstance(values, list):
+                    continue
+                default_values = DEFAULT_EXTENSIONS.get(key, [])
+                if sorted(values) != sorted(default_values):
+                    ext_diff[key] = values
+                    changes.append(f"extensions.{key}: {default_values} → {values}")
+            if ext_diff:
+                merged["default-extensions"] = ext_diff
+
+    # prefixes.yaml の検出・差分抽出
+    pfx_path = config_dir / PREFIXES_CONFIG_FILENAME
+    if pfx_path.exists():
+        legacy_files.append(pfx_path)
+        pfx_data = read_yaml(pfx_path)
+        if pfx_data and isinstance(pfx_data, dict):
+            prefixes = pfx_data.get("prefixes", pfx_data)
+            if isinstance(prefixes, dict):
+                pfx_diff: dict[str, str] = {}
+                for key, val in prefixes.items():
+                    default_val = DEFAULT_PREFIXES.get(key)
+                    if default_val != val or key not in DEFAULT_PREFIXES:
+                        pfx_diff[key] = val
+                        changes.append(f"prefixes.{key}: {default_val} → {val}")
+                if pfx_diff:
+                    merged["prefixes"] = pfx_diff
+
+    if not check_only and merged:
+        # config.yaml にマージ
+        config_path = config_dir / CONFIG_FILENAME
+        existing: dict[str, Any] = {}
+        if config_path.exists():
+            raw = read_yaml(config_path)
+            if isinstance(raw, dict):
+                existing = raw
+
+        # マージ（既存設定を優先、新規キーのみ追加）
+        for key, value in merged.items():
+            if key not in existing:
+                existing[key] = value
+            elif isinstance(existing[key], dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    if k not in existing[key]:
+                        existing[key][k] = v
+
+        with config_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(existing, f, allow_unicode=True, sort_keys=False)
+
+    return {
+        "changes": changes,
+        "merged": merged,
+        "legacy_files": legacy_files,
+    }
 
 
 # =============================================================================
@@ -750,6 +862,7 @@ class DashboardConfig:
     array_plot_defaults: dict[str, Any]  # 配列プロットデフォルト設定（x, y, x_min, x_max, y_min, y_max）
     plot_style_defaults: PlotStyleDefaults  # プロットスタイルデフォルト値
     gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
+    list_summary_columns: list[str]  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -779,6 +892,7 @@ class DashboardConfig:
                 array_plot_defaults={},
                 plot_style_defaults=PlotStyleDefaults(),
                 gallery_defaults=GalleryDefaults(),
+                list_summary_columns=["msg_errors", "dat_errors"],
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -906,6 +1020,14 @@ class DashboardConfig:
             raise ValueError("gallery-defaults.columns must be >= 1")
         if gallery_defaults.rows < 1:
             raise ValueError("gallery-defaults.rows must be >= 1")
+        # list-summary-columns: list[str]型カラムの先頭要素のみ表示
+        raw_lsc = data.get("list-summary-columns")
+        if raw_lsc is not None:
+            if not isinstance(raw_lsc, list):
+                raise ValueError("dashboard.list-summary-columns must be list[str]")
+            list_summary_columns = [str(c) for c in raw_lsc]
+        else:
+            list_summary_columns = ["msg_errors", "dat_errors"]
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -920,6 +1042,7 @@ class DashboardConfig:
             array_plot_defaults=array_plot_defaults,
             plot_style_defaults=plot_style_defaults,
             gallery_defaults=gallery_defaults,
+            list_summary_columns=list_summary_columns,
         )
 
 

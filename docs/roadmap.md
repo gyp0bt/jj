@@ -37,8 +37,8 @@ T3 (MLダッシュボード) ─ T8 (汎用データ管理)
 
 | トラック | 優先度 | 概要 | 工数目安 | 状態 |
 |---------|--------|------|---------|------|
-| **T1: コードベースTODO解消** | 高 | コード内13件のTODO実装 | 1セッション | 進行中（#3,#4,#13完了） |
-| **T2: Config二層分離** | 高 | default-config + user-configのdeep merge | 2セッション | 未着手 |
+| **T1: コードベースTODO解消** | 高 | コード内13件のTODO実装 | 1セッション | 進行中（#1,#2,#3,#4,#13完了） |
+| **T2: Config二層分離** | 高 | default-config + user-configのdeep merge | 2セッション | **完了** |
 | **T3: M6 Phase 5 MLダッシュボード** | 中 | MLOverviewPage, 三層データフロー可視化 | 2セッション | 未着手 |
 | **T4: Deprecation Warning修正** | 高 | 全APIモダン版使用確認済み | 0.5セッション | 完了 |
 | **T5: リモートジョブ実行基盤** | 高 | jj submit/watch/collect + Prefect統合 | 4-5セッション | 未着手 |

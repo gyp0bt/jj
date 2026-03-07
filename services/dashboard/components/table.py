@@ -116,36 +116,11 @@ class TablePage(PageComponent[TableViewConfig]):
         if selected_cols:
             df = df[[c for c in selected_cols if c in df.columns]]
 
-        # Convert JSON columns that may contain NaN values.
-        # For each target column, parse the JSON string (if present) and replace it
-        # with the first element of the list. If the value is NaN or cannot be parsed,
-        # leave it as None (or the original value).
-        import pandas as pd
+        # list[str]型カラムの先頭要素のみ表示（config.list_summary_columnsで制御）
+        from services.query.transform import summarize_list_columns
 
-        # message_errorsとdat_errorsのようなlist[str]型の値がある列はパースして1番目要素のみ表示
-        # この対応だけ個別対応なので、将来的にはconfigで対応する。
-        # TODO: この処理をconfig対応にしてかつ関数化しておく
-        for col in ["msg_errors", "dat_errors"]:
-            if col in df.columns:
-
-                def _parse_json(value):
-                    # Preserve missing values as None
-                    if pd.isna(value):
-                        return None
-                    # If the value is already a Python object, use it directly
-                    if isinstance(value, (list, dict)):
-                        data = value
-                    else:
-                        try:
-                            data = value[1:-1].split(",")[0].replace("'", "")
-                            # data = json.loads(str(value))
-                        except Exception:
-                            # If loading fails, keep the original value
-                            # print(value)
-                            return value
-                    return data
-
-                df[col] = df[col].apply(_parse_json)
+        list_summary_cols = getattr(dashboard_config, "list_summary_columns", ["msg_errors", "dat_errors"])
+        df = summarize_list_columns(df, list_summary_cols)
 
         # カラムヘッダーにvocab変換を適用（表示時のみ）
         if vocab:
