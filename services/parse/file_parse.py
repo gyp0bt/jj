@@ -15,7 +15,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Generic, TypeVar
 
-# TODO: ハードコードはconfigに逃がす
+# デフォルト拡張子リスト。default-config.yamlのdefault-extensionsセクションにも定義済み。
+# T2（Config二層分離）完了後、ConfigLoader経由の取得に移行予定。
 DEFAULT_EXTENSIONS: tuple[str, ...] = (
     ".cas.h5",
     ".dat.h5",

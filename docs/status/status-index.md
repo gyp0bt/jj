@@ -6,17 +6,30 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 
 ---
 
+## v0.3.0 ワークトラック進捗
+
+| トラック | 状態 | 概要 |
+|---------|------|------|
+| **T1: コードベースTODO解消** | 進行中 | #3(active判定), #4(DEFAULT_EXTENSIONS), #13(GalleryDefaults)完了。残: #1,#2,#5,#6 |
+| **T2: Config二層分離** | 未着手 | default-config + user-configのdeep merge |
+| **T3: M6 Phase 5 MLダッシュボード** | 未着手 | MLOverviewPage, 三層データフロー可視化 |
+| **T4: Deprecation Warning修正** | 完了 | 問題なし。全APIモダン版使用確認済み |
+| **T5: リモートジョブ実行基盤** | 未着手 | jj submit/watch/collect + Prefect統合 |
+| **T6: ダッシュボード高度化** | 進行中 | T6-1(Re-parseボタン)完了。残: T6-2〜4 |
+| **T7: Ollama AI連携** | 未着手 | AIProviderプロトコル, 要約, RAG, tips |
+| **T8: 汎用データ管理** | 未着手 | Run中心プラットフォームへの昇華 |
+
 ## v0.2.0 マイルストーン進捗
 
 | マイルストーン | 状態 | 概要 |
 |---------------|------|------|
 | **M1: 基盤整備** | 完了 | CI/CD構築、ドキュメント再編、statusアーカイブ、CLAUDE.md/CONTRIBUTING.md |
 | **M1.5: ドキュメント再構成** | 完了 | roadmap分離、CLAUDE.md/README.mdスリム化、マルチソルバー仕様書、プラグイン雛形 |
-| **M2: マルチソルバー基盤** | 進行中 | プラグイン雛形作成済み、本実装は検証環境確保後に実施 |
-| **M3: Neo4j統合パイプライン** | 進行中 | jj側完了、jjrv IEntityRepository抽象化完了、接続設定UI・検索アダプター完了 |
+| **M2: マルチソルバー基盤** | 検証待ち | プラグイン雛形作成済み、本実装は検証環境確保後に実施 |
+| **M3: Neo4j統合パイプライン** | jj側完了 | jj側エクスポーター完了、jjrv分離済み |
 | **M4: 横断ダッシュボード** | 凍結 | jjrv分離により凍結。Streamlitダッシュボードで対応 |
-| **M5: ワークフロー自動化** | 未着手 | runジョブ型、fileコマンド基本 |
-| **M6: ML/実験/最適化タスク対応** | 進行中 | パーサー9種実装済み（Phase 2-4完了）、サロゲートモデルフレームワーク構築、三層リレーション構築 |
+| **M5: ワークフロー自動化** | → T5に発展 | v0.3.0 T5（リモートジョブ実行基盤）として再設計 |
+| **M6: ML/実験/最適化タスク対応** | Phase 4完了 | パーサー9種実装済み。Phase 5は → T3に引き継ぎ |
 | **M7: Run中心スキーマ再設計** | 完了 | Phase 1-6完了: コアモデル・RunDiscoverer群・RunService統合・Parse-Run統合・Run比較ダッシュボード・Neo4j対応 |
 
 ---
@@ -77,6 +90,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [050](status-050.md) | 2026-03-06 | M2/M7 | プロット軸vocab変換・GalleryDefaults参照・Run --show-properties | claude/execute-status-todos-ifjHD |
 | [051](status-051.md) | 2026-03-06 | M2/M7 | 配列プロット凡例vocab変換・バッチ俯瞰Runノード統合 | claude/execute-status-todos-h9bRM |
 | [052](status-052.md) | 2026-03-06 | M7 | M7完了: バッチ俯瞰Run統合・Run比較ダッシュボード・Neo4j Run Node対応 | claude/execute-status-todos-h9bRM |
+| [053](status-053.md) | 2026-03-07 | v0.3.0 | 中期計画v0.3統合・T1(#3,#4)・T4完了・T6-1・GalleryDefaults解消 | claude/integrate-midterm-plan-j9Zm2 |
 
 ---
 

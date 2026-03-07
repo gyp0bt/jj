@@ -47,7 +47,7 @@ pytest                          # テスト実行
 
 | ドキュメント | 説明 |
 |-------------|------|
-| [docs/roadmap.md](docs/roadmap.md) | **v0.2.0 ロードマップ**（マイルストーン・仕様書リンク） |
+| [docs/roadmap.md](docs/roadmap.md) | **ロードマップ**（v0.3.0ワークトラック・v0.2.0マイルストーン） |
 | [docs/status/status-index.md](docs/status/status-index.md) | v0.2.0 statusインデックス |
 | [docs/README.md](docs/README.md) | ドキュメント一覧 |
 | [docs/specs/](docs/specs/) | 機能ドメイン別仕様書 |

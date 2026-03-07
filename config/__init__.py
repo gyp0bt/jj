@@ -734,17 +734,14 @@ class DashboardConfig:
     default_filters: dict[str, Any]  # デフォルトフィルタ（例: {"active": true}）
     plot_x: str | None  # プロットデフォルトX軸
     plot_y: str | None  # プロットデフォルトY軸
-    gallery_columns: int  # ギャラリーグリッド列数
-    gallery_rows: int  # ギャラリーグリッド行数
     saved_views: list[SavedViewConfig]  # 保存済みビュー（表示順）
     connector_configs: dict[str, dict[str, Any]]  # コネクタ固有設定（キー: コネクタ名）
     ng_regions: list[dict[str, Any]]  # NG領域定義（矩形/カーブ）
     group_line_key: str | None  # グループ結線キー（同一値のデータ点を結線）
     plot_style: dict[str, int]  # プロットスタイル（marker_size, line_width, font_size）
-    gallery_max_image_bytes: int  # ギャラリーHTMLエクスポート時の1画像あたりの最大バイト数（0=無制限）
     array_plot_defaults: dict[str, Any]  # 配列プロットデフォルト設定（x, y, x_min, x_max, y_min, y_max）
     plot_style_defaults: PlotStyleDefaults  # プロットスタイルデフォルト値
-    gallery_defaults: GalleryDefaults  # ギャラリーデフォルト値
+    gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -766,14 +763,11 @@ class DashboardConfig:
                 default_filters={},
                 plot_x=None,
                 plot_y=None,
-                gallery_columns=5,
-                gallery_rows=4,
                 saved_views=[],
                 connector_configs={},
                 ng_regions=[],
                 group_line_key=None,
                 plot_style={},
-                gallery_max_image_bytes=0,
                 array_plot_defaults={},
                 plot_style_defaults=PlotStyleDefaults(),
                 gallery_defaults=GalleryDefaults(),
@@ -792,12 +786,9 @@ class DashboardConfig:
         plot = data.get("plot", {})
         if not isinstance(plot, dict):
             plot = {}
-        gallery_columns = int(data.get("gallery-columns", 5))
-        if gallery_columns < 1:
-            raise ValueError("dashboard.gallery-columns must be >= 1")
-        gallery_rows = int(data.get("gallery-rows", 4))
-        if gallery_rows < 1:
-            raise ValueError("dashboard.gallery-rows must be >= 1")
+        # 後方互換: gallery-columns/gallery-rows はgallery-defaultsに統合
+        _legacy_gallery_columns = data.get("gallery-columns")
+        _legacy_gallery_rows = data.get("gallery-rows")
         # 保存済みビューの読み込み
         raw_views = data.get("saved-views", [])
         if not isinstance(raw_views, list):
@@ -840,9 +831,6 @@ class DashboardConfig:
             ps_val = raw_plot_style.get(ps_key) or raw_plot_style.get(ps_key.replace("_", "-"))
             if ps_val is not None:
                 plot_style[ps_key] = int(ps_val)
-        # ギャラリーHTMLエクスポートの画像サイズ上限（バイト単位、デフォルト: 5MB）
-        raw_max_img = data.get("gallery-max-image-bytes", 5 * 1024 * 1024)
-        gallery_max_image_bytes = int(raw_max_img) if raw_max_img else 0
         # 配列プロットデフォルト設定
         raw_array_plot = data.get("array-plot", {})
         if not isinstance(raw_array_plot, dict):
@@ -884,11 +872,21 @@ class DashboardConfig:
             if psd_val is not None:
                 psd_kwargs[psd_key] = int(psd_val)
         plot_style_defaults = PlotStyleDefaults(**psd_kwargs)
-        # ギャラリーデフォルト値
+        # ギャラリーデフォルト値（後方互換: gallery-columns/rows/max-image-bytesも読み取り）
         raw_gd = data.get("gallery-defaults", {})
         if not isinstance(raw_gd, dict):
             raw_gd = {}
         gd_kwargs: dict[str, Any] = {}
+        # 後方互換: legacy gallery-columns/rows → gallery-defaults に統合
+        if _legacy_gallery_columns is not None:
+            gd_kwargs["columns"] = int(_legacy_gallery_columns)
+        if _legacy_gallery_rows is not None:
+            gd_kwargs["rows"] = int(_legacy_gallery_rows)
+        # 後方互換: gallery-max-image-bytes → gallery-defaults.max_image_bytes に統合
+        raw_max_img = data.get("gallery-max-image-bytes")
+        if raw_max_img is not None:
+            gd_kwargs["max_image_bytes"] = int(raw_max_img)
+        # gallery-defaults セクションが存在すれば上書き（より優先度が高い）
         if raw_gd.get("columns") is not None:
             gd_kwargs["columns"] = int(raw_gd["columns"])
         if raw_gd.get("rows") is not None:
@@ -896,20 +894,21 @@ class DashboardConfig:
         if raw_gd.get("max-image-bytes") is not None:
             gd_kwargs["max_image_bytes"] = int(raw_gd["max-image-bytes"])
         gallery_defaults = GalleryDefaults(**gd_kwargs)
+        if gallery_defaults.columns < 1:
+            raise ValueError("gallery-defaults.columns must be >= 1")
+        if gallery_defaults.rows < 1:
+            raise ValueError("gallery-defaults.rows must be >= 1")
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
             default_filters=default_filters,
             plot_x=str(plot["x"]) if plot.get("x") is not None else None,
             plot_y=str(plot["y"]) if plot.get("y") is not None else None,
-            gallery_columns=gallery_columns,
-            gallery_rows=gallery_rows,
             saved_views=saved_views,
             connector_configs=connector_configs,
             ng_regions=ng_regions,
             group_line_key=group_line_key,
             plot_style=plot_style,
-            gallery_max_image_bytes=gallery_max_image_bytes,
             array_plot_defaults=array_plot_defaults,
             plot_style_defaults=plot_style_defaults,
             gallery_defaults=gallery_defaults,

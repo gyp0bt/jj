@@ -839,8 +839,8 @@ class TestDashboardConfig:
         assert cfg.default_filters == {}
         assert cfg.plot_x is None
         assert cfg.plot_y is None
-        assert cfg.gallery_columns == 5
-        assert cfg.gallery_rows == 4
+        assert cfg.gallery_defaults.columns == 5
+        assert cfg.gallery_defaults.rows == 4
         assert cfg.connector_configs == {}
 
     def test_none_data(self):
@@ -867,8 +867,9 @@ class TestDashboardConfig:
         assert cfg.default_filters == {"active": True}
         assert cfg.plot_x == "条件"
         assert cfg.plot_y == "RF3"
-        assert cfg.gallery_columns == 3
-        assert cfg.gallery_rows == 6
+        # 後方互換: gallery-columns/rows → gallery_defaults に統合
+        assert cfg.gallery_defaults.columns == 3
+        assert cfg.gallery_defaults.rows == 6
 
     def test_invalid_table_columns(self):
         """table-columnsが不正な場合"""
@@ -878,19 +879,19 @@ class TestDashboardConfig:
             DashboardConfig.from_dict({"table-columns": "invalid"})
 
     def test_invalid_gallery_columns(self):
-        """gallery-columnsが0以下の場合"""
+        """gallery-defaults.columnsが0以下の場合"""
         from config import DashboardConfig
 
-        with pytest.raises(ValueError, match="gallery-columns"):
+        with pytest.raises(ValueError, match=r"gallery-defaults\.columns"):
             DashboardConfig.from_dict({"gallery-columns": 0})
 
     def test_graph_config_includes_dashboard(self):
         """GraphConfigにdashboardフィールドが含まれる"""
         from config import GraphConfig
 
-        # from_dictでdashboardセクションが処理される
+        # 後方互換: gallery-columns → gallery_defaults.columns
         cfg = GraphConfig.from_dict({"dashboard": {"gallery-columns": 3}})
-        assert cfg.dashboard.gallery_columns == 3
+        assert cfg.dashboard.gallery_defaults.columns == 3
 
     def test_graph_config_default_dashboard(self):
         """dashboardセクションなしの場合デフォルト設定"""
@@ -898,7 +899,7 @@ class TestDashboardConfig:
 
         cfg = GraphConfig.from_dict({})
         assert cfg.dashboard.table_columns is None
-        assert cfg.dashboard.gallery_columns == 5
+        assert cfg.dashboard.gallery_defaults.columns == 5
 
     def test_connector_configs(self):
         """connectorsセクションの読み込み"""
@@ -6106,26 +6107,25 @@ class TestGalleryMaxImageBytes:
     """ギャラリーHTMLの画像ファイルサイズ上限テスト"""
 
     def test_gallery_max_image_bytes_config(self):
-        """DashboardConfigにgallery_max_image_bytesが設定される"""
+        """gallery-max-image-bytes → gallery_defaults.max_image_bytesに統合される"""
         from config import DashboardConfig
 
         config = DashboardConfig.from_dict({"gallery-max-image-bytes": 1048576})
-        assert config.gallery_max_image_bytes == 1048576
+        assert config.gallery_defaults.max_image_bytes == 1048576
 
     def test_gallery_max_image_bytes_default(self):
-        """空dict時のデフォルトは0（無制限）"""
+        """空dict時のデフォルトは5MB"""
         from config import DashboardConfig
 
-        # 空dictはデフォルトパス → gallery_max_image_bytes=0
         config = DashboardConfig.from_dict({})
-        assert config.gallery_max_image_bytes == 0
+        assert config.gallery_defaults.max_image_bytes == 5 * 1024 * 1024
 
     def test_gallery_max_image_bytes_default_with_data(self):
         """データありでキー未指定時はデフォルト5MB"""
         from config import DashboardConfig
 
         config = DashboardConfig.from_dict({"plot": {"x": "RF3"}})
-        assert config.gallery_max_image_bytes == 5 * 1024 * 1024
+        assert config.gallery_defaults.max_image_bytes == 5 * 1024 * 1024
 
     def test_gallery_html_skips_large_images(self):
         """サイズ上限を超える画像がスキップまたはサムネイル化される"""
@@ -6304,7 +6304,7 @@ class TestGalleryMaxImageBytes:
                 relations=[Relation(id=1, label="has_output", node1_id=1, node2_id=2)],
             )
             provider = DashboardDataProvider(graph)
-            # gallery_max_image_bytes=0（無制限）
+            # gallery_defaults.max_image_bytes=0（無制限）— 後方互換キーで設定
             dashboard_config = DashboardConfig.from_dict({"gallery-max-image-bytes": 0})
             view = SavedViewConfig.from_dict(
                 {
@@ -7025,20 +7025,19 @@ class TestGalleryDefaultsConfig:
         assert max_bytes == 1024
 
     def test_get_gallery_settings_fallback(self):
-        """gallery_defaultsがない場合はgallery_columns/rowsにフォールバック"""
+        """gallery_defaultsがない場合はデフォルト値（5, 4, 0）を返す"""
         from dataclasses import dataclass
 
         from services.dashboard.components.gallery import _get_gallery_settings
 
         @dataclass
         class MockConfig:
-            gallery_columns: int = 6
-            gallery_rows: int = 3
+            pass
 
         config = MockConfig()
         cols, rows, max_bytes = _get_gallery_settings(config)
-        assert cols == 6
-        assert rows == 3
+        assert cols == 5
+        assert rows == 4
         assert max_bytes == 0
 
 
@@ -7126,8 +7125,14 @@ class TestArrayPlotLegendVocab:
             filters: dict = field(default_factory=dict)
 
         @dataclass
+        class MockGD:
+            columns: int = 4
+            rows: int = 4
+            max_image_bytes: int = 0
+
+        @dataclass
         class MockConfig:
-            gallery_columns: int = 4
+            gallery_defaults: MockGD = field(default_factory=MockGD)
             ng_regions: list = field(default_factory=list)
 
         html = generate_array_plot_html(provider, MockConfig(), MockView(), vocab={"RF.force": "反力"})

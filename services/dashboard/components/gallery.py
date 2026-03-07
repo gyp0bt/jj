@@ -18,21 +18,13 @@ if TYPE_CHECKING:
 def _get_gallery_settings(dashboard_config: Any) -> tuple[int, int, int]:
     """DashboardConfigからギャラリー設定を取得する
 
-    gallery_defaultsを優先し、gallery_columns/gallery_rowsにフォールバック。
-
     Returns:
         (cols_per_row, rows_per_page, max_image_bytes)
     """
     gd = getattr(dashboard_config, "gallery_defaults", None)
     if gd is not None:
-        cols = gd.columns
-        rows = gd.rows
-        max_bytes = gd.max_image_bytes
-    else:
-        cols = getattr(dashboard_config, "gallery_columns", 5)
-        rows = getattr(dashboard_config, "gallery_rows", 4)
-        max_bytes = 0
-    return cols, rows, max_bytes
+        return gd.columns, gd.rows, gd.max_image_bytes
+    return 5, 4, 0
 
 
 class GalleryViewConfig(ViewConfig):
@@ -186,9 +178,7 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         max_display = cols_per_row * rows_per_page
         images = images[:max_display]
 
-        # gallery_max_image_bytesが明示設定されていればそちらを優先
-        max_image_bytes = getattr(dashboard_config, "gallery_max_image_bytes", max_bytes)
-        return _generate_gallery_html_grid(images, cols_per_row, project_root, source, max_image_bytes=max_image_bytes)
+        return _generate_gallery_html_grid(images, cols_per_row, project_root, source, max_image_bytes=max_bytes)
 
 
 # ====================================================================

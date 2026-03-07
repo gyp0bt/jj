@@ -1506,6 +1506,9 @@ class TestActiveAttribute:
             {
                 "vocab": {},
                 "path-type-map": {},
+                "path-property-map": {
+                    "**old/*": {"active": "false"},
+                },
                 "file-relations": {
                     "input-extensions": [".inp"],
                 },

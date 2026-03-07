@@ -33,6 +33,7 @@ def config() -> GraphConfig:
         {
             "vocab": {},
             "file-relations": {"input-extensions": [".inp"]},
+            "path-property-map": {"**old/*": {"active": "false"}},
         }
     )
 

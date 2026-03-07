@@ -117,9 +117,7 @@ class GraphService:
         return sorted(files)
 
     def file_to_node(self, file_path: Path) -> Node:
-        """ファイルパスからNodeを生成
-        TODO: これはparseへ移動。またversion, index, activeがハードコードでややこしい。index, versionは特殊かつ必須なのでconfigでversion: vなどを強制。
-        """
+        """ファイルパスからNodeを生成"""
         parser = FileParse(file_path)
         file_type = parser.get_file_type()
         props = parser.get_props()
@@ -162,17 +160,14 @@ class GraphService:
         # 日付を取得
         date_formatted = parser.get_date_formatted()
 
-        # oldフォルダに入っていなければactive=True
-        parent_dir = file_path.parent.name if isinstance(file_path, Path) else Path(str(file_path)).parent.name
-        active = "false" if parent_dir == "old" else "true"
-
+        # active判定はpath-property-map経由（default-config.yamlで **old/* → active: false を定義）
         properties: dict[str, Any] = {
             "path": rel_path,
             "index": parser.get_index(),
             "version": parser.get_version(),
-            "active": active,
+            "active": "true",  # デフォルト。path-property-mapで上書き可能
             **translated_props,
-            **config_props,  # 設定からのプロパティが優先
+            **config_props,  # 設定からのプロパティが優先（active: false含む）
         }
 
         # index/versionは生キーで統一（vocab変換は表示時のみ）
