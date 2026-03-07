@@ -274,138 +274,201 @@ jj submit go_sample_v3_idx1 --wait --collect
 
 **推奨はパターン1（手動）**: シンプルで確実。`jj job status` で完了確認 → `jj collect` で回収。Prefect UIがあれば履歴が自動で可視化される。
 
-### T5-9: Prefect統合 — 監視ダッシュボードとしての活用
+### T5-9: Prefect統合 — jjがPrefectの運用を全部隠す
 
-#### 方針転換: オーケストレーションではなくオブザーバビリティ
+#### 課題の整理
 
-Prefectの`flow.serve()`やDeploymentはgitレポジトリ前提 or 常駐プロセスが必要で、
-CAEプロジェクトごとにタスク定義を書くのは運用負荷が高すぎる。
+Prefectは美しい。スケジューリングもデプロイ管理もタイムラインも全部良い。
+しかし運用が重い:
 
-**Prefectに求めるもの**: 美しいダッシュボードと実行履歴の可視化。
-**Prefectに求めないもの**: スケジューリング、リトライ制御、オーケストレーション。
+| Prefect機能 | 運用の重さ |
+|-------------|-----------|
+| `flow.serve()` | 常駐プロセスが必要。止めるとスケジュール停止 |
+| Deployment | gitレポジトリ前提 or `set_working_directory` が必要 |
+| Work Pool + Worker | サーバー+ワーカーの常時稼働が前提 |
+| タスク定義 | プロジェクトごとにPython Flowを書く必要 |
+
+**解決策**: jjがPrefectの運用インフラを全部管理し、ユーザーはjjコマンドだけ叩く。
+
+#### 設計: Managed Prefect パターン
 
 ```
-jjコマンド実行（submit, run, collect）
-  ↓ 実行完了後
-Prefect API にFlow Run を事後記録（fire-and-forget）
-  ↓
-Prefect UI で履歴閲覧・状態確認
+ユーザーが触るもの:
+  jj submit / jj collect / jj job status  ← いつもの jj コマンド
+  jj prefect up / down                    ← UIを見たいときだけ
+
+jjが裏でやること:
+  ├─ Prefect Server のライフサイクル管理（起動・停止・ポート管理）
+  ├─ Flow/Task の自動生成（ユーザーがPythonを書く必要なし）
+  ├─ Deployment の自動登録（gitレポジトリ不要）
+  ├─ 軽量ポーリングワーカー（jj prefect up 中のみ動作）
+  └─ jj JobState ↔ Prefect State の自動同期
 ```
 
-#### 設計: 事後記録パターン（Post-hoc Logging）
+#### 二層構造: 事後記録 + マネージドワーカー
+
+**Layer 1: 事後記録（常に動作、サーバー不要時はスキップ）**
 
 ```python
-# jjのコマンド実行は従来通り。Prefectデコレータは使わない。
-# 実行結果をPrefect APIに「記録」するだけ。
-
-from __future__ import annotations
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from services.run import RunResult
-
-def report_to_prefect(result: "RunResult", flow_name: str = "jj-run") -> None:
-    """実行結果をPrefect UIに事後記録する（optional、失敗しても無視）"""
+def report_to_prefect(result: RunResult) -> None:
+    """jjコマンド実行後にPrefect APIへ記録（fire-and-forget）"""
     try:
         from prefect.client.orchestration import get_client
         from prefect.artifacts import create_markdown_artifact
-        import asyncio
-
-        async def _report():
-            async with get_client() as client:
-                # Flow Runを作成（実行済みとして記録）
-                flow_run = await client.create_flow_run(
-                    flow=None,
-                    name=f"{result.command[0]} @ {result.started_at}",
-                    state=Completed() if result.exit_code == 0 else Failed(),
-                    tags=["jj", flow_name],
-                )
-                # Artifactとして詳細情報を添付
-                await create_markdown_artifact(
-                    key=f"jj-run-{flow_run.id}",
-                    markdown=_build_run_markdown(result),
-                )
-
-        asyncio.run(_report())
-    except ImportError:
-        pass  # Prefect未インストール → 何もしない
-    except Exception:
-        pass  # Prefectサーバー未起動 → 何もしない（jj本体に影響させない）
-
-
-def _build_run_markdown(result: "RunResult") -> str:
-    """RunResultをPrefect Artifact用のMarkdownに変換"""
-    files = "\n".join(f"- `{f}`" for f in result.trace_files) or "なし"
-    return f"""## {" ".join(result.command)}
-
-| 項目 | 値 |
-|------|-----|
-| exit code | {result.exit_code} |
-| duration | {result.duration_seconds:.1f}s |
-| host | {result.host} |
-| started | {result.started_at} |
-
-### 変更ファイル
-{files}
-"""
+        # ... Flow Run作成 + Artifact添付
+    except (ImportError, Exception):
+        pass  # Prefect未インストール or サーバー未起動 → 無視
 ```
 
-#### 統合ポイント
+全てのjjコマンド（run, submit, collect, watch）の末尾で呼ぶ。
+サーバーが動いていれば記録、動いていなければスキップ。
 
-jjの既存コマンドに1行追加するだけ:
+**Layer 2: マネージドワーカー（`jj prefect up` 時のみ）**
 
 ```python
-# services/run/__init__.py — RunService.execute() の末尾
-result = RunResult(...)
-self._save_log(result)           # 既存: JSON保存
-self._update_graph_storage(...)  # 既存: グラフ更新
-report_to_prefect(result)        # 追加: Prefectに事後記録（optional）
+# jj prefect up が起動するもの:
+
+class JjPrefectManager:
+    """jjが管理するPrefect環境"""
+
+    def up(self):
+        """Prefectサーバー + jjワーカーを一括起動"""
+        # 1. Prefect Server起動（SQLiteバックエンド、ポート4200）
+        self._start_server()
+
+        # 2. jjのFlowテンプレートを自動登録
+        self._register_flows()
+
+        # 3. 軽量ポーリングワーカーを起動
+        #    → 投入済みジョブの完了チェック + 自動回収
+        self._start_worker()
+
+    def _register_flows(self):
+        """jjコマンドをPrefect Flowとして自動登録（ユーザー定義不要）"""
+
+        @flow(name="jj-submit", description="CAEジョブ投入")
+        def jj_submit_flow(targets: list[str], options: dict):
+            transfer = transfer_task(targets, options)
+            submit = submit_task(targets, options)
+            return submit
+
+        @flow(name="jj-collect", description="結果回収")
+        def jj_collect_flow(job_ids: list[str]):
+            for job_id in job_ids:
+                collect_task(job_id)
+
+        @flow(name="jj-poll", description="定期ジョブ状態チェック")
+        def jj_poll_flow():
+            """投入済みジョブの完了チェック → 完了分を自動回収"""
+            pending = load_pending_jobs()
+            for job in pending:
+                if check_completion(job):
+                    collect_task(job.id)
+
+        # Deploymentとして登録（スケジュール付き）
+        # ※ source=None で登録 → gitレポジトリ不要
+        jj_poll_flow.serve(
+            name="jj-auto-collect",
+            interval=1800,  # 30分間隔
+            pause_on_shutdown=False,
+        )
+
+    def _start_worker(self):
+        """serve()をバックグラウンドスレッドで実行"""
+        # jj prefect up のプロセス内で動作
+        # → jj prefect down で一緒に停止
+        threading.Thread(target=self._run_serve, daemon=True).start()
+
+    def down(self):
+        """全停止"""
+        self._stop_worker()
+        self._stop_server()
 ```
 
-同様に `jj submit`, `jj collect` にも追加可能。
-
-#### 運用パターン
+#### 運用フロー
 
 ```bash
-# 普段の作業（Prefectなしで完全に動作）
-jj submit go_sample_v3_idx1
-jj job status
-jj collect --completed
+# ── 日常作業（Prefectなしで完全動作） ──────────────────
 
-# 履歴を振り返りたいとき → Prefect UIをオンデマンド起動
-jj prefect up                    # prefect server start のラッパー
-# → http://localhost:4200 でPrefect UIが開く
-# → 過去のjj run / submit / collect の履歴がタイムラインで見える
-# → 作業が終わったら閉じる
-jj prefect down
+jj submit go_v3_idx{1..5}         # 5ジョブ投入
+jj job status                      # 状態確認
+jj collect --completed             # 手動回収
+
+# ── Prefect UIで管理したいとき ──────────────────────
+
+jj prefect up
+# → Prefect Server起動 (http://localhost:4200)
+# → jj Flowテンプレート自動登録（ユーザーが書く必要なし）
+# → 自動回収ポーリング開始（30分間隔、カスタム可）
+
+jj submit go_v4_idx{1..10}        # 通常のjjコマンド
+# → Prefect UIにFlow Runが自動表示
+# → タイムライン・ログ・状態遷移が美しく可視化
+# → 完了したジョブは自動回収される
+
+# Prefect UIで見えるもの:
+#   - Flow Runs: 各submit/collect/pollの実行履歴
+#   - Deployments: jj-auto-collect（30分ポーリング）
+#   - Artifacts: 各Runの入出力ファイル・プロパティ
+#   - Timeline: ジョブのライフサイクル全体
+
+jj prefect down                    # 全停止（サーバー+ワーカー）
 ```
 
-**ポイント**:
-- `flow.serve()` 不要 — 常駐プロセスなし
-- Deployment定義不要 — gitレポジトリ前提なし
-- 各プロジェクトでのタスク定義不要 — jjが自動記録
-- Prefect未インストールでも全コマンド動作（ImportErrorは握りつぶす）
+#### `jj prefect up` が提供するPrefect UI体験
+
+```
+Prefect UI (http://localhost:4200)
+├── Dashboard
+│   └── 直近のFlow Run一覧（submit, collect, poll）
+├── Flow Runs
+│   ├── jj-submit: go_v3_idx1 → Completed ✓  12:30
+│   ├── jj-submit: go_v3_idx2 → Completed ✓  12:31
+│   ├── jj-poll              → Completed ✓  13:00  (auto)
+│   ├── jj-collect: go_v3_idx1 → Completed ✓ 13:01 (auto)
+│   └── jj-submit: go_v4_idx1 → Running ●   14:00
+├── Deployments
+│   └── jj-auto-collect: interval=30min, active ✓
+├── Artifacts
+│   └── 各Runの詳細（Markdown: ファイル一覧、プロパティ、実行時間）
+└── Automations（将来）
+    └── Slack通知、メール通知等
+```
+
+#### ユーザーが一切書かなくていいもの
+
+| 従来のPrefect運用 | jj統合後 |
+|-------------------|---------|
+| `@flow` デコレータ付きPythonファイル | jjが自動生成 |
+| `prefect.yaml` / `deployment.yaml` | 不要 |
+| `prefect deploy` コマンド | `jj prefect up` に内包 |
+| `prefect worker start` | `jj prefect up` に内包 |
+| gitリポジトリ設定 | 不要（ローカル実行） |
+| Work Pool作成 | 不要（Process pool自動作成） |
 
 #### Prefect UI vs Streamlitダッシュボード の棲み分け
 
 | 機能 | Prefect UI | Streamlitダッシュボード |
 |------|-----------|----------------------|
 | 実行履歴タイムライン | ◎（本職） | × |
-| ジョブ状態の俯瞰 | ◎ | △（T5-8で簡易版） |
+| ジョブ状態・デプロイ管理 | ◎（本職） | × |
+| スケジューリング管理 | ◎（本職） | × |
 | 実行ログ詳細 | ◎ | × |
 | ファイルグラフ・比較分析 | × | ◎（本職） |
 | Run比較・パラメータ探索 | × | ◎ |
 | CAE固有ページ（材料・メッシュ） | × | ◎ |
 
-**結論**: 実行履歴の俯瞰はPrefect UI、データ分析はStreamlit。補完関係。
+**結論**: ジョブ運用の全体像はPrefect UI、データ分析はStreamlit。補完関係。
 
 #### 実装フェーズ（T5に統合）
 
 | Phase | タスク | 依存 |
 |-------|--------|------|
-| 5-9a | `report_to_prefect()` ユーティリティ | — |
-| 5-9b | `jj run` / `jj submit` / `jj collect` への組み込み | 5-9a, 5-3/5-5 |
-| 5-9c | `jj prefect up/down` コマンド | 5-9a |
+| 5-9a | `report_to_prefect()` 事後記録ユーティリティ | — |
+| 5-9b | `jj run` / `jj submit` / `jj collect` への事後記録組み込み | 5-9a, 5-3/5-5 |
+| 5-9c | `JjPrefectManager` — サーバー・ワーカーライフサイクル管理 | 5-9a |
+| 5-9d | Flow自動登録 + jj-auto-collect Deployment | 5-9c, 5-5 |
+| 5-9e | `jj prefect up/down` CLIコマンド | 5-9c |
 
 ---
 
@@ -648,10 +711,12 @@ Week 3-5:
   T1: TODO解消（残り #1, #2, #5, #6）
 
 Week 5-6:
-  T5-9: Prefect統合（事後記録パターン）
-    5-9a: report_to_prefect() ユーティリティ
+  T5-9: Prefect統合（Managed Prefectパターン）
+    5-9a: report_to_prefect() 事後記録
     5-9b: jj run/submit/collect への組み込み
-    5-9c: jj prefect up/down コマンド
+    5-9c: JjPrefectManager（サーバー・ワーカー管理）
+    5-9d: Flow自動登録 + auto-collect Deployment
+    5-9e: jj prefect up/down コマンド
 ```
 
 ### Phase C: ダッシュボード高度化（2-3週間）
