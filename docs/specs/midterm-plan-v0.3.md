@@ -252,7 +252,7 @@ jj watch go_sample_v3_idx1
 | 5-5 | `jj collect` — 結果ダウンロード + parse統合 | 5-3 |
 | 5-6 | `jj job status` — ジョブ一覧 + qstat連携 | 5-2 |
 | 5-7 | バッチ投入（複数target展開） | 5-3 |
-| 5-8 | ダッシュボードJob Monitorページ（T6連動） | 5-2 |
+| 5-8 | ダッシュボードJob Monitorページ（T6連動）— Prefect UIがある場合はリンク誘導のみ | 5-2 |
 
 ### 提案: 投入と回収の効率化パターン
 
@@ -277,6 +277,178 @@ jj submit go_sample_v3_idx1 --wait --collect
 ```
 
 **推奨はパターン2（cron）**: プロセス不要で、完了次第自動回収。`--quiet` フラグで出力抑制し、回収があった場合のみログ出力。Windows環境ではタスクスケジューラで同等の設定が可能。
+
+### T5-9: Prefect統合 — Run中心スキーマとの融合
+
+#### なぜPrefectか
+
+jjのRun中心スキーマ（M7）とPrefectのFlow/Taskモデルは概念的に1:1で対応する。
+
+```
+jj Run                    ←→  Prefect Flow Run
+├── submit (転送+投入)    ←→  Prefect Task "submit"
+├── watch (監視)          ←→  Prefect Task "monitor"
+├── collect (回収+parse)  ←→  Prefect Task "collect"
+└── JobState              ←→  Prefect State (Pending → Running → Completed → Failed)
+```
+
+Prefectが提供するもの:
+- **美しい監視ダッシュボード**（Streamlitで自作するより遥かに完成度が高い）
+- **リトライ・タイムアウト・通知**が宣言的に書ける
+- **スケジューリング**（cronの代替）
+- **実行履歴・ログの自動蓄積**
+
+#### 設計方針: Prefect Optional + Graceful Degradation
+
+```
+pip install jj[prefect]   ← Prefect有効化（optional dependency）
+pip install jj            ← Prefectなし（YAML stateフォールバック）
+```
+
+**原則**: Prefectがなくても全コマンドが動く。Prefectがあればリッチになる。
+
+```python
+# 擬似コード: Prefect有無の透過的切り替え
+class JobOrchestrator:
+    """ジョブ実行の抽象レイヤー"""
+
+    def submit(self, target, ...):
+        """共通のsubmitロジック"""
+        job_state = self._transfer_and_submit(target)
+        self._save_state(job_state)  # YAML保存（常に）
+        return job_state
+
+class YamlOrchestrator(JobOrchestrator):
+    """Prefectなし: YAMLステートで管理"""
+    pass  # 基底クラスの動作そのまま
+
+class PrefectOrchestrator(JobOrchestrator):
+    """Prefect有り: FlowとしてPrefectに登録"""
+
+    @flow(name="jj-submit")
+    def submit(self, target, ...):
+        job_state = super().submit(target, ...)
+        # Prefect Artifactとしてjj RunResultを記録
+        create_markdown_artifact(job_state.to_markdown())
+        return job_state
+
+    @task(name="transfer", retries=3)
+    def _transfer_files(self, ...): ...
+
+    @task(name="execute-remote")
+    def _execute_remote(self, ...): ...
+
+# 起動時に自動選択
+def get_orchestrator() -> JobOrchestrator:
+    try:
+        from prefect import flow, task
+        return PrefectOrchestrator()
+    except ImportError:
+        return YamlOrchestrator()
+```
+
+#### Prefect Flow設計
+
+```python
+from prefect import flow, task
+from prefect.artifacts import create_markdown_artifact
+
+@flow(name="jj-cae-job", log_prints=True)
+def cae_job_flow(target: str, remote_host: str):
+    """CAEジョブの投入→監視→回収フロー"""
+
+    # Step 1: ファイル転送
+    transfer_result = transfer_files(target, remote_host)
+
+    # Step 2: ジョブ投入
+    job_id = submit_job(target, remote_host)
+
+    # Step 3: 完了待機（ポーリング）
+    wait_for_completion(job_id, remote_host, poll_interval=300)  # 5分間隔
+
+    # Step 4: 結果回収 + parse
+    collect_results(job_id, remote_host)
+
+@task(retries=3, retry_delay_seconds=10)
+def transfer_files(target, host):
+    """SSHファイル転送（リトライ付き）"""
+    ...
+
+@task
+def submit_job(target, host):
+    """qsub/sbatch実行"""
+    ...
+
+@task(timeout_seconds=86400)  # 24時間タイムアウト
+def wait_for_completion(job_id, host, poll_interval=300):
+    """ジョブ完了をポーリング（.sta監視 or qstat）"""
+    while not is_completed(job_id, host):
+        time.sleep(poll_interval)
+    ...
+
+@task(retries=2)
+def collect_results(job_id, host):
+    """結果ファイル回収 + jj parse"""
+    ...
+```
+
+#### 軽量運用パターン
+
+```bash
+# パターン1: Prefectサーバーなし（最軽量）
+# → Prefectインストール済みでもサーバー不要で実行可能
+# → ログはローカルSQLiteに自動保存
+jj submit go_sample_v3_idx1
+jj collect --completed
+
+# パターン2: Prefectサーバーをオンデマンド起動
+jj prefect up              # prefect server start のラッパー（バックグラウンド）
+# → http://localhost:4200 でPrefect UIが開く
+jj submit go_sample_v3_idx1
+# → Prefect UIでリアルタイム監視
+jj prefect down            # サーバー停止
+
+# パターン3: Prefect Deployment（スケジューリング）
+jj prefect deploy --schedule "*/30 * * * *" collect --completed
+# → 30分ごとに完了ジョブを自動回収（cronの代替）
+# → Prefect UIでスケジュール管理・実行履歴閲覧
+```
+
+#### jj Run ↔ Prefect 双方向連携
+
+```
+jj parse / jj run
+  └─→ Run Node (graph.yaml)          ← jjのRun中心スキーマ
+        └─→ Prefect Artifact          ← Prefect UIで閲覧可能
+              └─→ Markdown: 入出力ファイル一覧、プロパティ、実行時間
+
+Prefect Flow Run
+  └─→ 完了通知 → jj collect 自動実行
+        └─→ graph.yaml 更新           ← jjグラフに反映
+```
+
+#### Prefect UI vs Streamlitダッシュボード の棲み分け
+
+| 機能 | Prefect UI | Streamlitダッシュボード |
+|------|-----------|----------------------|
+| ジョブ実行状態の監視 | ◎（本職） | △（T5-8で簡易版） |
+| 実行ログ・タイムライン | ◎ | × |
+| リトライ・スケジューリング管理 | ◎ | × |
+| ファイルグラフ・比較分析 | × | ◎（本職） |
+| Run比較・パラメータ探索 | × | ◎ |
+| CAE固有ページ（材料・メッシュ） | × | ◎ |
+
+**結論**: ジョブ運用監視はPrefect、データ分析はStreamlit。二者は競合ではなく補完関係。
+
+#### 実装フェーズ（T5に統合）
+
+| Phase | タスク | 依存 |
+|-------|--------|------|
+| 5-9a | `JobOrchestrator` 抽象化 + YamlOrchestrator | 5-2 |
+| 5-9b | `PrefectOrchestrator` 実装 | 5-9a |
+| 5-9c | `jj prefect up/down` コマンド | 5-9b |
+| 5-9d | Prefect Artifact連携（Run → Markdown出力） | 5-9b, M7 |
+| 5-9e | Prefect Deployment（スケジューリング） | 5-9c |
 
 ---
 
@@ -504,7 +676,7 @@ Week 1-2:
   T6-1: parseボタン追加                    ← 小タスク
 ```
 
-### Phase B: ワークフロー自動化（2-3週間）
+### Phase B: ワークフロー自動化（3-4週間）
 
 ```
 Week 3-5:
@@ -517,6 +689,14 @@ Week 3-5:
     5-6: jj job status
     5-7: バッチ投入
   T1: TODO解消（残り #1, #2, #5, #6）
+
+Week 5-6:
+  T5-9: Prefect統合
+    5-9a: JobOrchestrator抽象化
+    5-9b: PrefectOrchestrator実装
+    5-9c: jj prefect up/down
+    5-9d: Prefect Artifact連携
+    5-9e: Prefect Deployment（スケジューリング）
 ```
 
 ### Phase C: ダッシュボード高度化（2-3週間）
@@ -551,11 +731,12 @@ Week 9-12:
 | グラフ可視化 | streamlit-agraph（第一候補）+ pyvisフォールバック | Streamlitネイティブ、インタラクティブ |
 | AI Provider | ollama（ローカル）、将来OpenAI/Claude対応 | ユーザー環境にollama稼働中 |
 | RAG embedding | nomic-embed-text (ollama) | ローカル完結、高速 |
-| ジョブステート | YAML（.j2/storage/jobs/） | 既存のYAMLストレージパターンに統一 |
+| ジョブ実行管理 | Prefect（optional）+ YAMLフォールバック | Run中心スキーマと1:1対応、UIが美しい |
+| ジョブステート | YAML（.j2/storage/jobs/） | 既存のYAMLストレージパターンに統一（Prefectなし時） |
 | 音声文字起こし | whisper.cpp / faster-whisper | ローカル完結 |
 | Config merge | deep merge（ユーザー優先） | シンプルで予測可能 |
 | フィルタ共有 | session_state + トグル | 最小限の実装で両立 |
-| cron回収 | OS標準（crontab/タスクスケジューラ） | 外部依存なし、安定 |
+| cron回収 | Prefect Deployment（推奨）/ OS標準cron（フォールバック） | Prefect UIでスケジュール管理可能 |
 
 ---
 
