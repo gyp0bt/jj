@@ -376,7 +376,8 @@ def generate_array_plot_html(
                 parts.append(f'<div class="plotly-graph">{plot_html}</div>')
             else:
                 # グリッド比較: 条件ごとに個別グラフ
-                cols_per_row = getattr(dashboard_config, "gallery_columns", 4) if dashboard_config else 4
+                gd = getattr(dashboard_config, "gallery_defaults", None) if dashboard_config else None
+                cols_per_row = gd.columns if gd is not None else 4
                 parts.append(
                     f'<div class="grid-container" style="grid-template-columns: repeat({cols_per_row}, 1fr);">'
                 )
