@@ -3585,8 +3585,10 @@ class TestPymeshImport:
 
         try:
             import pandas  # noqa: F401
+            import plotly  # noqa: F401
+            import scipy  # noqa: F401
         except ImportError:
-            pytest.skip("pymeshの依存パッケージ(pandas)が未インストール")
+            pytest.skip("pymeshの依存パッケージ(pandas/scipy/plotly)が未インストール")
 
         from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
 
