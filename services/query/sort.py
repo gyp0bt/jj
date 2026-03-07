@@ -78,6 +78,54 @@ def sort_columns_by_vocab(columns: list[str], vocab: dict[str, str]) -> list[str
     return sorted(columns, key=_sort_key)
 
 
+def sort_rows_by_index(
+    rows: list[dict[str, object]],
+    idx_key: str,
+    ver_key: str,
+) -> list[dict[str, object]]:
+    """idx_key と ver_key を int に変換できる場合、(idx, ver) の順で昇順ソート
+
+    どちらのキーも int に変換できる行がない場合は元の順序を維持する。
+    bool 値は int 変換の対象外とする。
+
+    Args:
+        rows: ソート対象の行リスト
+        idx_key: インデックスキー名
+        ver_key: バージョンキー名
+
+    Returns:
+        ソート済みリスト（ソート不可の場合は元のリストをそのまま返す）
+    """
+    if not rows:
+        return rows
+
+    def _to_int(val: object) -> int | None:
+        try:
+            if isinstance(val, bool):
+                return None
+            return int(val)  # type: ignore[arg-type]
+        except Exception:
+            return None
+
+    # どちらか一方でも int に変換できる行があるか判定
+    can_sort = any(_to_int(row.get(idx_key)) is not None or _to_int(row.get(ver_key)) is not None for row in rows)
+
+    if not can_sort:
+        return rows
+
+    sentinel = float("inf")
+
+    def _sort_key(row: dict[str, object]) -> tuple[float, float]:
+        idx_val = _to_int(row.get(idx_key))
+        ver_val = _to_int(row.get(ver_key))
+        return (
+            idx_val if idx_val is not None else sentinel,
+            ver_val if ver_val is not None else sentinel,
+        )
+
+    return sorted(rows, key=_sort_key)
+
+
 def select_table_columns(
     all_columns: list[str],
     table_columns: list[str] | None,

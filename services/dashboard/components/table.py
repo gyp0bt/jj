@@ -73,33 +73,10 @@ class TablePage(PageComponent[TableViewConfig]):
         idx_key = provider._index_key
         ver_key = provider._version_key
 
-        # idx_key と ver_key を int に変換できるか確認し、可能なら idx, ver の順で昇順ソート
-        # TODO: queryとかに関数化して外出しする
-        def _to_int(val):
-            try:
-                if isinstance(val, bool):
-                    return None
-                return int(val)
-            except Exception:
-                return None
+        # idx_key と ver_key で昇順ソート（int変換可能な場合のみ）
+        from services.dashboard.query import sort_rows_by_index
 
-        # どちらか一方でも int に変換できる行があるか判定
-        _can_sort = any(
-            _to_int(row.get(idx_key)) is not None or _to_int(row.get(ver_key)) is not None for row in filtered
-        )
-
-        if _can_sort:
-            sentinel = float("inf")
-
-            def _sort_key(row):
-                idx_val = _to_int(row.get(idx_key))
-                ver_val = _to_int(row.get(ver_key))
-                return (
-                    idx_val if idx_val is not None else sentinel,
-                    ver_val if ver_val is not None else sentinel,
-                )
-
-            filtered = sorted(filtered, key=_sort_key)
+        filtered = sort_rows_by_index(filtered, idx_key, ver_key)
 
         st.caption(f"{len(filtered)} / {len(rows)} 件")
 

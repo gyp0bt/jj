@@ -15,7 +15,7 @@ API固有だったprops条件式フィルタ（props.KEY.OPERATOR=VALUE）を
         PROP_FILTER_PATTERN, OPERATORS
 
     ソート:
-        sort_columns_by_vocab, select_table_columns
+        sort_columns_by_vocab, select_table_columns, sort_rows_by_index
 
 [READMEへ戻る](../../../README.md)
 """
@@ -37,6 +37,7 @@ from services.query.sort import (
     get_base_key,
     select_table_columns,
     sort_columns_by_vocab,
+    sort_rows_by_index,
 )
 
 __all__ = [
@@ -52,4 +53,5 @@ __all__ = [
     "saved_view_filters_to_provider_filters",
     "select_table_columns",
     "sort_columns_by_vocab",
+    "sort_rows_by_index",
 ]
