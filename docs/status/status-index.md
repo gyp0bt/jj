@@ -10,12 +10,12 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 
 | トラック | 状態 | 概要 |
 |---------|------|------|
-| **T1: コードベースTODO解消** | 進行中 | #1,#2,#3,#4完了、#13(GalleryDefaults)完了。残: #5,#6 |
+| **T1: コードベースTODO解消** | **完了** | #1〜#6,#13完了。#7-12はM2依存で据え置き |
 | **T2: Config二層分離** | **完了** | default_extensions config化・init最小化・migrateコマンド・legacy非推奨化完了 |
 | **T3: M6 Phase 5 MLダッシュボード** | 未着手 | MLOverviewPage, 三層データフロー可視化 |
 | **T4: Deprecation Warning修正** | 完了 | 問題なし。全APIモダン版使用確認済み |
 | **T5: リモートジョブ実行基盤** | 未着手 | jj submit/watch/collect + Prefect統合 |
-| **T6: ダッシュボード高度化** | 進行中 | T6-1(Re-parseボタン)完了。残: T6-2〜4 |
+| **T6: ダッシュボード高度化** | 進行中 | T6-1〜3完了。残: T6-4 |
 | **T7: Ollama AI連携** | 未着手 | AIProviderプロトコル, 要約, RAG, tips |
 | **T8: 汎用データ管理** | 未着手 | Run中心プラットフォームへの昇華 |
 
@@ -93,6 +93,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [053](status-053.md) | 2026-03-07 | v0.3.0 | 中期計画v0.3統合・T1(#3,#4)・T4完了・T6-1・GalleryDefaults解消 | claude/integrate-midterm-plan-j9Zm2 |
 | [054](status-054.md) | 2026-03-07 | v0.3.0 | T1#1ソートロジック関数化・T2 Config二層分離基盤 | claude/execute-status-todos-aoOqK |
 | [055](status-055.md) | 2026-03-07 | v0.3.0 | T1#2 list[str]関数化・T2 Config migrate完了 | claude/execute-status-todos-pCe1c |
+| [056](status-056.md) | 2026-03-07 | v0.3.0 | T1完了(#5,#6)・T6-2,3実装・pymesh依存修正 | claude/execute-status-todos-dwEdz |
 
 ---
 

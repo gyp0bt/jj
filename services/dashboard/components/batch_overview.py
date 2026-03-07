@@ -124,7 +124,7 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         # 表示モード選択
         view_mode = st.radio(
             "表示モード",
-            ["グリッド俯瞰", "詳細ブロック図"],
+            ["グリッド俯瞰", "詳細ブロック図", "グラフビュー"],
             horizontal=True,
             key="_batch_view_mode",
         )
@@ -150,6 +150,8 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
 
         if view_mode == "グリッド俯瞰":
             _render_grid_overview(groups, vn_key, version_key, index_key, provider, run_map)
+        elif view_mode == "グラフビュー":
+            _render_graph_view(groups, vn_key, version_key, index_key, run_map)
         else:
             _render_block_diagram(groups, vn_key, version_key, index_key, provider, run_map)
 
@@ -293,6 +295,193 @@ def _render_status_block(
         f"</div>"
     )
     st.markdown(html, unsafe_allow_html=True)
+
+
+# ====================================================================
+# グラフビュー（streamlit-agraph / graphvizフォールバック）
+# ====================================================================
+
+
+def _render_graph_view(
+    groups: OrderedDict[str, list[dict[str, Any]]],
+    vn_key: str,
+    version_key: str,
+    index_key: str,
+    run_map: dict[int, dict[str, Any]] | None = None,
+) -> None:
+    """ノード間関係をインタラクティブなグラフで可視化
+
+    streamlit-agraphが利用可能な場合はそちらを使用し、
+    フォールバックとしてgraphviz (st.graphviz_chart)を使用する。
+    """
+    import streamlit as st
+
+    # streamlit-agraphを試行
+    if _try_render_agraph(groups, vn_key, version_key, index_key, run_map):
+        return
+
+    # フォールバック: graphviz
+    if _try_render_graphviz(groups, vn_key, version_key, index_key, run_map):
+        return
+
+    # 両方使えない場合はメッセージ
+    st.info(
+        "グラフ表示にはstreamlit-agraphまたはgraphvizが必要です。\n"
+        "`pip install streamlit-agraph` でインストールしてください。"
+    )
+
+
+def _try_render_agraph(
+    groups: OrderedDict[str, list[dict[str, Any]]],
+    vn_key: str,
+    version_key: str,
+    index_key: str,
+    run_map: dict[int, dict[str, Any]] | None = None,
+) -> bool:
+    """streamlit-agraphでグラフ描画。成功時True、インポート不可時False"""
+    try:
+        from streamlit_agraph import Config, Edge, Node, agraph
+    except ImportError:
+        return False
+
+    nodes: list[Node] = []
+    edges: list[Edge] = []
+
+    status_colors = {
+        "completed": "#10b981",
+        "failed": "#ef4444",
+        "unknown": "#6b7280",
+    }
+
+    # indexグループノードとバージョンノードを作成
+    for idx_name, group_rows in groups.items():
+        # グループ（index）ノード
+        group_id = f"idx_{idx_name}"
+        display = group_rows[0].get(vn_key, idx_name)
+        nodes.append(
+            Node(
+                id=group_id,
+                label=f"{idx_name}\n{display}" if display != idx_name else idx_name,
+                size=30,
+                color="#3b82f6",
+                font={"size": 12},
+            )
+        )
+
+        # バージョンノード
+        prev_ver_id = None
+        for row in sorted(group_rows, key=lambda r: str(r.get(version_key, ""))):
+            ver = str(row.get(version_key, "(default)") or "(default)")
+            status = row.get("analysis_status", "unknown")
+            node_id = f"node_{row['id']}"
+            color = status_colors.get(status, "#6b7280")
+
+            label = f"v{ver}"
+            run_info = run_map.get(row["id"]) if run_map else None
+            if run_info:
+                label += f"\n{run_info.get('run_type', '')}"
+
+            nodes.append(
+                Node(
+                    id=node_id,
+                    label=label,
+                    size=20,
+                    color=color,
+                    font={"size": 10},
+                )
+            )
+
+            # indexノード → バージョンノード
+            edges.append(Edge(source=group_id, target=node_id, color="#d1d5db"))
+
+            # バージョン遷移エッジ
+            if prev_ver_id:
+                edges.append(
+                    Edge(
+                        source=prev_ver_id,
+                        target=node_id,
+                        color="#93c5fd",
+                        dashes=True,
+                    )
+                )
+            prev_ver_id = node_id
+
+    config = Config(
+        width=800,
+        height=500,
+        directed=True,
+        physics=True,
+        hierarchical=False,
+    )
+
+    agraph(nodes=nodes, edges=edges, config=config)
+    return True
+
+
+def _try_render_graphviz(
+    groups: OrderedDict[str, list[dict[str, Any]]],
+    vn_key: str,
+    version_key: str,
+    index_key: str,
+    run_map: dict[int, dict[str, Any]] | None = None,
+) -> bool:
+    """graphvizでグラフ描画（フォールバック）。成功時True"""
+    try:
+        import streamlit as st
+    except ImportError:
+        return False
+
+    status_colors = {
+        "completed": "#10b981",
+        "failed": "#ef4444",
+        "unknown": "#d1d5db",
+    }
+
+    dot_lines = [
+        "digraph G {",
+        "  rankdir=LR;",
+        '  node [shape=box, style="rounded,filled", fontsize=10];',
+        '  edge [color="#93c5fd"];',
+    ]
+
+    for idx_name, group_rows in groups.items():
+        display = group_rows[0].get(vn_key, idx_name)
+        label = f"{idx_name}\\n{display}" if display != idx_name else idx_name
+        dot_lines.append(f'  idx_{_sanitize_id(idx_name)} [label="{label}", fillcolor="#dbeafe", color="#3b82f6"];')
+
+        prev_ver_id = None
+        for row in sorted(group_rows, key=lambda r: str(r.get(version_key, ""))):
+            ver = str(row.get(version_key, "(default)") or "(default)")
+            status = row.get("analysis_status", "unknown")
+            node_id = f"n{row['id']}"
+            color = status_colors.get(status, "#d1d5db")
+
+            ver_label = f"v{ver}"
+            run_info = run_map.get(row["id"]) if run_map else None
+            if run_info:
+                ver_label += f"\\n{run_info.get('run_type', '')}"
+
+            dot_lines.append(f'  {node_id} [label="{ver_label}", fillcolor="{color}"];')
+            dot_lines.append(f"  idx_{_sanitize_id(idx_name)} -> {node_id};")
+
+            if prev_ver_id:
+                dot_lines.append(f'  {prev_ver_id} -> {node_id} [style=dashed, color="#93c5fd"];')
+            prev_ver_id = node_id
+
+    dot_lines.append("}")
+
+    try:
+        st.graphviz_chart("\n".join(dot_lines), use_container_width=True)
+        return True
+    except Exception:
+        return False
+
+
+def _sanitize_id(name: str) -> str:
+    """graphvizノードIDに使える文字列に変換"""
+    import re
+
+    return re.sub(r"[^a-zA-Z0-9_]", "_", str(name))
 
 
 # ====================================================================

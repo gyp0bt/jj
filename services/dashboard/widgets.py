@@ -36,12 +36,19 @@ def estimate_column_width(col_name: str) -> int:
     return max(80, char_width * 10 + 30)
 
 
-def try_render_aggrid(df: pd.DataFrame) -> bool:
+def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
     """AgGridでDataFrameを表示。失敗時はFalseを返す。
 
     列幅は列名の文字数に基づいて初期設定する。
     日本語は2文字分、英数字は1文字分として計算し、
     最低限列名が見える幅を確保する。
+
+    フィルタ共有がONの場合、AgGridのフィルタ変更イベントをキャプチャして
+    session_stateの共有フィルタに格納し、他ビューにも反映する。
+
+    Args:
+        df: 表示するDataFrame
+        grid_key: AgGridのStreamlitキー（複数AgGrid描画時の衝突回避用）
 
     Returns:
         True: AgGridで描画成功、False: インポート不可
@@ -50,6 +57,8 @@ def try_render_aggrid(df: pd.DataFrame) -> bool:
         from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
     except ImportError:
         return False
+
+    import streamlit as st
 
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_default_column(
@@ -68,13 +77,30 @@ def try_render_aggrid(df: pd.DataFrame) -> bool:
     gb.configure_pagination(paginationAutoPageSize=True)
     grid_options = gb.build()
 
-    AgGrid(
+    # フィルタ共有ON時はフィルタ変更も検知する
+    sharing_enabled = st.session_state.get("_filter_sharing_enabled", False)
+    update_mode = GridUpdateMode.MODEL_CHANGED if sharing_enabled else GridUpdateMode.SELECTION_CHANGED
+
+    # 共有フィルタがある場合、AgGridにプリセットフィルタを適用
+    aggrid_filters = st.session_state.get("_aggrid_shared_filters")
+    if sharing_enabled and aggrid_filters:
+        grid_options["filterModel"] = aggrid_filters
+
+    response = AgGrid(
         df,
         gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        update_mode=update_mode,
         fit_columns_on_grid_load=False,
         theme="streamlit",
+        key=grid_key,
     )
+
+    # フィルタ共有ON時: AgGridのフィルタ状態をsession_stateに保存
+    if sharing_enabled and hasattr(response, "grid_options_state"):
+        filter_model = (response.grid_options_state or {}).get("filterModel")
+        if filter_model is not None:
+            st.session_state["_aggrid_shared_filters"] = filter_model
+
     return True
 
 
@@ -99,6 +125,8 @@ def init_shared_filters(default_filters: dict[str, Any]) -> None:
         st.session_state.setdefault("_filter_active", is_truthy(raw_active))
         st.session_state.setdefault("_filter_type", "すべて")
         st.session_state.setdefault("_filter_status", "すべて")
+        st.session_state.setdefault("_filter_sharing_enabled", False)
+        st.session_state.setdefault("_aggrid_shared_filters", None)
 
 
 def render_shared_filters(rows: list[dict[str, Any]]) -> None:
@@ -139,6 +167,24 @@ def render_shared_filters(rows: list[dict[str, Any]]) -> None:
         key="_sb_filter_active",
     )
     st.session_state["_filter_active"] = active_only
+
+    # AgGridフィルタ共有トグル
+    st.sidebar.markdown("---")
+    sharing = st.sidebar.checkbox(
+        "AgGridフィルタ共有",
+        value=st.session_state.get("_filter_sharing_enabled", False),
+        key="_sb_filter_sharing",
+        help="ONにすると、テーブルのフィルタ変更が他のビューにも反映されます",
+    )
+    st.session_state["_filter_sharing_enabled"] = sharing
+
+    # 共有フィルタのクリアボタン
+    if (
+        sharing
+        and st.session_state.get("_aggrid_shared_filters")
+        and st.sidebar.button("共有フィルタをクリア", key="_sb_clear_aggrid_filters")
+    ):
+        st.session_state["_aggrid_shared_filters"] = None
 
 
 def get_active_filters() -> dict[str, Any] | None:

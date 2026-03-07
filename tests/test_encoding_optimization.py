@@ -8,6 +8,7 @@ import pytest
 
 pd = pytest.importorskip("pandas", reason="pandas required for pymesh import chain")
 scipy = pytest.importorskip("scipy", reason="scipy required for pymesh import chain")
+plotly = pytest.importorskip("plotly", reason="plotly required for pymesh import chain")
 
 
 class TestDetectFileEncoding:
