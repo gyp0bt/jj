@@ -76,7 +76,14 @@ class TestLoadExtensionsConfig:
         with extensions_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(data, f)
 
-        config = load_extensions_config(base_dir=tmp_path)
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = load_extensions_config(base_dir=tmp_path)
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "extensions.yaml" in str(w[0].message)
         assert config.calculation_input == [".inp", ".key"]
         assert config.mesh == [".msh"]
         assert config.multi_dot == [".tar.gz"]
@@ -107,7 +114,14 @@ class TestLoadPrefixesConfig:
         with prefixes_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(data, f)
 
-        config = load_prefixes_config(base_dir=tmp_path)
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = load_prefixes_config(base_dir=tmp_path)
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "prefixes.yaml" in str(w[0].message)
         assert config.prefixes == {"go_": "calculation_input", "custom_": "custom_type"}
 
     def test_load_without_file(self, tmp_path):

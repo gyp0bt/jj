@@ -223,19 +223,47 @@ class PrefixesConfig:
 
 
 def load_extensions_config(base_dir: Path | None = None) -> ExtensionsConfig:
+    """拡張子設定を読み込む。
+
+    .. deprecated::
+        extensions.yaml は非推奨です。config.yaml の default-extensions を使用してください。
+        既存プロジェクトは ``jj config migrate`` で自動移行できます。
+    """
     config_dir = get_config_dir(base_dir)
     path = config_dir / EXTENSIONS_CONFIG_FILENAME
     if not path.exists():
         return ExtensionsConfig.from_dict(DEFAULT_EXTENSIONS)
+    import warnings
+
+    warnings.warn(
+        "extensions.yaml は非推奨です。config.yaml の default-extensions を使用してください。"
+        " `jj config migrate` で自動移行できます。",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     data = read_yaml(path)
     return ExtensionsConfig.from_dict(data)
 
 
 def load_prefixes_config(base_dir: Path | None = None) -> PrefixesConfig:
+    """プレフィックス設定を読み込む。
+
+    .. deprecated::
+        prefixes.yaml は非推奨です。config.yaml の path-type-map を使用してください。
+        既存プロジェクトは ``jj config migrate`` で自動移行できます。
+    """
     config_dir = get_config_dir(base_dir)
     path = config_dir / PREFIXES_CONFIG_FILENAME
     if not path.exists():
         return PrefixesConfig.from_dict({"prefixes": DEFAULT_PREFIXES})
+    import warnings
+
+    warnings.warn(
+        "prefixes.yaml は非推奨です。config.yaml の path-type-map を使用してください。"
+        " `jj config migrate` で自動移行できます。",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     data = read_yaml(path)
     return PrefixesConfig.from_dict(data)
 

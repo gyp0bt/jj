@@ -84,6 +84,10 @@ verbose-name-format: "条件{条件}(v{v})"
 # ========================================================================
 # デフォルト拡張子リスト（default-extensions）
 # ========================================================================
+# 【非推奨】extensions.yaml / prefixes.yaml は非推奨です。
+# 代わりに本ファイル（config.yaml）の default-extensions セクションと
+# path-type-map セクションを使用してください。
+# 既存プロジェクトは `jj config migrate` で自動移行できます。
 # ファイル名から拡張子をマッチングする際の候補リスト。
 # 複合拡張子（.cas.h5等）は先にマッチされる。
 # GraphConfig.default_extensions 経由で参照される。
