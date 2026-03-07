@@ -88,6 +88,7 @@ def _build_node_properties(node: Node, project: str) -> dict[str, Any]:
         "type": node.type,
         "format": node.format,
         "project": project,
+        "category": node.category.value,
     }
 
     for key, value in node.properties.items():

@@ -171,7 +171,7 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 
 ---
 
-## M7: Run中心スキーマ再設計 — Phase 3完了
+## M7: Run中心スキーマ再設計 — Phase 6完了
 
 **位置づけ**: M6（ML/実験/最適化タスク対応）の知見から、jjの最重要管理対象はRunであることが明確化。全てのデータ（CAEジョブ、スクリプト実行、ML学習、物理実験、parse自体）をRunとして統一的にモデル化し、Run比較を中核機能とする。
 
@@ -185,9 +185,10 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 | 1 | コアモデル拡張 | NodeCategory, Run構造的リレーション, AbstractRunDiscoverer, RunQueryService | 完了 |
 | 2 | CAE Run発見 | CaeRunDiscoverer（inp→odbペアからCAE潜在Runを発見） | 完了 |
 | 3 | ML Run発見 | MlTrainingRunDiscoverer（script→dataset→modelからML潜在Runを発見） | 完了 |
-| 4 | RunService統合 | 実行時RunもRun Nodeとして統一記録 | 未着手 |
-| 5 | Run比較ダッシュボード | Run一覧・Run比較・Run DAGビュー | 未着手 |
-| 6 | Neo4j Run Node対応 | Run NodeのNeo4jラベルマッピング | 未着手 |
+| 4 | RunService統合 | 実行時RunもRun Nodeとして統一記録、Parse-Run統合 | 完了 |
+| 4.5 | バッチ俯瞰Run統合 | Runバッジ表示、Runサマリー、Run詳細expander | 完了 |
+| 5 | Run比較ダッシュボード | RunComparisonPage: Run一覧・Run比較・比較グループ探索 | 完了 |
+| 6 | Neo4j Run Node対応 | RUN_INPUT/OUTPUT/MEDIAマッピング、categoryプロパティ | 完了 |
 
 ---
 

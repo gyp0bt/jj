@@ -360,6 +360,9 @@ def _render_single_block(
     )
     st.markdown(html, unsafe_allow_html=True)
 
+    if run_info:
+        _render_run_details_expander(run_info)
+
 
 def _render_version_blocks(
     group_rows: list[dict[str, Any]],
@@ -397,6 +400,9 @@ def _render_version_blocks(
                 f"</div>"
             )
             st.markdown(html, unsafe_allow_html=True)
+
+            if run_info:
+                _render_run_details_expander(run_info)
 
 
 def _render_diff_table(
@@ -472,9 +478,16 @@ def _generate_batch_html(
     if not groups:
         return "<p>indexプロパティを持つノードがありません。</p>"
 
+    # Runノード情報の収集
+    run_map = _build_run_map(provider, rows)
+
     parts: list[str] = []
     parts.append("<h2>バッチラン俯瞰</h2>")
     parts.append(f"<p>{len(groups)} グループ / {sum(len(v) for v in groups.values())} ノード</p>")
+
+    # Runサマリー（HTML版）
+    if run_map:
+        parts.append(_generate_run_summary_html(run_map))
 
     for idx_name, group_rows in groups.items():
         parts.append(f"<h3>index: {idx_name}</h3>")
@@ -491,18 +504,41 @@ def _generate_batch_html(
             }
             border, bg, text = color_map.get(status, ("#6b7280", "#f9fafb", "#374151"))
 
+            run_info = run_map.get(row["id"])
+            run_html = _format_run_badge(run_info) if run_info else ""
+
             parts.append(
                 f'<div style="padding:12px;border:2px solid {border};'
                 f'background:{bg};border-radius:8px;min-width:180px;">'
                 f'<div style="font-weight:700;color:{text};">{name}</div>'
                 f'<div style="color:#6b7280;font-size:0.8em;">version: {version}</div>'
                 f'<div style="color:{text};font-size:0.85em;margin-top:4px;">{status}</div>'
+                f"{run_html}"
                 f"</div>"
             )
 
         parts.append("</div>")
 
     return "\n".join(parts)
+
+
+def _generate_run_summary_html(run_map: dict[int, dict[str, Any]]) -> str:
+    """RunサマリーのスタティックHTML生成"""
+    run_types: dict[str, int] = {}
+    run_statuses: dict[str, int] = {}
+    for info in run_map.values():
+        rt = info.get("run_type", "unknown")
+        rs = info.get("run_status", "unknown")
+        run_types[rt] = run_types.get(rt, 0) + 1
+        run_statuses[rs] = run_statuses.get(rs, 0) + 1
+
+    parts: list[str] = [f"Run紐付き: {len(run_map)}件"]
+    for rt, count in sorted(run_types.items()):
+        parts.append(f"{rt}: {count}")
+    for rs, count in sorted(run_statuses.items()):
+        parts.append(f"{rs}: {count}")
+
+    return f'<p style="color:#6b7280;font-size:0.85em;">{" | ".join(parts)}</p>'
 
 
 # ====================================================================
@@ -547,6 +583,29 @@ def _render_run_summary(run_map: dict[int, dict[str, Any]]) -> None:
         parts.append(f"{rs}: {count}")
 
     st.caption(" | ".join(parts))
+
+
+def _render_run_details_expander(run_info: dict[str, Any]) -> None:
+    """Runノードのプロパティをexpander内に詳細表示"""
+    import streamlit as st
+
+    label = f"Run詳細: {run_info.get('name', '')}"
+    with st.expander(label, expanded=False):
+        detail_items: list[tuple[str, Any]] = [
+            ("タイプ", run_info.get("run_type")),
+            ("ステータス", run_info.get("run_status")),
+            ("検出方法", run_info.get("discovery")),
+            ("コマンド", run_info.get("command")),
+            ("開始", run_info.get("started_at")),
+            ("終了", run_info.get("finished_at")),
+            ("実行時間(秒)", run_info.get("duration_seconds")),
+            ("終了コード", run_info.get("exit_code")),
+            ("ホスト", run_info.get("host")),
+            ("ユーザー", run_info.get("user")),
+        ]
+        for key, val in detail_items:
+            if val is not None and val != "":
+                st.markdown(f"**{key}**: `{val}`")
 
 
 def _format_run_badge(run_info: dict[str, Any]) -> str:
