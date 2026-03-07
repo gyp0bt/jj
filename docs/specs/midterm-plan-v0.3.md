@@ -420,20 +420,129 @@ jj prefect down                    # 全停止（サーバー+ワーカー）
 ```
 Prefect UI (http://localhost:4200)
 ├── Dashboard
-│   └── 直近のFlow Run一覧（submit, collect, poll）
-├── Flow Runs
-│   ├── jj-submit: go_v3_idx1 → Completed ✓  12:30
-│   ├── jj-submit: go_v3_idx2 → Completed ✓  12:31
-│   ├── jj-poll              → Completed ✓  13:00  (auto)
-│   ├── jj-collect: go_v3_idx1 → Completed ✓ 13:01 (auto)
-│   └── jj-submit: go_v4_idx1 → Running ●   14:00
-├── Deployments
-│   └── jj-auto-collect: interval=30min, active ✓
+│   └── 直近のFlow Run一覧（全カテゴリ横断）
+│
+├── Flow Runs ─────────────────────────────────────────
+│   │
+│   │ [CAEジョブ実行]
+│   ├── jj-submit: go_v3_idx1       → Completed ✓  12:30
+│   ├── jj-submit: go_v3_idx2       → Running ●    12:31
+│   ├── jj-poll                     → Completed ✓  13:00 (auto)
+│   ├── jj-collect: go_v3_idx1      → Completed ✓  13:01 (auto)
+│   │
+│   │ [ライセンス監視]
+│   ├── jj-license-check            → Completed ✓  13:00 (auto)
+│   │   └── Artifact: "Abaqus: 3/5空き, LS-DYNA: 0/2 (全使用中⚠)"
+│   │
+│   │ [ML学習進捗]
+│   ├── jj-ml-progress: train.py    → Running ●    10:00
+│   │   └── Artifact: "epoch 45/100, loss=0.023, val_acc=0.94"
+│   │
+│   │ [データ収集]
+│   ├── jj-data-collect: sensors/   → Running ●    09:00
+│   │   └── Artifact: "1,234/10,000 files (12.3%)"
+│   │
+│   │ [parse/export]
+│   ├── jj-run: python preprocess.py → Completed ✓ 14:00
+│   │
+│   │ ※ タグでフィルタリング: #cae #license #ml #data #run
+│
+├── Deployments ───────────────────────────────────────
+│   ├── jj-auto-collect:     interval=30min  active ✓
+│   ├── jj-license-monitor:  interval=15min  active ✓
+│   └── jj-ml-watcher:       interval=5min   active ✓
+│
 ├── Artifacts
 │   └── 各Runの詳細（Markdown: ファイル一覧、プロパティ、実行時間）
-└── Automations（将来）
-    └── Slack通知、メール通知等
+│
+└── Automations
+    ├── ライセンス空き通知 → Slack/メール（空きが出たら通知）
+    └── ML学習完了通知 → Slack/メール
 ```
+
+#### 管理対象の拡張: jj prefect が自動登録するFlow群
+
+**1. CAEジョブ実行（T5で設計済み）**
+
+```python
+@flow(name="jj-submit")    # 投入
+@flow(name="jj-collect")   # 回収
+@flow(name="jj-poll")      # 定期状態チェック + 自動回収
+```
+
+**2. ライセンス空き状況監視**
+
+```python
+@flow(name="jj-license-check", description="CAEライセンス監視")
+def license_check_flow():
+    """リモートサーバーでlmstatを実行し、ライセンス状況を記録"""
+    # SSH接続 → lmstat -a / abaqus licensing lmstat 実行
+    # パース → 使用中/空き/合計 を構造化
+    # Prefect Artifactとして記録（美しいMarkdownテーブル）
+    # 空きが出たら Automation でSlack通知
+
+# jj CLIからも直接実行可能
+# jj license status          ← 現在の状況表示
+# jj license watch            ← ストリーミング監視
+```
+
+対応コマンド:
+```bash
+jj license status                # 今の空き状況を表示
+jj license watch                 # ターミナルでリアルタイム監視
+# jj prefect up 中は15分間隔で自動チェック
+# → Prefect UIでライセンス使用率の時系列が見える
+```
+
+**3. ML学習進捗**
+
+```python
+@flow(name="jj-ml-progress", description="ML学習進捗監視")
+def ml_progress_flow(run_dir: str):
+    """学習中のメトリクス（loss, accuracy等）を定期記録"""
+    # TensorBoardログ or CSVメトリクスをパース
+    # epoch, loss, val_loss, accuracy 等を抽出
+    # Prefect Artifactとして記録
+
+# jj run -- python train.py 実行時に自動的にwatcher登録
+# → 学習中は5分間隔でメトリクスをPrefectに記録
+# → 完了時にjj-ml-progress FlowをCompleted状態に
+```
+
+対応コマンド:
+```bash
+jj run -- python train.py        # 学習開始（既存）
+# → jj prefect up 中は自動的にML progressをPrefect UIに反映
+# → Prefect UIでloss曲線の推移が見える
+```
+
+**4. データ収集進捗**
+
+```python
+@flow(name="jj-data-collect", description="データ収集進捗")
+def data_collect_flow(target_dir: str, expected_count: int | None = None):
+    """指定ディレクトリのファイル増加を定期チェック"""
+    # ファイル数・合計サイズ・最終更新時刻を記録
+    # expected_countがあれば進捗率を計算
+    # Prefect Artifactとして記録
+
+# jj watch-dir sensors/ --expect 10000
+# → 10,000ファイル到達まで進捗を表示
+```
+
+対応コマンド:
+```bash
+jj watch-dir sensors/ --expect 10000   # データ収集監視開始
+# → jj prefect up 中は自動的にPrefect UIに反映
+# → ファイル数の時系列推移が見える
+```
+
+**5. CAE案件業務進捗（将来検討）**
+
+> 要件がプロジェクト管理寄りのため、T5-9のスコープ外とする。
+> Prefect UIではなく、Streamlitダッシュボード or 専用ツール（Notion, GitHub Projects等）が適切。
+> ただし、案件単位でのジョブ実行集計はPrefect UIのタグフィルタで対応可能:
+> `jj submit --tag project-a go_v3_idx1` → Prefect UIで `#project-a` でフィルタ
 
 #### ユーザーが一切書かなくていいもの
 
@@ -467,8 +576,11 @@ Prefect UI (http://localhost:4200)
 | 5-9a | `report_to_prefect()` 事後記録ユーティリティ | — |
 | 5-9b | `jj run` / `jj submit` / `jj collect` への事後記録組み込み | 5-9a, 5-3/5-5 |
 | 5-9c | `JjPrefectManager` — サーバー・ワーカーライフサイクル管理 | 5-9a |
-| 5-9d | Flow自動登録 + jj-auto-collect Deployment | 5-9c, 5-5 |
+| 5-9d | Flow自動登録: jj-poll (auto-collect) | 5-9c, 5-5 |
 | 5-9e | `jj prefect up/down` CLIコマンド | 5-9c |
+| 5-9f | Flow追加: jj-license-check + `jj license` CLI | 5-9c |
+| 5-9g | Flow追加: jj-ml-progress（学習メトリクス監視） | 5-9c |
+| 5-9h | Flow追加: jj-data-collect + `jj watch-dir` CLI | 5-9c |
 
 ---
 
