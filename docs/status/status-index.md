@@ -15,7 +15,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **T3: M6 Phase 5 MLダッシュボード** | 未着手 | MLOverviewPage, 三層データフロー可視化 |
 | **T4: Deprecation Warning修正** | 完了 | 問題なし。全APIモダン版使用確認済み |
 | **T5: リモートジョブ実行基盤** | 未着手 | jj submit/watch/collect + Prefect統合 |
-| **T6: ダッシュボード高度化** | 進行中 | T6-1〜3完了。残: T6-4 |
+| **T6: ダッシュボード高度化** | **完了** | T6-1〜4全完了（T6-4はstatus-053で解消済み） |
 | **T7: Ollama AI連携** | 未着手 | AIProviderプロトコル, 要約, RAG, tips |
 | **T8: 汎用データ管理** | 未着手 | Run中心プラットフォームへの昇華 |
 
@@ -94,6 +94,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [054](status-054.md) | 2026-03-07 | v0.3.0 | T1#1ソートロジック関数化・T2 Config二層分離基盤 | claude/execute-status-todos-aoOqK |
 | [055](status-055.md) | 2026-03-07 | v0.3.0 | T1#2 list[str]関数化・T2 Config migrate完了 | claude/execute-status-todos-pCe1c |
 | [056](status-056.md) | 2026-03-07 | v0.3.0 | T1完了(#5,#6)・T6-2,3実装・pymesh依存修正 | claude/execute-status-todos-dwEdz |
+| [057](status-057.md) | 2026-03-07 | v0.3.0 | CI修正(main→master)・T6-4完了確認・T6全完了 | claude/execute-status-todos-WMTsa |
 
 ---
 
