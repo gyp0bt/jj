@@ -45,7 +45,15 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - name: Verify plugin entry_points
-        run: python -c "from importlib.metadata import entry_points; eps = entry_points(); jj_eps = eps.select(group='jj.plugins'); names = [ep.name for ep in jj_eps]; assert 'abaqus' in names, f'abaqus not found in {names}'; print(f'Registered plugins: {names}')"
+        run: |
+          python -c "
+          from importlib.metadata import entry_points
+          eps = entry_points()
+          jj_eps = eps.select(group='jj.plugins')
+          names = [ep.name for ep in jj_eps]
+          assert 'abaqus' in names, f'abaqus not found in {names}'
+          print(f'Registered plugins: {names}')
+          "
       - name: Run plugin integration tests
         run: pytest tests/test_plugin_integration.py --tb=short -q -v
 

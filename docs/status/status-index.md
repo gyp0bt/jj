@@ -95,6 +95,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [055](status-055.md) | 2026-03-07 | v0.3.0 | T1#2 list[str]関数化・T2 Config migrate完了 | claude/execute-status-todos-pCe1c |
 | [056](status-056.md) | 2026-03-07 | v0.3.0 | T1完了(#5,#6)・T6-2,3実装・pymesh依存修正 | claude/execute-status-todos-dwEdz |
 | [057](status-057.md) | 2026-03-07 | v0.3.0 | CI修正(main→master)・T6-4完了確認・T6全完了 | claude/execute-status-todos-WMTsa |
+| [058](status-058.md) | 2026-03-08 | v0.3.0 | CI YAML構文エラー修正（L48 f-string波括弧） | claude/execute-status-todos-R96yx |
 
 ---
 
