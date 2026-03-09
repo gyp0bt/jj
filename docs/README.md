@@ -14,6 +14,8 @@
 | [v0.1.0レビュー](review/review-v0.1.0.md) | 開発フェーズ総括・v0.2.0ロードマップ案 |
 | [v0.1.0 ロードマップ](roadmap-v0.1.0.md) | jj v0.1.0ロードマップ（アーカイブ） |
 | [実装詳細](detail.md) | 実装方針・技術詳細 |
+| [Migration Guide](migration-guide.md) | バージョン移行ガイド |
+| [Abaqus使用マニュアル](abaqus-usage-guide.md) | Abaqusリポジトリ向け実践ガイド |
 | [仕様書一覧](specs/README.md) | 機能ドメイン別仕様書 |
 
 ---
