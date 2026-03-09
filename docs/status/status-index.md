@@ -100,6 +100,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [060](status-060.md) | 2026-03-09 | v0.3.0 | Migration Guide・Abaqus使用マニュアル作成 | claude/execute-status-todos-LGHaP |
 | [061](status-061.md) | 2026-03-09 | v0.3.0 | status-060 TODO実行: CLI・ダッシュボード改善8件 | claude/execute-status-todos-6R9QI |
 | [062](status-062.md) | 2026-03-09 | v0.3.0 | T3完了: MLダッシュボード Phase 5・ML使用マニュアル | claude/t3-tasks-ml-manual-HDXK8 |
+| [063](status-063.md) | 2026-03-09 | v0.3.0 | T3改善: メトリクス比較プロット・ビュー保存連携 | claude/execute-status-todos-6wBmM |
 
 ---
 
