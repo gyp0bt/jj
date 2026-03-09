@@ -46,7 +46,8 @@ import services.dashboard.components.plot  # noqa: E402
 import services.dashboard.components.run_comparison  # noqa: E402
 import services.dashboard.components.status  # noqa: E402
 import services.dashboard.components.table  # noqa: E402
-import services.dashboard.connectors.abaqus  # noqa: F401, E402
+import services.dashboard.connectors.abaqus  # noqa: E402
+import services.dashboard.connectors.ml  # noqa: F401, E402
 from jj_types import GraphModel  # noqa: E402
 from services.dashboard.components import (  # noqa: E402
     get_page_component,
