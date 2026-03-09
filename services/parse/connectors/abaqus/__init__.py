@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Generator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -722,6 +722,7 @@ class ABQData:
     materials: dict[str, dict[str, MaterialData]]
     steps: list[StepData]
     raw_blocks: list[RawBlock]  # STEP外の未対応キーワード
+    parameters: dict[str, Any] = field(default_factory=dict)  # *Parameter で定義されたパラメータ変数
 
 
 # ==========================
@@ -909,6 +910,7 @@ def read_inp(
         materials=materials,
         steps=steps,
         raw_blocks=raw_blocks_top,
+        parameters=dict(context.parameters),
     )
 
 
@@ -1865,9 +1867,35 @@ def diff_abq_blocks(left: ABQData, right: ABQData) -> list[BlockDiff]:
         - kind/keyword (=_get_block_group_key) が同じブロック同士をグループ化して比較
         - メッシュ関連キーワード (Node, Element, Nset, Elset) は要約データに置換して比較
         - surface, contact, contact property, boundary, surface interaction block は順不同扱い
+        - *Parameter で定義されたパラメータ変数の差分
     """
-    diffs = diff_abq_mesh_blocks(left, right)
+    diffs = _diff_parameters(left, right)
+    diffs.extend(diff_abq_mesh_blocks(left, right))
     diffs.extend(diff_abq_metadata_blocks(left, right))
+    return diffs
+
+
+def _diff_parameters(left: ABQData, right: ABQData) -> list[BlockDiff]:
+    """*Parameter で定義されたパラメータ変数の差分を比較する"""
+    left_params = getattr(left, "parameters", {}) or {}
+    right_params = getattr(right, "parameters", {}) or {}
+
+    if left_params == right_params:
+        return []
+
+    diffs: list[BlockDiff] = []
+    all_keys = sorted(set(left_params.keys()) | set(right_params.keys()))
+    for key in all_keys:
+        lv = left_params.get(key)
+        rv = right_params.get(key)
+        if lv != rv:
+            diffs.append(
+                BlockDiff(
+                    location=f"parameter:{key}",
+                    left={"parameter": key, "value": lv} if lv is not None else None,
+                    right={"parameter": key, "value": rv} if rv is not None else None,
+                )
+            )
     return diffs
 
 
@@ -1891,7 +1919,7 @@ def format_diff_summary_table(diffs: list[BlockDiff]) -> str:
     lines = ["| Location | Status | Details |", "|----------|--------|---------|"]
 
     for diff in diffs:
-        location = diff.location
+        location = _format_location(diff.location)
         if diff.left is None:
             status = "追加"
             details = "右側のみに存在"
@@ -1905,6 +1933,46 @@ def format_diff_summary_table(diffs: list[BlockDiff]) -> str:
         lines.append(f"| {location} | {status} | {details} |")
 
     return "\n".join(lines)
+
+
+def _format_location(location: str) -> str:
+    """diff location文字列を人間可読な形式に変換する
+
+    例:
+        "step[0].blocks::component:parameter[0]" → "Step 1 > parameter"
+        "top.raw_blocks::rawblock:material[0]" → "トップレベル > material"
+        "parameter:ncpu" → "パラメータ: ncpu"
+    """
+    if location.startswith("parameter:"):
+        return f"パラメータ: {location[len('parameter:') :]}"
+
+    result = location
+    # step[N] → Step N+1
+    import re as _re
+
+    m = _re.match(r"step\[(\d+)\]", result)
+    if m:
+        step_num = int(m.group(1)) + 1
+        result = _re.sub(r"step\[\d+\]", f"Step {step_num}", result, count=1)
+    # top.raw_blocks → トップレベル
+    result = result.replace("top.raw_blocks", "トップレベル")
+    # .blocks:: → " > "
+    result = result.replace(".blocks::", " > ")
+    # component: / rawblock: プレフィックス除去
+    result = _re.sub(r"(component|rawblock):", "", result)
+    # [N] インデックスの整理
+    result = result.replace("::", " > ")
+    return result
+
+
+def _format_diff_value(value: Any) -> str:
+    """diff値をJSON整形して読みやすくする"""
+    import json
+
+    try:
+        return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def format_diff_blocks_markdown(diffs: list[BlockDiff]) -> str:
@@ -1922,28 +1990,30 @@ def format_diff_blocks_markdown(diffs: list[BlockDiff]) -> str:
     lines = []
 
     for diff in diffs:
-        lines.append(f"## {diff.location}")
+        display_loc = _format_location(diff.location)
+        lines.append(f"## {display_loc}")
+        lines.append(f"<!-- raw: {diff.location} -->")
         lines.append("")
 
         if diff.left is None:
             lines.append("### 追加")
             lines.append("```json")
-            lines.append(str(diff.right))
+            lines.append(_format_diff_value(diff.right))
             lines.append("```")
         elif diff.right is None:
             lines.append("### 削除")
             lines.append("```json")
-            lines.append(str(diff.left))
+            lines.append(_format_diff_value(diff.left))
             lines.append("```")
         else:
             lines.append("### 変更")
             lines.append("#### 左側（基準）")
             lines.append("```json")
-            lines.append(str(diff.left))
+            lines.append(_format_diff_value(diff.left))
             lines.append("```")
             lines.append("#### 右側（比較対象）")
             lines.append("```json")
-            lines.append(str(diff.right))
+            lines.append(_format_diff_value(diff.right))
             lines.append("```")
 
         lines.append("")

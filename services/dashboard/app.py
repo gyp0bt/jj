@@ -43,6 +43,7 @@ import services.dashboard.components.batch_overview  # noqa: E402
 import services.dashboard.components.card  # noqa: E402
 import services.dashboard.components.gallery  # noqa: E402
 import services.dashboard.components.plot  # noqa: E402
+import services.dashboard.components.run_comparison  # noqa: E402
 import services.dashboard.components.status  # noqa: E402
 import services.dashboard.components.table  # noqa: E402
 import services.dashboard.connectors.abaqus  # noqa: F401, E402
@@ -231,10 +232,19 @@ def main() -> None:
                 gs = GraphService(project_root)
                 gs.parse_and_save()
                 st.session_state["_graph_mtime"] = get_graph_mtime(project_root)
+                # フィルタ初期化をリセットして再読み込み
+                st.session_state.pop("_filters_initialized", None)
                 st.sidebar.success("Re-parse 完了")
                 st.rerun()
             except Exception as e:
                 st.sidebar.error(f"Re-parse 失敗: {e}")
+
+    # Config再読み込みボタン
+    if st.sidebar.button("Config再読み込み"):
+        # フィルタ初期化をリセットしてconfigを再読み込み
+        st.session_state.pop("_filters_initialized", None)
+        st.sidebar.success("Config を再読み込みしました")
+        st.rerun()
 
     # 自動リフレッシュ設定
     auto_refresh = st.sidebar.checkbox("自動リフレッシュ", value=False)
@@ -332,6 +342,8 @@ def main() -> None:
     component = get_page_component_by_label(page)
     if component is not None:
         component.render_page(provider, dashboard_config, **render_kwargs)
+        # 各ビューページにビュー保存ボタンを追加
+        _render_quick_save_button(provider, project_root, component.page_key)
     elif page == "保存済みビュー":
         _render_saved_views_page(provider, project_root, dashboard_config, vocab)
     elif page in connector_pages:
@@ -467,6 +479,39 @@ def _render_html_export_button(
             mime="text/html",
             key="_html_download_btn",
         )
+
+
+def _render_quick_save_button(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    view_type: str,
+) -> None:
+    """各ビューページ下部にビュー保存ボタンを表示
+
+    現在のページタイプと名前を入力して、動的ビューとして保存する。
+    """
+    st.markdown("---")
+    with st.expander("このビューを保存", expanded=False):
+        save_name = st.text_input("ビュー名", key="_quick_save_name")
+        if st.button("ビューとして保存", key="_quick_save_btn"):
+            if not save_name:
+                st.warning("ビュー名を入力してください。")
+            else:
+                new_view: dict[str, Any] = {
+                    "name": save_name,
+                    "type": view_type,
+                    "filters": {},
+                    "local_filters": {},
+                    "plot": {},
+                    "array_plot": {},
+                    "gallery": {},
+                    "connector_config": {},
+                }
+                if "_dynamic_views" not in st.session_state:
+                    st.session_state["_dynamic_views"] = _load_persistent_views(project_root)
+                st.session_state["_dynamic_views"].append(new_view)
+                _save_persistent_views(project_root, st.session_state["_dynamic_views"])
+                st.success(f"ビュー '{save_name}' を保存しました。")
 
 
 def _render_view_add_form(

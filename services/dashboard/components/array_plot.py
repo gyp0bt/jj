@@ -148,6 +148,23 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
             st.info("Y軸を選択してください。")
             return
 
+        # プロパティベース色分けオプション
+        color_by_prop = None
+        with st.expander("色分け設定", expanded=False):
+            # 利用可能なプロパティキーを取得
+            sample_rows = provider.get_go_table()
+            prop_keys_for_color = set()
+            for r in sample_rows:
+                for k, v in r.items():
+                    if k not in {"id", "name", "path"} and isinstance(v, str):
+                        prop_keys_for_color.add(k)
+            prop_keys_sorted = sorted(prop_keys_for_color)
+            if prop_keys_sorted:
+                color_options = ["なし（自動）", *prop_keys_sorted]
+                color_by_prop = st.selectbox("プロパティで色分け", color_options, key="_ap_color_by")
+                if color_by_prop == "なし（自動）":
+                    color_by_prop = None
+
         # 表示モード: 全条件比較 or 個別ノード
         view_mode = st.radio("表示モード", ["全条件比較", "個別ノード"], horizontal=True)
 
@@ -213,6 +230,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 y_range=ap_y_range,
                 style=ap_style,
                 vocab=vocab,
+                color_by=color_by_prop,
             )
         else:
             _render_array_single(
@@ -351,6 +369,7 @@ def _render_array_overlay(
     y_range: list[float] | None = None,
     style: dict[str, int] | None = None,
     vocab: dict[str, str] | None = None,
+    color_by: str | None = None,
 ) -> None:
     """全条件の配列データを凡例付きで同一グラフに重ね書き"""
     import streamlit as st
@@ -372,6 +391,15 @@ def _render_array_overlay(
 
         grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
 
+        # プロパティベース色分け: 属性値→色のマッピングを構築
+        color_map: dict[str, str] | None = None
+        if color_by:
+            import plotly.express as px
+
+            unique_vals = sorted({str(item.get("properties", {}).get(color_by, "（未設定）")) for item in grid_data})
+            palette = px.colors.qualitative.Plotly
+            color_map = {val: palette[i % len(palette)] for i, val in enumerate(unique_vals)}
+
         try:
             import plotly.graph_objects as go
 
@@ -379,14 +407,18 @@ def _render_array_overlay(
             for item in grid_data:
                 # display_nameがあれば優先使用
                 label = item.get("display_name", item["name"])
-                fig.add_trace(
-                    go.Scatter(
-                        x=item["x_values"],
-                        y=item["y_values"],
-                        mode="lines+markers",
-                        name=label,
-                    )
-                )
+                trace_kwargs: dict[str, Any] = {
+                    "x": item["x_values"],
+                    "y": item["y_values"],
+                    "mode": "lines+markers",
+                    "name": label,
+                }
+                if color_map and color_by:
+                    prop_val = str(item.get("properties", {}).get(color_by, "（未設定）"))
+                    trace_kwargs["line"] = {"color": color_map[prop_val]}
+                    trace_kwargs["marker"] = {"color": color_map[prop_val]}
+                    trace_kwargs["legendgroup"] = prop_val
+                fig.add_trace(go.Scatter(**trace_kwargs))
             if ng_regions:
                 _add_ng_regions_to_fig(fig, ng_regions)
             fig.update_layout(

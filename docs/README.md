@@ -16,6 +16,7 @@
 | [実装詳細](detail.md) | 実装方針・技術詳細 |
 | [Migration Guide](migration-guide.md) | バージョン移行ガイド |
 | [Abaqus使用マニュアル](abaqus-usage-guide.md) | Abaqusリポジトリ向け実践ガイド |
+| [Prefect連携ガイド](prefect-integration-guide.md) | jj + Prefectによるワークフロー自動化 |
 | [仕様書一覧](specs/README.md) | 機能ドメイン別仕様書 |
 
 ---

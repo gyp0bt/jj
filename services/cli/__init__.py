@@ -186,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument(
         "command",
         nargs=argparse.REMAINDER,
-        help="実行コマンド（-- 以降に指定）",
+        help="実行コマンド（--は不要。例: jj r python script.py arg1）",
     )
 
     # graph (jj g) — 互換性維持
@@ -462,7 +462,11 @@ def dispatch(args: argparse.Namespace) -> int:
 
 def main() -> int:
     parser = build_parser()
-    args = parser.parse_args()
+    args, remaining = parser.parse_known_args()
+    # run コマンドの場合: 未認識引数をコマンドに追加（-- 不要化）
+    if getattr(args, "cmd", "") in ("r", "run") and remaining:
+        existing_cmd = list(getattr(args, "command", []) or [])
+        args.command = existing_cmd + remaining
     args = normalize_compat(args)
     return dispatch(args)
 
