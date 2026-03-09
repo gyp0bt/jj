@@ -98,6 +98,14 @@ class VocabConfig:
 
 
 @dataclass
+class FolderMapping:
+    """ローカル⇔リモート フォルダマッピング"""
+
+    local: str
+    remote: str
+
+
+@dataclass
 class SSHConfig:
     host: str | None = None
     port: str | None = None
@@ -107,6 +115,7 @@ class SSHConfig:
     linux_local_basedirpath: str | None = None
     remote_basedirpath: str | None = None
     remote_abq_path: str | None = None
+    folder_mappings: list[FolderMapping] | None = None
 
     _hostname: str | None = None
 
@@ -128,10 +137,19 @@ class SSHConfig:
         )
 
         for f in fields(config):
-            if f.name in ["host", "password", "_hostname"]:
+            if f.name in ["host", "password", "_hostname", "folder_mappings"]:
                 continue
             value = data.get(f.name.upper())
             setattr(config, f.name, value)
+
+        # folder_mappings: YAML内のFOLDER_MAPPINGSリストを読み込み
+        raw_mappings = data.get("FOLDER_MAPPINGS") or data.get("folder_mappings")
+        if raw_mappings and isinstance(raw_mappings, list):
+            config.folder_mappings = [
+                FolderMapping(local=m["local"], remote=m["remote"])
+                for m in raw_mappings
+                if "local" in m and "remote" in m
+            ]
 
         return config
 
@@ -140,6 +158,36 @@ class SSHConfig:
         if missing:
             msg = "'" + ", ".join(missing) + "' がNoneです。.pyssh.yaml定義を確認ください。"
             raise ValueError(msg)
+
+    def resolve_remote_path(self, local_path: str) -> str | None:
+        """folder_mappingsを使ってローカルパスからリモートパスを解決
+
+        folder_mappingsが定義されていない場合はNoneを返す。
+        従来のlinux_local_basedirpath/remote_basedirpathによるフォールバックは呼び出し側で行う。
+        """
+        if not self.folder_mappings:
+            return None
+        # 正規化: バックスラッシュをスラッシュに統一
+        normalized = local_path.replace("\\", "/")
+        for mapping in self.folder_mappings:
+            local_base = mapping.local.replace("\\", "/").rstrip("/") + "/"
+            if normalized.startswith(local_base) or normalized.rstrip("/") + "/" == local_base:
+                relative = normalized[len(local_base) :]
+                remote_base = mapping.remote.rstrip("/") + "/"
+                return remote_base + relative
+        return None
+
+    def resolve_local_path(self, remote_path: str) -> str | None:
+        """folder_mappingsを使ってリモートパスからローカルパスを解決"""
+        if not self.folder_mappings:
+            return None
+        for mapping in self.folder_mappings:
+            remote_base = mapping.remote.rstrip("/") + "/"
+            if remote_path.startswith(remote_base) or remote_path.rstrip("/") + "/" == remote_base:
+                relative = remote_path[len(remote_base) :]
+                local_base = mapping.local.rstrip("/") + "/"
+                return local_base + relative
+        return None
 
 
 @dataclass(frozen=True)

@@ -189,6 +189,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="実行コマンド（--は不要。例: jj r python script.py arg1）",
     )
 
+    # job — リモートジョブ管理 (T5)
+    pj = sub.add_parser("job", help="リモートジョブ管理")
+    pj_sub = pj.add_subparsers(dest="job_command")
+
+    # jj job status
+    pjs = pj_sub.add_parser("status", help="投入済みジョブの状態一覧")
+    pjs.add_argument(
+        "--filter",
+        choices=["submitted", "running", "completed", "collected", "failed"],
+        default=None,
+        help="ステータスでフィルタリング",
+    )
+
+    # jj job show <job_id>
+    pjsh = pj_sub.add_parser("show", help="ジョブ詳細を表示")
+    pjsh.add_argument("job_id", type=str, help="ジョブID")
+
     # graph (jj g) — 互換性維持
     add_graph_parser(sub)
 
@@ -217,6 +234,7 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         "credential",
         "dashboard",
         "serve",
+        "job",
     ):
         return args
     if getattr(args, "cmd", None):
@@ -413,6 +431,70 @@ def run_run(args: argparse.Namespace) -> int:
     return result.exit_code
 
 
+def run_job(args: argparse.Namespace) -> int:
+    """jobコマンド: リモートジョブ管理 (T5)"""
+    from pathlib import Path
+
+    from services.job import JobStatus
+    from services.job.service import JobService
+
+    job_command = getattr(args, "job_command", None)
+    project_root = Path.cwd()
+    service = JobService(project_root)
+
+    if job_command == "status":
+        status_filter_str = getattr(args, "filter", None)
+        status_filter = JobStatus(status_filter_str) if status_filter_str else None
+        jobs = service.list_jobs(status_filter=status_filter)
+
+        if not jobs:
+            print("投入済みジョブはありません。")
+            return 0
+
+        # テーブルヘッダー
+        print(f"{'JOB ID':<40} {'STATUS':<12} {'HOST':<20} {'SUBMITTED AT'}")
+        print("-" * 100)
+        for job in jobs:
+            submitted = job.submitted_at[:19] if job.submitted_at else ""
+            print(f"{job.job_id:<40} {job.status.value:<12} {job.remote_host:<20} {submitted}")
+        print(f"\n合計: {len(jobs)}件")
+        return 0
+
+    elif job_command == "show":
+        job_id = getattr(args, "job_id", "")
+        job = service.get_job(job_id)
+        if job is None:
+            print(f"ジョブ '{job_id}' が見つかりません。")
+            return 1
+
+        print(f"=== ジョブ詳細: {job.job_id} ===")
+        print(f"  ステータス: {job.status.value}")
+        print(f"  リモートホスト: {job.remote_host}")
+        print(f"  リモートディレクトリ: {job.remote_dir}")
+        print(f"  ローカルディレクトリ: {job.local_dir}")
+        print(f"  コマンド: {job.command}")
+        print(f"  投入日時: {job.submitted_at}")
+        if job.completed_at:
+            print(f"  完了日時: {job.completed_at}")
+        if job.collected_at:
+            print(f"  回収日時: {job.collected_at}")
+        if job.input_files:
+            print(f"  入力ファイル: {', '.join(job.input_files)}")
+        if job.output_files:
+            print(f"  出力ファイル: {', '.join(job.output_files)}")
+        if job.properties:
+            print("  プロパティ:")
+            for key, value in job.properties.items():
+                print(f"    {key}: {value}")
+        return 0
+
+    else:
+        print("使用方法: jj job <status|show>")
+        print("  status  投入済みジョブの状態一覧")
+        print("  show    ジョブ詳細を表示")
+        return 1
+
+
 def dispatch(args: argparse.Namespace) -> int:
     cmd = getattr(args, "cmd", "submit")
     subcmd = getattr(args, "subcmd", None)
@@ -437,6 +519,10 @@ def dispatch(args: argparse.Namespace) -> int:
     # runコマンド（SSH設定不要）
     if cmd == "run":
         return run_run(args)
+
+    # jobコマンド（T5: リモートジョブ管理）
+    if cmd == "job":
+        return run_job(args)
 
     # submit系コマンド（SSH設定必要 — SubmitServiceを遅延初期化）
     targets = resolve_targets(args)
