@@ -39,10 +39,10 @@ T3 (MLダッシュボード) ─ T8 (汎用データ管理)
 |---------|--------|------|---------|------|
 | **T1: コードベースTODO解消** | 高 | コード内13件のTODO実装 | 1セッション | **完了**（#1〜#6,#13完了。#7-12はM2依存で据え置き） |
 | **T2: Config二層分離** | 高 | default-config + user-configのdeep merge | 2セッション | **完了** |
-| **T3: M6 Phase 5 MLダッシュボード** | 中 | MLOverviewPage, 三層データフロー可視化 | 2セッション | 未着手 |
+| **T3: M6 Phase 5 MLダッシュボード** | 中 | MLOverviewPage, MLDataFlowPage, ML使用マニュアル | 2セッション | **完了** |
 | **T4: Deprecation Warning修正** | 高 | 全APIモダン版使用確認済み | 0.5セッション | 完了 |
 | **T5: リモートジョブ実行基盤** | 高 | jj submit/watch/collect + Prefect統合 | 4-5セッション | 未着手 |
-| **T6: ダッシュボード高度化** | 中-高 | parseボタン, AgGridフィルタ共有, グラフ可視化 | 4-5セッション | 進行中（T6-1〜3完了。残: T6-4） |
+| **T6: ダッシュボード高度化** | 中-高 | parseボタン, AgGridフィルタ共有, グラフ可視化 | 4-5セッション | **完了** |
 | **T7: Ollama AI連携** | 中 | AIProviderプロトコル, 要約, RAG, tips | 5-7セッション | 未着手 |
 | **T8: 汎用データ管理** | 低-中 | Run中心プラットフォームへの昇華 | 設計2セッション | 未着手 |
 
@@ -172,7 +172,7 @@ PageComponent[ViewConfig]パターンによるプラグイン拡張基盤を整�
 
 ---
 
-## M6: ML/実験/最適化タスク対応 — Phase 4完了
+## M6: ML/実験/最適化タスク対応 — Phase 5完了
 
 **位置づけ**: CAEシミュレーションと連携する機械学習タスク、実験管理タスク、最適化ループのデータフローをグラフ構造化し、三層（CAE/ML/最適化）の横断可視化を実現する。
 
@@ -206,7 +206,7 @@ Layer 1: CAEタスク ────── CAE Input → Solver → CAE Result
 | 2 | コアパーサー | MLScriptParser, MLDatasetParser, MLConfigParser | 完了 |
 | 3 | フレームワーク固有 | TorchCheckpointParser, SklearnModelParser, ExperimentRunParser | 完了 |
 | 4 | サロゲートモデルフレームワーク | OptimizationRunParser, MLDataFlowParser, SurrogateWorkflowDetector | 完了 |
-| 5 | ダッシュボード統合 | MLダッシュボードコネクター, 三層データフロー可視化 | 未着手 |
+| 5 | ダッシュボード統合 | MLOverviewPage, MLDataFlowPage, ML使用マニュアル | **完了** |
 
 ### 関連仕様書
 - [ML対応仕様書](specs/ml-task-roadmap.md) — ドメイン分析、データモデル拡張、パーサー設計、三層データフロー

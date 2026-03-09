@@ -12,7 +12,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 |---------|------|------|
 | **T1: コードベースTODO解消** | **完了** | #1〜#6,#13完了。#7-12はM2依存で据え置き |
 | **T2: Config二層分離** | **完了** | default_extensions config化・init最小化・migrateコマンド・legacy非推奨化完了 |
-| **T3: M6 Phase 5 MLダッシュボード** | 未着手 | MLOverviewPage, 三層データフロー可視化 |
+| **T3: M6 Phase 5 MLダッシュボード** | **完了** | MLOverviewPage, MLDataFlowPage, ML使用マニュアル |
 | **T4: Deprecation Warning修正** | 完了 | 問題なし。全APIモダン版使用確認済み |
 | **T5: リモートジョブ実行基盤** | 未着手 | jj submit/watch/collect + Prefect統合 |
 | **T6: ダッシュボード高度化** | **完了** | T6-1〜4全完了（T6-4はstatus-053で解消済み） |
@@ -29,7 +29,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | **M3: Neo4j統合パイプライン** | jj側完了 | jj側エクスポーター完了、jjrv分離済み |
 | **M4: 横断ダッシュボード** | 凍結 | jjrv分離により凍結。Streamlitダッシュボードで対応 |
 | **M5: ワークフロー自動化** | → T5に発展 | v0.3.0 T5（リモートジョブ実行基盤）として再設計 |
-| **M6: ML/実験/最適化タスク対応** | Phase 4完了 | パーサー9種実装済み。Phase 5は → T3に引き継ぎ |
+| **M6: ML/実験/最適化タスク対応** | **Phase 5完了** | パーサー9種+ダッシュボード2ページ+ML使用マニュアル |
 | **M7: Run中心スキーマ再設計** | 完了 | Phase 1-6完了: コアモデル・RunDiscoverer群・RunService統合・Parse-Run統合・Run比較ダッシュボード・Neo4j対応 |
 
 ---
@@ -99,6 +99,7 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [059](status-059.md) | 2026-03-09 | v0.3.0 | Run DAG可視化（データフローグラフ・agraph/graphviz） | claude/execute-status-todos-LGHaP |
 | [060](status-060.md) | 2026-03-09 | v0.3.0 | Migration Guide・Abaqus使用マニュアル作成 | claude/execute-status-todos-LGHaP |
 | [061](status-061.md) | 2026-03-09 | v0.3.0 | status-060 TODO実行: CLI・ダッシュボード改善8件 | claude/execute-status-todos-6R9QI |
+| [062](status-062.md) | 2026-03-09 | v0.3.0 | T3完了: MLダッシュボード Phase 5・ML使用マニュアル | claude/t3-tasks-ml-manual-HDXK8 |
 
 ---
 
