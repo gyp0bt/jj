@@ -1,149 +1,68 @@
-[READMEへ戻る](../../README.md)
+[← README.md](../../README.md)
 
-# 機能ドメイン別仕様書
-
-## 概要
-
-本ディレクトリには、jjプロジェクトの機能を8つのドメインに分類し、それぞれの詳細仕様をまとめたドキュメントが格納されています。
-
-各仕様書は、長期方針に基づいて細分化されており、実装計画とTODOリストへの落とし込みを容易にする構成となっています。
+# 仕様書・設計文書
 
 ---
 
-## 仕様書一覧
+## ドメイン仕様書（01〜11）
 
-### 優先度: 高（基盤機能）
+機能ドメイン別の詳細仕様。コアアーキテクチャの定義。
 
-| # | ドメイン | ファイル | 実装状況 | 説明 |
-|---|---------|---------|---------|------|
-| 1 | コアデータモデル層 | [01-core-data-model.md](./01-core-data-model.md) | 基本実装完了 | グラフデータの基盤となるNode/Relation/GraphModelの定義と永続化 |
-| 2 | パーサー層 | [02-parser.md](./02-parser.md) | 基本実装完了 | ファイル解析とメタ情報抽出の基盤 |
-| 3 | 設定管理層 | [03-config.md](./03-config.md) | 部分実装 | プロジェクト設定とSSH設定の統合管理 |
-
-### 優先度: 中（コマンド機能）
-
-| # | ドメイン | ファイル | 実装状況 | 説明 |
-|---|---------|---------|---------|------|
-| 4 | runコマンド層 | [04-run-command.md](./04-run-command.md) | 実装中 | コマンド実行履歴のトレースと記録 |
-| 5 | noteコマンド層 | [05-note-command.md](./05-note-command.md) | 基本実装完了 | プロジェクト解析とObsidianノート生成 |
-| 6 | fileコマンド層 | [06-file-command.md](./06-file-command.md) | 未実装 | ファイル操作とテンプレート生成 |
-
-### 優先度: 低（拡張機能）
-
-| # | ドメイン | ファイル | 実装状況 | 説明 |
-|---|---------|---------|---------|------|
-| 7 | アダプター層 | [07-adapter.md](./07-adapter.md) | 未実装 | ソフト固有フォーマットへの対応 |
-| 8 | 出力層 | [08-export.md](./08-export.md) | 未実装 | Neo4j等の多様な出力形式対応 |
-
-### ダッシュボード・API・DB統合
-
-| # | ドメイン | ファイル | 実装状況 | 説明 |
-|---|---------|---------|---------|------|
-| 9 | ダッシュボード層 | [09-dashboard.md](./09-dashboard.md) | 設計完了 | Streamlitダッシュボード、REST API、jjrv統合 |
-| 10 | DB統合層 | [10-db-integration.md](./10-db-integration.md) | 設計完了 | jj × jjrv × Neo4j統合設計 |
+| # | ドメイン | ファイル | 実装状態 |
+|---|---------|---------|---------|
+| 01 | コアデータモデル | [01-core-data-model.md](01-core-data-model.md) | 完了 |
+| 02 | パーサー | [02-parser.md](02-parser.md) | 完了（16+サブクラス） |
+| 03 | 設定管理 | [03-config.md](03-config.md) | 完了（T2で二層分離済み） |
+| 04 | runコマンド | [04-run-command.md](04-run-command.md) | 基本完了（リモート実行→T5） |
+| 05 | noteコマンド | [05-note-command.md](05-note-command.md) | 完了 |
+| 06 | fileコマンド | [06-file-command.md](06-file-command.md) | 未実装 |
+| 07 | アダプター | [07-adapter.md](07-adapter.md) | 完了（AbstractFileParserパターン） |
+| 08 | エクスポート | [08-export.md](08-export.md) | 完了（AbstractExporterパターン） |
+| 09 | ダッシュボード | [09-dashboard.md](09-dashboard.md) | 完了（PageComponent+Connector） |
+| 10 | DB統合 | [10-db-integration.md](10-db-integration.md) | jj側完了 |
+| 11 | ダッシュボード要件 | [11-dashboard-requirements.md](11-dashboard-requirements.md) | 完了 |
 
 ---
 
-## 各ドメインの概要
+## 設計文書（個別機能の設計判断）
 
-### 1. コアデータモデル層
+特定のマイルストーンやトラックに紐づく設計ドキュメント。
 
-全ての機能の基盤となるグラフデータモデル（Node, Relation, GraphModel）を定義し、`.j2/storage/graph.yaml` への永続化を担当します。
+### マルチソルバー・基盤 (M1.5/M2)
 
-**主要機能:**
-- Pydanticによる型安全なモデル定義
-- YAMLフォーマットでの保存・読込
-- networkxによる一時的なグラフ操作
+| ドキュメント | 内容 |
+|-------------|------|
+| [multi-solver.md](multi-solver.md) | ソルバー別ファイル構造の差異分析・config対応設計 |
+| [results-directory-restructure.md](results-directory-restructure.md) | results/ディレクトリのメタデータ抽出スキーマ |
+| [vocab-display-time.md](vocab-display-time.md) | 語彙マッピング・表示名の適用タイミング設計 |
+| [config-classification.md](config-classification.md) | 設定ファイルの分類体系（T2関連） |
 
-### 2. パーサー層
+### ML/最適化 (M6)
 
-プロジェクト内のファイルを解析し、命名規則からメタ情報（index, version, properties, tags）を抽出します。
+| ドキュメント | 内容 |
+|-------------|------|
+| [ml-task-roadmap.md](ml-task-roadmap.md) | ML/実験/最適化のドメイン分析・三層データフロー設計 |
+| [surrogate-model-framework.md](surrogate-model-framework.md) | CAE-ML-最適化ワークフロー・層間リレーション |
 
-**主要機能:**
-- 命名規則の解析（`go_prop1_v1_idx1.inp`）
-- 複数ドット拡張子の対応（`.cas.h5`）
-- Obsidian向けパス変換
+### Run中心スキーマ (M7)
 
-### 3. 設定管理層
+| ドキュメント | 内容 |
+|-------------|------|
+| [run-centric-schema.md](run-centric-schema.md) | Run中心データモデル・NodeCategory・RunQueryService |
+| [parse-run-integration.md](parse-run-integration.md) | jj run後のparse自動実行設計 |
+| [run-property-traceability.md](run-property-traceability.md) | Run-Propertyトレーサビリティ設計 |
 
-プロジェクト固有の設定（語彙マッピング、SSH接続情報、拡張子定義等）を `.j2/config/` に集約し、統一的に管理します。
+### Neo4j統合 (M3)
 
-**主要機能:**
-- `vocab.yaml` : 語彙マッピング
-- `.pyssh.yaml` : SSH接続情報
-- `extensions.yaml` : 拡張子設定
-- `prefixes.yaml` : 接頭辞設定
+| ドキュメント | 内容 |
+|-------------|------|
+| [neo4j-pipeline-design.md](neo4j-pipeline-design.md) | Neo4j統合パイプライン・IEntityRepository |
 
-### 4. runコマンド層
+### 計画書
 
-スクリプトやCAEソフトの実行履歴をトレースし、実行前後のファイル差分を検出して `Node(type=run)` として記録します。
-
-**主要機能:**
-- スクリプト型とジョブ型の分類
-- properties自動抽出（コメント記法、引数解析）
-- ファイル差分検出
-- 実行ログ保存（`.j2/storage/run/`）
-
-### 5. noteコマンド層
-
-プロジェクト全体を解析してグラフデータを生成し、Obsidian向けMarkdownノートを出力します。
-
-**主要機能:**
-- プロジェクト走査とファイル分類
-- Obsidianノート生成（Frontmatter付き）
-- 実行履歴との統合
-- 差分更新機能
-
-### 6. fileコマンド層
-
-ファイルテンプレートの生成、リネーム、移動、SSH送受信などのファイル操作を担当し、操作履歴をグラフ化します。
-
-**主要機能:**
-- テンプレート生成（Jinja2）
-- カスケードリネーム
-- SSH送受信統合
-- 操作履歴のグラフ化
-
-### 7. アダプター層
-
-CAEソフト固有のフォーマットや動作を抽象化し、独立したモジュールとして実装します。
-
-**主要機能:**
-- ソフト固有パーサー（Abaqus, Fluent, Dyna等）
-- 生成ファイル予測
-- プロパティ抽出
-- アダプター自動選択
-
-### 8. 出力層
-
-jj内部のグラフデータを外部ツール向けに変換し、多様な形式で出力します。
-
-**主要機能:**
-- Neo4j向けCypherクエリ生成
-- JSON/GraphMLエクスポート
-- カスタムテンプレートサポート
-- フィルタリング機能
-
-### 9. ダッシュボード層
-
-抽出したプロパティとrelationの一覧・可視化機能を提供します。
-
-**主要機能:**
-- Streamlitダッシュボード（テーブル/カード/プロット/ステータス）
-- REST API（FastAPI、jjrv連携用）
-- jjrv統合（バッチアップロード/API連携）
-- dashboard-jsonエクスポート
-
-### 10. DB統合層（jj × jjrv × Neo4j）
-
-jjとjjrvをNeo4jを介して統合するアーキテクチャを定義します。
-
-**主要機能:**
-- Neo4jスキーマ定義（共有契約）
-- 共有データ型パッケージ（`shared/`）
-- jj Neo4jエクスポーター
-- jjrv Neo4jクライアント
-- クロスリレーション（材料マッチング）
+| ドキュメント | 内容 |
+|-------------|------|
+| [midterm-plan-v0.3.md](midterm-plan-v0.3.md) | v0.3.0 全8ワークトラック詳細設計 |
 
 ---
 
@@ -151,66 +70,17 @@ jjとjjrvをNeo4jを介して統合するアーキテクチャを定義します
 
 ```
 ┌─────────────────────────────────────────┐
-│         コアデータモデル層               │
+│         コアデータモデル層 (01)           │
 │    (Node, Relation, GraphModel)        │
 └────────────┬────────────────────────────┘
-             ↑
              │
-     ┌───────┴────────┬──────────┬────────┐
-     │                │          │        │
-┌────┴────┐   ┌──────┴──┐  ┌────┴────┐  │
-│パーサー層│   │設定管理層│  │出力層   │  │
-└────┬────┘   └──────┬──┘  └─────────┘  │
-     ↑               ↑                   │
-     │               │                   │
-┌────┴────┐   ┌──────┴──┐   ┌───────────┴─┐
-│note     │   │run      │   │file         │
-│コマンド層│   │コマンド層│   │コマンド層   │
-└─────────┘   └────┬────┘   └─────────────┘
-                   ↑
-                   │
-             ┌─────┴─────┐
-             │アダプター層│
-             └───────────┘
+     ┌───────┼────────┬──────────┐
+     │       │        │          │
+  パーサー  設定管理  エクスポート  DB統合
+   (02)     (03)      (08)       (10)
+     │       │
+     │       │
+  run(04)  note(05)  file(06)
+     │
+  アダプター(07)
 ```
-
----
-
-## 実装フェーズ
-
-### Phase 1: 基盤整備（完了〜直近）
-
-- [x] コアデータモデル層の基本実装
-- [x] パーサー層の基本実装
-- [ ] 設定管理層の統合
-- [ ] runコマンド層の拡張（properties抽出、差分検出）
-
-### Phase 2: コマンド機能の充実（直近〜中期）
-
-- [ ] runコマンド層のジョブ型実装
-- [ ] noteコマンド層の実行履歴統合
-- [ ] fileコマンド層の基本実装
-- [ ] テンプレート機能
-
-### Phase 3: 拡張性の強化（中期〜長期）
-
-- [ ] アダプター層の基盤構築
-- [ ] 基本アダプター実装（Abaqus, Fluent, Dyna）
-- [ ] 出力層の基盤構築
-- [ ] Neo4j/GraphMLエクスポート
-
----
-
-## 参考資料
-
-- [プロジェクトREADME](../../README.md)
-- [実装詳細](../detail.md)
-- [ロードマップ](../roadmap.md)
-- [最新ステータス](../status/status-036.md)
-
----
-
-## 更新履歴
-
-- 2026-02-08: DB統合層（10-db-integration.md）追加
-- 2026-02-04: 機能ドメイン別仕様書の初版作成

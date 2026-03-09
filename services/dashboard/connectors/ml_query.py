@@ -204,6 +204,77 @@ def get_optimization_table(provider: DashboardDataProvider) -> list[dict[str, An
 
 
 # ====================================================================
+# メトリクス比較
+# ====================================================================
+
+
+def get_experiment_metric_keys(provider: DashboardDataProvider) -> list[str]:
+    """全実験メトリクスノードから共通メトリクスキーを収集
+
+    Returns:
+        ml_key_metricsに含まれるキーの一覧（出現頻度順）
+    """
+    key_counts: dict[str, int] = {}
+    for node in provider.graph.nodes:
+        if node.type not in ML_METRICS_TYPES:
+            continue
+        for k in node.properties.get("ml_key_metrics", {}):
+            key_counts[k] = key_counts.get(k, 0) + 1
+    return sorted(key_counts.keys(), key=lambda k: -key_counts[k])
+
+
+def get_experiment_comparison_data(
+    provider: DashboardDataProvider,
+    metric_keys: list[str] | None = None,
+    experiment_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """実験間メトリクス比較データを構築
+
+    Args:
+        provider: データプロバイダー
+        metric_keys: 比較するメトリクスキー（Noneで全キー）
+        experiment_ids: 比較する実験ID（Noneで全実験）
+
+    Returns:
+        {
+            "experiments": [{"id": str, "name": str, "dir": str, metrics...}],
+            "metric_keys": [str],
+        }
+    """
+    experiments: list[dict[str, Any]] = []
+    all_keys: set[str] = set()
+
+    for node in provider.graph.nodes:
+        if node.type not in ML_METRICS_TYPES:
+            continue
+        exp_id = node.properties.get("experiment_id", "")
+        if experiment_ids and exp_id not in experiment_ids:
+            continue
+
+        key_metrics = node.properties.get("ml_key_metrics", {})
+        all_keys.update(key_metrics.keys())
+
+        exp: dict[str, Any] = {
+            "id": exp_id,
+            "name": node.name,
+            "dir": node.properties.get("experiment_dir", ""),
+        }
+        exp.update(key_metrics)
+        experiments.append(exp)
+
+    # メトリクスキーのフィルタリング
+    if metric_keys:
+        used_keys = [k for k in metric_keys if k in all_keys]
+    else:
+        used_keys = sorted(all_keys)
+
+    return {
+        "experiments": experiments,
+        "metric_keys": used_keys,
+    }
+
+
+# ====================================================================
 # 三層データフローグラフ
 # ====================================================================
 
