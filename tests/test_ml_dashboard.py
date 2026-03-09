@@ -208,16 +208,6 @@ def _cross_layer_relations() -> list[Relation]:
 # ====================================================================
 
 
-class TestMLQueryHasNodes:
-    """has_ml_nodes のテスト"""
-
-    def test_has_ml_nodes_true(self):
-        from services.dashboard.connectors.ml_query import has_ml_nodes
-
-        provider = _make_provider(_ml_nodes())
-        assert has_ml_nodes(provider) is True
-
-
 def _multi_experiment_nodes() -> list[Node]:
     """複数実験メトリクスノード（比較テスト用）"""
     return [
@@ -272,6 +262,16 @@ def _multi_experiment_nodes() -> list[Node]:
             },
         ),
     ]
+
+
+class TestMLQueryHasNodes:
+    """has_ml_nodes のテスト"""
+
+    def test_has_ml_nodes_true(self):
+        from services.dashboard.connectors.ml_query import has_ml_nodes
+
+        provider = _make_provider(_ml_nodes())
+        assert has_ml_nodes(provider) is True
 
     def test_has_ml_nodes_false(self):
         from services.dashboard.connectors.ml_query import has_ml_nodes
