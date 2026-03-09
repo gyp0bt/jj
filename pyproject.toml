@@ -132,6 +132,7 @@ jj = "services.cli:main"
 
 [tool.setuptools.packages.find]
 include = [
+    "jj",
     "services*",
     "jj_types*",
     "config*",
