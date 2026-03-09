@@ -6,6 +6,7 @@ import json
 import re
 import socket
 import subprocess
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -67,12 +68,15 @@ class RunService:
             else {}
         )
 
+        # python/python3 コマンドを現在のインタプリタ（venv対応）に置換
+        resolved_command = self._resolve_python_command(command)
+
         started_dt = datetime.now(timezone.utc)
         started_at = started_dt.isoformat()
         before_snapshot = self._snapshot_files(resolved_cwd) if resolved_mode == "script" else {}
 
         result = subprocess.run(
-            command,
+            resolved_command,
             cwd=str(resolved_cwd),
             capture_output=True,
             text=True,
@@ -110,6 +114,20 @@ class RunService:
                 self._update_graph_storage(resolved_cwd, run_result, no_parse=no_parse)
 
         return run_result
+
+    @staticmethod
+    def _resolve_python_command(command: list[str]) -> list[str]:
+        """python/python3 コマンドを現在のインタプリタパスに置換する
+
+        venv環境でjjを実行している場合、sys.executableがvenvのPythonを指すため、
+        ``jj r -- python script.py`` でもvenvのPythonが使われるようになる。
+        """
+        if not command:
+            return command
+        head = command[0]
+        if head in {"python", "python3"}:
+            return [sys.executable, *command[1:]]
+        return command
 
     def _detect_mode(self, command: list[str], cwd: Path) -> str:
         script_path = self._detect_script_path(command, cwd)
