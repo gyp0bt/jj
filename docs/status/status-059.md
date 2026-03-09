@@ -47,7 +47,7 @@ status-058のTODOから、実行可能な「Run DAG可視化」（status-052 TOD
 
 - **ruff check**: All checks passed
 - **ruff format**: 217 files already formatted
-- **pytest**: 実行中（前回: 412 passed, 64 skipped + 新規4件）
+- **pytest**: 1660 passed, 102 skipped（新規4件追加、うち1件はstreamlit未インストールでskip）
 
 ## TODO
 
