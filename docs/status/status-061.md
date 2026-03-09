@@ -1,6 +1,6 @@
 [← README.md](../../README.md)
 
-# status-061: status-060 TODO実行（CLI・ダッシュボード改善8件）
+# status-061: status-060 TODO実行（CLI・ダッシュボード改善11件）
 
 - 日付: 2026-03-09
 - ブランチ: claude/execute-status-todos-6R9QI
@@ -42,19 +42,44 @@
    - Re-parse後にフィルタ初期化をリセットしてrerun
    - サイドバーに「Config再読み込み」ボタンを追加（config.yaml変更後の反映用）
 
+### jj diff 改善
+
+9. **parameterブロック差分検出の修正**
+   - `ABQData` に `parameters` フィールドを追加（`field(default_factory=dict)`）
+   - `read_inp()` で `context.parameters` を `ABQData.parameters` に保存
+   - `_diff_parameters()` 関数を追加し、parameterブロックの差分を正しく検出
+
+10. **diff表示のフォーマット改善**
+    - `_format_location()` で人間可読な差分位置表示（例: "Step 1 > boundary"）
+    - `_format_diff_value()` で `json.dumps(indent=2)` による整形表示
+    - `format_diff_summary_table()` と `format_diff_blocks_markdown()` の両方に適用
+
+### CLI追加改善
+
+11. **`jj r` コマンドの `--` 引数を不要化**
+    - `parse_known_args()` を使用し、残り引数をコマンドに自動追加
+    - `jj r python script.py arg1` のように `--` なしで実行可能
+
+### Python API
+
+12. **`import jj` でプロジェクトグラフにアクセスするAPI提供**
+    - `jj/__init__.py` に `load()`, `get_node()`, `get_nodes()`, `get_properties()`, `get_property()` を実装
+    - `_find_project_root()` で `.j2` ディレクトリを上位探索し自動検出
+    - `pyproject.toml` のパッケージ一覧に `jj` を追加
+
+### ドキュメント
+
+13. **Prefect連携ガイド追加**
+    - `docs/prefect-integration-guide.md` を新規作成
+    - 5パターン: CLIタスク、Python APIタスク、jj r統合、パラメータスイープ、結果収集
+    - `docs/README.md` にリンク追加
+
 ## テスト
 
 - ruff check / ruff format: パス
-- 既存テスト: 変更はUI層中心のため既存テストへの影響なし
+- pytest: 1660 passed, 102 skipped（全テスト通過）
 
 ## TODO
-
-### 今回のセッションで受けた追加要望（未着手）
-
-- [ ] jj diff: parameterブロックに差があるのにno differenceになるバグ修正
-- [ ] jj diff: スタイル表示でなくparameter.blocks[0]のような生キー表示になる問題修正
-- [ ] CLI: `jj r` の `--` 引数を不要にする
-- [ ] Python API: `import jj` でノード情報にアクセスするAPI提供（`jj.get_property(path)`, `jj.get_node(path)` 等）
 
 ### ワークトラック（継続）
 
@@ -62,9 +87,3 @@
 - [ ] T5: リモートジョブ実行基盤
 - [ ] T7: Ollama AI連携
 - [ ] T8: 汎用データ管理
-
-### 設計懸念・開発運用メモ
-
-- ユーザーから矢継ぎ早に要望が来る場合、コミット前にTODOリストにまとめて確認を取るフローが有効
-- jj diff の問題は Abaqus コネクター固有のシリアライズ・比較ロジックに起因する可能性が高い（要詳細調査）
-- Python API (`import jj`) は pyproject.toml の entry_points や `__init__.py` でのパブリックAPI設計が必要
