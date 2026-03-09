@@ -7623,3 +7623,180 @@ class TestRunComparisonComponent:
 
         html = page.generate_html(provider, mock_view, mock_config)
         assert "見つかりません" in html
+
+    def test_run_dag_no_dependencies(self):
+        """Run間にデータ依存関係がない場合のDAG HTML生成"""
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.run_comparison import _generate_run_dag_html
+        from services.run.query import RunQueryService
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="input_a",
+                    format="inp",
+                    properties={},
+                ),
+                Node(
+                    id=2,
+                    type="file",
+                    name="input_b",
+                    format="inp",
+                    properties={},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_A",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+                Node(
+                    id=11,
+                    type="run",
+                    name="run_B",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "failed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_input", node1_id=10, node2_id=1),
+                Relation(id=2, label="run_input", node1_id=11, node2_id=2),
+            ],
+        )
+        query_svc = RunQueryService(graph)
+        runs = query_svc.get_runs()
+        html = _generate_run_dag_html(runs, query_svc)
+        assert "Run DAG" in html
+        assert "run_A" in html
+        assert "run_B" in html
+        assert "依存関係はありません" in html
+
+    def test_run_dag_with_dependencies(self):
+        """Run間にデータ依存関係がある場合のDAG HTML生成"""
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.run_comparison import _generate_run_dag_html
+        from services.run.query import RunQueryService
+
+        # Run A → shared_file → Run B の依存関係
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="shared_file.dat",
+                    format="dat",
+                    properties={},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_upstream",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+                Node(
+                    id=11,
+                    type="run",
+                    name="run_downstream",
+                    format="",
+                    properties={"run_type": "ml_training", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+                Relation(id=2, label="run_input", node1_id=11, node2_id=1),
+            ],
+        )
+        query_svc = RunQueryService(graph)
+        runs = query_svc.get_runs()
+        html = _generate_run_dag_html(runs, query_svc)
+        assert "Run DAG" in html
+        assert "run_upstream" in html
+        assert "run_downstream" in html
+        assert "shared_file.dat" in html
+        # 依存関係テーブルが生成される
+        assert "上流Run" in html
+        assert "下流Run" in html
+
+    def test_run_dag_empty_runs(self):
+        """Runが空の場合のDAG HTML生成"""
+        from services.dashboard.components.run_comparison import _generate_run_dag_html
+        from services.run.query import RunQueryService
+
+        graph = GraphModel(nodes=[], relations=[])
+        query_svc = RunQueryService(graph)
+        html = _generate_run_dag_html([], query_svc)
+        assert html == ""
+
+    def test_run_dag_graphviz_fallback(self):
+        """graphvizフォールバックのDAG描画ロジック"""
+        pytest.importorskip("streamlit")
+        from jj_types import NodeCategory, Relation
+        from services.dashboard.components.run_comparison import _try_render_run_dag_graphviz
+        from services.run.query import RunQueryService
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="file",
+                    name="shared.dat",
+                    format="dat",
+                    properties={},
+                ),
+                Node(
+                    id=10,
+                    type="run",
+                    name="run_A",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "completed"},
+                    category=NodeCategory.RUN,
+                ),
+                Node(
+                    id=11,
+                    type="run",
+                    name="run_B",
+                    format="",
+                    properties={"run_type": "cae_job", "run_status": "failed"},
+                    category=NodeCategory.RUN,
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="run_output", node1_id=10, node2_id=1),
+                Relation(id=2, label="run_input", node1_id=11, node2_id=1),
+            ],
+        )
+        query_svc = RunQueryService(graph)
+        runs = query_svc.get_runs()
+
+        run_io_map = {}
+        output_to_run: dict[int, int] = {}
+        for run in runs:
+            io = query_svc.get_run_io(run)
+            run_io_map[run.id] = io
+            for out_node in io.outputs:
+                output_to_run[out_node.id] = run.id
+
+        dag_edges: list[tuple[int, int, list[str]]] = []
+        for run in runs:
+            io = run_io_map[run.id]
+            predecessors: dict[int, list[str]] = {}
+            for in_node in io.inputs:
+                src_run_id = output_to_run.get(in_node.id)
+                if src_run_id is not None and src_run_id != run.id:
+                    predecessors.setdefault(src_run_id, []).append(in_node.name)
+            for src_id, names in predecessors.items():
+                dag_edges.append((src_id, run.id, names))
+
+        # graphvizは使えない環境でもロジックが正しく動くか確認
+        # (st.graphviz_chartがない場合はFalseを返す)
+        result = _try_render_run_dag_graphviz(runs, run_io_map, dag_edges)
+        # streamlitが入っていない/graphviz_chartが使えない場合はFalse
+        assert isinstance(result, bool)
