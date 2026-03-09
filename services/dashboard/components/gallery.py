@@ -83,6 +83,29 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
 
         st.header("画像ギャラリー")
 
+        # グリッド設定（列数・行数をユーザーが変更可能）
+        default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
+        gc1, gc2 = st.columns(2)
+        with gc1:
+            cols_per_row = st.number_input(
+                "列数",
+                min_value=1,
+                max_value=10,
+                value=default_cols,
+                key="_gallery_cols",
+            )
+        with gc2:
+            rows_per_page = st.number_input(
+                "行数",
+                min_value=1,
+                max_value=20,
+                value=default_rows,
+                key="_gallery_rows",
+            )
+        # セッション状態に保存して下流関数で参照
+        st.session_state["_gallery_user_cols"] = cols_per_row
+        st.session_state["_gallery_user_rows"] = rows_per_page
+
         # 共有フィルタ
         from services.dashboard.widgets import get_active_filters, render_shared_filters
 
@@ -242,8 +265,10 @@ def _render_gallery_output_images(
         key="_gallery_output_group",
     )
 
-    # NxMグリッド設定
-    cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
+    # NxMグリッド設定（ユーザー指定があればそちらを優先）
+    default_cols, default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
+    cols_per_row = st.session_state.get("_gallery_user_cols", default_cols)
+    rows_per_page = st.session_state.get("_gallery_user_rows", default_rows)
 
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")
@@ -330,8 +355,10 @@ def _render_gallery_property_images(
         key="_gallery_property_group",
     )
 
-    # NxMグリッド設定
-    cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
+    # NxMグリッド設定（ユーザー指定があればそちらを優先）
+    default_cols, default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
+    cols_per_row = st.session_state.get("_gallery_user_cols", default_cols)
+    rows_per_page = st.session_state.get("_gallery_user_rows", default_rows)
 
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")

@@ -66,10 +66,16 @@ def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
         sortable=True,
         resizable=True,
     )
-    # 各列の幅を列名の文字幅に基づいて設定
+    # 各列の幅と適切なフィルタータイプを設定
     for col_name in df.columns:
         width = estimate_column_width(col_name)
-        gb.configure_column(col_name, minWidth=width, initialWidth=width)
+        col_config: dict[str, Any] = {"minWidth": width, "initialWidth": width}
+        # 数値列にはagNumberColumnFilterを設定
+        if df[col_name].dtype in ("int64", "float64", "int32", "float32"):
+            col_config["filter"] = "agNumberColumnFilter"
+        else:
+            col_config["filter"] = "agTextColumnFilter"
+        gb.configure_column(col_name, **col_config)
     gb.configure_selection(
         selection_mode="multiple",
         use_checkbox=True,

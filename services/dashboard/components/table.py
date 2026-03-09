@@ -99,6 +99,11 @@ class TablePage(PageComponent[TableViewConfig]):
 
         df = pd.DataFrame(display_rows)
 
+        # index/version列をint型に変換（可能な場合）
+        for int_key in (idx_key, ver_key):
+            if int_key in df.columns:
+                df[int_key] = pd.to_numeric(df[int_key], errors="coerce").astype("Int64")
+
         # nameカラムを表示名で置き換え（verbose_nameキーが存在する場合）
         if vn_key in df.columns:
             df["name"] = df[vn_key]
