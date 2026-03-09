@@ -14,6 +14,8 @@ from services.dashboard.connectors import DashboardPageConnector
 from services.dashboard.connectors.ml_query import (
     get_dataflow_graph_data,
     get_dataset_table,
+    get_experiment_comparison_data,
+    get_experiment_metric_keys,
     get_experiment_table,
     get_ml_relations,
     get_ml_summary,
@@ -123,6 +125,63 @@ class MLOverviewPageConnector(DashboardPageConnector):
     ) -> str:
         return _generate_overview_html(provider)
 
+    def render_saved_view(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> None:
+        import streamlit as st
+
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        tab = cc.get("tab", "")
+        metric_keys_str = cc.get("metric_keys", "")
+        experiment_ids_str = cc.get("experiment_ids", "")
+
+        metric_keys = [k.strip() for k in metric_keys_str.split(",") if k.strip()] if metric_keys_str else None
+        experiment_ids = [e.strip() for e in experiment_ids_str.split(",") if e.strip()] if experiment_ids_str else None
+
+        if not tab:
+            self.render_page(provider, dashboard_config)
+            return
+
+        st.header(f"ML概要 — {view.name}")
+        tab_map = {
+            "experiment": lambda: _render_experiment_tab(provider),
+            "dataset": lambda: _render_dataset_tab(provider),
+            "model": lambda: _render_model_tab(provider),
+            "script": lambda: _render_script_tab(provider),
+            "optimization": lambda: _render_optimization_tab(provider),
+            "relation": lambda: _render_relations_tab(provider),
+            "comparison": lambda: _render_metrics_comparison(provider, metric_keys, experiment_ids),
+        }
+        renderer = tab_map.get(tab)
+        if renderer:
+            renderer()
+        else:
+            st.warning(f"不明なタブ: {tab}")
+            self.render_page(provider, dashboard_config)
+
+    def generate_saved_view_html(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> str:
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        tab = cc.get("tab", "")
+        metric_keys_str = cc.get("metric_keys", "")
+        experiment_ids_str = cc.get("experiment_ids", "")
+
+        if tab == "comparison":
+            metric_keys = [k.strip() for k in metric_keys_str.split(",") if k.strip()] if metric_keys_str else None
+            experiment_ids = (
+                [e.strip() for e in experiment_ids_str.split(",") if e.strip()] if experiment_ids_str else None
+            )
+            return _generate_comparison_html(provider, metric_keys, experiment_ids)
+
+        return self.generate_html(provider, dashboard_config)
+
     @classmethod
     def get_connector_config_schema(cls) -> list[dict[str, Any]]:
         return [
@@ -130,7 +189,19 @@ class MLOverviewPageConnector(DashboardPageConnector):
                 "key": "tab",
                 "label": "表示タブ",
                 "type": "text",
-                "help": "experiment/dataset/model/script/optimization/relation",
+                "help": "experiment/dataset/model/script/optimization/relation/comparison",
+            },
+            {
+                "key": "metric_keys",
+                "label": "比較メトリクス（カンマ区切り）",
+                "type": "text",
+                "help": "例: best_val_accuracy,best_val_loss",
+            },
+            {
+                "key": "experiment_ids",
+                "label": "実験ID（カンマ区切り）",
+                "type": "text",
+                "help": "空欄で全実験を比較",
             },
         ]
 
@@ -176,12 +247,52 @@ class MLDataFlowPageConnector(DashboardPageConnector):
         else:
             st.info("層間リレーションはありません。")
 
+    def render_saved_view(
+        self,
+        provider: DashboardDataProvider,
+        view: Any,
+        dashboard_config: Any,
+    ) -> None:
+        import streamlit as st
+
+        cc = view.connector_config if hasattr(view, "connector_config") else {}
+        layer_filter = cc.get("layer_filter", "")
+
+        st.header(f"MLデータフロー — {view.name}")
+
+        graph_data = get_dataflow_graph_data(provider)
+
+        # レイヤーフィルタ適用
+        if layer_filter:
+            try:
+                layers = {int(x.strip()) for x in layer_filter.split(",") if x.strip()}
+                graph_data["nodes"] = [n for n in graph_data["nodes"] if n["layer"] in layers]
+                filtered_ids = {n["id"] for n in graph_data["nodes"]}
+                graph_data["edges"] = [
+                    e for e in graph_data["edges"] if e["source"] in filtered_ids and e["target"] in filtered_ids
+                ]
+            except ValueError:
+                st.warning(f"不正なレイヤーフィルタ: {layer_filter}")
+
+        _render_dataflow_graph(provider, graph_data)
+
     def generate_html(
         self,
         provider: DashboardDataProvider,
         dashboard_config: Any,
     ) -> str:
         return _generate_dataflow_html(provider)
+
+    @classmethod
+    def get_connector_config_schema(cls) -> list[dict[str, Any]]:
+        return [
+            {
+                "key": "layer_filter",
+                "label": "表示レイヤー（カンマ区切り）",
+                "type": "text",
+                "help": "1=CAE, 2=ML, 3=最適化。空欄で全レイヤー表示",
+            },
+        ]
 
 
 # ====================================================================
@@ -198,6 +309,10 @@ def _render_experiment_tab(provider: DashboardDataProvider) -> None:
         return
     st.subheader(f"実験メトリクス ({len(rows)}件)")
     _render_dataframe(rows)
+
+    # メトリクス比較プロット
+    if len(rows) >= 2:
+        _render_metrics_comparison(provider)
 
 
 def _render_dataset_tab(provider: DashboardDataProvider) -> None:
@@ -253,6 +368,95 @@ def _render_relations_tab(provider: DashboardDataProvider) -> None:
         return
     st.subheader(f"MLリレーション ({len(rows)}件)")
     _render_dataframe(rows)
+
+
+# ====================================================================
+# メトリクス比較プロット
+# ====================================================================
+
+
+def _render_metrics_comparison(
+    provider: DashboardDataProvider,
+    metric_keys: list[str] | None = None,
+    experiment_ids: list[str] | None = None,
+) -> None:
+    """実験間メトリクス比較プロットを描画"""
+    import streamlit as st
+
+    st.markdown("---")
+    st.subheader("メトリクス比較")
+
+    available_keys = get_experiment_metric_keys(provider)
+    if not available_keys:
+        st.info("比較可能なメトリクスがありません。")
+        return
+
+    # メトリクス選択UI（ビュー保存指定がなければインタラクティブ選択）
+    if metric_keys is None:
+        selected_keys = st.multiselect(
+            "比較するメトリクス",
+            available_keys,
+            default=available_keys[:3],
+            key="ml_comparison_metrics",
+        )
+    else:
+        selected_keys = [k for k in metric_keys if k in available_keys]
+
+    if not selected_keys:
+        return
+
+    comp_data = get_experiment_comparison_data(provider, metric_keys=selected_keys, experiment_ids=experiment_ids)
+    experiments = comp_data["experiments"]
+    if len(experiments) < 2:
+        st.info("比較に必要な実験数（2以上）がありません。")
+        return
+
+    _render_comparison_chart(experiments, selected_keys)
+
+
+def _render_comparison_chart(
+    experiments: list[dict[str, Any]],
+    metric_keys: list[str],
+) -> None:
+    """メトリクス比較チャートを描画（plotly優先、フォールバック: テーブル）"""
+    import streamlit as st
+
+    exp_labels = [e.get("id") or e.get("dir") or e["name"] for e in experiments]
+
+    try:
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+        for key in metric_keys:
+            values = [e.get(key) for e in experiments]
+            fig.add_trace(
+                go.Bar(
+                    name=key,
+                    x=exp_labels,
+                    y=values,
+                    text=[f"{v:.4g}" if isinstance(v, float) else str(v) for v in values],
+                    textposition="auto",
+                )
+            )
+
+        fig.update_layout(
+            barmode="group",
+            xaxis_title="実験",
+            yaxis_title="メトリクス値",
+            legend_title="メトリクス",
+            height=400,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    except ImportError:
+        # plotly未使用時: テーブル形式で比較
+        rows: list[dict[str, Any]] = []
+        for exp, label in zip(experiments, exp_labels, strict=True):
+            row: dict[str, Any] = {"実験": label}
+            for key in metric_keys:
+                row[key] = exp.get(key, "")
+            rows.append(row)
+        _render_dataframe(rows)
 
 
 # ====================================================================
@@ -492,6 +696,37 @@ def _generate_dataflow_html(provider: DashboardDataProvider) -> str:
         if rows:
             parts.append(_rows_to_html_table(rows))
 
+    parts.append("</div>")
+    return "\n".join(parts)
+
+
+def _generate_comparison_html(
+    provider: DashboardDataProvider,
+    metric_keys: list[str] | None = None,
+    experiment_ids: list[str] | None = None,
+) -> str:
+    """メトリクス比較のHTML断片を生成"""
+    comp_data = get_experiment_comparison_data(provider, metric_keys, experiment_ids)
+    experiments = comp_data["experiments"]
+    keys = comp_data["metric_keys"]
+
+    parts: list[str] = ['<div class="ml-comparison">']
+    parts.append("<h2>メトリクス比較</h2>")
+
+    if not experiments or not keys:
+        parts.append("<p>比較データがありません。</p>")
+        parts.append("</div>")
+        return "\n".join(parts)
+
+    rows: list[dict[str, Any]] = []
+    for exp in experiments:
+        row: dict[str, Any] = {"実験": exp.get("id") or exp.get("dir") or exp["name"]}
+        for key in keys:
+            val = exp.get(key, "")
+            row[key] = f"{val:.4g}" if isinstance(val, float) else str(val)
+        rows.append(row)
+
+    parts.append(_rows_to_html_table(rows))
     parts.append("</div>")
     return "\n".join(parts)
 

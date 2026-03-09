@@ -217,6 +217,62 @@ class TestMLQueryHasNodes:
         provider = _make_provider(_ml_nodes())
         assert has_ml_nodes(provider) is True
 
+
+def _multi_experiment_nodes() -> list[Node]:
+    """複数実験メトリクスノード（比較テスト用）"""
+    return [
+        Node(
+            id=100,
+            type="experiment_metrics",
+            name="metrics.json",
+            format="json",
+            properties={
+                "path": "experiments/exp_001/metrics.json",
+                "experiment_id": "001",
+                "experiment_dir": "exp_001",
+                "ml_metrics": True,
+                "ml_key_metrics": {
+                    "best_val_accuracy": 0.91,
+                    "best_val_loss": 0.15,
+                    "best_epoch": 5,
+                },
+            },
+        ),
+        Node(
+            id=101,
+            type="experiment_metrics",
+            name="metrics.json",
+            format="json",
+            properties={
+                "path": "experiments/exp_002/metrics.json",
+                "experiment_id": "002",
+                "experiment_dir": "exp_002",
+                "ml_metrics": True,
+                "ml_key_metrics": {
+                    "best_val_accuracy": 0.93,
+                    "best_val_loss": 0.10,
+                    "best_epoch": 8,
+                },
+            },
+        ),
+        Node(
+            id=102,
+            type="experiment_metrics",
+            name="metrics.json",
+            format="json",
+            properties={
+                "path": "experiments/exp_003/metrics.json",
+                "experiment_id": "003",
+                "experiment_dir": "exp_003",
+                "ml_metrics": True,
+                "ml_key_metrics": {
+                    "best_val_accuracy": 0.89,
+                    "best_val_loss": 0.20,
+                },
+            },
+        ),
+    ]
+
     def test_has_ml_nodes_false(self):
         from services.dashboard.connectors.ml_query import has_ml_nodes
 
@@ -587,3 +643,168 @@ class TestFormatFileSize:
         from services.dashboard.connectors.ml_query import _format_file_size
 
         assert _format_file_size(2147483648) == "2.0 GB"
+
+
+# ====================================================================
+# メトリクス比較 テスト
+# ====================================================================
+
+
+class TestExperimentMetricKeys:
+    """get_experiment_metric_keys のテスト"""
+
+    def test_metric_keys_collected(self):
+        from services.dashboard.connectors.ml_query import get_experiment_metric_keys
+
+        provider = _make_provider(_multi_experiment_nodes())
+        keys = get_experiment_metric_keys(provider)
+
+        assert "best_val_accuracy" in keys
+        assert "best_val_loss" in keys
+        assert "best_epoch" in keys
+
+    def test_metric_keys_ordered_by_frequency(self):
+        from services.dashboard.connectors.ml_query import get_experiment_metric_keys
+
+        provider = _make_provider(_multi_experiment_nodes())
+        keys = get_experiment_metric_keys(provider)
+
+        # best_val_accuracy/best_val_loss: 3回, best_epoch: 2回
+        assert keys.index("best_val_accuracy") < keys.index("best_epoch")
+
+    def test_metric_keys_empty(self):
+        from services.dashboard.connectors.ml_query import get_experiment_metric_keys
+
+        provider = _make_provider([])
+        assert get_experiment_metric_keys(provider) == []
+
+
+class TestExperimentComparisonData:
+    """get_experiment_comparison_data のテスト"""
+
+    def test_all_experiments(self):
+        from services.dashboard.connectors.ml_query import get_experiment_comparison_data
+
+        provider = _make_provider(_multi_experiment_nodes())
+        data = get_experiment_comparison_data(provider)
+
+        assert len(data["experiments"]) == 3
+        assert "best_val_accuracy" in data["metric_keys"]
+        assert "best_val_loss" in data["metric_keys"]
+
+    def test_filter_by_experiment_ids(self):
+        from services.dashboard.connectors.ml_query import get_experiment_comparison_data
+
+        provider = _make_provider(_multi_experiment_nodes())
+        data = get_experiment_comparison_data(provider, experiment_ids=["001", "002"])
+
+        assert len(data["experiments"]) == 2
+        ids = {e["id"] for e in data["experiments"]}
+        assert ids == {"001", "002"}
+
+    def test_filter_by_metric_keys(self):
+        from services.dashboard.connectors.ml_query import get_experiment_comparison_data
+
+        provider = _make_provider(_multi_experiment_nodes())
+        data = get_experiment_comparison_data(provider, metric_keys=["best_val_accuracy"])
+
+        assert data["metric_keys"] == ["best_val_accuracy"]
+
+    def test_filter_nonexistent_metric(self):
+        from services.dashboard.connectors.ml_query import get_experiment_comparison_data
+
+        provider = _make_provider(_multi_experiment_nodes())
+        data = get_experiment_comparison_data(provider, metric_keys=["nonexistent"])
+
+        assert data["metric_keys"] == []
+
+    def test_empty_provider(self):
+        from services.dashboard.connectors.ml_query import get_experiment_comparison_data
+
+        provider = _make_provider([])
+        data = get_experiment_comparison_data(provider)
+
+        assert data["experiments"] == []
+        assert data["metric_keys"] == []
+
+    def test_experiment_values(self):
+        from services.dashboard.connectors.ml_query import get_experiment_comparison_data
+
+        provider = _make_provider(_multi_experiment_nodes())
+        data = get_experiment_comparison_data(provider, experiment_ids=["001"])
+
+        exp = data["experiments"][0]
+        assert exp["best_val_accuracy"] == 0.91
+        assert exp["best_val_loss"] == 0.15
+
+
+# ====================================================================
+# ビュー保存・コネクターconfig テスト
+# ====================================================================
+
+
+class TestMLOverviewConnectorConfig:
+    """MLOverviewPageConnector connector_config テスト"""
+
+    def test_schema_has_tab(self):
+        import services.dashboard.connectors.ml as ml_mod
+
+        schema = ml_mod.MLOverviewPageConnector.get_connector_config_schema()
+        keys = {f["key"] for f in schema}
+        assert "tab" in keys
+        assert "metric_keys" in keys
+        assert "experiment_ids" in keys
+
+    def test_schema_tab_comparison(self):
+        import services.dashboard.connectors.ml as ml_mod
+
+        schema = ml_mod.MLOverviewPageConnector.get_connector_config_schema()
+        tab_field = next(f for f in schema if f["key"] == "tab")
+        assert "comparison" in tab_field["help"]
+
+
+class TestMLDataFlowConnectorConfig:
+    """MLDataFlowPageConnector connector_config テスト"""
+
+    def test_schema_has_layer_filter(self):
+        import services.dashboard.connectors.ml as ml_mod
+
+        schema = ml_mod.MLDataFlowPageConnector.get_connector_config_schema()
+        keys = {f["key"] for f in schema}
+        assert "layer_filter" in keys
+
+
+class TestComparisonHTML:
+    """メトリクス比較HTML生成テスト"""
+
+    def test_comparison_html(self):
+        from services.dashboard.connectors.ml import _generate_comparison_html
+
+        provider = _make_provider(_multi_experiment_nodes())
+        html = _generate_comparison_html(provider)
+
+        assert "メトリクス比較" in html
+        assert "001" in html
+        assert "002" in html
+        assert "003" in html
+
+    def test_comparison_html_with_filter(self):
+        from services.dashboard.connectors.ml import _generate_comparison_html
+
+        provider = _make_provider(_multi_experiment_nodes())
+        html = _generate_comparison_html(
+            provider,
+            metric_keys=["best_val_accuracy"],
+            experiment_ids=["001", "002"],
+        )
+
+        assert "メトリクス比較" in html
+        assert "best_val_accuracy" in html
+
+    def test_comparison_html_empty(self):
+        from services.dashboard.connectors.ml import _generate_comparison_html
+
+        provider = _make_provider([])
+        html = _generate_comparison_html(provider)
+
+        assert "比較データがありません" in html
