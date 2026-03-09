@@ -8,9 +8,9 @@
 
 > 最新statusファイルから引き継がれた未完了TODO。作業開始時はここを確認する。
 
-### ワークトラック（未着手）
+### ワークトラック（進行中）
 
-- [ ] **T5**: リモートジョブ実行基盤（jj submit/watch/collect + Prefect統合）
+- [ ] **T5**: リモートジョブ実行基盤 — Phase 5-1〜5-8完了、5-9残(Prefect統合)
 - [ ] **T7**: Ollama AI連携（AIProviderプロトコル, 要約, RAG, tips）
 - [ ] **T8**: 汎用データ管理（Run中心プラットフォームへの昇華）
 
@@ -34,7 +34,7 @@
 | T2: Config二層分離 | **完了** | [054](status-054.md)-[055](status-055.md) |
 | T3: MLダッシュボード Phase 5 | **完了** | [062](status-062.md)-[063](status-063.md) |
 | T4: Deprecation Warning修正 | **完了** | [053](status-053.md) |
-| T5: リモートジョブ実行基盤 | 未着手 | — |
+| T5: リモートジョブ実行基盤 | **進行中** | [065](status-065.md)-[067](status-067.md) |
 | T6: ダッシュボード高度化 | **完了** | [053](status-053.md)-[061](status-061.md) |
 | T7: Ollama AI連携 | 未着手 | — |
 | T8: 汎用データ管理 | 未着手 | — |
@@ -62,6 +62,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [065](status-065.md) | 03-09 | T5基盤: JobState/Storage/FolderMapping/CLI | claude/execute-status-todos-l1Idi |
 | [064](status-064.md) | 03-09 | ドキュメント構造整理（コンテキスト肥大化対策） | claude/execute-status-todos-6wBmM |
 | [063](status-063.md) | 03-09 | T3改善: メトリクス比較プロット・ビュー保存連携 | claude/execute-status-todos-6wBmM |
 | [062](status-062.md) | 03-09 | T3完了: MLダッシュボード Phase 5・ML使用マニュアル | claude/t3-tasks-ml-manual-HDXK8 |
