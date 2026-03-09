@@ -6,12 +6,92 @@ CLI層から呼び出され、SSHClientを使ってリモート操作を行う�
 
 from __future__ import annotations
 
+import glob
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
 
 from .models import JobState, JobStatus
 from .storage import JobStorage
+
+
+def expand_targets(patterns: list[str], cwd: Path | None = None) -> list[str]:
+    """ターゲットパターンを展開
+
+    以下の展開をサポート:
+    - ブレース展開: go_sample_{1..5} → go_sample_1, ..., go_sample_5
+    - glob展開: *.inp → マッチするファイル群
+    - そのまま: 展開パターンなしの場合はそのまま返す
+
+    Args:
+        patterns: 展開するパターンのリスト
+        cwd: glob展開の基準ディレクトリ
+
+    Returns:
+        展開されたターゲットのリスト（重複除去、ソート済み）
+    """
+    expanded: list[str] = []
+    base_dir = cwd or Path.cwd()
+
+    for pattern in patterns:
+        # ブレース展開: {start..end} パターン
+        brace_results = _expand_braces(pattern)
+        if brace_results is not None:
+            expanded.extend(brace_results)
+            continue
+
+        # glob展開: *, ? を含む場合
+        if any(c in pattern for c in ("*", "?", "[")):
+            matches = sorted(glob.glob(str(base_dir / pattern)))
+            if matches:
+                # base_dirからの相対パスで返す
+                for m in matches:
+                    try:
+                        expanded.append(str(Path(m).relative_to(base_dir)))
+                    except ValueError:
+                        expanded.append(m)
+                continue
+
+        # そのまま
+        expanded.append(pattern)
+
+    # 重複除去（順序保持）
+    seen: set[str] = set()
+    unique: list[str] = []
+    for t in expanded:
+        if t not in seen:
+            seen.add(t)
+            unique.append(t)
+    return unique
+
+
+def _expand_braces(pattern: str) -> list[str] | None:
+    """ブレース展開: {start..end} → 数値範囲展開
+
+    例: go_sample_{1..5}.inp → [go_sample_1.inp, ..., go_sample_5.inp]
+    例: test_{a,b,c}.inp → [test_a.inp, test_b.inp, test_c.inp]
+    """
+    # 数値範囲: {start..end}
+    match = re.search(r"\{(\d+)\.\.(\d+)\}", pattern)
+    if match:
+        start = int(match.group(1))
+        end = int(match.group(2))
+        prefix = pattern[: match.start()]
+        suffix = pattern[match.end() :]
+        step = 1 if start <= end else -1
+        return [f"{prefix}{i}{suffix}" for i in range(start, end + step, step)]
+
+    # カンマ区切り: {a,b,c}
+    match = re.search(r"\{([^}]+)\}", pattern)
+    if match:
+        items = match.group(1).split(",")
+        if len(items) > 1:
+            prefix = pattern[: match.start()]
+            suffix = pattern[match.end() :]
+            return [f"{prefix}{item.strip()}{suffix}" for item in items]
+
+    return None
 
 
 class JobService:
@@ -26,6 +106,7 @@ class JobService:
         targets: list[str],
         command_template: str = "",
         host_name: str | None = None,
+        batch: bool = False,
     ) -> list[JobState]:
         """ジョブを投入（ファイル転送 + リモート実行 + ステート記録）
 
@@ -33,11 +114,16 @@ class JobService:
             targets: 入力ファイル名のリスト
             command_template: 実行コマンドテンプレート
             host_name: リモートホスト名（SSH設定から取得）
+            batch: Trueの場合、ブレース展開・glob展開を適用
 
         Returns:
             投入されたジョブのJobStateリスト
         """
         from config import load_ssh_config
+
+        # バッチモード: ターゲットパターンを展開
+        if batch:
+            targets = expand_targets(targets, cwd=self.project_root)
 
         ssh_config = load_ssh_config(hostname=host_name)
         ssh_config.require("linux_local_basedirpath", "remote_basedirpath")

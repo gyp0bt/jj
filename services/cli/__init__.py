@@ -216,6 +216,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="実行コマンドテンプレート（{target}をプレースホルダとして使用）",
     )
     pjsub.add_argument("--host-name", "-host", default=None, help="リモートホスト名")
+    pjsub.add_argument(
+        "--batch",
+        "-b",
+        action="store_true",
+        default=False,
+        help="バッチモード: ブレース展開({1..5})やglob展開(*.inp)を有効化",
+    )
 
     # jj job watch (T5-4)
     pjw = pj_sub.add_parser("watch", help="ジョブの完了を監視")
@@ -526,16 +533,28 @@ def run_job(args: argparse.Namespace) -> int:
         targets = getattr(args, "targets", [])
         command_template = getattr(args, "command", "")
         host_name = getattr(args, "host_name", None)
+        batch = getattr(args, "batch", False)
 
         if not targets:
             print("エラー: 入力ファイルを指定してください。")
             return 1
+
+        # バッチモード時の展開プレビュー
+        if batch:
+            from services.job.service import expand_targets
+
+            expanded = expand_targets(targets, cwd=project_root)
+            print(f"バッチ展開: {len(targets)}パターン → {len(expanded)}ターゲット")
+            for t in expanded:
+                print(f"  - {t}")
+            print()
 
         try:
             jobs = service.submit(
                 targets=targets,
                 command_template=command_template,
                 host_name=host_name,
+                batch=batch,
             )
             print(f"投入完了: {len(jobs)}件のジョブ")
             for job in jobs:

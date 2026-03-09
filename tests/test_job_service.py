@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from services.job.models import JobState, JobStatus
-from services.job.service import JobService
+from services.job.service import JobService, expand_targets
 from services.job.storage import JobStorage
 
 
@@ -518,3 +518,76 @@ class TestJobServiceCollect:
             )
 
         assert len(collected) == 0
+
+
+class TestExpandTargets:
+    """T5-7: バッチ投入のターゲット展開テスト"""
+
+    def test_brace_expansion_numeric_range(self):
+        result = expand_targets(["go_sample_{1..5}.inp"])
+        assert result == [
+            "go_sample_1.inp",
+            "go_sample_2.inp",
+            "go_sample_3.inp",
+            "go_sample_4.inp",
+            "go_sample_5.inp",
+        ]
+
+    def test_brace_expansion_comma_list(self):
+        result = expand_targets(["test_{a,b,c}.inp"])
+        assert result == ["test_a.inp", "test_b.inp", "test_c.inp"]
+
+    def test_brace_expansion_reverse_range(self):
+        result = expand_targets(["model_{3..1}.inp"])
+        assert result == ["model_3.inp", "model_2.inp", "model_1.inp"]
+
+    def test_no_expansion(self):
+        result = expand_targets(["plain_file.inp"])
+        assert result == ["plain_file.inp"]
+
+    def test_glob_expansion(self, tmp_path: Path):
+        (tmp_path / "test_a.inp").touch()
+        (tmp_path / "test_b.inp").touch()
+        (tmp_path / "test_c.txt").touch()
+
+        result = expand_targets(["*.inp"], cwd=tmp_path)
+        assert result == ["test_a.inp", "test_b.inp"]
+
+    def test_glob_no_match(self, tmp_path: Path):
+        result = expand_targets(["*.xyz"], cwd=tmp_path)
+        assert result == ["*.xyz"]
+
+    def test_mixed_patterns(self):
+        result = expand_targets(["plain.inp", "batch_{1..3}.inp"])
+        assert result == [
+            "plain.inp",
+            "batch_1.inp",
+            "batch_2.inp",
+            "batch_3.inp",
+        ]
+
+    def test_deduplication(self):
+        result = expand_targets(["file_1.inp", "file_{1..2}.inp"])
+        assert result == ["file_1.inp", "file_2.inp"]
+
+    def test_submit_with_batch_flag(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        mock_ssh_config = MagicMock()
+        mock_ssh_config.host = "server"
+        mock_ssh_config.resolve_remote_path.return_value = "/remote/"
+
+        with (
+            patch("services.job.service.JobService._transfer_files"),
+            patch("services.job.service.JobService._execute_remote"),
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+        ):
+            jobs = service.submit(
+                targets=["job_{1..3}.inp"],
+                command_template="run {target}",
+                batch=True,
+            )
+
+        assert len(jobs) == 3
+        targets_submitted = [j.input_files[0] for j in jobs]
+        assert targets_submitted == ["job_1.inp", "job_2.inp", "job_3.inp"]
