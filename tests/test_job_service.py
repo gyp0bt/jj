@@ -7,8 +7,10 @@ SSH接続を必要としないモデル・ストレージ層のテスト。
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from services.job.models import JobState, JobStatus
+from services.job.service import JobService
 from services.job.storage import JobStorage
 
 
@@ -239,3 +241,280 @@ class TestFolderMapping:
         )
         result = config.resolve_remote_path("F:\\active\\project_a\\v3\\")
         assert result == "/usr2/user/work/project_a/v3/"
+
+
+class TestJobServiceSubmit:
+    """T5-3: JobService.submit のテスト（SSHモック）"""
+
+    def test_submit_creates_job_state(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        mock_ssh_config = MagicMock()
+        mock_ssh_config.host = "grid-server"
+        mock_ssh_config.resolve_remote_path.return_value = "/usr2/user/work/"
+        mock_ssh_config.linux_local_basedirpath = "/home/user/work/"
+        mock_ssh_config.remote_basedirpath = "/usr2/user/work/"
+
+        with (
+            patch("services.job.service.JobService._transfer_files") as mock_transfer,
+            patch("services.job.service.JobService._execute_remote") as mock_execute,
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+        ):
+            jobs = service.submit(
+                targets=["test.inp"],
+                command_template="abaqus job={target} cpus=4",
+                host_name="grid-server",
+            )
+
+        assert len(jobs) == 1
+        job = jobs[0]
+        assert job.remote_host == "grid-server"
+        assert job.remote_dir == "/usr2/user/work/"
+        assert job.input_files == ["test.inp"]
+        assert "abaqus job=test.inp cpus=4" in job.command
+        assert job.status == JobStatus.RUNNING
+        mock_transfer.assert_called_once()
+        mock_execute.assert_called_once()
+
+        # ストレージに永続化されているか
+        loaded = service.storage.load(tmp_path, job.job_id)
+        assert loaded is not None
+        assert loaded.job_id == job.job_id
+
+    def test_submit_without_command(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        mock_ssh_config = MagicMock()
+        mock_ssh_config.host = "server"
+        mock_ssh_config.resolve_remote_path.return_value = "/remote/"
+
+        with (
+            patch("services.job.service.JobService._transfer_files"),
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+        ):
+            jobs = service.submit(targets=["data.csv"], command_template="")
+
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.SUBMITTED  # コマンドなし → runningにならない
+        assert jobs[0].command == ""
+
+    def test_submit_multiple_targets(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        mock_ssh_config = MagicMock()
+        mock_ssh_config.host = "server"
+        mock_ssh_config.resolve_remote_path.return_value = "/remote/"
+
+        with (
+            patch("services.job.service.JobService._transfer_files"),
+            patch("services.job.service.JobService._execute_remote"),
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+        ):
+            jobs = service.submit(
+                targets=["a.inp", "b.inp", "c.inp"],
+                command_template="run {target}",
+            )
+
+        assert len(jobs) == 3
+        assert all(j.status == JobStatus.RUNNING for j in jobs)
+        job_ids = [j.job_id for j in jobs]
+        assert len(set(job_ids)) == 3  # ユニークなID
+
+
+class TestJobServiceWatch:
+    """T5-4: JobService.watch のテスト（SSHモック）"""
+
+    def test_watch_detects_completion(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        # runningジョブを作成
+        job = JobState(
+            job_id="watch_test_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+        )
+        job.mark_running()
+        service.storage.save(tmp_path, job)
+
+        call_count = 0
+
+        def mock_check(job_state, check_command=""):
+            nonlocal call_count
+            call_count += 1
+            return True  # 即座に完了
+
+        with patch.object(service, "_check_job_completion", side_effect=mock_check):
+            result = service.watch(
+                job_ids=["watch_test_001"],
+                interval=1,
+                timeout=10,
+            )
+
+        assert len(result) == 1
+        assert result[0].status == JobStatus.COMPLETED
+        assert result[0].completed_at is not None
+
+    def test_watch_timeout(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        job = JobState(
+            job_id="watch_timeout_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+        )
+        job.mark_running()
+        service.storage.save(tmp_path, job)
+
+        with patch.object(service, "_check_job_completion", return_value=False):
+            result = service.watch(
+                job_ids=["watch_timeout_001"],
+                interval=1,
+                timeout=2,
+            )
+
+        assert len(result) == 1
+        assert result[0].status == JobStatus.RUNNING  # タイムアウト → まだrunning
+
+    def test_watch_no_running_jobs(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+        result = service.watch(interval=1, timeout=1)
+        assert result == []
+
+    def test_watch_callback(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        job = JobState(
+            job_id="watch_cb_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+        )
+        job.mark_running()
+        service.storage.save(tmp_path, job)
+
+        callback_calls = []
+
+        def on_change(j, old_status):
+            callback_calls.append((j.job_id, old_status, j.status.value))
+
+        with patch.object(service, "_check_job_completion", return_value=True):
+            service.watch(
+                job_ids=["watch_cb_001"],
+                interval=1,
+                timeout=10,
+                on_status_change=on_change,
+            )
+
+        assert len(callback_calls) == 1
+        assert callback_calls[0] == ("watch_cb_001", "running", "completed")
+
+
+class TestJobServiceCollect:
+    """T5-5: JobService.collect のテスト（SSHモック）"""
+
+    def test_collect_completed_jobs(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        job = JobState(
+            job_id="collect_test_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+            output_files=["result.odb", "result.sta"],
+        )
+        job.mark_completed()
+        service.storage.save(tmp_path, job)
+
+        mock_ssh_config = MagicMock()
+
+        with (
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+            patch.object(service, "_download_outputs"),
+        ):
+            collected = service.collect(
+                job_ids=["collect_test_001"],
+                completed_only=True,
+            )
+
+        assert len(collected) == 1
+        assert collected[0].status == JobStatus.COLLECTED
+        assert collected[0].collected_at is not None
+
+    def test_collect_with_output_patterns(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        job = JobState(
+            job_id="collect_pattern_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+        )
+        job.mark_completed()
+        service.storage.save(tmp_path, job)
+
+        mock_ssh_config = MagicMock()
+
+        with (
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+            patch.object(service, "_download_outputs"),
+        ):
+            collected = service.collect(
+                job_ids=["collect_pattern_001"],
+                output_patterns=["*.odb", "*.sta"],
+            )
+
+        assert len(collected) == 1
+        assert collected[0].output_files == ["*.odb", "*.sta"]
+
+    def test_collect_handles_error(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        job = JobState(
+            job_id="collect_error_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+            output_files=["result.odb"],
+        )
+        job.mark_completed()
+        service.storage.save(tmp_path, job)
+
+        mock_ssh_config = MagicMock()
+
+        with (
+            patch("config.load_ssh_config", return_value=mock_ssh_config),
+            patch.object(service, "_download_outputs", side_effect=Exception("接続エラー")),
+        ):
+            collected = service.collect(job_ids=["collect_error_001"])
+
+        assert len(collected) == 0  # エラーで回収失敗
+        # エラーがpropertiesに記録される
+        saved = service.storage.load(tmp_path, "collect_error_001")
+        assert saved is not None
+        assert "collect_error" in saved.properties
+        assert "接続エラー" in saved.properties["collect_error"]
+
+    def test_collect_skips_non_completed(self, tmp_path: Path):
+        service = JobService(project_root=tmp_path)
+
+        # runningジョブ（completed_only=Trueでスキップされるべき）
+        job = JobState(
+            job_id="collect_skip_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir=str(tmp_path),
+        )
+        job.mark_running()
+        service.storage.save(tmp_path, job)
+
+        mock_ssh_config = MagicMock()
+
+        with patch("config.load_ssh_config", return_value=mock_ssh_config):
+            collected = service.collect(
+                job_ids=["collect_skip_001"],
+                completed_only=True,
+            )
+
+        assert len(collected) == 0

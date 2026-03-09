@@ -206,6 +206,40 @@ def build_parser() -> argparse.ArgumentParser:
     pjsh = pj_sub.add_parser("show", help="ジョブ詳細を表示")
     pjsh.add_argument("job_id", type=str, help="ジョブID")
 
+    # jj job submit (T5-3)
+    pjsub = pj_sub.add_parser("submit", help="ジョブを投入（ファイル転送+リモート実行）")
+    pjsub.add_argument("targets", nargs="+", help="入力ファイル名")
+    pjsub.add_argument(
+        "--command",
+        "-c",
+        default="",
+        help="実行コマンドテンプレート（{target}をプレースホルダとして使用）",
+    )
+    pjsub.add_argument("--host-name", "-host", default=None, help="リモートホスト名")
+
+    # jj job watch (T5-4)
+    pjw = pj_sub.add_parser("watch", help="ジョブの完了を監視")
+    pjw.add_argument("job_ids", nargs="*", default=None, help="監視するジョブID（省略で全running）")
+    pjw.add_argument("--interval", "-i", type=int, default=30, help="チェック間隔（秒）")
+    pjw.add_argument("--timeout", "-t", type=int, default=0, help="タイムアウト秒数（0で無制限）")
+    pjw.add_argument("--check-command", default="", help="完了チェックコマンド（{job_id}をプレースホルダ）")
+
+    # jj job collect (T5-5)
+    pjc = pj_sub.add_parser("collect", help="完了ジョブの結果を回収")
+    pjc.add_argument("job_ids", nargs="*", default=None, help="回収するジョブID（省略で全完了ジョブ）")
+    pjc.add_argument(
+        "--completed-only",
+        action="store_true",
+        default=False,
+        help="completedステータスのジョブのみ回収",
+    )
+    pjc.add_argument(
+        "--output-patterns",
+        nargs="+",
+        default=None,
+        help="出力ファイルパターン（ジョブに未設定の場合に使用）",
+    )
+
     # graph (jj g) — 互換性維持
     add_graph_parser(sub)
 
@@ -435,7 +469,7 @@ def run_job(args: argparse.Namespace) -> int:
     """jobコマンド: リモートジョブ管理 (T5)"""
     from pathlib import Path
 
-    from services.job import JobStatus
+    from services.job import JobState, JobStatus
     from services.job.service import JobService
 
     job_command = getattr(args, "job_command", None)
@@ -488,10 +522,98 @@ def run_job(args: argparse.Namespace) -> int:
                 print(f"    {key}: {value}")
         return 0
 
+    elif job_command == "submit":
+        targets = getattr(args, "targets", [])
+        command_template = getattr(args, "command", "")
+        host_name = getattr(args, "host_name", None)
+
+        if not targets:
+            print("エラー: 入力ファイルを指定してください。")
+            return 1
+
+        try:
+            jobs = service.submit(
+                targets=targets,
+                command_template=command_template,
+                host_name=host_name,
+            )
+            print(f"投入完了: {len(jobs)}件のジョブ")
+            for job in jobs:
+                print(f"  {job.job_id} → {job.remote_host}:{job.remote_dir} [{job.status.value}]")
+            return 0
+        except Exception as e:
+            print(f"エラー: {e}")
+            return 1
+
+    elif job_command == "watch":
+        job_ids = getattr(args, "job_ids", None) or None
+        interval = getattr(args, "interval", 30)
+        timeout = getattr(args, "timeout", 0)
+        check_command = getattr(args, "check_command", "")
+
+        def on_status_change(job: JobState, old_status: str) -> None:
+            print(f"  [{old_status} → {job.status.value}] {job.job_id}")
+
+        print("ジョブ監視を開始します...")
+        if timeout > 0:
+            print(f"  間隔: {interval}秒, タイムアウト: {timeout}秒")
+        else:
+            print(f"  間隔: {interval}秒, タイムアウト: なし (Ctrl+Cで終了)")
+
+        try:
+            jobs = service.watch(
+                job_ids=job_ids,
+                interval=interval,
+                timeout=timeout,
+                check_command=check_command,
+                on_status_change=on_status_change,
+            )
+            if not jobs:
+                print("監視対象のジョブがありません。")
+                return 0
+
+            completed = [j for j in jobs if j.status == JobStatus.COMPLETED]
+            running = [j for j in jobs if j.status == JobStatus.RUNNING]
+            print(f"\n監視終了: 完了 {len(completed)}件, 実行中 {len(running)}件")
+            return 0
+        except KeyboardInterrupt:
+            print("\n監視を中断しました。")
+            return 0
+        except Exception as e:
+            print(f"エラー: {e}")
+            return 1
+
+    elif job_command == "collect":
+        job_ids = getattr(args, "job_ids", None) or None
+        completed_only = getattr(args, "completed_only", False)
+        output_patterns = getattr(args, "output_patterns", None)
+
+        try:
+            collected = service.collect(
+                job_ids=job_ids,
+                completed_only=completed_only,
+                output_patterns=output_patterns,
+            )
+            if not collected:
+                print("回収対象のジョブがありません。")
+                return 0
+
+            print(f"回収完了: {len(collected)}件")
+            for job in collected:
+                files_str = ", ".join(job.output_files) if job.output_files else "(なし)"
+                print(f"  {job.job_id}: {files_str}")
+            return 0
+        except Exception as e:
+            print(f"エラー: {e}")
+            return 1
+
     else:
-        print("使用方法: jj job <status|show>")
-        print("  status  投入済みジョブの状態一覧")
-        print("  show    ジョブ詳細を表示")
+        print("使用方法: jj job <status|show|submit|watch|collect>")
+        print("  status   投入済みジョブの状態一覧")
+        print("  show     ジョブ詳細を表示")
+        print("  submit   ジョブを投入")
+        print("  watch    ジョブの完了を監視")
+        print("  collect  完了ジョブの結果を回収")
         return 1
 
 

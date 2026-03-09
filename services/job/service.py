@@ -1,11 +1,13 @@
 """ジョブ管理サービス
 
-jj submit / jj collect / jj job status のビジネスロジック。
+jj job submit / jj job watch / jj job collect / jj job status のビジネスロジック。
 CLI層から呼び出され、SSHClientを使ってリモート操作を行う。
 """
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 from .models import JobState, JobStatus
@@ -68,16 +70,76 @@ class JobService:
 
         return jobs
 
+    def watch(
+        self,
+        job_ids: list[str] | None = None,
+        interval: int = 30,
+        timeout: int = 0,
+        check_command: str = "",
+        on_status_change: Callable[[JobState, str], None] | None = None,
+    ) -> list[JobState]:
+        """ジョブの完了を監視
+
+        SSHでリモートのジョブ状態を定期的にチェックし、完了を検知する。
+
+        Args:
+            job_ids: 監視するジョブIDリスト（Noneでrunning全件）
+            interval: チェック間隔（秒）
+            timeout: タイムアウト秒数（0で無制限）
+            check_command: ジョブ完了チェックコマンド（{job_id}をプレースホルダ）
+            on_status_change: 状態変化時のコールバック
+
+        Returns:
+            監視終了時点のジョブリスト
+        """
+        # 監視対象ジョブを取得
+        if job_ids:
+            jobs = [self.storage.load(self.project_root, jid) for jid in job_ids]
+            jobs = [j for j in jobs if j is not None]
+        else:
+            jobs = self.storage.list_jobs(self.project_root, status_filter=JobStatus.RUNNING)
+
+        if not jobs:
+            return []
+
+        start_time = time.time()
+        while True:
+            all_done = True
+            for job in jobs:
+                if job.status not in (JobStatus.RUNNING, JobStatus.SUBMITTED):
+                    continue
+                all_done = False
+
+                completed = self._check_job_completion(job, check_command)
+                if completed:
+                    old_status = job.status.value
+                    job.mark_completed()
+                    self.storage.save(self.project_root, job)
+                    if on_status_change:
+                        on_status_change(job, old_status)
+
+            if all_done:
+                break
+
+            if timeout > 0 and (time.time() - start_time) >= timeout:
+                break
+
+            time.sleep(interval)
+
+        return jobs
+
     def collect(
         self,
         job_ids: list[str] | None = None,
         completed_only: bool = False,
+        output_patterns: list[str] | None = None,
     ) -> list[JobState]:
         """完了ジョブの結果を回収
 
         Args:
             job_ids: 回収するジョブIDリスト（Noneで全完了ジョブ）
             completed_only: Trueの場合、completedステータスのジョブのみ回収
+            output_patterns: 出力ファイルのパターンリスト（ジョブに未設定の場合に使用）
 
         Returns:
             回収されたジョブのリスト
@@ -98,6 +160,15 @@ class JobService:
         for job in jobs:
             try:
                 ssh_config = load_ssh_config()
+
+                # output_filesが未設定の場合、リモートから出力ファイルを検出
+                if not job.output_files and output_patterns:
+                    job.output_files = output_patterns
+                elif not job.output_files:
+                    detected = self._detect_output_files(ssh_config, job)
+                    if detected:
+                        job.output_files = detected
+
                 self._download_outputs(ssh_config, job)
                 job.mark_collected()
                 self.storage.save(self.project_root, job)
@@ -133,6 +204,44 @@ class JobService:
             f"ローカルパス '{local_dir}' に対応するリモートパスを解決できません。"
             ".pyssh.yamlのFOLDER_MAPPINGSまたはLINUX_LOCAL_BASEDIRPATH/REMOTE_BASEDIRPATHを設定してください。"
         )
+
+    def _check_job_completion(self, job: JobState, check_command: str = "") -> bool:
+        """リモートジョブの完了をチェック
+
+        check_commandが指定されている場合はそれを実行。
+        未指定の場合は、入力ファイルの拡張子から推測して完了チェック。
+        """
+        try:
+            from modules.pyssh.ssh import execute_command
+
+            if check_command:
+                cmd = check_command.format(job_id=job.job_id)
+                stdout = execute_command(cmd, remote_dirpath=job.remote_dir, cd=True, verbose=False)
+                return "COMPLETED" in stdout.upper()
+
+            # デフォルト: .lck ファイルが消えていれば完了と判定
+            lock_check = "test -f *.lck && echo RUNNING || echo COMPLETED"
+            stdout = execute_command(lock_check, remote_dirpath=job.remote_dir, cd=True, verbose=False)
+            return "COMPLETED" in stdout
+        except ImportError as e:
+            raise ImportError("SSH操作にはparamikoが必要です。pip install jj[ssh] を実行してください。") from e
+        except Exception:
+            return False
+
+    def _detect_output_files(self, ssh_config, job: JobState) -> list[str]:
+        """リモートディレクトリから出力ファイルを検出"""
+        try:
+            from modules.pyssh.ssh import execute_command
+
+            # 入力ファイル以外のファイルを出力として検出
+            stdout = execute_command("ls -1", remote_dirpath=job.remote_dir, cd=True, verbose=False)
+            if not stdout.strip():
+                return []
+            remote_files = [f.strip() for f in stdout.strip().split("\n") if f.strip()]
+            input_set = set(job.input_files)
+            return [f for f in remote_files if f not in input_set]
+        except (ImportError, Exception):
+            return []
 
     def _transfer_files(self, ssh_config, local_dir: str, remote_dir: str, files: list[str]) -> None:
         """ファイルをリモートに転送"""
