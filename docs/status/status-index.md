@@ -96,6 +96,8 @@ v0.2.0以降のstatusファイルの索引。各statusは1PR程度の粒度で�
 | [056](status-056.md) | 2026-03-07 | v0.3.0 | T1完了(#5,#6)・T6-2,3実装・pymesh依存修正 | claude/execute-status-todos-dwEdz |
 | [057](status-057.md) | 2026-03-07 | v0.3.0 | CI修正(main→master)・T6-4完了確認・T6全完了 | claude/execute-status-todos-WMTsa |
 | [058](status-058.md) | 2026-03-08 | v0.3.0 | CI YAML構文エラー修正（L48 f-string波括弧） | claude/execute-status-todos-R96yx |
+| [059](status-059.md) | 2026-03-09 | v0.3.0 | Run DAG可視化（データフローグラフ・agraph/graphviz） | claude/execute-status-todos-LGHaP |
+| [060](status-060.md) | 2026-03-09 | v0.3.0 | Migration Guide・Abaqus使用マニュアル作成 | claude/execute-status-todos-LGHaP |
 
 ---
 

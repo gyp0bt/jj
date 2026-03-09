@@ -88,6 +88,10 @@ class RunComparisonPage(PageComponent[RunComparisonViewConfig]):
             else:
                 st.warning("異なるRunを選択してください。")
 
+        # Run DAG可視化
+        st.subheader("Run DAG")
+        _render_run_dag(all_runs, query_svc)
+
         # 選択Runの比較グループ
         if all_runs:
             st.subheader("比較グループ探索")
@@ -126,7 +130,9 @@ class RunComparisonPage(PageComponent[RunComparisonViewConfig]):
         if not all_runs:
             return "<p>Runノードが見つかりません。</p>"
 
-        return _generate_run_comparison_html(all_runs, query_svc)
+        html = _generate_run_comparison_html(all_runs, query_svc)
+        html += _generate_run_dag_html(all_runs, query_svc)
+        return html
 
 
 # ====================================================================
@@ -156,6 +162,256 @@ def _render_run_table(runs: list[Any]) -> None:
         import pandas as pd
 
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+
+
+def _render_run_dag(runs: list[Any], query_svc: Any) -> None:
+    """Run間のデータフローをDAGとして可視化
+
+    各Runの入力/出力を解析し、Run A の出力が Run B の入力に含まれる場合に
+    A → B のデータフローエッジを描画する。
+    """
+    import streamlit as st
+
+    if not runs:
+        st.info("表示するRunがありません。")
+        return
+
+    # Run間のデータ依存関係を構築
+    run_io_map: dict[int, Any] = {}
+    output_to_run: dict[int, int] = {}  # output_node_id → run_id
+
+    for run in runs:
+        io = query_svc.get_run_io(run)
+        run_io_map[run.id] = io
+        for out_node in io.outputs:
+            output_to_run[out_node.id] = run.id
+
+    # Run間エッジ: Run A の出力 → Run B の入力
+    dag_edges: list[tuple[int, int, list[str]]] = []  # (src_run_id, dst_run_id, shared_node_names)
+    for run in runs:
+        io = run_io_map[run.id]
+        # 各入力ノードを生成したRunを探す
+        predecessors: dict[int, list[str]] = {}  # src_run_id → [node_names]
+        for in_node in io.inputs:
+            src_run_id = output_to_run.get(in_node.id)
+            if src_run_id is not None and src_run_id != run.id:
+                predecessors.setdefault(src_run_id, []).append(in_node.name)
+        for src_id, names in predecessors.items():
+            dag_edges.append((src_id, run.id, names))
+
+    # streamlit-agraphを試行
+    if _try_render_run_dag_agraph(runs, run_io_map, dag_edges):
+        return
+
+    # フォールバック: graphviz
+    if _try_render_run_dag_graphviz(runs, run_io_map, dag_edges):
+        return
+
+    st.info(
+        "DAG表示にはstreamlit-agraphまたはgraphvizが必要です。\n"
+        "`pip install streamlit-agraph` でインストールしてください。"
+    )
+
+
+def _try_render_run_dag_agraph(
+    runs: list[Any],
+    run_io_map: dict[int, Any],
+    dag_edges: list[tuple[int, int, list[str]]],
+) -> bool:
+    """streamlit-agraphでRun DAGを描画。成功時True"""
+    try:
+        from streamlit_agraph import Config, Edge, Node, agraph
+    except ImportError:
+        return False
+
+    status_colors = {
+        "completed": "#10b981",
+        "failed": "#ef4444",
+        "running": "#f59e0b",
+        "latent": "#8b5cf6",
+    }
+
+    nodes: list[Node] = []
+    edges: list[Edge] = []
+    run_by_id = {r.id: r for r in runs}
+
+    for run in runs:
+        status = run.properties.get("run_status", "unknown")
+        color = status_colors.get(status, "#6b7280")
+        run_type = run.properties.get("run_type", "run")
+        duration = run.properties.get("duration_seconds", "")
+        label = f"{run.name}\n[{run_type}]"
+        if duration:
+            label += f"\n{duration}s"
+
+        nodes.append(
+            Node(
+                id=f"run_{run.id}",
+                label=label,
+                size=30,
+                color=color,
+                font={"size": 11},
+                shape="box",
+            )
+        )
+
+    # I/Oノード（共有ノードのみ表示 — 複数Runに関わるノード）
+    # 全Runの入出力ノードIDを収集
+    node_run_count: dict[int, int] = {}
+    all_io_nodes: dict[int, Any] = {}
+    for run in runs:
+        io = run_io_map[run.id]
+        for n in [*io.inputs, *io.outputs, *io.media]:
+            node_run_count[n.id] = node_run_count.get(n.id, 0) + 1
+            all_io_nodes[n.id] = n
+    shared_node_ids = {nid for nid, count in node_run_count.items() if count > 1}
+
+    # 共有ノードを小さいノードとして追加
+    for nid in shared_node_ids:
+        n = all_io_nodes[nid]
+        nodes.append(
+            Node(
+                id=f"file_{nid}",
+                label=n.name,
+                size=15,
+                color="#dbeafe",
+                font={"size": 9},
+                shape="ellipse",
+            )
+        )
+
+    # Run → I/O エッジ（共有ノードのみ）
+    for run in runs:
+        io = run_io_map[run.id]
+        for in_node in io.inputs:
+            if in_node.id in shared_node_ids:
+                edges.append(Edge(source=f"file_{in_node.id}", target=f"run_{run.id}", color="#93c5fd"))
+        for out_node in io.outputs:
+            if out_node.id in shared_node_ids:
+                edges.append(Edge(source=f"run_{run.id}", target=f"file_{out_node.id}", color="#86efac"))
+        for media_node in io.media:
+            if media_node.id in shared_node_ids:
+                edges.append(
+                    Edge(
+                        source=f"file_{media_node.id}",
+                        target=f"run_{run.id}",
+                        color="#c4b5fd",
+                        dashes=True,
+                    )
+                )
+
+    # Run間の直接エッジ（共有ノードがない場合のフォールバック）
+    if not shared_node_ids:
+        for src_id, dst_id, names in dag_edges:
+            if src_id in run_by_id and dst_id in run_by_id:
+                label = ", ".join(names[:2])
+                if len(names) > 2:
+                    label += f" +{len(names) - 2}"
+                edges.append(
+                    Edge(
+                        source=f"run_{src_id}",
+                        target=f"run_{dst_id}",
+                        label=label,
+                        color="#93c5fd",
+                    )
+                )
+
+    config = Config(
+        width=800,
+        height=500,
+        directed=True,
+        physics=True,
+        hierarchical=True,
+    )
+
+    agraph(nodes=nodes, edges=edges, config=config)
+    return True
+
+
+def _try_render_run_dag_graphviz(
+    runs: list[Any],
+    run_io_map: dict[int, Any],
+    dag_edges: list[tuple[int, int, list[str]]],
+) -> bool:
+    """graphvizでRun DAGを描画（フォールバック）"""
+    import re
+
+    import streamlit as st
+
+    status_colors = {
+        "completed": "#10b981",
+        "failed": "#ef4444",
+        "running": "#f59e0b",
+        "latent": "#8b5cf6",
+    }
+
+    def _sanitize(name: str) -> str:
+        return re.sub(r"[^a-zA-Z0-9_]", "_", str(name))
+
+    dot_lines = [
+        "digraph RunDAG {",
+        "  rankdir=TB;",
+        '  node [shape=box, style="rounded,filled", fontsize=10];',
+        '  edge [color="#93c5fd"];',
+    ]
+
+    run_by_id = {r.id: r for r in runs}
+
+    # Runノード
+    for run in runs:
+        status = run.properties.get("run_status", "unknown")
+        color = status_colors.get(status, "#d1d5db")
+        run_type = run.properties.get("run_type", "run")
+        label = f"{run.name}\\n[{run_type}]"
+        node_id = f"run_{run.id}"
+        dot_lines.append(f'  {node_id} [label="{label}", fillcolor="{color}"];')
+
+    # 共有ノード検出
+    node_run_count: dict[int, int] = {}
+    all_io_nodes: dict[int, Any] = {}
+    for run in runs:
+        io = run_io_map[run.id]
+        for n in [*io.inputs, *io.outputs, *io.media]:
+            node_run_count[n.id] = node_run_count.get(n.id, 0) + 1
+            all_io_nodes[n.id] = n
+    shared_node_ids = {nid for nid, count in node_run_count.items() if count > 1}
+
+    # 共有ファイルノード
+    for nid in shared_node_ids:
+        n = all_io_nodes[nid]
+        node_id = f"file_{nid}"
+        label = _sanitize(n.name)
+        dot_lines.append(f'  {node_id} [label="{n.name}", shape=ellipse, fillcolor="#dbeafe", color="#3b82f6"];')
+
+    # エッジ
+    for run in runs:
+        io = run_io_map[run.id]
+        for in_node in io.inputs:
+            if in_node.id in shared_node_ids:
+                dot_lines.append(f'  file_{in_node.id} -> run_{run.id} [color="#93c5fd"];')
+        for out_node in io.outputs:
+            if out_node.id in shared_node_ids:
+                dot_lines.append(f'  run_{run.id} -> file_{out_node.id} [color="#86efac"];')
+        for media_node in io.media:
+            if media_node.id in shared_node_ids:
+                dot_lines.append(f'  file_{media_node.id} -> run_{run.id} [style=dashed, color="#c4b5fd"];')
+
+    # 共有ノードがない場合は直接エッジ
+    if not shared_node_ids:
+        for src_id, dst_id, names in dag_edges:
+            if src_id in run_by_id and dst_id in run_by_id:
+                label = ", ".join(names[:2])
+                if len(names) > 2:
+                    label += f" +{len(names) - 2}"
+                dot_lines.append(f'  run_{src_id} -> run_{dst_id} [label="{label}"];')
+
+    dot_lines.append("}")
+
+    try:
+        st.graphviz_chart("\n".join(dot_lines), use_container_width=True)
+        return True
+    except Exception:
+        return False
 
 
 def _render_run_diff(query_svc: Any, run_a: Any, run_b: Any) -> None:
@@ -239,4 +495,84 @@ def _generate_run_comparison_html(runs: list[Any], query_svc: Any) -> str:
         parts.append("</tr>")
 
     parts.append("</tbody></table>")
+    return "\n".join(parts)
+
+
+def _generate_run_dag_html(runs: list[Any], query_svc: Any) -> str:
+    """Run DAGのスタティックHTML生成（SVGベースのDAG表現）"""
+    if not runs:
+        return ""
+
+    # データ依存関係を構築
+    run_io_map: dict[int, Any] = {}
+    output_to_run: dict[int, int] = {}
+
+    for run in runs:
+        io = query_svc.get_run_io(run)
+        run_io_map[run.id] = io
+        for out_node in io.outputs:
+            output_to_run[out_node.id] = run.id
+
+    dag_edges: list[tuple[int, int, list[str]]] = []
+    for run in runs:
+        io = run_io_map[run.id]
+        predecessors: dict[int, list[str]] = {}
+        for in_node in io.inputs:
+            src_run_id = output_to_run.get(in_node.id)
+            if src_run_id is not None and src_run_id != run.id:
+                predecessors.setdefault(src_run_id, []).append(in_node.name)
+        for src_id, names in predecessors.items():
+            dag_edges.append((src_id, run.id, names))
+
+    run_by_id = {r.id: r for r in runs}
+    status_colors = {
+        "completed": "#10b981",
+        "failed": "#ef4444",
+        "running": "#f59e0b",
+        "latent": "#8b5cf6",
+    }
+
+    parts: list[str] = []
+    parts.append("<h3>Run DAG</h3>")
+
+    if not dag_edges:
+        # 依存関係がない場合はRun一覧のみ
+        parts.append('<div style="display:flex;flex-wrap:wrap;gap:12px;margin:16px 0;">')
+        for run in runs:
+            status = run.properties.get("run_status", "unknown")
+            color = status_colors.get(status, "#6b7280")
+            run_type = run.properties.get("run_type", "run")
+            parts.append(
+                f'<div style="border:2px solid {color};border-radius:8px;padding:8px 16px;'
+                f'background:{color}22;">'
+                f"<strong>{run.name}</strong><br>"
+                f'<span style="font-size:0.85em;color:#666;">[{run_type}] {status}</span>'
+                f"</div>"
+            )
+        parts.append("</div>")
+        parts.append("<p><em>Run間のデータ依存関係はありません。</em></p>")
+    else:
+        # 依存関係テーブル
+        parts.append('<table style="border-collapse:collapse;width:100%;margin:16px 0;">')
+        parts.append("<thead><tr>")
+        for h in ["上流Run", "→", "下流Run", "共有ノード"]:
+            parts.append(f'<th style="border:1px solid #d1d5db;padding:6px 10px;text-align:left;">{h}</th>')
+        parts.append("</tr></thead><tbody>")
+
+        for src_id, dst_id, names in dag_edges:
+            src = run_by_id.get(src_id)
+            dst = run_by_id.get(dst_id)
+            if src and dst:
+                shared = ", ".join(names[:3])
+                if len(names) > 3:
+                    shared += f" +{len(names) - 3}"
+                parts.append("<tr>")
+                parts.append(f'<td style="border:1px solid #d1d5db;padding:4px 8px;">{src.name}</td>')
+                parts.append('<td style="border:1px solid #d1d5db;padding:4px 8px;text-align:center;">→</td>')
+                parts.append(f'<td style="border:1px solid #d1d5db;padding:4px 8px;">{dst.name}</td>')
+                parts.append(f'<td style="border:1px solid #d1d5db;padding:4px 8px;">{shared}</td>')
+                parts.append("</tr>")
+
+        parts.append("</tbody></table>")
+
     return "\n".join(parts)
