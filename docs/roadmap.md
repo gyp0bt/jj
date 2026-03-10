@@ -18,7 +18,7 @@
 | T2: Config二層分離 | **完了** | default/user config deep merge・migrate |
 | T3: MLダッシュボード | **完了** | MLOverview・MLDataFlow・比較プロット・ビュー保存 |
 | T4: Deprecation Warning修正 | **完了** | 全APIモダン版確認済み |
-| T5: リモートジョブ実行基盤 | **進行中** | Phase 5-1/5-2/5-6完了（JobState/Storage/CLI） |
+| T5: リモートジョブ実行基盤 | **完了** | Phase 5-1〜5-9完了（Prefect統合含む） |
 | T6: ダッシュボード高度化 | **完了** | parseボタン・AgGrid・グラフ可視化・Run DAG |
 | T7: Ollama AI連携 | **未着手** | AIProviderプロトコル・要約・RAG・tips |
 | T8: 汎用データ管理 | **未着手** | Run中心プラットフォームへの昇華 |
