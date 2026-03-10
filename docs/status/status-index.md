@@ -36,7 +36,7 @@
 | T4: Deprecation Warning修正 | **完了** | [053](status-053.md) |
 | T5: リモートジョブ実行基盤 | **完了** | [065](status-065.md)-[068](status-068.md) |
 | T6: ダッシュボード高度化 | **完了** | [053](status-053.md)-[061](status-061.md) |
-| T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜 |
+| T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[070](status-070.md) |
 | T8: 汎用データ管理 | 未着手 | — |
 
 ---
@@ -62,6 +62,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [070](status-070.md) | 03-10 | T7-4/7-5 RAG検索・Tips抽出 | claude/execute-status-todos-eL76K |
 | [069](status-069.md) | 03-10 | T7-1/7-2/7-3 AI連携基盤（AIProvider・summarize・diff） | claude/execute-status-todos-O8t4T |
 | [068](status-068.md) | 03-10 | T5-9 Prefect統合・ダッシュボード改善・単位トークン | claude/integrate-prefect-muffj |
 | [065](status-065.md) | 03-09 | T5基盤: JobState/Storage/FolderMapping/CLI | claude/execute-status-todos-l1Idi |
