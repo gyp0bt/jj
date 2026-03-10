@@ -93,48 +93,69 @@ class RunDiscoveryMixin:
   - メタデータファイル（.meta.yaml）認識
   - Run自動発見（同一ディレクトリの入出力ペア）
 
-### Phase 8-3: プラグイン開発ガイド更新
+### Phase 8-3: プラグイン開発ガイド更新 ✅
 
 **目標**: ドキュメント更新
 
 **実装内容**:
 - `docs/specs/plugin-development-guide.md`: プラグイン開発ガイド
-  - プラグイン構造テンプレート
+  - プラグイン構造テンプレート（クイックスタート）
   - Run discoveryパターン実装例
   - テスト作成ガイド
+  - priorityガイドライン
 
-### Phase 8-4: Config分類の汎用化（将来）
+### Phase 8-4: Config分類の汎用化 ✅
 
-- `config/classification.md`のカテゴリを拡張
-- ドメイン別分類テンプレート
+**目標**: Config分類のドメイン非依存化
 
-### Phase 8-5: Run比較ダッシュボードの汎用化（将来）
+**実装内容**:
+- `config/__init__.py`: ExtensionsConfig に `custom_categories` フィールド追加
+  - `get_category()`: 組み込み・カスタム両対応のカテゴリ取得
+  - `all_categories()`: 全カテゴリの一覧取得
+- `DEFAULT_EXTENSIONS` に汎用ドメインカテゴリ追加（experiment_data, ml_model, ml_config）
+- `default-config.yaml`: `domain-classification` セクション追加（テンプレート）
 
-- Run比較UIからドメイン依存を除去
-- プラグインが比較軸を宣言するパターン
+### Phase 8-5: Run比較ダッシュボードの汎用化 ✅
+
+**目標**: Run比較UIからドメイン依存を除去
+
+**実装内容**:
+- `services/dashboard/components/run_comparison.py`:
+  - `RUN_STATUS_COLORS` 定数に統合（3箇所のハードコード除去）
+  - `_BASE_TABLE_COLUMNS` + `_HIDDEN_PROPERTIES` による動的カラム生成
+  - `_render_run_table()`: Runプロパティから動的にカラムを収集
+  - HTML生成も同様に動的カラム対応
 
 ---
 
-## ファイル配置計画
+## ファイル配置
 
 ```
 services/parse/
-  run_discovery.py           # [NEW] RunDiscoveryMixin + ユーティリティ
+  run_discovery.py           # [8-1] RunDiscoveryMixin + ユーティリティ
 
 services/plugins/experiment/
-  __init__.py                # [NEW] 物理実験プラグイン
+  __init__.py                # [8-2] 物理実験プラグイン
 
 services/parse/connectors/experiment/
-  __init__.py                # [NEW]
-  data_parser.py             # [NEW] CSV/TSV実験データパーサー
+  __init__.py                # [8-2]
+  data_parser.py             # [8-2] CSV/TSV実験データパーサー
+
+config/__init__.py           # [8-4] ExtensionsConfig汎用化
+shared/assets/default-config.yaml  # [8-4] domain-classificationセクション
+
+services/dashboard/components/
+  run_comparison.py          # [8-5] ドメイン非依存化
 
 tests/
-  test_run_discovery.py      # [NEW]
-  test_experiment_plugin.py  # [NEW]
+  test_run_discovery.py      # [8-1]
+  test_experiment_plugin.py  # [8-2]
+  config/test_config_loader.py  # [8-4] ExtensionsConfigテスト追加
+  test_run_comparison_generic.py  # [8-5]
 
 docs/specs/
   t8-generic-data-management.md  # [THIS] 本仕様書
-  plugin-development-guide.md    # [NEW] Phase 8-3
+  plugin-development-guide.md    # [8-3]
 ```
 
 ---
@@ -144,11 +165,17 @@ docs/specs/
 - Phase 8-1 は独立して実装可能
 - Phase 8-2 は Phase 8-1 のMixinを使用
 - Phase 8-3 は Phase 8-1/8-2 完了後にドキュメント化
-- Phase 8-4/8-5 は将来フェーズ（本PRでは未着手）
+- Phase 8-4 は Phase 8-1/8-2 で導入したドメイン概念をConfig層に反映
+- Phase 8-5 は Phase 8-4 のドメイン分類を利用
 
 ---
 
-## 今回の実装スコープ
+## 実装状況
 
-本PRでは Phase 8-1 と Phase 8-2 を実装する。
-Phase 8-3 のプラグイン開発ガイドは次のPRとする。
+| Phase | 状態 | status |
+|-------|------|--------|
+| 8-1: Run Discovery標準化 | ✅ 完了 | [071](../../docs/status/status-071.md) |
+| 8-2: 物理実験プラグイン | ✅ 完了 | [071](../../docs/status/status-071.md) |
+| 8-3: プラグイン開発ガイド | ✅ 完了 | [072](../../docs/status/status-072.md) |
+| 8-4: Config分類汎用化 | ✅ 完了 | [072](../../docs/status/status-072.md) |
+| 8-5: Run比較汎用化 | ✅ 完了 | [072](../../docs/status/status-072.md) |
