@@ -93,6 +93,8 @@ prefect = [
 ]
 # Ollama AI連携
 ollama = []  # urllibのみ使用（追加依存なし）
+# 物理実験プラグイン（追加依存なし、CSV/TSV処理は標準ライブラリのみ）
+experiment = []
 # 開発・テスト
 dev = [
     "pytest>=7.0.0",
@@ -101,7 +103,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,prefect,ollama,ml-all,dev]",
+    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,prefect,ollama,experiment,ml-all,dev]",
 ]
 
 # --------------------------------------------------
@@ -120,6 +122,7 @@ fluent = "services.plugins.fluent:register"
 hfss = "services.plugins.hfss:register"
 ml = "services.plugins.ml:register"
 ollama = "services.plugins.ollama:register"
+experiment = "services.plugins.experiment:register"
 
 # jj.parsers グループ: 個別パーサーの登録（外部プラグイン用の拡張点）
 # 内蔵プラグインはjj.plugins経由でまとめて登録されるため、ここは空でもよい
