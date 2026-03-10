@@ -1211,6 +1211,82 @@ class SolverDetectionConfig:
         return None
 
 
+# ファイル名トークンで認識するデフォルト単位セット
+# config.yaml の token-units で追加可能
+DEFAULT_TOKEN_UNITS: frozenset[str] = frozenset(
+    {
+        # 長さ
+        "mm",
+        "cm",
+        "m",
+        "km",
+        "um",
+        "nm",
+        "in",
+        "ft",
+        "yd",
+        # 圧力
+        "Pa",
+        "kPa",
+        "MPa",
+        "GPa",
+        "bar",
+        "atm",
+        "psi",
+        # 温度
+        "C",
+        "K",
+        "F",
+        # 力
+        "N",
+        "kN",
+        "MN",
+        "lbf",
+        # 質量
+        "g",
+        "kg",
+        "mg",
+        "t",
+        "lb",
+        "oz",
+        # 時間
+        "s",
+        "ms",
+        "us",
+        "ns",
+        "min",
+        "hr",
+        # 角度
+        "deg",
+        "rad",
+        # 速度
+        "rpm",
+        # エネルギー
+        "J",
+        "kJ",
+        "MJ",
+        "cal",
+        "kcal",
+        "eV",
+        # 電気
+        "V",
+        "mV",
+        "kV",
+        "A",
+        "mA",
+        "W",
+        "kW",
+        "MW",
+        "Hz",
+        "kHz",
+        "MHz",
+        "GHz",
+        # パーセント
+        "pct",
+    }
+)
+
+
 @dataclass(frozen=True)
 class GraphConfig:
     """グラフ機能用の統合設定"""
@@ -1236,6 +1312,7 @@ class GraphConfig:
     csv_max_rows: int  # CSV読み込み最大行数（0=無制限、超過時はサマリーモード）
     parse_defaults: ParseDefaults  # パーサーのデフォルト値
     default_extensions: tuple[str, ...]  # ファイル名マッチング用デフォルト拡張子リスト
+    token_units: frozenset[str]  # ファイル名トークンで認識する単位セット（mm, Pa等）
 
     def detect_solver_profile(self, path: str) -> SolverProfileConfig:
         """パスからソルバープロファイルを検出
@@ -1313,6 +1390,14 @@ class GraphConfig:
 
             default_extensions = _FALLBACK_EXTS
 
+        # token-units: ファイル名トークンで認識する単位セット
+        raw_tu = data.get("token-units", [])
+        if isinstance(raw_tu, list):
+            extra_units = frozenset(str(u) for u in raw_tu)
+        else:
+            extra_units = frozenset()
+        token_units = DEFAULT_TOKEN_UNITS | extra_units
+
         return cls(
             vocab=data.get("vocab", {}),
             path_type_map=PathTypeMapConfig.from_dict(data.get("path-type-map", {})),
@@ -1335,6 +1420,7 @@ class GraphConfig:
             csv_max_rows=csv_max_rows,
             parse_defaults=parse_defaults,
             default_extensions=default_extensions,
+            token_units=token_units,
         )
 
     @classmethod

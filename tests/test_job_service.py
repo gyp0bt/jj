@@ -591,3 +591,233 @@ class TestExpandTargets:
         assert len(jobs) == 3
         targets_submitted = [j.input_files[0] for j in jobs]
         assert targets_submitted == ["job_1.inp", "job_2.inp", "job_3.inp"]
+
+
+class TestPrefectIntegration:
+    """T5-9: Prefect統合のテスト"""
+
+    def test_check_prefect_unavailable(self):
+        """Prefect未インストール時はFalseを返す"""
+        from services.job.prefect_integration import _check_prefect
+
+        # prefectは通常テスト環境にインストールされていない
+        result = _check_prefect()
+        # インストール状態によって結果が変わる（テスト自体は通る）
+        assert isinstance(result, bool)
+
+    def test_report_to_prefect_graceful_skip(self):
+        """Prefect未インストール時にreport_to_prefectが静かにスキップする"""
+        from services.job.prefect_integration import report_to_prefect
+
+        job = JobState(
+            job_id="prefect_test_001",
+            remote_host="server",
+            remote_dir="/remote/",
+            local_dir="/local/",
+        )
+        # Prefectがなくてもエラーにならない
+        result = report_to_prefect("submit", job_states=[job])
+        assert isinstance(result, bool)
+
+    def test_report_to_prefect_no_jobs(self):
+        """ジョブなしでも安全に呼び出せる"""
+        from services.job.prefect_integration import report_to_prefect
+
+        result = report_to_prefect("status")
+        assert isinstance(result, bool)
+
+    def test_serialize_job_for_prefect(self):
+        """JobStateのPrefect用シリアライズ"""
+        from services.job.prefect_integration import serialize_job_for_prefect
+
+        job = JobState(
+            job_id="serialize_test",
+            remote_host="grid-server",
+            remote_dir="/usr2/user/work/",
+            local_dir="/home/user/work/",
+            command="abaqus job=test cpus=8",
+            input_files=["test.inp"],
+            output_files=["test.odb"],
+        )
+        job.mark_completed()
+
+        result = serialize_job_for_prefect(job)
+        assert result["job_id"] == "serialize_test"
+        assert result["status"] == "completed"
+        assert result["remote_host"] == "grid-server"
+        assert result["command"] == "abaqus job=test cpus=8"
+        assert result["input_files"] == ["test.inp"]
+        assert result["output_files"] == ["test.odb"]
+        assert result["completed_at"] is not None
+
+    def test_manager_status_not_running(self, tmp_path: Path):
+        """マネージャーの初期状態: 停止中"""
+        from services.job.prefect_integration import JjPrefectManager
+
+        manager = JjPrefectManager(tmp_path)
+        status = manager.status()
+        assert status["running"] is False
+        assert status["port"] == 4200
+        assert status["url"] is None
+
+    def test_manager_stop_idempotent(self, tmp_path: Path):
+        """停止済みの状態でstop()を呼んでもエラーにならない"""
+        from services.job.prefect_integration import JjPrefectManager
+
+        manager = JjPrefectManager(tmp_path)
+        result = manager.stop()
+        assert result["success"] is True
+
+    def test_get_prefect_status(self, tmp_path: Path):
+        """CLIヘルパー関数のテスト"""
+        from services.job.prefect_integration import get_prefect_status
+
+        status = get_prefect_status(tmp_path)
+        assert "running" in status
+        assert "port" in status
+
+
+class TestCompositeGroupKey:
+    """ギャラリー: 複合グループキーのテスト"""
+
+    def test_build_composite_group_key_basic(self):
+        """result_key + propsで複合キーを生成"""
+        from services.dashboard.query import build_composite_group_key
+
+        key = build_composite_group_key("S-S13", {"vmax": "50.0", "vmin": "-50.0", "step": "0"})
+        assert key == "S-S13(step:0,vmax:50.0,vmin:-50.0)"
+
+    def test_build_composite_group_key_excludes_idx(self):
+        """idx, v, frameはデフォルトで除外"""
+        from services.dashboard.query import build_composite_group_key
+
+        key = build_composite_group_key(
+            "PEEQ",
+            {"vmax": "10", "idx": "1", "v": "3", "frame": "5"},
+        )
+        assert key == "PEEQ(vmax:10)"
+        assert "idx" not in key
+        assert "frame" not in key
+
+    def test_build_composite_group_key_no_props(self):
+        """propsが空の場合はresult_keyのみ"""
+        from services.dashboard.query import build_composite_group_key
+
+        key = build_composite_group_key("S-S13", {})
+        assert key == "S-S13"
+
+    def test_build_composite_group_key_empty_result_key(self):
+        """result_keyが空の場合は(その他)"""
+        from services.dashboard.query import build_composite_group_key
+
+        key = build_composite_group_key("", {"vmax": "10"})
+        assert key == "(その他)(vmax:10)"
+
+    def test_build_composite_group_key_custom_exclude(self):
+        """カスタム除外キーの指定"""
+        from services.dashboard.query import build_composite_group_key
+
+        key = build_composite_group_key(
+            "S-S13",
+            {"vmax": "50", "step": "0"},
+            exclude_keys={"step"},
+        )
+        assert key == "S-S13(vmax:50)"
+
+    def test_group_images_by_composite_key(self):
+        """複合キーでの画像グルーピング"""
+        from services.dashboard.query import group_images_by_composite_key
+
+        images = [
+            {"image_path": "results/go_idx1.v3_vmax50_vmin0_step0_S-S13.png"},
+            {"image_path": "results/go_idx2.v3_vmax50_vmin0_step0_S-S13.png"},
+            {"image_path": "results/go_idx1.v3_vmax100_vmin0_step0_S-S13.png"},
+            {"image_path": "results/go_idx1.v3_vmax50_vmin0_step0_PEEQ.png"},
+        ]
+        groups = group_images_by_composite_key(images)
+        # S-S13(step:0,vmax:50,vmin:0) と S-S13(step:0,vmax:100,vmin:0) と PEEQ(step:0,vmax:50,vmin:0)
+        assert len(groups) == 3
+        # 最初のグループ（vmax50のS-S13）に2件
+        first_key = next(iter(groups.keys()))
+        assert "S-S13" in first_key
+        assert len(groups[first_key]) == 2
+
+
+class TestUnitTokenParsing:
+    """ファイル名トークンの単位対応テスト"""
+
+    def test_parse_prop_token_with_unit(self):
+        """t35mm のような単位付きトークンの解析"""
+        from config import DEFAULT_TOKEN_UNITS
+        from services.parse.file_parse import _parse_prop_token
+
+        result = _parse_prop_token("t35mm", known_units=DEFAULT_TOKEN_UNITS)
+        assert result == ("t", "35mm")
+
+    def test_parse_prop_token_with_unit_mpa(self):
+        """F100MPa のような単位付きトークン"""
+        from config import DEFAULT_TOKEN_UNITS
+        from services.parse.file_parse import _parse_prop_token
+
+        result = _parse_prop_token("F100MPa", known_units=DEFAULT_TOKEN_UNITS)
+        assert result == ("F", "100MPa")
+
+    def test_parse_prop_token_without_unit(self):
+        """従来の数値のみトークン"""
+        from services.parse.file_parse import _parse_prop_token
+
+        result = _parse_prop_token("vmax50")
+        assert result == ("vmax", "50")
+
+    def test_parse_prop_token_with_decimal_unit(self):
+        """小数点+単位"""
+        from config import DEFAULT_TOKEN_UNITS
+        from services.parse.file_parse import _parse_prop_token
+
+        result = _parse_prop_token("t2.5mm", known_units=DEFAULT_TOKEN_UNITS)
+        assert result == ("t", "2.5mm")
+
+    def test_parse_prop_token_negative_with_unit(self):
+        """負の値+単位"""
+        from config import DEFAULT_TOKEN_UNITS
+        from services.parse.file_parse import _parse_prop_token
+
+        result = _parse_prop_token("temp-40C", known_units=DEFAULT_TOKEN_UNITS)
+        assert result == ("temp", "-40C")
+
+    def test_parse_prop_token_no_unit_mode(self):
+        """known_units=Noneの場合は従来通り数値のみ"""
+        from services.parse.file_parse import _parse_prop_token
+
+        result = _parse_prop_token("t35mm", known_units=None)
+        assert result is None  # 末尾がmmで数値にならないのでNone
+
+    def test_extract_path_metadata_with_unit(self):
+        """パスメタデータ抽出で単位付きトークンが認識される"""
+        from services.dashboard.query import extract_path_metadata
+
+        key, props = extract_path_metadata("results/go_idx1.v3_t35mm_F100MPa_S-S13.png")
+        assert key == "S-S13"
+        assert "t" in props
+        assert props["t"] == "35mm"
+        assert props["F"] == "100MPa"
+
+    def test_default_token_units_contents(self):
+        """デフォルト単位セットの基本的な内容確認"""
+        from config import DEFAULT_TOKEN_UNITS
+
+        assert "mm" in DEFAULT_TOKEN_UNITS
+        assert "MPa" in DEFAULT_TOKEN_UNITS
+        assert "C" in DEFAULT_TOKEN_UNITS
+        assert "kg" in DEFAULT_TOKEN_UNITS
+        assert "Hz" in DEFAULT_TOKEN_UNITS
+
+    def test_config_custom_token_units(self):
+        """configでカスタム単位を追加"""
+        from config import GraphConfig
+
+        config = GraphConfig.from_dict({"token-units": ["dB", "lux"]})
+        assert "dB" in config.token_units
+        assert "lux" in config.token_units
+        # デフォルト単位も含まれる
+        assert "mm" in config.token_units

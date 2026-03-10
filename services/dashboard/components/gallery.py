@@ -84,14 +84,17 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         st.header("画像ギャラリー")
 
         # グリッド設定（列数・行数をユーザーが変更可能）
+        # session_stateに保存済みの値があればそちらを優先（ページ遷移時の復元）
         default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
+        persisted_cols = st.session_state.get("_gallery_user_cols", default_cols)
+        persisted_rows = st.session_state.get("_gallery_user_rows", default_rows)
         gc1, gc2 = st.columns(2)
         with gc1:
             cols_per_row = st.number_input(
                 "列数",
                 min_value=1,
                 max_value=10,
-                value=default_cols,
+                value=persisted_cols,
                 key="_gallery_cols",
             )
         with gc2:
@@ -99,7 +102,7 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
                 "行数",
                 min_value=1,
                 max_value=20,
-                value=default_rows,
+                value=persisted_rows,
                 key="_gallery_rows",
             )
         # セッション状態に保存して下流関数で参照
@@ -112,9 +115,17 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         rows = provider.get_go_table()
         render_shared_filters(rows)
 
-        # 画像ソース選択
+        # 画像ソース選択（ページ遷移時の復元対応）
         source_options = ["has_output関係", "プロパティ画像パス"]
-        image_source = st.radio("画像ソース", source_options, horizontal=True)
+        persisted_source_idx = st.session_state.get("_gallery_source_idx", 0)
+        image_source = st.radio(
+            "画像ソース",
+            source_options,
+            index=persisted_source_idx,
+            horizontal=True,
+            key="_gallery_source_radio",
+        )
+        st.session_state["_gallery_source_idx"] = source_options.index(image_source)
 
         active_filters = get_active_filters()
         if image_source == "has_output関係":
@@ -235,9 +246,15 @@ def _render_gallery_output_images(
         )
         return
 
-    # フィルタ: フォーマット
+    # フィルタ: フォーマット（ページ遷移時の復元対応）
     formats = sorted({img["image_format"] for img in images})
-    selected_format = st.sidebar.selectbox("画像フォーマット", ["すべて", *formats])
+    fmt_options = ["すべて", *formats]
+    persisted_fmt = st.session_state.get("_gallery_output_fmt", "すべて")
+    fmt_idx = fmt_options.index(persisted_fmt) if persisted_fmt in fmt_options else 0
+    selected_format = st.sidebar.selectbox(
+        "画像フォーマット", fmt_options, index=fmt_idx, key="_gallery_output_fmt_sel"
+    )
+    st.session_state["_gallery_output_fmt"] = selected_format
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
@@ -246,24 +263,33 @@ def _render_gallery_output_images(
 
     available_result_keys = sorted({_extract_result_key_from_path(img.get("image_path", "")) for img in images} - {""})
     if available_result_keys:
+        persisted_keys = st.session_state.get("_gallery_output_keys", [])
+        default_keys = [k for k in persisted_keys if k in available_result_keys]
         selected_keys = st.sidebar.multiselect(
             "result_keyフィルタ",
             available_result_keys,
+            default=default_keys,
             key="_gallery_output_key_filter",
         )
+        st.session_state["_gallery_output_keys"] = selected_keys
         if selected_keys:
             images = filter_images_by_keys(images, selected_keys, source="output")
 
-    # グループ表示オプション（デフォルト: 最初の利用可能キー）
+    # グループ表示オプション（デフォルト: 最初の利用可能キー / 復元値）
     group_keys = collect_group_keys(images, source="output")
     group_options = ["なし", *group_keys]
-    default_group_idx = 1 if group_keys else 0
+    persisted_group = st.session_state.get("_gallery_output_group_val")
+    if persisted_group and persisted_group in group_options:
+        default_group_idx = group_options.index(persisted_group)
+    else:
+        default_group_idx = 1 if group_keys else 0
     group_by = st.sidebar.selectbox(
         "グループ表示",
         group_options,
         index=default_group_idx,
         key="_gallery_output_group",
     )
+    st.session_state["_gallery_output_group_val"] = group_by
 
     # NxMグリッド設定（ユーザー指定があればそちらを優先）
     default_cols, default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
@@ -277,10 +303,13 @@ def _render_gallery_output_images(
 
     max_display = cols_per_row * rows_per_page
 
-    # ページネーション
+    # ページネーション（ページ遷移時の復元対応）
     total_images = len(images)
     total_pages = max(1, (total_images + max_display - 1) // max_display)
-    page_num = st.sidebar.number_input("ページ", min_value=1, max_value=total_pages, value=1)
+    persisted_page = st.session_state.get("_gallery_output_page", 1)
+    persisted_page = min(persisted_page, total_pages)
+    page_num = st.sidebar.number_input("ページ", min_value=1, max_value=total_pages, value=persisted_page)
+    st.session_state["_gallery_output_page"] = page_num
     start_idx = (page_num - 1) * max_display
     page_images = images[start_idx : start_idx + max_display]
 
@@ -323,37 +352,51 @@ def _render_gallery_property_images(
         )
         return
 
-    # キー名リスト指定フィルタ（multiselect、未選択時は全件表示）
+    # キー名リスト指定フィルタ（multiselect、未選択時は全件表示 / 復元対応）
     all_keys = sorted({normalize_group_key(img["property_key"]) for img in images})
+    persisted_prop_keys = st.session_state.get("_gallery_prop_keys", [])
+    default_prop_keys = [k for k in persisted_prop_keys if k in all_keys]
     selected_keys = st.sidebar.multiselect(
         "プロパティキー",
         all_keys,
+        default=default_prop_keys,
         key="_gallery_property_key_filter",
     )
+    st.session_state["_gallery_prop_keys"] = selected_keys
     if selected_keys:
         images = filter_images_by_keys(images, selected_keys, source="property")
 
-    # フォーマットフィルタ
+    # フォーマットフィルタ（復元対応）
     formats = sorted({img["image_format"] for img in images})
-    selected_format = st.sidebar.selectbox("画像フォーマット（プロパティ）", ["すべて", *formats])
+    prop_fmt_options = ["すべて", *formats]
+    persisted_prop_fmt = st.session_state.get("_gallery_prop_fmt", "すべて")
+    prop_fmt_idx = prop_fmt_options.index(persisted_prop_fmt) if persisted_prop_fmt in prop_fmt_options else 0
+    selected_format = st.sidebar.selectbox(
+        "画像フォーマット（プロパティ）", prop_fmt_options, index=prop_fmt_idx, key="_gallery_prop_fmt_sel"
+    )
+    st.session_state["_gallery_prop_fmt"] = selected_format
     if selected_format != "すべて":
         images = [img for img in images if img["image_format"] == selected_format]
 
-    # グループ表示オプション（デフォルト: property_key でグループ化）
+    # グループ表示オプション（デフォルト: property_key でグループ化 / 復元対応）
     group_keys = collect_group_keys(images, source="property")
     group_options = ["なし", *group_keys]
-    # property_keyが利用可能な場合はデフォルトで選択
-    default_group_idx = 0
-    if "property_key" in group_keys:
+    persisted_prop_group = st.session_state.get("_gallery_prop_group_val")
+    if persisted_prop_group and persisted_prop_group in group_options:
+        default_group_idx = group_options.index(persisted_prop_group)
+    elif "property_key" in group_keys:
         default_group_idx = group_options.index("property_key")
     elif group_keys:
         default_group_idx = 1
+    else:
+        default_group_idx = 0
     group_by = st.sidebar.selectbox(
         "グループ表示（プロパティ）",
         group_options,
         index=default_group_idx,
         key="_gallery_property_group",
     )
+    st.session_state["_gallery_prop_group_val"] = group_by
 
     # NxMグリッド設定（ユーザー指定があればそちらを優先）
     default_cols, default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
@@ -367,10 +410,15 @@ def _render_gallery_property_images(
 
     max_display = cols_per_row * rows_per_page
 
-    # ページネーション
+    # ページネーション（復元対応）
     total_images = len(images)
     total_pages = max(1, (total_images + max_display - 1) // max_display)
-    page_num = st.sidebar.number_input("ページ（プロパティ画像）", min_value=1, max_value=total_pages, value=1)
+    persisted_prop_page = st.session_state.get("_gallery_prop_page", 1)
+    persisted_prop_page = min(persisted_prop_page, total_pages)
+    page_num = st.sidebar.number_input(
+        "ページ（プロパティ画像）", min_value=1, max_value=total_pages, value=persisted_prop_page
+    )
+    st.session_state["_gallery_prop_page"] = page_num
     start_idx = (page_num - 1) * max_display
     page_images = images[start_idx : start_idx + max_display]
 
@@ -407,28 +455,17 @@ def _render_gallery_grouped(
 
     import streamlit as st
 
-    from services.dashboard.query import extract_path_metadata, normalize_group_key
+    from services.dashboard.query import normalize_group_key
 
     if group_key == "result_key":
-        # 画像パスからresult_keyとプロパティを抽出してグルーピング
-        groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
-        for img in images:
-            path = img.get("image_path", "")
-            result_key, _props = extract_path_metadata(path)
-            gk = result_key if result_key else "(その他)"
-            groups.setdefault(gk, []).append(img)
+        # 画像パスからresult_key+propsの複合キーでグルーピング
+        from services.dashboard.query import group_images_by_composite_key
+
+        groups = group_images_by_composite_key(images)
 
         for group_name, group_images in groups.items():
-            # グループ内の画像からプロパティ情報を表示
-            st.subheader(f"result_key: {group_name}")
-            # 代表的なプロパティを表示
-            sample_path = group_images[0].get("image_path", "")
-            _, sample_props = extract_path_metadata(sample_path)
-            if sample_props:
-                prop_str = ", ".join(f"{k}={v}" for k, v in sorted(sample_props.items()))
-                st.caption(f"{len(group_images)} 件 | {prop_str}")
-            else:
-                st.caption(f"{len(group_images)} 件")
+            st.subheader(group_name)
+            st.caption(f"{len(group_images)} 件")
             _render_image_grid(group_images, cols_per_row, project_root, source=source)
         return
 
