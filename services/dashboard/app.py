@@ -51,6 +51,7 @@ import services.dashboard.connectors.job_monitor  # noqa: E402
 import services.dashboard.connectors.ml  # noqa: F401, E402
 from jj_types import GraphModel  # noqa: E402
 from services.dashboard.components import (  # noqa: E402
+    PageComponent,
     get_page_component,
     get_page_component_by_label,
     get_page_labels,
@@ -321,10 +322,17 @@ def main() -> None:
     page_options.extend(connector_pages)
     # 保存済みビューは常に表示（config定義 + 永続化ビュー）
     page_options.append("保存済みビュー")
+
+    # プリセットからの自動遷移: session_stateにページラベルが設定されていれば優先
+    preset_label = st.session_state.pop("_preset_page_label", None)
+    default_page_idx = 0
+    if preset_label and preset_label in page_options:
+        default_page_idx = page_options.index(preset_label)
+
     page = st.sidebar.radio(
         "ページ",
         page_options,
-        index=0,
+        index=default_page_idx,
     )
 
     # サマリー情報
@@ -350,6 +358,74 @@ def main() -> None:
         _render_saved_views_page(provider, project_root, dashboard_config, vocab)
     elif page in connector_pages:
         render_connector_page(page, provider, dashboard_config)
+
+
+# ====================================================================
+# 保存済みビュー プリセット機能
+# ====================================================================
+
+
+def _apply_preset_and_navigate(view: Any) -> None:
+    """保存済みビューの設定をsession_stateにロードし、通常ページに遷移する
+
+    ビューの設定値（フィルタ、プロット軸、ギャラリー設定等）を
+    各ページコンポーネントが参照するsession_stateキーにセットした上で、
+    対応するページに自動遷移する。
+
+    Args:
+        view: SavedViewConfig
+    """
+    # ビュー設定をプリセットとしてsession_stateに保存
+    st.session_state["_preset_view"] = {
+        "name": view.name,
+        "view_type": view.view_type,
+        "filters": view.filters,
+        "local_filters": view.local_filters,
+        "plot": view.plot,
+        "gallery": view.gallery,
+        "array_plot": view.array_plot,
+        "connector_config": view.connector_config,
+    }
+
+    # 共有フィルタをビューのフィルタで上書き
+    filters = view.filters
+    if filters.get("type"):
+        st.session_state["_filter_type"] = filters["type"]
+    if filters.get("analysis_status"):
+        st.session_state["_filter_status"] = filters["analysis_status"]
+    if filters.get("active"):
+        st.session_state["_filter_active"] = True
+
+    # ギャラリー設定のプリセット
+    gallery = view.gallery
+    if gallery.get("source"):
+        source_map = {"has_output": 0, "property": 1}
+        st.session_state["_gallery_source_idx"] = source_map.get(gallery["source"], 0)
+
+    # プロット設定のプリセット
+    plot = view.plot
+    if plot.get("x"):
+        st.session_state["_preset_plot_x"] = plot["x"]
+    if plot.get("y"):
+        st.session_state["_preset_plot_y"] = plot["y"]
+    if plot.get("color"):
+        st.session_state["_preset_plot_color"] = plot["color"]
+    if plot.get("chart_type"):
+        st.session_state["_preset_plot_chart"] = plot["chart_type"]
+
+    # 対応ページへ遷移（radioボタンのインデックスを設定）
+    page_key = view.view_type
+    if view.is_connector_view:
+        # コネクタービューは直接遷移不可（保存済みビューページに留まる）
+        return
+
+    # ページラベルを取得して遷移
+    for cls in PageComponent._registry.values():
+        if cls.page_key == page_key:
+            st.session_state["_preset_page_label"] = cls.page_label
+            break
+
+    st.rerun()
 
 
 # ====================================================================
@@ -399,21 +475,29 @@ def _render_saved_views_page(
         is_dynamic = idx >= len(saved_views)
         dyn_idx = idx - len(saved_views) if is_dynamic else -1
 
-        # ビューヘッダー（動的ビューは編集・削除ボタン付き）
+        # ビューヘッダー（動的ビューは編集・削除ボタン付き、全ビューにプリセットボタン）
         if is_dynamic:
-            hcol1, hcol2, hcol3 = st.columns([6, 1, 1])
+            hcol1, hcol2, hcol3, hcol4 = st.columns([5, 1, 1, 1])
             with hcol1:
                 st.subheader(f"{view.name}")
             with hcol2:
+                if st.button("開く", key=f"_open_preset_{idx}", help="通常ページとして設定をロード"):
+                    _apply_preset_and_navigate(view)
+            with hcol3:
                 if st.button("編集", key=f"_edit_dv_{dyn_idx}"):
                     st.session_state[f"_editing_dv_{dyn_idx}"] = True
-            with hcol3:
+            with hcol4:
                 if st.button("削除", key=f"_del_dv_{dyn_idx}"):
                     st.session_state["_dynamic_views"].pop(dyn_idx)
                     _save_persistent_views(project_root, st.session_state["_dynamic_views"])
                     st.rerun()
         else:
-            st.subheader(f"{view.name}")
+            hcol1, hcol2 = st.columns([7, 1])
+            with hcol1:
+                st.subheader(f"{view.name}")
+            with hcol2:
+                if st.button("開く", key=f"_open_preset_{idx}", help="通常ページとして設定をロード"):
+                    _apply_preset_and_navigate(view)
 
         st.caption(f"タイプ: {view.view_type}" + (" (動的)" if is_dynamic else ""))
 

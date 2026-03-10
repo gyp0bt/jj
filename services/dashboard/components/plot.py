@@ -150,20 +150,44 @@ class PlotPage(PageComponent[PlotViewConfig]):
             st.info("プロット可能なプロパティがありません。")
             return
 
-        # config駆動デフォルト軸
+        # config駆動デフォルト軸 + プリセット復元
         plot_x = getattr(dashboard_config, "plot_x", None)
         plot_y = getattr(dashboard_config, "plot_y", None)
+        preset = (
+            st.session_state.pop("_preset_view", None)
+            if st.session_state.get("_preset_view", {}).get("view_type") == "plot"
+            else None
+        )
+        preset_plot = (preset or {}).get("plot", {})
+
+        # プリセット > session_state復元 > config > デフォルト の優先順
+        x_default = preset_plot.get("x") or st.session_state.get("_plot_persist_x") or plot_x
+        y_default = preset_plot.get("y") or st.session_state.get("_plot_persist_y") or plot_y
 
         x_default_idx = 0
-        if plot_x and plot_x in keys:
-            x_default_idx = keys.index(plot_x)
+        if x_default and x_default in keys:
+            x_default_idx = keys.index(x_default)
 
         y_default_idx = min(1, len(keys) - 1)
-        if plot_y and plot_y in keys:
-            y_default_idx = keys.index(plot_y)
+        if y_default and y_default in keys:
+            y_default_idx = keys.index(y_default)
 
         # verbose_nameキー
         vn_key = provider._verbose_name_key
+
+        # 色分けデフォルト
+        color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
+        color_default = preset_plot.get("color") or st.session_state.get("_plot_persist_color")
+        color_default_idx = 1
+        if color_default and color_default in color_options:
+            color_default_idx = color_options.index(color_default)
+
+        # チャートタイプデフォルト
+        chart_options = ["散布図", "棒グラフ", "線図", "コンター", "等高線"]
+        chart_default = preset_plot.get("chart_type") or st.session_state.get("_plot_persist_chart")
+        chart_default_idx = 0
+        if chart_default and chart_default in chart_options:
+            chart_default_idx = chart_options.index(chart_default)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -171,12 +195,15 @@ class PlotPage(PageComponent[PlotViewConfig]):
         with col2:
             y_key = st.selectbox("Y軸", keys, index=y_default_idx)
         with col3:
-            # 色分けオプション: デフォルトで表示名を選択
-            color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
-            color_default_idx = 1  # デフォルト: 表示名で色分け
             color_key = st.selectbox("色分け", color_options, index=color_default_idx)
         with col4:
-            chart_type = st.selectbox("チャートタイプ", ["散布図", "棒グラフ", "線図", "コンター", "等高線"])
+            chart_type = st.selectbox("チャートタイプ", chart_options, index=chart_default_idx)
+
+        # 選択値をsession_stateに保存（ページ遷移時の復元用）
+        st.session_state["_plot_persist_x"] = x_key
+        st.session_state["_plot_persist_y"] = y_key
+        st.session_state["_plot_persist_color"] = color_key
+        st.session_state["_plot_persist_chart"] = chart_type
 
         if not x_key or not y_key:
             return

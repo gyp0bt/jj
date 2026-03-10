@@ -167,8 +167,8 @@ def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
 # 画像パスからのresult_key/プロパティ抽出
 # ====================================================================
 
-# パラメータトークンパターン（負の値対応）: vmax50.0, vmin-50.0, step0
-_PATH_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(-?\d+(?:\.\d+)?)$")
+# パラメータトークンパターン（負の値対応・単位オプション）: vmax50.0, vmin-50.0, step0, t35mm
+_PATH_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(-?\d+(?:\.\d+)?)([A-Za-z]*)$")
 
 # result_keyパターン（ダッシュ含む識別子）: S-S13, U-U3, PEEQ
 _PATH_RESULT_KEY_PATTERN = re.compile(r"^[A-Z][A-Za-z0-9]*(?:-[A-Z][A-Za-z0-9]*(?:\d+)?)?$")
@@ -272,14 +272,16 @@ def extract_path_metadata(path: str) -> tuple[str, dict[str, str]]:
         for dt in dir_tokens:
             m = _PATH_PROP_PATTERN.fullmatch(dt)
             if m:
-                props[m.group(1)] = m.group(2)
+                unit_suffix = m.group(3) or ""
+                props[m.group(1)] = m.group(2) + unit_suffix
 
     # ファイル名トークンの解析
     for token in tokens[start_idx:]:
-        # パラメータパターン（vmax50.0, vmin-50.0, step0等）
+        # パラメータパターン（vmax50.0, vmin-50.0, step0, t35mm等）
         m = _PATH_PROP_PATTERN.fullmatch(token)
         if m:
-            props[m.group(1)] = m.group(2)
+            unit_suffix = m.group(3) or ""
+            props[m.group(1)] = m.group(2) + unit_suffix
             continue
         # result_keyパターン（S-S13, U-U3, PEEQ等）
         if _PATH_RESULT_KEY_PATTERN.fullmatch(token) and not result_key:
@@ -289,19 +291,49 @@ def extract_path_metadata(path: str) -> tuple[str, dict[str, str]]:
     return result_key, props
 
 
-def group_images_by_result_key(
-    images: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
-    """画像をresult_keyでグルーピング
+def build_composite_group_key(
+    result_key: str,
+    props: dict[str, str],
+    exclude_keys: set[str] | None = None,
+) -> str:
+    """result_keyとpropsから複合グループキーを生成
 
-    同じresult_keyかつ同じプロパティセット（順不同）の画像をグループ化する。
+    除外キー（デフォルト: idx, v）を除いたpropsをソート済みで結合する。
+    例: "S-S13(step:0,vmax:50.0,vmin:-50.0)"
+
+    Args:
+        result_key: 画像のresult_key（空文字の場合は "(その他)"）
+        props: 画像パスから抽出されたプロパティ辞書
+        exclude_keys: 除外するプロパティキー（デフォルト: {"idx", "v", "frame"}）
+
+    Returns:
+        複合グループキー文字列
+    """
+    if exclude_keys is None:
+        exclude_keys = {"idx", "v", "frame"}
+    base = result_key if result_key else "(その他)"
+    filtered = {k: v for k, v in props.items() if k.lower() not in exclude_keys}
+    if not filtered:
+        return base
+    param_str = ",".join(f"{k}:{v}" for k, v in sorted(filtered.items()))
+    return f"{base}({param_str})"
+
+
+def group_images_by_composite_key(
+    images: list[dict[str, Any]],
+    exclude_keys: set[str] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """画像をresult_key+propsの複合キーでグルーピング
+
+    同じresult_keyかつ同じプロパティセット（idx, v除外）の画像をグループ化する。
+    グループキーの形式: "result_key(param1:val1,param2:val2)"
 
     Args:
         images: 画像情報のリスト
+        exclude_keys: 除外するプロパティキー
 
     Returns:
-        {result_key: [画像情報, ...], ...}
-        result_keyが空の画像は "(その他)" にまとめる
+        {composite_key: [画像情報, ...], ...}
     """
     from collections import OrderedDict
 
@@ -309,8 +341,8 @@ def group_images_by_result_key(
 
     for img in images:
         path = img.get("image_path", "")
-        result_key, _props = extract_path_metadata(path)
-        gk = result_key if result_key else "(その他)"
+        result_key, props = extract_path_metadata(path)
+        gk = build_composite_group_key(result_key, props, exclude_keys)
         groups.setdefault(gk, []).append(img)
 
     return dict(groups)
