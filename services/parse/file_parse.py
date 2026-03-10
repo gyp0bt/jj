@@ -89,13 +89,51 @@ def _match_extension(filename: str, extension_candidates: Iterable[str] | None =
     return f".{filename.split('.')[-1]}"
 
 
-def _parse_prop_token(token: str) -> tuple[str, str] | None:
+def _parse_prop_token(
+    token: str,
+    known_units: frozenset[str] | None = None,
+) -> tuple[str, str] | None:
+    """トークンをキー・値ペアに分割する
+
+    対応形式:
+    - "key=value" → (key, value)
+    - "key123" → (key, "123")
+    - "key123mm" → (key, "123mm")  ※単位付き（known_units指定時）
+
+    Args:
+        token: 解析するトークン文字列
+        known_units: 認識する単位セット（Noneの場合は単位なし解析）
+
+    Returns:
+        (key, value) or None
+    """
     if "=" in token:
         key, value = token.split("=", 1)
         if key and value:
             return key, value
         return None
-    match = re.fullmatch(r"([A-Za-z]+)(\d+)", token)
+
+    # 単位付きトークン: t35mm → (t, "35mm")
+    if known_units:
+        # 長い単位から先にマッチ（MPaがPaより先にマッチするように）
+        for unit in sorted(known_units, key=len, reverse=True):
+            if token.endswith(unit):
+                prefix = token[: -len(unit)]
+                # prefix が "変数名+数値" であること
+                m = re.fullmatch(r"([A-Za-z]+)(-?\d+(?:\.\d+)?)", prefix)
+                if m:
+                    return m.group(1), m.group(2) + unit
+        # 大文字小文字を無視したマッチ
+        token_lower = token.lower()
+        for unit in sorted(known_units, key=len, reverse=True):
+            if token_lower.endswith(unit.lower()):
+                prefix = token[: -len(unit)]
+                m = re.fullmatch(r"([A-Za-z]+)(-?\d+(?:\.\d+)?)", prefix)
+                if m:
+                    return m.group(1), m.group(2) + token[-len(unit) :]
+
+    # 通常のトークン: vmax50 → (vmax, "50")
+    match = re.fullmatch(r"([A-Za-z]+)(-?\d+(?:\.\d+)?)", token)
     if match:
         return match.group(1), match.group(2)
     return None
