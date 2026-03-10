@@ -3,6 +3,9 @@
 RunQueryServiceを利用してRunノードの一覧・比較・トレーサビリティを
 ダッシュボード上で操作するページコンポーネント。
 
+ドメイン非依存: CAE/ML/物理実験など任意のRunタイプに対応。
+テーブルカラムはRunプロパティから動的に生成される。
+
 [READMEへ戻る](../../../../README.md)
 """
 
@@ -15,6 +18,29 @@ from services.dashboard.components import PageComponent, ViewConfig
 if TYPE_CHECKING:
     from config import DashboardConfig, SavedViewConfig
     from services.dashboard.data_provider import DashboardDataProvider
+
+# Runステータスに対応する表示色（ドメイン非依存）
+RUN_STATUS_COLORS: dict[str, str] = {
+    "completed": "#10b981",
+    "failed": "#ef4444",
+    "running": "#f59e0b",
+    "latent": "#8b5cf6",
+    "unknown": "#6b7280",
+}
+
+# テーブルに常に表示する基本カラム（表示名: プロパティキー）
+_BASE_TABLE_COLUMNS: list[tuple[str, str]] = [
+    ("ID", "_id"),
+    ("名前", "_name"),
+    ("タイプ", "run_type"),
+    ("ステータス", "run_status"),
+]
+
+# テーブルに表示しない内部プロパティ
+_HIDDEN_PROPERTIES: set[str] = {
+    "run_type",
+    "run_status",
+}
 
 
 class RunComparisonViewConfig(ViewConfig):
@@ -141,27 +167,38 @@ class RunComparisonPage(PageComponent[RunComparisonViewConfig]):
 
 
 def _render_run_table(runs: list[Any]) -> None:
-    """Run一覧をテーブル表示"""
+    """Run一覧をテーブル表示（Runプロパティから動的にカラム生成）"""
     import streamlit as st
+
+    if not runs:
+        return
+
+    # 全Runのプロパティキーを収集（出現順を保持）
+    extra_keys: list[str] = []
+    seen: set[str] = set()
+    for r in runs:
+        for key in r.properties:
+            if key not in _HIDDEN_PROPERTIES and key not in seen:
+                extra_keys.append(key)
+                seen.add(key)
 
     table_data: list[dict[str, Any]] = []
     for r in runs:
-        table_data.append(
-            {
-                "ID": r.id,
-                "名前": r.name,
-                "タイプ": r.properties.get("run_type", ""),
-                "ステータス": r.properties.get("run_status", ""),
-                "検出": r.properties.get("discovery", ""),
-                "開始": r.properties.get("started_at", ""),
-                "実行時間(秒)": r.properties.get("duration_seconds", ""),
-                "コマンド": r.properties.get("command", ""),
-            }
-        )
-    if table_data:
-        import pandas as pd
+        row: dict[str, Any] = {}
+        for label, prop_key in _BASE_TABLE_COLUMNS:
+            if prop_key == "_id":
+                row[label] = r.id
+            elif prop_key == "_name":
+                row[label] = r.name
+            else:
+                row[label] = r.properties.get(prop_key, "")
+        for key in extra_keys:
+            row[key] = r.properties.get(key, "")
+        table_data.append(row)
 
-        st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+    import pandas as pd
+
+    st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
 
 def _render_run_dag(runs: list[Any], query_svc: Any) -> None:
@@ -224,20 +261,13 @@ def _try_render_run_dag_agraph(
     except ImportError:
         return False
 
-    status_colors = {
-        "completed": "#10b981",
-        "failed": "#ef4444",
-        "running": "#f59e0b",
-        "latent": "#8b5cf6",
-    }
-
     nodes: list[Node] = []
     edges: list[Edge] = []
     run_by_id = {r.id: r for r in runs}
 
     for run in runs:
         status = run.properties.get("run_status", "unknown")
-        color = status_colors.get(status, "#6b7280")
+        color = RUN_STATUS_COLORS.get(status, RUN_STATUS_COLORS["unknown"])
         run_type = run.properties.get("run_type", "run")
         duration = run.properties.get("duration_seconds", "")
         label = f"{run.name}\n[{run_type}]"
@@ -338,13 +368,6 @@ def _try_render_run_dag_graphviz(
 
     import streamlit as st
 
-    status_colors = {
-        "completed": "#10b981",
-        "failed": "#ef4444",
-        "running": "#f59e0b",
-        "latent": "#8b5cf6",
-    }
-
     def _sanitize(name: str) -> str:
         return re.sub(r"[^a-zA-Z0-9_]", "_", str(name))
 
@@ -360,7 +383,7 @@ def _try_render_run_dag_graphviz(
     # Runノード
     for run in runs:
         status = run.properties.get("run_status", "unknown")
-        color = status_colors.get(status, "#d1d5db")
+        color = RUN_STATUS_COLORS.get(status, "#d1d5db")
         run_type = run.properties.get("run_type", "run")
         label = f"{run.name}\\n[{run_type}]"
         node_id = f"run_{run.id}"
@@ -473,24 +496,35 @@ def _generate_run_comparison_html(runs: list[Any], query_svc: Any) -> str:
     parts.append("<h2>Run比較ダッシュボード</h2>")
     parts.append(f"<p>{len(runs)}件のRunが登録されています。</p>")
 
+    # 全Runのプロパティキーを収集（動的カラム生成）
+    extra_keys: list[str] = []
+    seen: set[str] = set()
+    for r in runs:
+        for key in r.properties:
+            if key not in _HIDDEN_PROPERTIES and key not in seen:
+                extra_keys.append(key)
+                seen.add(key)
+
     # Run一覧テーブル
+    headers = [label for label, _ in _BASE_TABLE_COLUMNS] + extra_keys
     parts.append('<table style="border-collapse:collapse;width:100%;margin-bottom:16px;">')
     parts.append("<thead><tr>")
-    for h in ["ID", "名前", "タイプ", "ステータス", "検出", "開始", "実行時間(秒)"]:
+    for h in headers:
         parts.append(f'<th style="border:1px solid #d1d5db;padding:6px 10px;text-align:left;">{h}</th>')
     parts.append("</tr></thead><tbody>")
 
     for r in runs:
         parts.append("<tr>")
-        for val in [
-            r.id,
-            r.name,
-            r.properties.get("run_type", ""),
-            r.properties.get("run_status", ""),
-            r.properties.get("discovery", ""),
-            r.properties.get("started_at", ""),
-            r.properties.get("duration_seconds", ""),
-        ]:
+        for _label, prop_key in _BASE_TABLE_COLUMNS:
+            if prop_key == "_id":
+                val = r.id
+            elif prop_key == "_name":
+                val = r.name
+            else:
+                val = r.properties.get(prop_key, "")
+            parts.append(f'<td style="border:1px solid #d1d5db;padding:4px 8px;">{val}</td>')
+        for key in extra_keys:
+            val = r.properties.get(key, "")
             parts.append(f'<td style="border:1px solid #d1d5db;padding:4px 8px;">{val}</td>')
         parts.append("</tr>")
 
@@ -525,12 +559,6 @@ def _generate_run_dag_html(runs: list[Any], query_svc: Any) -> str:
             dag_edges.append((src_id, run.id, names))
 
     run_by_id = {r.id: r for r in runs}
-    status_colors = {
-        "completed": "#10b981",
-        "failed": "#ef4444",
-        "running": "#f59e0b",
-        "latent": "#8b5cf6",
-    }
 
     parts: list[str] = []
     parts.append("<h3>Run DAG</h3>")
@@ -540,7 +568,7 @@ def _generate_run_dag_html(runs: list[Any], query_svc: Any) -> str:
         parts.append('<div style="display:flex;flex-wrap:wrap;gap:12px;margin:16px 0;">')
         for run in runs:
             status = run.properties.get("run_status", "unknown")
-            color = status_colors.get(status, "#6b7280")
+            color = RUN_STATUS_COLORS.get(status, RUN_STATUS_COLORS["unknown"])
             run_type = run.properties.get("run_type", "run")
             parts.append(
                 f'<div style="border:2px solid {color};border-radius:8px;padding:8px 16px;'
