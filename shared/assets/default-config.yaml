@@ -248,6 +248,28 @@ path-property-map:
 # solver-detection:
 
 # ========================================================================
+# ドメイン分類（domain-classification）
+# ========================================================================
+# Run中心の汎用データ管理で使用するドメイン別のファイル分類ルール。
+# 各ドメインに対して拡張子やパスパターンを定義し、
+# プラグインがRunを発見・分類する際の基準として使用する。
+# 使用例:
+#   domain-classification:
+#     experiment:
+#       data-extensions: [".csv", ".tsv"]
+#       metadata-extensions: [".meta.yaml"]
+#       run-discovery: metadata  # metadata | directory | auto
+#     ml:
+#       data-extensions: [".pt", ".pth", ".ckpt", ".pkl", ".joblib"]
+#       config-extensions: [".yaml", ".json"]
+#       run-discovery: directory
+#     cae:
+#       data-extensions: [".inp", ".cas.h5", ".k", ".key"]
+#       result-extensions: [".odb", ".sta", ".msg", ".dat"]
+#       run-discovery: auto
+# domain-classification:
+
+# ========================================================================
 # 除外パターン（ignore）
 # ========================================================================
 # マッチしたパスはパース対象から除外されます（.gitignore相当）。

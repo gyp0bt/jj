@@ -21,6 +21,10 @@ DEFAULT_EXTENSIONS = {
     "calculation_input": [".inp", ".cas.h5", ".k", ".key", ".dat"],
     "mesh": [".cdb", ".msh", ".unv"],
     "multi_dot": [".cas.h5", ".dat.h5", ".tar.gz", ".tar.bz2", ".tar.xz"],
+    # 汎用ドメインカテゴリ（T8 Phase 8-4）
+    "experiment_data": [".csv", ".tsv"],
+    "ml_model": [".pt", ".pth", ".ckpt", ".pkl", ".joblib"],
+    "ml_config": [".yaml", ".json", ".toml"],
 }
 
 DEFAULT_PREFIXES = {
@@ -233,6 +237,7 @@ class ExtensionsConfig:
     calculation_input: list[str]
     mesh: list[str]
     multi_dot: list[str]
+    custom_categories: dict[str, list[str]]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ExtensionsConfig:
@@ -247,11 +252,42 @@ class ExtensionsConfig:
         if not isinstance(multi_dot, list):
             raise ValueError("multi_dot must be list[str]")
 
+        # 既知フィールド以外をcustom_categoriesに収集
+        known_keys = {"calculation_input", "mesh", "multi_dot"}
+        custom: dict[str, list[str]] = {}
+        for key, value in data.items():
+            if key in known_keys:
+                continue
+            if isinstance(value, list):
+                custom[key] = [str(x) for x in value]
+
         return cls(
             calculation_input=[str(x) for x in calculation_input],
             mesh=[str(x) for x in mesh],
             multi_dot=[str(x) for x in multi_dot],
+            custom_categories=custom,
         )
+
+    def get_category(self, category_name: str) -> list[str]:
+        """カテゴリ名から拡張子リストを取得する（組み込み・カスタム両対応）。"""
+        builtin = {
+            "calculation_input": self.calculation_input,
+            "mesh": self.mesh,
+            "multi_dot": self.multi_dot,
+        }
+        if category_name in builtin:
+            return builtin[category_name]
+        return self.custom_categories.get(category_name, [])
+
+    def all_categories(self) -> dict[str, list[str]]:
+        """組み込み・カスタム含む全カテゴリを返す。"""
+        result: dict[str, list[str]] = {
+            "calculation_input": self.calculation_input,
+            "mesh": self.mesh,
+            "multi_dot": self.multi_dot,
+        }
+        result.update(self.custom_categories)
+        return result
 
 
 @dataclass(frozen=True)

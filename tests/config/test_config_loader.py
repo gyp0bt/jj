@@ -26,6 +26,7 @@ class TestExtensionsConfig:
         assert config.calculation_input == [".inp", ".cas.h5"]
         assert config.mesh == [".cdb", ".msh"]
         assert config.multi_dot == [".cas.h5", ".tar.gz"]
+        assert config.custom_categories == {}
 
     def test_from_dict_empty(self):
         data = {}
@@ -33,11 +34,51 @@ class TestExtensionsConfig:
         assert config.calculation_input == []
         assert config.mesh == []
         assert config.multi_dot == []
+        assert config.custom_categories == {}
 
     def test_from_dict_invalid_type(self):
         data = {"calculation_input": "not a list"}
         with pytest.raises(ValueError, match="calculation_input must be list"):
             ExtensionsConfig.from_dict(data)
+
+    def test_custom_categories(self):
+        data = {
+            "calculation_input": [".inp"],
+            "mesh": [".msh"],
+            "multi_dot": [],
+            "experiment_data": [".csv", ".tsv"],
+            "ml_model": [".pt", ".pth"],
+        }
+        config = ExtensionsConfig.from_dict(data)
+        assert config.custom_categories == {
+            "experiment_data": [".csv", ".tsv"],
+            "ml_model": [".pt", ".pth"],
+        }
+
+    def test_get_category_builtin(self):
+        data = {"calculation_input": [".inp"], "mesh": [".msh"], "multi_dot": []}
+        config = ExtensionsConfig.from_dict(data)
+        assert config.get_category("calculation_input") == [".inp"]
+        assert config.get_category("mesh") == [".msh"]
+        assert config.get_category("nonexistent") == []
+
+    def test_get_category_custom(self):
+        data = {"experiment_data": [".csv", ".tsv"]}
+        config = ExtensionsConfig.from_dict(data)
+        assert config.get_category("experiment_data") == [".csv", ".tsv"]
+
+    def test_all_categories(self):
+        data = {
+            "calculation_input": [".inp"],
+            "mesh": [],
+            "multi_dot": [],
+            "experiment_data": [".csv"],
+        }
+        config = ExtensionsConfig.from_dict(data)
+        all_cats = config.all_categories()
+        assert "calculation_input" in all_cats
+        assert "experiment_data" in all_cats
+        assert len(all_cats) == 4
 
 
 class TestPrefixesConfig:
