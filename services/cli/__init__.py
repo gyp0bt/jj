@@ -247,6 +247,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="出力ファイルパターン（ジョブに未設定の場合に使用）",
     )
 
+    # jj prefect — Prefect統合 (T5-9)
+    ppf = sub.add_parser("prefect", help="Prefect Server/Worker管理")
+    ppf_sub = ppf.add_subparsers(dest="prefect_command")
+
+    # jj prefect up
+    ppf_up = ppf_sub.add_parser("up", help="Prefect Server + 自動ポーリングを起動")
+    ppf_up.add_argument("--port", type=int, default=4200, help="Prefect Server ポート番号")
+    ppf_up.add_argument("--poll-interval", type=int, default=30, help="自動ポーリング間隔（分）")
+
+    # jj prefect down
+    ppf_sub.add_parser("down", help="Prefect Serverを停止")
+
+    # jj prefect status
+    ppf_sub.add_parser("status", help="Prefect Serverの状態を表示")
+
     # graph (jj g) — 互換性維持
     add_graph_parser(sub)
 
@@ -276,6 +291,7 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         "dashboard",
         "serve",
         "job",
+        "prefect",
     ):
         return args
     if getattr(args, "cmd", None):
@@ -636,6 +652,54 @@ def run_job(args: argparse.Namespace) -> int:
         return 1
 
 
+def run_prefect(args: argparse.Namespace) -> int:
+    """Prefect統合コマンドのハンドラ (T5-9)"""
+    from services.job.prefect_integration import JjPrefectManager
+
+    prefect_cmd = getattr(args, "prefect_command", None)
+    project_root = Path.cwd()
+
+    if prefect_cmd == "up":
+        port = getattr(args, "port", 4200)
+        poll_interval = getattr(args, "poll_interval", 30)
+        manager = JjPrefectManager(project_root, port=port, poll_interval=poll_interval)
+        result = manager.start()
+        if result["success"]:
+            print(f"✓ {result['message']}")
+            if "url" in result:
+                print(f"  URL: {result['url']}")
+            if "poll_interval" in result:
+                print(f"  自動ポーリング: {result['poll_interval']}間隔")
+        else:
+            print(f"✗ {result.get('error', 'Unknown error')}")
+            return 1
+        return 0
+
+    elif prefect_cmd == "down":
+        manager = JjPrefectManager(project_root)
+        result = manager.stop()
+        print(f"✓ {result['message']}")
+        return 0
+
+    elif prefect_cmd == "status":
+        manager = JjPrefectManager(project_root)
+        status = manager.status()
+        if status["running"]:
+            print(f"Prefect Server: 稼働中 (port: {status['port']})")
+            print(f"  URL: {status['url']}")
+            print(f"  ポーリング: {status['poll_interval']}")
+        else:
+            print("Prefect Server: 停止中")
+        return 0
+
+    else:
+        print("使用方法: jj prefect <up|down|status>")
+        print("  up       Prefect Server + 自動ポーリングを起動")
+        print("  down     Prefect Serverを停止")
+        print("  status   Prefect Serverの状態を表示")
+        return 1
+
+
 def dispatch(args: argparse.Namespace) -> int:
     cmd = getattr(args, "cmd", "submit")
     subcmd = getattr(args, "subcmd", None)
@@ -664,6 +728,10 @@ def dispatch(args: argparse.Namespace) -> int:
     # jobコマンド（T5: リモートジョブ管理）
     if cmd == "job":
         return run_job(args)
+
+    # prefectコマンド（T5-9: Prefect統合）
+    if cmd == "prefect":
+        return run_prefect(args)
 
     # submit系コマンド（SSH設定必要 — SubmitServiceを遅延初期化）
     targets = resolve_targets(args)

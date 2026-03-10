@@ -87,6 +87,10 @@ ml-all = [
 ssh = [
     "paramiko>=3.0.0",
 ]
+# Prefect（ワークフロー管理）
+prefect = [
+    "prefect>=3.0.0",
+]
 # 開発・テスト
 dev = [
     "pytest>=7.0.0",
@@ -95,7 +99,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,ml-all,dev]",
+    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,prefect,ml-all,dev]",
 ]
 
 # --------------------------------------------------

@@ -154,6 +154,11 @@ class JobService:
             self.storage.save(self.project_root, job)
             jobs.append(job)
 
+        # Prefectに事後記録（fire-and-forget）
+        from services.job.prefect_integration import report_to_prefect
+
+        report_to_prefect("submit", job_states=jobs)
+
         return jobs
 
     def watch(
@@ -212,6 +217,13 @@ class JobService:
 
             time.sleep(interval)
 
+        # Prefectに事後記録（fire-and-forget）
+        from services.job.prefect_integration import report_to_prefect
+
+        completed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED]
+        if completed_jobs:
+            report_to_prefect("watch", job_states=completed_jobs)
+
         return jobs
 
     def collect(
@@ -262,6 +274,12 @@ class JobService:
             except Exception as e:
                 job.properties["collect_error"] = str(e)
                 self.storage.save(self.project_root, job)
+
+        # Prefectに事後記録（fire-and-forget）
+        if collected:
+            from services.job.prefect_integration import report_to_prefect
+
+            report_to_prefect("collect", job_states=collected)
 
         return collected
 
