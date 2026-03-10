@@ -262,6 +262,26 @@ def build_parser() -> argparse.ArgumentParser:
     # jj prefect status
     ppf_sub.add_parser("status", help="Prefect Serverの状態を表示")
 
+    # ai — AI連携 (T7)
+    pai = sub.add_parser("ai", help="AI連携コマンド")
+    pai_sub = pai.add_subparsers(dest="ai_command")
+
+    # jj ai summarize <file>
+    pai_sum = pai_sub.add_parser("summarize", aliases=["sum"], help="ファイルの内容をAIで要約")
+    pai_sum.add_argument("files", nargs="+", help="要約対象ファイル")
+
+    # jj ai diff [target]
+    pai_diff = pai_sub.add_parser("diff", help="git diffをAIで分析・要約")
+    pai_diff.add_argument("target", nargs="?", default=None, help="比較対象（ブランチ名、コミットハッシュ等）")
+    pai_diff.add_argument("--staged", action="store_true", default=False, help="ステージ済み差分のみ")
+
+    # jj ai chat <message>
+    pai_chat = pai_sub.add_parser("chat", help="AIとチャット")
+    pai_chat.add_argument("message", nargs="+", help="メッセージ")
+
+    # jj ai status
+    pai_sub.add_parser("status", help="AIプロバイダの状態を表示")
+
     # graph (jj g) — 互換性維持
     add_graph_parser(sub)
 
@@ -292,6 +312,7 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         "serve",
         "job",
         "prefect",
+        "ai",
     ):
         return args
     if getattr(args, "cmd", None):
@@ -700,6 +721,128 @@ def run_prefect(args: argparse.Namespace) -> int:
         return 1
 
 
+def run_ai(args: argparse.Namespace) -> int:
+    """AIコマンドのハンドラ (T7)"""
+    ai_command = getattr(args, "ai_command", None)
+
+    if ai_command in ("summarize", "sum"):
+        from pathlib import Path
+
+        files = getattr(args, "files", [])
+        if not files:
+            print("エラー: 要約対象ファイルを指定してください。")
+            return 1
+
+        # AIプロバイダ初期化
+        _init_ai_provider()
+
+        from services.ai.summarizer import summarize_file
+
+        for file_str in files:
+            file_path = Path(file_str)
+            print(f"\n=== {file_path} ===")
+            try:
+                result = summarize_file(file_path)
+                print(result)
+            except (FileNotFoundError, ValueError) as e:
+                print(f"[エラー] {e}")
+        return 0
+
+    elif ai_command == "diff":
+        from pathlib import Path
+
+        target = getattr(args, "target", None)
+        staged = getattr(args, "staged", False)
+
+        # AIプロバイダ初期化
+        _init_ai_provider()
+
+        from services.ai.diff_analyzer import analyze_git_diff
+
+        try:
+            result = analyze_git_diff(cwd=Path.cwd(), staged=staged, target=target)
+            print(result)
+        except ValueError as e:
+            print(f"[エラー] {e}")
+            return 1
+        return 0
+
+    elif ai_command == "chat":
+        message = " ".join(getattr(args, "message", []))
+        if not message:
+            print("エラー: メッセージを指定してください。")
+            return 1
+
+        # AIプロバイダ初期化
+        _init_ai_provider()
+
+        from services.ai import require_provider
+
+        try:
+            provider = require_provider()
+            messages = [{"role": "user", "content": message}]
+            result = provider.chat(messages)
+            print(result)
+        except ValueError as e:
+            print(f"[エラー] {e}")
+            return 1
+        return 0
+
+    elif ai_command == "status":
+        _init_ai_provider()
+
+        from services.ai import get_provider
+
+        provider = get_provider()
+        if provider is None:
+            print("AIプロバイダ: 未設定")
+            print("  config.yamlのai.providerを設定してください。")
+            print("  例:")
+            print("    ai:")
+            print("      provider: ollama")
+            print("      ollama:")
+            print('        base_url: "http://localhost:11434"')
+            print('        model: "llama3.1:8b"')
+            return 0
+
+        print(f"AIプロバイダ: {provider.name}")
+        if provider.available:
+            print("  状態: 接続可能")
+        else:
+            print("  状態: 接続不可（サーバーが起動していない可能性があります）")
+        return 0
+
+    else:
+        print("使用方法: jj ai <summarize|diff|chat|status>")
+        print("  summarize  ファイルの内容をAIで要約")
+        print("  diff       git diffをAIで分析・要約")
+        print("  chat       AIとチャット")
+        print("  status     AIプロバイダの状態を表示")
+        return 1
+
+
+def _init_ai_provider() -> None:
+    """AIプロバイダを初期化する（遅延ロード）。"""
+    from services.ai import get_provider
+
+    if get_provider() is not None:
+        return
+
+    try:
+        from config import load_project_config
+        from services.ai.provider import create_provider_from_config
+
+        config = load_project_config()
+        ai_config = config.get("ai", {})
+        provider = create_provider_from_config(ai_config)
+        if provider is not None:
+            from services.ai import set_provider
+
+            set_provider(provider)
+    except Exception:
+        pass  # プロバイダ初期化失敗は require_provider() で適切なエラーを出す
+
+
 def dispatch(args: argparse.Namespace) -> int:
     cmd = getattr(args, "cmd", "submit")
     subcmd = getattr(args, "subcmd", None)
@@ -732,6 +875,10 @@ def dispatch(args: argparse.Namespace) -> int:
     # prefectコマンド（T5-9: Prefect統合）
     if cmd == "prefect":
         return run_prefect(args)
+
+    # aiコマンド（T7: AI連携）
+    if cmd == "ai":
+        return run_ai(args)
 
     # submit系コマンド（SSH設定必要 — SubmitServiceを遅延初期化）
     targets = resolve_targets(args)
