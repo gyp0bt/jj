@@ -48,6 +48,7 @@ import services.dashboard.components.status  # noqa: E402
 import services.dashboard.components.table  # noqa: E402
 import services.dashboard.connectors.abaqus  # noqa: E402
 import services.dashboard.connectors.job_monitor  # noqa: E402
+import services.dashboard.connectors.ai_assistant  # noqa: F401, E402
 import services.dashboard.connectors.ml  # noqa: F401, E402
 from jj_types import GraphModel  # noqa: E402
 from services.dashboard.components import (  # noqa: E402
