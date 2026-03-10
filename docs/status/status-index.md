@@ -62,6 +62,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [072](status-072.md) | 03-10 | プロパティ外部化（graph.yaml軽量化） | claude/refactor-graph-data-storage-Wsmdj |
 | [071](status-071.md) | 03-10 | T7-6 AIアシスタントパネル / T8 汎用データ管理基盤 | claude/execute-status-todos-2xvZf |
 | [070](status-070.md) | 03-10 | T7-4/7-5 RAG検索・Tips抽出 | claude/execute-status-todos-eL76K |
 | [069](status-069.md) | 03-10 | T7-1/7-2/7-3 AI連携基盤（AIProvider・summarize・diff） | claude/execute-status-todos-O8t4T |
