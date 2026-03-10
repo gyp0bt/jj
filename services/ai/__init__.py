@@ -17,8 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 class AIProvider(Protocol):
     """AI プロバイダのプロトコル定義。
 
-    chat(), summarize() を提供する。
-    embed() はRAGフェーズ(T7-4)で追加予定。
+    chat(), summarize(), embed() を提供する。
     """
 
     @property
@@ -52,6 +51,18 @@ class AIProvider(Protocol):
 
         Returns:
             要約テキスト
+        """
+        ...
+
+    def embed(self, text: str, **kwargs: Any) -> list[float]:
+        """テキストのベクトル埋め込みを生成する。
+
+        Args:
+            text: 埋め込み対象テキスト
+            **kwargs: モデル固有パラメータ
+
+        Returns:
+            埋め込みベクトル（float配列）
         """
         ...
 

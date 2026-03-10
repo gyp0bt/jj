@@ -279,6 +279,22 @@ def build_parser() -> argparse.ArgumentParser:
     pai_chat = pai_sub.add_parser("chat", help="AIとチャット")
     pai_chat.add_argument("message", nargs="+", help="メッセージ")
 
+    # jj ai index <file...>
+    pai_index = pai_sub.add_parser("index", help="ファイルをRAGインデックスに追加")
+    pai_index.add_argument("files", nargs="+", help="インデックス対象ファイル")
+
+    # jj ai ask <question>
+    pai_ask = pai_sub.add_parser("ask", help="RAG検索で質問に回答")
+    pai_ask.add_argument("question", nargs="+", help="質問テキスト")
+    pai_ask.add_argument("--top-k", type=int, default=5, help="検索結果上位件数（デフォルト: 5）")
+
+    # jj ai tips [--extract <file>] [--search <keyword>]
+    pai_tips = pai_sub.add_parser("tips", help="Tips抽出・表示")
+    pai_tips.add_argument("--extract", nargs="+", metavar="FILE", help="ファイルからTipsを抽出して蓄積")
+    pai_tips.add_argument("--search", metavar="KEYWORD", help="キーワードでTipsを検索")
+    pai_tips.add_argument("--list", action="store_true", help="全Tipsを表示")
+    pai_tips.add_argument("--count", type=int, default=3, help="ランダム表示件数（デフォルト: 3）")
+
     # jj ai status
     pai_sub.add_parser("status", help="AIプロバイダの状態を表示")
 
@@ -788,6 +804,132 @@ def run_ai(args: argparse.Namespace) -> int:
             return 1
         return 0
 
+    elif ai_command == "index":
+        from pathlib import Path
+
+        files = getattr(args, "files", [])
+        if not files:
+            print("エラー: インデックス対象ファイルを指定してください。")
+            return 1
+
+        _init_ai_provider()
+
+        from services.ai.rag import RagIndex
+
+        index_path = Path(".j2/storage/rag_index.json")
+        index = RagIndex(storage_path=index_path)
+        index.load()
+
+        for file_str in files:
+            file_path = Path(file_str)
+            print(f"インデックス中: {file_path} ...", end=" ", flush=True)
+            try:
+                count = index.add_file(file_path)
+                print(f"完了（{count} チャンク）")
+            except (FileNotFoundError, ValueError) as e:
+                print(f"[エラー] {e}")
+
+        try:
+            index.save()
+            print(f"\nインデックス保存: {index_path} ({index.size} エントリ)")
+        except ValueError as e:
+            print(f"[エラー] {e}")
+            return 1
+        return 0
+
+    elif ai_command == "ask":
+        from pathlib import Path
+
+        question = " ".join(getattr(args, "question", []))
+        if not question:
+            print("エラー: 質問を指定してください。")
+            return 1
+
+        top_k = getattr(args, "top_k", 5)
+
+        _init_ai_provider()
+
+        from services.ai.rag import RagIndex, rag_query
+
+        index_path = Path(".j2/storage/rag_index.json")
+        index = RagIndex(storage_path=index_path)
+        index.load()
+
+        if index.size == 0:
+            print("RAGインデックスが空です。`jj ai index <file>` でファイルをインデックスしてください。")
+            return 1
+
+        try:
+            result = rag_query(question, index, top_k=top_k)
+            print(result)
+        except ValueError as e:
+            print(f"[エラー] {e}")
+            return 1
+        return 0
+
+    elif ai_command == "tips":
+        from pathlib import Path
+
+        from services.ai.tips import TipsStore, extract_tips_from_file
+
+        tips_path = Path(".j2/storage/tips.json")
+        store = TipsStore(storage_path=tips_path)
+        store.load()
+
+        extract_files = getattr(args, "extract", None)
+        search_keyword = getattr(args, "search", None)
+        list_all = getattr(args, "list", False)
+
+        if extract_files:
+            _init_ai_provider()
+            for file_str in extract_files:
+                file_path = Path(file_str)
+                print(f"Tips抽出中: {file_path} ...", end=" ", flush=True)
+                try:
+                    tips = extract_tips_from_file(file_path)
+                    for tip in tips:
+                        store.add_tip(
+                            title=tip["title"],
+                            body=tip["body"],
+                            tags=tip.get("tags", []),
+                            source=str(file_path),
+                        )
+                    print(f"完了（{len(tips)} 件）")
+                except (FileNotFoundError, ValueError) as e:
+                    print(f"[エラー] {e}")
+            store.save()
+            print(f"\nTips保存: {tips_path} （合計 {store.size} 件）")
+
+        elif search_keyword:
+            results = store.search(search_keyword)
+            if not results:
+                print(f"「{search_keyword}」に該当するTipsはありません。")
+            else:
+                print(f"検索結果: {len(results)} 件")
+                for tip in results:
+                    _print_tip(tip)
+
+        elif list_all:
+            if store.size == 0:
+                print("Tipsはまだありません。`jj ai tips --extract <file>` で抽出してください。")
+            else:
+                print(f"全Tips: {store.size} 件")
+                for tip in store.list_all():
+                    _print_tip(tip)
+
+        else:
+            # ランダム表示
+            count = getattr(args, "count", 3)
+            tips = store.get_random(count)
+            if not tips:
+                print("Tipsはまだありません。`jj ai tips --extract <file>` で抽出してください。")
+            else:
+                print(f"Tips（ランダム {len(tips)} 件）:")
+                for tip in tips:
+                    _print_tip(tip)
+
+        return 0
+
     elif ai_command == "status":
         _init_ai_provider()
 
@@ -810,15 +952,43 @@ def run_ai(args: argparse.Namespace) -> int:
             print("  状態: 接続可能")
         else:
             print("  状態: 接続不可（サーバーが起動していない可能性があります）")
+
+        # RAGインデックス情報
+        from pathlib import Path
+
+        from services.ai.rag import RagIndex
+
+        index_path = Path(".j2/storage/rag_index.json")
+        index = RagIndex(storage_path=index_path)
+        index.load()
+        if index.size > 0:
+            print(f"  RAGインデックス: {index.size} エントリ ({len(index.indexed_files)} ファイル)")
+        else:
+            print("  RAGインデックス: なし")
+
         return 0
 
     else:
-        print("使用方法: jj ai <summarize|diff|chat|status>")
+        print("使用方法: jj ai <summarize|diff|chat|index|ask|tips|status>")
         print("  summarize  ファイルの内容をAIで要約")
         print("  diff       git diffをAIで分析・要約")
         print("  chat       AIとチャット")
+        print("  index      ファイルをRAGインデックスに追加")
+        print("  ask        RAG検索で質問に回答")
+        print("  tips       Tips抽出・蓄積・表示")
         print("  status     AIプロバイダの状態を表示")
         return 1
+
+
+def _print_tip(tip: dict) -> None:
+    """Tipを整形表示する。"""
+    tags = ", ".join(tip.get("tags", []))
+    tag_str = f" [{tags}]" if tags else ""
+    print(f"\n  ** {tip.get('title', '(無題)')}{tag_str}")
+    print(f"  {tip.get('body', '')}")
+    source = tip.get("source", "")
+    if source:
+        print(f"  (出典: {source})")
 
 
 def _init_ai_provider() -> None:

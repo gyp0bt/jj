@@ -110,6 +110,33 @@ class OllamaProvider:
         ]
         return self.chat(messages, **kwargs)
 
+    def embed(self, text: str, **kwargs: Any) -> list[float]:
+        """Ollama /api/embed エンドポイントでテキストの埋め込みベクトルを生成する。"""
+        model = kwargs.pop("model", self._embed_model)
+        payload = {"model": model, "input": text, **kwargs}
+
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self._base_url}/api/embed",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                embeddings = result.get("embeddings", [])
+                if embeddings:
+                    return embeddings[0]
+                return []
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            logger.error("Ollama embed error: %s %s — %s", e.code, e.reason, body)
+            raise ValueError(f"Ollama embed APIエラー: {e.code} {e.reason}") from e
+        except (urllib.error.URLError, OSError) as e:
+            raise ValueError(f"Ollamaサーバーに接続できません ({self._base_url}): {e}") from e
+
 
 def create_provider_from_config(ai_config: dict[str, Any]) -> OllamaProvider | None:
     """config.yamlのai設定からOllamaProviderを生成する。
