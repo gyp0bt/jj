@@ -107,6 +107,12 @@ class TestCacheProviderProtocol:
             def save_plugin_data(self, project_root, namespace, file_path, data, mtime):
                 return project_root / "cache.pickle"
 
+            def load_node_properties(self, project_root, node_id):
+                return {}
+
+            def save_node_properties(self, project_root, node_id, properties):
+                return project_root / f"node_{node_id}.json"
+
         mock = MockCacheProvider()
         assert isinstance(mock, CacheProvider)
 
