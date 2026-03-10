@@ -11,8 +11,8 @@
 ### ワークトラック（進行中）
 
 - [x] **T5**: リモートジョブ実行基盤 — Phase 5-1〜5-9完了（Prefect統合含む）
-- [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-3完了（AIProvider・summarize・diff）
-- [ ] **T8**: 汎用データ管理（Run中心プラットフォームへの昇華）
+- [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-6完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
+- [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
 
 ### T3 改善候補
 
@@ -36,8 +36,8 @@
 | T4: Deprecation Warning修正 | **完了** | [053](status-053.md) |
 | T5: リモートジョブ実行基盤 | **完了** | [065](status-065.md)-[068](status-068.md) |
 | T6: ダッシュボード高度化 | **完了** | [053](status-053.md)-[061](status-061.md) |
-| T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[070](status-070.md) |
-| T8: 汎用データ管理 | 未着手 | — |
+| T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[071](status-071.md) |
+| T8: 汎用データ管理 | **進行中** | [071](status-071.md) |
 
 ---
 
@@ -62,6 +62,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [071](status-071.md) | 03-10 | T7-6 AIアシスタントパネル / T8 汎用データ管理基盤 | claude/execute-status-todos-2xvZf |
 | [070](status-070.md) | 03-10 | T7-4/7-5 RAG検索・Tips抽出 | claude/execute-status-todos-eL76K |
 | [069](status-069.md) | 03-10 | T7-1/7-2/7-3 AI連携基盤（AIProvider・summarize・diff） | claude/execute-status-todos-O8t4T |
 | [068](status-068.md) | 03-10 | T5-9 Prefect統合・ダッシュボード改善・単位トークン | claude/integrate-prefect-muffj |
