@@ -64,23 +64,49 @@ gallery.pyの出力画像ギャラリーで、グループ表示に使用する�
 - 全1875テスト合格、102スキップ（optional依存による想定内）
 - ruff check / ruff format 合格
 
+### 5. 仕様書策定（3件）
+
+新機能の仕様書を策定:
+- [windows-integration.md](../specs/windows-integration.md) — PPT貼り付け（Win32 COM）・Excel書き出し（openpyxl）
+- [dashboard-improvements.md](../specs/dashboard-improvements.md) — AgGridフィルタ強化・テーブル+ギャラリー統合・デフォルト保存
+- [property-key-normalization.md](../specs/property-key-normalization.md) — include継承時のバージョン付きキー正規化
+
 ## TODO
+
+### 実装（コード変更）
 
 - [ ] `build_composite_group_key` の `target_keys` もconfigに外部化
   - 現在 `{"step", "frame", "vmax", "vmin", "gallery"}` がハードコード
 - [ ] ダッシュボードやエクスポート等で `resolve_externalized=True` への移行（status-072引き継ぎ）
 - [ ] GraphService.load() のラッパーに resolve_externalized パラメータを伝搬（status-072引き継ぎ）
-- [ ] ギャラリー画像解像度向上の検討（st.image のwidthパラメータ / HTMLエクスポート時の解像度制御）
-- [ ] pptx連携：ギャラリーの列数×行数指定画像をPowerPointに貼り付け機能
-  - python-pptx または Windows COM連携（win32com）で実現可能
-- [ ] 配列プロット・材料データのExcel書き出し（Windows COM連携 / xlwings）
+
+### 仕様書→実装（フェーズ順）
+
+**Windows連携（windows-integration.md）**
+- [ ] W-1: Excel新規ファイル出力（テーブル + メイリオ書式）
+- [ ] W-2: Excel配列データ出力（複数シート）
+- [ ] W-3: PPTギャラリーグリッド貼り付け（Win32 COM、プレゼンテーション一覧選択）
+- [ ] W-4: PPTプロット貼り付け
+- [ ] W-5: ダッシュボードUI統合
+
+**ダッシュボード改善（dashboard-improvements.md）**
+- [ ] D-1: AgGridフィルタ強化（saved_viewでもAgGrid使用）
+- [ ] D-2: テーブル/ギャラリーロジック関数抽出
+- [ ] D-3: OverviewPage実装（テーブル上＋ギャラリー下）
+- [ ] D-4: デフォルト保存ボタン + config書き戻し
+- [ ] D-5: default-page config対応
+
+**プロパティキー正規化（property-key-normalization.md）**
+- [ ] K-1: `get_file_base_name()` 関数 + テスト
+- [ ] K-2: MeshInheritParserプレフィックス正規化
+- [ ] K-3: 既存テスト更新
+- [ ] K-4: （オプション）config property-key-aliases
 
 ## 懸念事項・次のAIへの引き継ぎ
 
 - Streamlit APIの `use_container_width` は完全に削除済み。今後新規コードでは `width="stretch"` を使用すること。
 - `build_composite_group_key` の `exclude_keys` パラメータは現在無効（target_keysホワイトリスト方式に変更済み）。
   テストもホワイトリスト方式に合わせて修正済み。
-- ユーザーからの追加リクエスト:
-  - ギャラリー画像の解像度向上
-  - pptx連携（ギャラリー画像→PowerPoint貼り付け）
-  - 配列プロット・材料データのExcel書き出し（Windows COM連携）
+- Win32 COMの`ActivePresentation`はフォーカスの問題がある。プレゼンテーション一覧ドロップダウンで選択させる設計を採用。
+- プロパティキー正規化は `_v{N}` / `_idx{N}` パターンのみ自動対応。その他のパターンはconfigで手動定義。
+- saved_views機能はユーザーフィードバックにより方針変更 → configデフォルト保存にシフト。
