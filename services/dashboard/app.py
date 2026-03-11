@@ -102,7 +102,7 @@ def _check_graph_changed(project_root: Path) -> bool:
 def _load_graph(project_root: Path) -> GraphModel:
     """GraphModelをロード（キャッシュ対応）"""
     svc = GraphService(project_root=project_root)
-    return svc.load()
+    return svc.load(resolve_externalized=True)
 
 
 def _get_project_root() -> Path:

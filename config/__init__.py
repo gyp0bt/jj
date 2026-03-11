@@ -885,6 +885,7 @@ class GalleryDefaults:
     rows: int = 4
     max_image_bytes: int = 5 * 1024 * 1024
     group_keys: tuple[str, ...] = ("result_key", "step", "frame", "vmax", "vmin")
+    composite_target_keys: tuple[str, ...] = ("step", "frame", "vmax", "vmin", "gallery")
 
 
 @dataclass(frozen=True)
@@ -1068,6 +1069,10 @@ class DashboardConfig:
             raw_gkeys = raw_gd["group-keys"]
             if isinstance(raw_gkeys, list):
                 gd_kwargs["group_keys"] = tuple(str(k) for k in raw_gkeys)
+        if raw_gd.get("composite-target-keys") is not None:
+            raw_ctk = raw_gd["composite-target-keys"]
+            if isinstance(raw_ctk, list):
+                gd_kwargs["composite_target_keys"] = tuple(str(k) for k in raw_ctk)
         gallery_defaults = GalleryDefaults(**gd_kwargs)
         if gallery_defaults.columns < 1:
             raise ValueError("gallery-defaults.columns must be >= 1")

@@ -187,7 +187,7 @@ class GraphCommandService:
         Returns:
             ShowResult
         """
-        graph = self._graph_service.load(filename=filename)
+        graph = self._graph_service.load(filename=filename, resolve_externalized=True)
 
         if not graph.nodes and not graph.relations:
             return ShowResult(nodes=[], relations=[], summary=None, empty=True)
@@ -226,7 +226,7 @@ class GraphCommandService:
             result = self.parse(full_mode=full_mode)
             return result.graph, result
         else:
-            graph = self._graph_service.load(filename=filename)
+            graph = self._graph_service.load(filename=filename, resolve_externalized=True)
             return graph, None
 
     # =========

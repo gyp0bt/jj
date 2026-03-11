@@ -296,26 +296,28 @@ def build_composite_group_key(
     result_key: str,
     props: dict[str, str],
     exclude_keys: set[str] | None = None,
+    *,
+    target_keys: set[str] | None = None,
 ) -> str:
     """result_keyとpropsから複合グループキーを生成
 
-    除外キー（デフォルト: idx, v）を除いたpropsをソート済みで結合する。
+    target_keysに含まれるpropsをソート済みで結合する。
     例: "S-S13(step:0,vmax:50.0,vmin:-50.0)"
 
     Args:
         result_key: 画像のresult_key（空文字の場合は "(その他)"）
         props: 画像パスから抽出されたプロパティ辞書
-        exclude_keys: 除外するプロパティキー（デフォルト: {"idx", "v", "frame"}）
+        exclude_keys: 未使用（後方互換のため残置）
+        target_keys: ホワイトリストキー（Noneの場合はGalleryDefaultsから取得）
 
     Returns:
         複合グループキー文字列
     """
-    # if exclude_keys is None:
-    # exclude_keys = {"idx", "v"}
-    # TODO: target_keysはデフォルトをこれとして、ハードコードをconfigに逃がす
-    target_keys = {"step", "frame", "vmax", "vmin", "gallery"}
+    if target_keys is None:
+        from config import GalleryDefaults
+
+        target_keys = set(GalleryDefaults().composite_target_keys)
     base = result_key if result_key else "(その他)"
-    # filtered = {k: v for k, v in props.items() if k.lower() not in exclude_keys}
     filtered = {k: v for k, v in props.items() if k.lower() in target_keys}
     if not filtered:
         return base
