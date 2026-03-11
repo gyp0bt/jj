@@ -62,6 +62,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [074](status-074.md) | 03-11 | composite_target_keys外部化・resolve_externalized伝搬 | claude/execute-status-todos-7YJMZ |
 | [073](status-073.md) | 03-11 | Streamlit非推奨API修正・ギャラリー改善（idx整数ソート） | claude/setup-project-docs-KtzaJ |
 | [072](status-072.md) | 03-10 | プロパティ外部化（graph.yaml軽量化） | claude/refactor-graph-data-storage-Wsmdj |
 | [071](status-071.md) | 03-10 | T7-6 AIアシスタントパネル / T8 汎用データ管理基盤 | claude/execute-status-todos-2xvZf |

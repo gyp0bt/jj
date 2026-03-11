@@ -446,9 +446,19 @@ class GraphService:
 
         return project_graph.to_graph_model()
 
-    def load(self, filename: str | None = None) -> GraphModel:
-        """グラフデータを読み込み"""
-        return self.storage.load(self.project_root, filename)
+    def load(
+        self,
+        filename: str | None = None,
+        *,
+        resolve_externalized: bool = False,
+    ) -> GraphModel:
+        """グラフデータを読み込み
+
+        Args:
+            filename: ファイル名（Noneでデフォルト検出）
+            resolve_externalized: Trueの場合、外部化プロパティを結合してフルロード
+        """
+        return self.storage.load(self.project_root, filename, resolve_externalized=resolve_externalized)
 
     def save(self, graph: GraphModel, filename: str | None = None) -> Path:
         """グラフデータを保存"""

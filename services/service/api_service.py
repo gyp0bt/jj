@@ -49,7 +49,7 @@ class ApiService:
         """GraphModelを遅延ロードして返す"""
         if self._graph is None:
             svc = self._ensure_graph_service()
-            self._graph = svc.load()
+            self._graph = svc.load(resolve_externalized=True)
         return self._graph
 
     def _ensure_provider(self) -> Any:
