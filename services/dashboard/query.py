@@ -10,6 +10,7 @@ services/query からの再エクスポートにより後方互換性を維持�
 
 from __future__ import annotations
 
+import contextlib
 import re
 from pathlib import Path
 from typing import Any
@@ -154,9 +155,7 @@ def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
     # outputソースの場合はresult_key（パスベース）でのグルーピングも追加
     if source == "output":
         # 画像パスからresult_keyが抽出可能か確認
-        has_result_key = any(
-            _extract_result_key_from_path(img.get("image_path", "")) for img in images
-        )
+        has_result_key = any(_extract_result_key_from_path(img.get("image_path", "")) for img in images)
         if has_result_key:
             result = ["result_key", *result]
     # propertyソースの場合はproperty_keyでのグルーピングも追加
@@ -173,9 +172,7 @@ def collect_group_keys(images: list[dict[str, Any]], source: str) -> list[str]:
 _PATH_PROP_PATTERN = re.compile(r"^([A-Za-z]+)(-?\d+(?:\.\d+)?)([A-Za-z]*)$")
 
 # result_keyパターン（ダッシュ含む識別子）: S-S13, U-U3, PEEQ
-_PATH_RESULT_KEY_PATTERN = re.compile(
-    r"^[A-Z][A-Za-z0-9]*(?:-[A-Z][A-Za-z0-9]*(?:\d+)?)?$"
-)
+_PATH_RESULT_KEY_PATTERN = re.compile(r"^[A-Z][A-Za-z0-9]*(?:-[A-Z][A-Za-z0-9]*(?:\d+)?)?$")
 
 
 def _extract_result_key_from_path(path: str) -> str:
@@ -216,9 +213,7 @@ def _extract_result_key_from_path(path: str) -> str:
 
     # 残りのトークンからresult_keyを探す
     for token in tokens[start_idx:]:
-        if _PATH_RESULT_KEY_PATTERN.fullmatch(
-            token
-        ) and not _PATH_PROP_PATTERN.fullmatch(token):
+        if _PATH_RESULT_KEY_PATTERN.fullmatch(token) and not _PATH_PROP_PATTERN.fullmatch(token):
             return token
 
     return ""
@@ -352,18 +347,14 @@ def group_images_by_composite_key(
         path = img.get("image_path", "")
         result_key, props = extract_path_metadata(path)
         idx = props.get("idx", 0)
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             idx = int(idx)
-        except Exception:
-            pass
         img["idx"] = idx
-        print(idx)
         gk = build_composite_group_key(result_key, props, exclude_keys)
         groups.setdefault(gk, []).append(img)
 
     groups_sorted = groups.copy()
     for k, v in groups.items():
         groups_sorted[k] = list(sorted(v, key=lambda x: x.get("idx", 0)))
-        print([i for i in groups_sorted[k]])
 
-    return dict(groups)
+    return dict(groups_sorted)
