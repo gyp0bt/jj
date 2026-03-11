@@ -32,12 +32,19 @@ class CacheProvider(Protocol):
         save_plugin_data: プラグインキャッシュの保存（namespace指定）
     """
 
-    def load(self, project_root: Path, filename: str | None = None) -> GraphModel:
+    def load(
+        self,
+        project_root: Path,
+        filename: str | None = None,
+        *,
+        resolve_externalized: bool = False,
+    ) -> GraphModel:
         """グラフデータを読み込む
 
         Args:
             project_root: プロジェクトルートパス
             filename: ファイル名（Noneでデフォルト検出）
+            resolve_externalized: Trueの場合、外部化プロパティを結合してフルロード
 
         Returns:
             読み込んだGraphModel（ファイルなし時は空GraphModel）
@@ -105,6 +112,31 @@ class CacheProvider(Protocol):
             file_path: 元のファイルパス
             data: 保存するデータ
             mtime: ファイルのmtime
+
+        Returns:
+            保存先パス
+        """
+        ...
+
+    def load_node_properties(self, project_root: Path, node_id: int) -> dict[str, Any]:
+        """特定ノードの外部化プロパティをオンデマンドでロードする
+
+        Args:
+            project_root: プロジェクトルート
+            node_id: ノードID
+
+        Returns:
+            外部化プロパティのdict（ファイルなし時は空dict）
+        """
+        ...
+
+    def save_node_properties(self, project_root: Path, node_id: int, properties: dict[str, Any]) -> Path:
+        """特定ノードの外部化プロパティを保存する
+
+        Args:
+            project_root: プロジェクトルート
+            node_id: ノードID
+            properties: 外部化するプロパティのdict
 
         Returns:
             保存先パス

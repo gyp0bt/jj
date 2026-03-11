@@ -14,7 +14,17 @@ from jj_types import GraphModel
 logger = logging.getLogger(__name__)
 
 
+_EXT_KEYS_FIELD = "_ext_keys"
+
+
+def _is_heavy_value(value: Any) -> bool:
+    """プロパティ値が外部化対象（list/dict）かどうかを判定"""
+    return isinstance(value, (list, dict)) and len(value) > 0
+
+
 class GraphStorage:
+    _PROPERTIES_DIRNAME = "properties"
+
     def __init__(
         self,
         storage_dirname: str = ".j2/storage",
@@ -48,7 +58,31 @@ class GraphStorage:
             return existing
         return storage_dir / self.default_filename
 
-    def load(self, project_root: Path, filename: str | None = None) -> GraphModel:
+    def _properties_dir(self, project_root: Path) -> Path:
+        props_dir = self._storage_dir(project_root) / self._PROPERTIES_DIRNAME
+        props_dir.mkdir(parents=True, exist_ok=True)
+        return props_dir
+
+    def _node_properties_path(self, project_root: Path, node_id: int) -> Path:
+        return self._properties_dir(project_root) / f"node_{node_id}.json"
+
+    def load(
+        self,
+        project_root: Path,
+        filename: str | None = None,
+        *,
+        resolve_externalized: bool = False,
+    ) -> GraphModel:
+        """グラフデータを読み込む
+
+        Args:
+            project_root: プロジェクトルートパス
+            filename: ファイル名（Noneでデフォルト検出）
+            resolve_externalized: Trueの場合、外部化プロパティを結合してフルロード
+
+        Returns:
+            読み込んだGraphModel
+        """
         path = self._resolve_path(project_root, filename)
         if not path.exists():
             return GraphModel.empty()
@@ -57,9 +91,27 @@ class GraphStorage:
         if data is None:
             return GraphModel.empty()
 
+        if resolve_externalized:
+            self._resolve_all_externalized(project_root, data)
+
         if hasattr(GraphModel, "model_validate"):
             return GraphModel.model_validate(data)
         return GraphModel(**data)
+
+    def _resolve_all_externalized(self, project_root: Path, data: dict[str, Any]) -> None:
+        """グラフデータ内の全ノードの外部化プロパティを結合（in-place）"""
+        nodes = data.get("nodes", [])
+        for node_data in nodes:
+            props = node_data.get("properties", {})
+            ext_keys = props.get(_EXT_KEYS_FIELD)
+            if not ext_keys:
+                continue
+            node_id = node_data.get("id")
+            if node_id is None:
+                continue
+            ext_props = self.load_node_properties(project_root, node_id)
+            props.update(ext_props)
+            props.pop(_EXT_KEYS_FIELD, None)
 
     def save(
         self,
@@ -69,8 +121,47 @@ class GraphStorage:
     ) -> Path:
         path = self._resolve_path(project_root, filename)
         data = self._dump_graph(graph)
+        self._externalize_heavy_properties(project_root, data)
         self._write_file(path, data)
         return path
+
+    def _externalize_heavy_properties(self, project_root: Path, data: dict[str, Any]) -> None:
+        """重いプロパティをノードごとに外部JSONファイルへ分離（in-place）
+
+        list/dictのプロパティを外部ファイルに書き出し、
+        graph.yamlには _ext_keys マーカーのみを残す。
+        """
+        nodes = data.get("nodes", [])
+        # 現在のノードIDセットを記録（孤立ファイルの掃除用）
+        current_node_ids: set[int] = set()
+        for node_data in nodes:
+            node_id = node_data.get("id")
+            if node_id is None:
+                continue
+            current_node_ids.add(node_id)
+            props = node_data.get("properties", {})
+            heavy_keys: list[str] = []
+            heavy_props: dict[str, Any] = {}
+            for key, value in list(props.items()):
+                if key == _EXT_KEYS_FIELD:
+                    continue
+                if _is_heavy_value(value):
+                    heavy_keys.append(key)
+                    heavy_props[key] = value
+            if heavy_keys:
+                self.save_node_properties(project_root, node_id, heavy_props)
+                for key in heavy_keys:
+                    del props[key]
+                props[_EXT_KEYS_FIELD] = sorted(heavy_keys)
+            else:
+                props.pop(_EXT_KEYS_FIELD, None)
+                # 外部ファイルが残っていたら削除
+                ext_path = self._node_properties_path(project_root, node_id)
+                if ext_path.exists():
+                    ext_path.unlink(missing_ok=True)
+
+        # グラフから消えたノードの外部ファイルを掃除
+        self._cleanup_orphan_properties(project_root, current_node_ids)
 
     def _dump_graph(self, graph: GraphModel) -> dict[str, Any]:
         if hasattr(graph, "model_dump"):
@@ -102,6 +193,74 @@ class GraphStorage:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         else:
             raise ValueError("対応していない拡張子です。")
+
+    # =========================================================
+    # ノードプロパティの外部化（オンデマンドロード）
+    # =========================================================
+
+    def load_node_properties(self, project_root: Path, node_id: int) -> dict[str, Any]:
+        """特定ノードの外部化プロパティをオンデマンドでロードする
+
+        Args:
+            project_root: プロジェクトルート
+            node_id: ノードID
+
+        Returns:
+            外部化プロパティのdict。ファイルが存在しない場合は空dict。
+        """
+        path = self._node_properties_path(project_root, node_id)
+        if not path.exists():
+            return {}
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"外部プロパティの読み込み失敗 (node_id={node_id}): {e}")
+        return {}
+
+    def save_node_properties(self, project_root: Path, node_id: int, properties: dict[str, Any]) -> Path:
+        """特定ノードの外部化プロパティをJSONファイルに保存する
+
+        Args:
+            project_root: プロジェクトルート
+            node_id: ノードID
+            properties: 外部化するプロパティのdict
+
+        Returns:
+            保存先パス
+        """
+        path = self._node_properties_path(project_root, node_id)
+        try:
+            with path.open("w", encoding="utf-8") as f:
+                json.dump(properties, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            logger.warning(f"外部プロパティの保存失敗 (node_id={node_id}): {e}")
+        return path
+
+    def _cleanup_orphan_properties(self, project_root: Path, current_node_ids: set[int]) -> int:
+        """グラフから消えたノードの外部プロパティファイルを削除する
+
+        Returns:
+            削除したファイル数
+        """
+        props_dir = self._storage_dir(project_root) / self._PROPERTIES_DIRNAME
+        if not props_dir.exists():
+            return 0
+        deleted = 0
+        for f in props_dir.glob("node_*.json"):
+            try:
+                node_id_str = f.stem.replace("node_", "")
+                node_id = int(node_id_str)
+                if node_id not in current_node_ids:
+                    f.unlink()
+                    deleted += 1
+            except (ValueError, OSError):
+                pass
+        if deleted > 0:
+            logger.info(f"孤立プロパティファイルを削除: {deleted}件")
+        return deleted
 
     # =========================================================
     # タイムスタンプキャッシュの永続化
