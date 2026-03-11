@@ -3411,6 +3411,178 @@ class TestArrayPlotFilters:
 
 
 # ====================================================================
+# 外部化プロパティ（_ext_keys）対応テスト
+# ====================================================================
+
+
+class TestExternalizedArrayPropertyKeys:
+    """外部化プロパティのキー発見テスト"""
+
+    def test_ext_keys_discovered(self):
+        """_ext_keysマーカーから配列キーを発見できる"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "index": "1",
+                        "_ext_keys": ["RF.time", "RF.RF1", "RF.RF3"],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        keys = provider.get_array_property_keys()
+        assert "RF.time" in keys
+        assert "RF.RF1" in keys
+        assert "RF.RF3" in keys
+        assert "index" not in keys
+
+    def test_mixed_inline_and_ext_keys(self):
+        """インラインと外部化が混在していても正しく発見"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "stress.time": [0.0, 1.0],
+                        "stress.mises": [100.0, 200.0],
+                        "_ext_keys": ["RF.time", "RF.RF3"],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        keys = provider.get_array_property_keys()
+        assert "stress.time" in keys
+        assert "stress.mises" in keys
+        assert "RF.time" in keys
+        assert "RF.RF3" in keys
+
+
+class TestExternalizedArrayPlotData:
+    """外部化プロパティのオンデマンドロードテスト"""
+
+    def test_resolve_on_demand(self, tmp_path):
+        """外部化プロパティがオンデマンドでロードされる"""
+        import json
+
+        # 外部プロパティファイルを作成
+        props_dir = tmp_path / ".j2" / "storage" / "properties"
+        props_dir.mkdir(parents=True)
+        ext_data = {
+            "RF.time": [0.0, 0.5, 1.0],
+            "RF.RF1": [10.0, 20.0, 30.0],
+            "RF.RF3": [0.0, 123.4, 456.7],
+        }
+        (props_dir / "node_1.json").write_text(json.dumps(ext_data))
+
+        # 軽量ロード相当のグラフ（配列なし、_ext_keysのみ）
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "index": "1",
+                        "_ext_keys": ["RF.time", "RF.RF1", "RF.RF3"],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph, project_root=tmp_path)
+
+        # get_array_property_keys で発見できる
+        keys = provider.get_array_property_keys()
+        assert "RF.time" in keys
+        assert "RF.RF3" in keys
+
+        # get_array_plot_data でオンデマンドロード
+        result = provider.get_array_plot_data(1, "RF.time")
+        assert result is not None
+        assert result["x_values"] == [0.0, 0.5, 1.0]
+        series_keys = {s["key"] for s in result["series"]}
+        assert "RF.RF1" in series_keys
+        assert "RF.RF3" in series_keys
+
+    def test_resolve_grid_data(self, tmp_path):
+        """外部化プロパティでget_array_grid_dataが動作する"""
+        import json
+
+        props_dir = tmp_path / ".j2" / "storage" / "properties"
+        props_dir.mkdir(parents=True)
+        ext_data = {
+            "RF.time": [0.0, 0.5, 1.0],
+            "RF.RF3": [0.0, 123.4, 456.7],
+        }
+        (props_dir / "node_1.json").write_text(json.dumps(ext_data))
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "index": "1",
+                        "_ext_keys": ["RF.time", "RF.RF3"],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph, project_root=tmp_path)
+
+        data = provider.get_array_grid_data("RF.time", "RF.RF3")
+        assert len(data) == 1
+        assert data[0]["x_values"] == [0.0, 0.5, 1.0]
+        assert data[0]["y_values"] == [0.0, 123.4, 456.7]
+
+    def test_no_project_root_fallback(self):
+        """project_rootなしでも外部化キーは発見できる（ロードはスキップ）"""
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "_ext_keys": ["RF.time", "RF.RF3"],
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+
+        # キーは発見できる
+        keys = provider.get_array_property_keys()
+        assert "RF.time" in keys
+
+        # データはロードできない（storageなし）
+        result = provider.get_array_plot_data(1, "RF.time")
+        assert result is None
+
+
+# ====================================================================
 # NG領域ヘルパー (app.pyのインポート不要なロジックテスト)
 # ====================================================================
 

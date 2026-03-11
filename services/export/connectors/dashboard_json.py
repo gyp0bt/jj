@@ -48,6 +48,7 @@ class DashboardJsonExporter(AbstractExporter):
             graph,
             vocab=vocab,
             units=units,
+            project_root=project_root,
         )
 
         data = provider.to_dashboard_json(project_name=project_name)

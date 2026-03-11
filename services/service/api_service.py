@@ -67,7 +67,7 @@ class ApiService:
             except Exception:
                 vocab = {}
                 units = {}
-            self._provider = DashboardDataProvider(graph, vocab=vocab, units=units)
+            self._provider = DashboardDataProvider(graph, vocab=vocab, units=units, project_root=self._project_root)
         return self._provider
 
     # --------------------------------------------------
