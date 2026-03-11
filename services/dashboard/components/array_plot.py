@@ -492,11 +492,17 @@ def _render_array_single(
     vn_key = provider._verbose_name_key
 
     # 配列データを持つノードのみ（表示名を使用）
+    # 外部化プロパティ（_ext_keys）も考慮
     items_with_array = []
     for r in rows:
         nid = r["id"]
         node = provider._node_by_id.get(nid)
-        if node and isinstance(node.properties.get(x_key), list):
+        if node is None:
+            continue
+        has_inline = isinstance(node.properties.get(x_key), list)
+        ext_keys = node.properties.get("_ext_keys")
+        has_ext = isinstance(ext_keys, list) and x_key in ext_keys
+        if has_inline or has_ext:
             items_with_array.append(
                 {
                     "id": nid,

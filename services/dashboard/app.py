@@ -311,6 +311,7 @@ def main() -> None:
         units=units,
         verbose_name_format=verbose_name_format,
         global_columns=global_columns,
+        project_root=project_root,
     )
 
     # 共有フィルタ初期化

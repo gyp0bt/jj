@@ -14,9 +14,12 @@ from __future__ import annotations
 import fnmatch
 import math
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from jj_types import RUN_INPUT, RUN_MEDIA, RUN_OUTPUT, GraphModel, Node, NodeCategory, Relation
+
+_EXT_KEYS_FIELD = "_ext_keys"
 
 
 def format_float_value(value: float) -> str | float:
@@ -121,12 +124,19 @@ class DashboardDataProvider:
         units: dict[str, str] | None = None,
         verbose_name_format: str | None = None,
         global_columns: list[str] | None = None,
+        project_root: Path | None = None,
     ) -> None:
         self.graph = graph
         self.vocab = vocab or {}
         self.units = units or {}
         self._verbose_name_format = verbose_name_format  # 後方互換のため保持
         self._global_columns = global_columns
+        self._project_root = project_root
+        self._storage: Any | None = None
+        if project_root is not None:
+            from services.graph.storage import GraphStorage
+
+            self._storage = GraphStorage()
         self._node_by_id: dict[int, Node] = {n.id: n for n in graph.nodes}
         self._relations_by_node: dict[int, list[Relation]] = {}
         for r in graph.relations:
@@ -793,6 +803,7 @@ class DashboardDataProvider:
 
         「PREFIX.列名」形式（例: RF.time, RF.RF3）のプロパティキーを
         抽出してソート済みリストで返す。
+        外部化プロパティ（_ext_keysマーカー）も考慮する。
 
         Returns:
             ソート済みの配列プロパティキーリスト
@@ -802,9 +813,16 @@ class DashboardDataProvider:
             name_lower = node.name.lower()
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
+            # インライン配列プロパティ
             for key, value in node.properties.items():
                 if "." in key and isinstance(value, list):
                     keys.add(key)
+            # 外部化プロパティのキーも追加
+            ext_keys = node.properties.get(_EXT_KEYS_FIELD)
+            if isinstance(ext_keys, list):
+                for key in ext_keys:
+                    if "." in key:
+                        keys.add(key)
         return sorted(keys)
 
     def get_array_plot_data(
@@ -814,6 +832,8 @@ class DashboardDataProvider:
         y_keys: list[str] | None = None,
     ) -> dict[str, Any] | None:
         """特定ノードの配列プロパティをプロット用データに変換
+
+        外部化プロパティがある場合はオンデマンドでロードする。
 
         Args:
             node_id: GOノードID
@@ -834,22 +854,21 @@ class DashboardDataProvider:
         if node is None:
             return None
 
-        x_values = node.properties.get(x_key)
+        # 外部化プロパティを解決
+        props = self._resolve_node_properties(node)
+
+        x_values = props.get(x_key)
         if not isinstance(x_values, list):
             return None
 
         # y_keysが未指定の場合、x_keyと同じ接頭辞の全キーを使用
         if y_keys is None:
             prefix = x_key.split(".")[0] + "."
-            y_keys = sorted(
-                k
-                for k in node.properties
-                if k.startswith(prefix) and k != x_key and isinstance(node.properties[k], list)
-            )
+            y_keys = sorted(k for k in props if k.startswith(prefix) and k != x_key and isinstance(props[k], list))
 
         series = []
         for y_key in y_keys:
-            y_values = node.properties.get(y_key)
+            y_values = props.get(y_key)
             if isinstance(y_values, list) and len(y_values) == len(x_values):
                 series.append({"key": y_key, "values": y_values})
 
@@ -883,6 +902,7 @@ class DashboardDataProvider:
         """全GOノードの配列プロパティをグリッドプロット用に返す
 
         indexごとに配列データを収集し、グリッド配置で並べるためのリストを返す。
+        外部化プロパティがある場合はオンデマンドでロードする。
 
         Args:
             x_key: X軸配列キー
@@ -906,8 +926,17 @@ class DashboardDataProvider:
             if not (name_lower.startswith("go_") or name_lower == "go"):
                 continue
 
-            x_vals = node.properties.get(x_key)
-            y_vals = node.properties.get(y_key)
+            # 配列キーを持つ可能性があるノードのみ解決
+            ext_keys = node.properties.get(_EXT_KEYS_FIELD)
+            has_inline = isinstance(node.properties.get(x_key), list)
+            if not has_inline and not (isinstance(ext_keys, list) and x_key in ext_keys):
+                continue
+
+            # 外部化プロパティを解決
+            props = self._resolve_node_properties(node)
+
+            x_vals = props.get(x_key)
+            y_vals = props.get(y_key)
             if not isinstance(x_vals, list) or not isinstance(y_vals, list):
                 continue
             if len(x_vals) != len(y_vals):
@@ -923,14 +952,12 @@ class DashboardDataProvider:
                     "node_id": node.id,
                     "name": node.name,
                     "display_name": display_name,
-                    "index": node.properties.get("index", ""),
-                    "version": node.properties.get("version", ""),
+                    "index": props.get("index", ""),
+                    "version": props.get("version", ""),
                     "x_values": x_vals,
                     "y_values": y_vals,
                     "properties": {
-                        k: v
-                        for k, v in node.properties.items()
-                        if k != "path" and not (isinstance(v, list) and "." in k)
+                        k: v for k, v in props.items() if k != "path" and not (isinstance(v, list) and "." in k)
                     },
                 }
             )
@@ -938,6 +965,36 @@ class DashboardDataProvider:
         return results
 
     # ---- private ----
+
+    def _resolve_node_properties(self, node: Node) -> dict[str, Any]:
+        """外部化プロパティをオンデマンドで解決してノードのプロパティを返す
+
+        _ext_keysマーカーが存在し、storageが利用可能な場合、
+        外部化プロパティをロードしてノードのpropertiesにマージする。
+        一度解決済みのノードは再ロードしない。
+
+        Returns:
+            配列データを含むプロパティのdict
+        """
+        ext_keys = node.properties.get(_EXT_KEYS_FIELD)
+        if not ext_keys:
+            return node.properties
+
+        # storageが利用不可の場合はそのまま返す
+        if self._storage is None or self._project_root is None:
+            return node.properties
+
+        # 外部プロパティをロードしてノードにマージ
+        ext_props = self._storage.load_node_properties(self._project_root, node.id)
+        if ext_props:
+            node.properties.update(ext_props)
+            node.properties.pop(_EXT_KEYS_FIELD, None)
+
+        return node.properties
+
+    def _has_ext_keys(self, node: Node) -> bool:
+        """ノードが外部化配列プロパティを持つかどうかを判定"""
+        return bool(node.properties.get(_EXT_KEYS_FIELD))
 
     def _get_display_name(self, node: Node) -> str:
         """ノードの表示名を取得
