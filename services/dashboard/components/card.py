@@ -109,7 +109,7 @@ class CardPage(PageComponent[CardViewConfig]):
                     props_flat[k] = v
             df = pd.DataFrame([props_flat]).T
             df.columns = ["値"]
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width="stretch")
         else:
             st.info("プロパティがありません。")
 
@@ -169,7 +169,7 @@ class CardPage(PageComponent[CardViewConfig]):
                     props_flat[k] = v
             df = pd.DataFrame([props_flat]).T
             df.columns = ["値"]
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width="stretch")
 
     def generate_html(
         self,

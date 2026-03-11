@@ -471,7 +471,7 @@ def _try_render_graphviz(
     dot_lines.append("}")
 
     try:
-        st.graphviz_chart("\n".join(dot_lines), use_container_width=True)
+        st.graphviz_chart("\n".join(dot_lines), width="stretch")
         return True
     except Exception:
         return False
@@ -646,7 +646,7 @@ def _render_diff_table(
             table_data[f"v:{ver}"].append(val)
 
     df = pd.DataFrame(table_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 # ====================================================================

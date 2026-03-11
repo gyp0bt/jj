@@ -64,6 +64,16 @@
 |-------------|------|
 | [midterm-plan-v0.3.md](midterm-plan-v0.3.md) | v0.3.0 全8ワークトラック詳細設計 |
 
+### ダッシュボード改善・出力連携
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [dashboard-improvements.md](dashboard-improvements.md) | テーブルフィルタ強化・統合レイアウト・デフォルト保存 |
+| [windows-integration.md](windows-integration.md) | Windows連携（PPT貼り付け・Excel書き出し） |
+| [property-key-normalization.md](property-key-normalization.md) | include継承時のバージョン付きキー正規化 |
+| [property-externalization.md](property-externalization.md) | プロパティ外部化（graph.yaml軽量化） |
+| [t8-generic-data-management.md](t8-generic-data-management.md) | T8 汎用データ管理基盤 |
+
 ---
 
 ## ドメイン間の依存関係

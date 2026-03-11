@@ -135,7 +135,7 @@ class TablePage(PageComponent[TableViewConfig]):
 
         # AgGridを試行、失敗時はst.dataframeにフォールバック
         if not try_render_aggrid(df):
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
         # Excelダウンロードボタン
         render_excel_download(df, "go_table")
@@ -204,7 +204,7 @@ class TablePage(PageComponent[TableViewConfig]):
 
             df = df.rename(columns={c: translate_key(c, vocab) for c in df.columns})
 
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
         # Excelダウンロードボタン
         render_excel_download(df, f"saved_view_{view.name}")

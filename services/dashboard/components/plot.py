@@ -337,7 +337,7 @@ class PlotPage(PageComponent[PlotViewConfig]):
                 fig.update_yaxes(range=y_range)
             # スタイル設定を適用
             apply_style_to_fig(fig, plot_style)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         except ImportError:
             # plotlyがない場合はStreamlit組み込みチャートを使用
             st.scatter_chart(df, x=x_key, y=y_key)
@@ -440,7 +440,7 @@ class PlotPage(PageComponent[PlotViewConfig]):
             axis_range = plot_config.get("axis_range", {})
             if axis_range:
                 _apply_axis_range(fig, axis_range)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         except ImportError:
             st.scatter_chart(df, x=x_key, y=y_key)
 

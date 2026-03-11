@@ -446,7 +446,7 @@ def _render_comparison_chart(
             legend_title="メトリクス",
             height=400,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     except ImportError:
         # plotly未使用時: テーブル形式で比較
@@ -591,7 +591,7 @@ def _render_dataframe(rows: list[dict[str, Any]]) -> None:
         import pandas as pd
 
         df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
     except ImportError:
         st.table(rows)
 

@@ -82,9 +82,9 @@ def _render_material_page(
         from services.dashboard.widgets import try_render_aggrid
 
         if not try_render_aggrid(df):
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
     except ImportError:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
     st.caption(f"物性数: {len(mat_rows)}")
 
@@ -124,7 +124,7 @@ def _render_material_page(
         if data_rows:
             col_names = guess_table_column_names(selected_key, len(data_rows[0]), mcc)
             table_df = pd.DataFrame(data_rows, columns=col_names)
-            st.dataframe(table_df, use_container_width=True, hide_index=True)
+            st.dataframe(table_df, width="stretch", hide_index=True)
 
     with col2:
         # ラインプロット
@@ -153,7 +153,7 @@ def _render_material_page(
                     height=400,
                     template=get_plotly_template(),
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             except ImportError:
                 st.warning("plotlyが必要です: pip install plotly")
 
@@ -278,7 +278,7 @@ def _render_material_comparison(
             height=500,
             template=get_plotly_template(),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     except ImportError:
         st.warning("plotlyが必要です: pip install plotly")
 
@@ -324,7 +324,7 @@ def _render_material_usage(
         )
 
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def _format_quality_dict(quality: dict[str, Any]) -> dict[str, str]:
@@ -374,7 +374,7 @@ def _render_mesh_quality_summary(
         display_rows.append(row)
 
     df = pd.DataFrame(display_rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def _render_elset_quality_summary(
@@ -406,7 +406,7 @@ def _render_elset_quality_summary(
         display_rows.append(row)
 
     df = pd.DataFrame(display_rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def _render_mesh_quality_page(
@@ -473,9 +473,9 @@ def _render_job_summary_page(
         from services.dashboard.widgets import try_render_aggrid
 
         if not try_render_aggrid(df):
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
     except ImportError:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
     st.caption(f"ジョブ数: {len(job_rows)}")
 
@@ -842,7 +842,7 @@ def _render_material_saved_view(
                 height=500,
                 template=get_plotly_template(),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         except ImportError:
             st.warning("plotlyが必要です: pip install plotly")
         return
@@ -866,7 +866,7 @@ def _render_material_saved_view(
         else:
             display_row[k] = v
     df = pd.DataFrame([display_row])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
     # プロパティカーブ
     if property_key:
@@ -889,7 +889,7 @@ def _render_material_saved_view(
         col1, col2 = st.columns(2)
         with col1:
             table_df = pd.DataFrame(data_rows, columns=col_names)
-            st.dataframe(table_df, use_container_width=True, hide_index=True)
+            st.dataframe(table_df, width="stretch", hide_index=True)
         with col2:
             try:
                 import plotly.graph_objects as go
@@ -912,7 +912,7 @@ def _render_material_saved_view(
                     height=400,
                     template=get_plotly_template(),
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             except ImportError:
                 st.warning("plotlyが必要です: pip install plotly")
 
@@ -954,7 +954,7 @@ def _render_mesh_quality_saved_view(
                 row.update(_format_quality_dict(quality))
             display_rows.append(row)
         df = pd.DataFrame(display_rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
     else:
         st.info("メッシュ品質データがありません。")
 
@@ -1014,7 +1014,7 @@ def _render_job_summary_saved_view(
         display_rows.append(row)
 
     df = pd.DataFrame(display_rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     st.caption(f"ジョブ数: {len(job_rows)}")
 
 

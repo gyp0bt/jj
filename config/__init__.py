@@ -884,6 +884,7 @@ class GalleryDefaults:
     columns: int = 5
     rows: int = 4
     max_image_bytes: int = 5 * 1024 * 1024
+    group_keys: tuple[str, ...] = ("result_key", "step", "frame", "vmax", "vmin")
 
 
 @dataclass(frozen=True)
@@ -1063,6 +1064,10 @@ class DashboardConfig:
             gd_kwargs["rows"] = int(raw_gd["rows"])
         if raw_gd.get("max-image-bytes") is not None:
             gd_kwargs["max_image_bytes"] = int(raw_gd["max-image-bytes"])
+        if raw_gd.get("group-keys") is not None:
+            raw_gkeys = raw_gd["group-keys"]
+            if isinstance(raw_gkeys, list):
+                gd_kwargs["group_keys"] = tuple(str(k) for k in raw_gkeys)
         gallery_defaults = GalleryDefaults(**gd_kwargs)
         if gallery_defaults.columns < 1:
             raise ValueError("gallery-defaults.columns must be >= 1")
