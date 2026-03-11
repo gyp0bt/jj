@@ -161,7 +161,7 @@ def _render_run_table(runs: list[Any]) -> None:
     if table_data:
         import pandas as pd
 
-        st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(table_data), width="stretch", hide_index=True)
 
 
 def _render_run_dag(runs: list[Any], query_svc: Any) -> None:
@@ -408,7 +408,7 @@ def _try_render_run_dag_graphviz(
     dot_lines.append("}")
 
     try:
-        st.graphviz_chart("\n".join(dot_lines), use_container_width=True)
+        st.graphviz_chart("\n".join(dot_lines), width="stretch")
         return True
     except Exception:
         return False
@@ -459,7 +459,7 @@ def _render_run_diff(query_svc: Any, run_a: Any, run_b: Any) -> None:
         prop_rows: list[dict[str, Any]] = []
         for key, (va, vb) in sorted(diff.property_diffs.items()):
             prop_rows.append({"プロパティ": key, "Run A": va, "Run B": vb})
-        st.dataframe(pd.DataFrame(prop_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(prop_rows), width="stretch", hide_index=True)
 
 
 # ====================================================================
