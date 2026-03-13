@@ -143,9 +143,7 @@ class SyncConfig:
         if isinstance(raw_mappings, list):
             for m in raw_mappings:
                 if isinstance(m, dict) and "local" in m and "shared" in m:
-                    mappings.append(
-                        SharedFolderMapping(local=str(m["local"]), shared=str(m["shared"]))
-                    )
+                    mappings.append(SharedFolderMapping(local=str(m["local"]), shared=str(m["shared"])))
 
         gl = data.get("gitlab", {}) or {}
         return cls(
