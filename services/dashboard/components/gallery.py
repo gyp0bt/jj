@@ -62,6 +62,78 @@ class GalleryViewConfig(ViewConfig):
         return {"gallery": gallery_config}
 
 
+def render_gallery_section(
+    provider: DashboardDataProvider,
+    dashboard_config: DashboardConfig,
+    project_root: Path,
+    active_filters: dict[str, Any] | None = None,
+    *,
+    show_header: bool = True,
+    show_grid_settings: bool = True,
+    show_source_selector: bool = True,
+    key_prefix: str = "",
+) -> None:
+    """ギャラリーセクションの描画（OverviewPage等から再利用可能）
+
+    Args:
+        provider: データプロバイダ
+        dashboard_config: ダッシュボード設定
+        project_root: プロジェクトルート
+        active_filters: アクティブフィルタ（Noneで全件）
+        show_header: ヘッダーを表示するか
+        show_grid_settings: グリッド設定UIを表示するか
+        show_source_selector: ソース選択UIを表示するか
+        key_prefix: session_stateキーの接頭辞（同一ページで複数描画する場合の衝突防止）
+    """
+    import streamlit as st
+
+    if show_header:
+        st.header("画像ギャラリー")
+
+    if show_grid_settings:
+        default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
+        persisted_cols = st.session_state.get(f"{key_prefix}_gallery_user_cols", default_cols)
+        persisted_rows = st.session_state.get(f"{key_prefix}_gallery_user_rows", default_rows)
+        gc1, gc2 = st.columns(2)
+        with gc1:
+            cols_per_row = st.number_input(
+                "列数",
+                min_value=1,
+                max_value=10,
+                value=persisted_cols,
+                key=f"{key_prefix}_gallery_cols",
+            )
+        with gc2:
+            rows_per_page = st.number_input(
+                "行数",
+                min_value=1,
+                max_value=20,
+                value=persisted_rows,
+                key=f"{key_prefix}_gallery_rows",
+            )
+        st.session_state[f"{key_prefix}_gallery_user_cols"] = cols_per_row
+        st.session_state[f"{key_prefix}_gallery_user_rows"] = rows_per_page
+
+    if show_source_selector:
+        source_options = ["has_output関係", "プロパティ画像パス"]
+        persisted_source_idx = st.session_state.get(f"{key_prefix}_gallery_source_idx", 0)
+        image_source = st.radio(
+            "画像ソース",
+            source_options,
+            index=persisted_source_idx,
+            horizontal=True,
+            key=f"{key_prefix}_gallery_source_radio",
+        )
+        st.session_state[f"{key_prefix}_gallery_source_idx"] = source_options.index(image_source)
+    else:
+        image_source = "has_output関係"
+
+    if image_source == "has_output関係":
+        _render_gallery_output_images(provider, project_root, dashboard_config, active_filters=active_filters)
+    else:
+        _render_gallery_property_images(provider, project_root, dashboard_config, active_filters=active_filters)
+
+
 class GalleryPage(PageComponent[GalleryViewConfig]):
     """ギャラリービューページコンポーネント"""
 
@@ -82,57 +154,19 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
             return
         project_root = Path(project_root)
 
-        st.header("画像ギャラリー")
-
-        # グリッド設定（列数・行数をユーザーが変更可能）
-        # session_stateに保存済みの値があればそちらを優先（ページ遷移時の復元）
-        default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
-        persisted_cols = st.session_state.get("_gallery_user_cols", default_cols)
-        persisted_rows = st.session_state.get("_gallery_user_rows", default_rows)
-        gc1, gc2 = st.columns(2)
-        with gc1:
-            cols_per_row = st.number_input(
-                "列数",
-                min_value=1,
-                max_value=10,
-                value=persisted_cols,
-                key="_gallery_cols",
-            )
-        with gc2:
-            rows_per_page = st.number_input(
-                "行数",
-                min_value=1,
-                max_value=20,
-                value=persisted_rows,
-                key="_gallery_rows",
-            )
-        # セッション状態に保存して下流関数で参照
-        st.session_state["_gallery_user_cols"] = cols_per_row
-        st.session_state["_gallery_user_rows"] = rows_per_page
-
         # 共有フィルタ
         from services.dashboard.widgets import get_active_filters, render_shared_filters
 
         rows = provider.get_go_table()
         render_shared_filters(rows)
 
-        # 画像ソース選択（ページ遷移時の復元対応）
-        source_options = ["has_output関係", "プロパティ画像パス"]
-        persisted_source_idx = st.session_state.get("_gallery_source_idx", 0)
-        image_source = st.radio(
-            "画像ソース",
-            source_options,
-            index=persisted_source_idx,
-            horizontal=True,
-            key="_gallery_source_radio",
-        )
-        st.session_state["_gallery_source_idx"] = source_options.index(image_source)
-
         active_filters = get_active_filters()
-        if image_source == "has_output関係":
-            _render_gallery_output_images(provider, project_root, dashboard_config, active_filters=active_filters)
-        else:
-            _render_gallery_property_images(provider, project_root, dashboard_config, active_filters=active_filters)
+        render_gallery_section(
+            provider,
+            dashboard_config,
+            project_root,
+            active_filters=active_filters,
+        )
 
     def render_saved_view(
         self,

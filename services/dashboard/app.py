@@ -42,6 +42,7 @@ import services.dashboard.components.array_plot  # noqa: E402
 import services.dashboard.components.batch_overview  # noqa: E402
 import services.dashboard.components.card  # noqa: E402
 import services.dashboard.components.gallery  # noqa: E402
+import services.dashboard.components.overview  # noqa: E402
 import services.dashboard.components.plot  # noqa: E402
 import services.dashboard.components.run_comparison  # noqa: E402
 import services.dashboard.components.status  # noqa: E402
@@ -330,6 +331,11 @@ def main() -> None:
     default_page_idx = 0
     if preset_label and preset_label in page_options:
         default_page_idx = page_options.index(preset_label)
+    elif dashboard_config.default_page:
+        # config.default_page（page_key）から対応するラベルを検索
+        dp_component = get_page_component(dashboard_config.default_page)
+        if dp_component is not None and dp_component.page_label in page_options:
+            default_page_idx = page_options.index(dp_component.page_label)
 
     page = st.sidebar.radio(
         "ページ",
@@ -343,6 +349,9 @@ def main() -> None:
     st.sidebar.metric("総ノード数", len(graph.nodes))
     st.sidebar.metric("総リレーション数", len(graph.relations))
     st.sidebar.metric("go_ ファイル数", status["total"])
+
+    # デフォルト保存ボタン
+    _render_save_defaults_button(project_root)
 
     # 共通kwargs（全PageComponentに渡す）
     render_kwargs: dict[str, Any] = {
@@ -1015,6 +1024,39 @@ def _render_view_edit_form(
             if st.button("キャンセル", key=f"_edit_cancel_{dyn_idx}"):
                 st.session_state[f"_editing_dv_{dyn_idx}"] = False
                 st.rerun()
+
+
+def _render_save_defaults_button(project_root: Path) -> None:
+    """サイドバーにデフォルト設定保存ボタンを表示"""
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("デフォルト設定を保存"):
+        save_gallery = st.checkbox("ギャラリー設定", value=True, key="_save_def_gallery")
+        save_page = st.checkbox("デフォルトページ", value=False, key="_save_def_page")
+
+        if st.button("デフォルトとして保存", key="_save_defaults_btn"):
+            from services.dashboard.config_writer import (
+                collect_current_dashboard_state,
+                save_dashboard_defaults,
+            )
+
+            items: dict[str, Any] = {}
+
+            if save_gallery:
+                items.update(collect_current_dashboard_state())
+
+            if save_page:
+                # 現在のページキーを取得
+                current_page_label = st.session_state.get("ページ")
+                if current_page_label:
+                    comp = get_page_component_by_label(current_page_label)
+                    if comp is not None:
+                        items["default-page"] = comp.page_key
+
+            if items:
+                config_path = save_dashboard_defaults(project_root, items)
+                st.success(f"設定を保存しました: {config_path.name}")
+            else:
+                st.warning("保存する項目を選択してください。")
 
 
 if __name__ == "__main__":
