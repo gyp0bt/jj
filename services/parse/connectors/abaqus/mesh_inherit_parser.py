@@ -29,6 +29,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from services.parse.base import AbstractFileParser
+from services.query.sort import get_file_base_name
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -101,9 +102,10 @@ class MeshInheritParser(AbstractFileParser):
                         # メッシュ関連の辞書プロパティは複数include先からマージ
                         node.properties[key] = {**node.properties[key], **value}
                     else:
-                        # キー競合: 接頭辞 "{child_name}:" を付けてエスケープ
-                        prefixed_key = f"{child.name}:{key}"
-                        if prefixed_key not in node.properties:
-                            node.properties[prefixed_key] = value
+                        # キー競合: ベース名を正規化して接頭辞付与
+                        # mesh_v2:v, mesh_v3:v → mesh:v（後勝ち）
+                        base_name = get_file_base_name(child.name)
+                        prefixed_key = f"{base_name}:{key}"
+                        node.properties[prefixed_key] = value
 
         return graph

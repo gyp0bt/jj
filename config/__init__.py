@@ -913,6 +913,7 @@ class DashboardConfig:
     plot_style_defaults: PlotStyleDefaults  # プロットスタイルデフォルト値
     gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
     list_summary_columns: list[str]  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
+    default_page: str | None  # デフォルト表示ページ（"table"|"gallery"|"plot"|"overview"等）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -943,6 +944,7 @@ class DashboardConfig:
                 plot_style_defaults=PlotStyleDefaults(),
                 gallery_defaults=GalleryDefaults(),
                 list_summary_columns=["msg_errors", "dat_errors"],
+                default_page=None,
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -1086,6 +1088,9 @@ class DashboardConfig:
             list_summary_columns = [str(c) for c in raw_lsc]
         else:
             list_summary_columns = ["msg_errors", "dat_errors"]
+        # デフォルト表示ページ
+        raw_default_page = data.get("default-page")
+        default_page = str(raw_default_page) if raw_default_page is not None else None
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -1101,6 +1106,7 @@ class DashboardConfig:
             plot_style_defaults=plot_style_defaults,
             gallery_defaults=gallery_defaults,
             list_summary_columns=list_summary_columns,
+            default_page=default_page,
         )
 
 
