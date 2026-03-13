@@ -14,6 +14,7 @@ from config import IgnoreConfig
 from .backends import AbstractSyncBackend
 
 # バックエンド実装をインポートして自動登録
+from .backends import gitlab as _gl  # noqa: F401
 from .backends import shared_folder as _sf  # noqa: F401
 from .exclude import build_exclude_config
 from .models import SyncState, SyncStatus
