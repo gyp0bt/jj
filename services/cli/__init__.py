@@ -298,6 +298,49 @@ def build_parser() -> argparse.ArgumentParser:
     # jj ai status
     pai_sub.add_parser("status", help="AIプロバイダの状態を表示")
 
+    # push — 共有フォルダ/GitLabへプッシュ (T9)
+    ppush = sub.add_parser("push", help="プロジェクトを共有フォルダ/GitLabにプッシュ")
+    ppush.add_argument(
+        "--backend",
+        choices=["shared_folder", "gitlab"],
+        default="shared_folder",
+        help="使用バックエンド（デフォルト: shared_folder）",
+    )
+    ppush.add_argument("--target", default=None, help="pushするディレクトリ（デフォルト: カレント）")
+    ppush.add_argument("--destination", "--dest", default=None, help="同期先パス")
+    ppush.add_argument("--exclude", nargs="+", default=None, help="追加除外パターン")
+    ppush.add_argument("--dry-run", action="store_true", default=False, help="転送対象一覧を表示のみ")
+    ppush.add_argument("--force", action="store_true", default=False, help="差分チェックをスキップ")
+
+    # clone — 共有フォルダ/GitLabからクローン (T9)
+    pclone = sub.add_parser("clone", help="共有フォルダ/GitLabからプロジェクトをクローン")
+    pclone.add_argument("source", help="同期元パス（UNCパスまたはGitLab URL）")
+    pclone.add_argument(
+        "--backend",
+        choices=["shared_folder", "gitlab"],
+        default="shared_folder",
+        help="使用バックエンド（デフォルト: shared_folder）",
+    )
+    pclone.add_argument("--dest", default=None, help="クローン先ディレクトリ")
+    pclone.add_argument("--exclude", nargs="+", default=None, help="追加除外パターン")
+
+    # sync — 同期状態管理 (T9)
+    psync = sub.add_parser("sync", help="同期状態管理")
+    psync_sub = psync.add_subparsers(dest="sync_command")
+
+    # jj sync status
+    psync_st = psync_sub.add_parser("status", help="同期履歴一覧")
+    psync_st.add_argument(
+        "--filter",
+        choices=["pending", "in_progress", "completed", "failed"],
+        default=None,
+        help="ステータスでフィルタリング",
+    )
+
+    # jj sync show <sync_id>
+    psync_show = psync_sub.add_parser("show", help="同期操作の詳細を表示")
+    psync_show.add_argument("sync_id", type=str, help="同期ID")
+
     # graph (jj g) — 互換性維持
     add_graph_parser(sub)
 
@@ -329,6 +372,9 @@ def normalize_compat(args: argparse.Namespace) -> argparse.Namespace:
         "job",
         "prefect",
         "ai",
+        "push",
+        "clone",
+        "sync",
     ):
         return args
     if getattr(args, "cmd", None):
@@ -737,6 +783,160 @@ def run_prefect(args: argparse.Namespace) -> int:
         return 1
 
 
+def run_push(args: argparse.Namespace) -> int:
+    """pushコマンドのハンドラ (T9)"""
+    from services.sync.service import SyncService
+
+    backend = getattr(args, "backend", "shared_folder")
+    target = getattr(args, "target", None)
+    destination = getattr(args, "destination", None)
+    exclude = getattr(args, "exclude", None)
+    dry_run = getattr(args, "dry_run", False)
+    force = getattr(args, "force", False)
+
+    service = SyncService()
+
+    def on_progress(file_path: str, size: int) -> None:
+        print(f"  → {file_path} ({size:,} bytes)")
+
+    try:
+        state = service.push(
+            backend_name=backend,
+            target_dir=target,
+            destination=destination,
+            extra_exclude=exclude,
+            dry_run=dry_run,
+            force=force,
+            on_progress=on_progress,
+        )
+
+        if dry_run:
+            files = state.properties.get("target_files", [])
+            print(f"転送対象: {len(files)} ファイル")
+            for f in files:
+                print(f"  {f}")
+            print(f"\n同期先: {state.destination_path}")
+            return 0
+
+        if state.status.value == "completed":
+            print(
+                f"\npush完了: {state.files_transferred}ファイル転送, "
+                f"{state.files_skipped}ファイルスキップ, "
+                f"{state.bytes_transferred:,} bytes"
+            )
+            print(f"  同期ID: {state.sync_id}")
+            print(f"  同期先: {state.destination_path}")
+        else:
+            print(f"\npush失敗: {', '.join(state.errors)}")
+            return 1
+
+    except ValueError as e:
+        print(f"エラー: {e}")
+        return 1
+
+    return 0
+
+
+def run_clone(args: argparse.Namespace) -> int:
+    """cloneコマンドのハンドラ (T9)"""
+    from services.sync.service import SyncService
+
+    source = getattr(args, "source", "")
+    backend = getattr(args, "backend", "shared_folder")
+    dest = getattr(args, "dest", None)
+    exclude = getattr(args, "exclude", None)
+
+    service = SyncService()
+
+    def on_progress(file_path: str, size: int) -> None:
+        print(f"  ← {file_path} ({size:,} bytes)")
+
+    try:
+        destination = Path(dest) if dest else None
+        state = service.clone(
+            source=source,
+            backend_name=backend,
+            destination=destination,
+            extra_exclude=exclude,
+            on_progress=on_progress,
+        )
+
+        if state.status.value == "completed":
+            print(
+                f"\nclone完了: {state.files_transferred}ファイル転送, "
+                f"{state.files_skipped}ファイルスキップ, "
+                f"{state.bytes_transferred:,} bytes"
+            )
+            print(f"  同期ID: {state.sync_id}")
+            print(f"  クローン先: {state.destination_path}")
+        else:
+            print(f"\nclone失敗: {', '.join(state.errors)}")
+            return 1
+
+    except ValueError as e:
+        print(f"エラー: {e}")
+        return 1
+
+    return 0
+
+
+def run_sync(args: argparse.Namespace) -> int:
+    """syncコマンドのハンドラ (T9)"""
+    from services.sync.models import SyncStatus
+    from services.sync.service import SyncService
+
+    sync_command = getattr(args, "sync_command", None)
+    service = SyncService()
+
+    if sync_command == "status":
+        filter_str = getattr(args, "filter", None)
+        status_filter = SyncStatus(filter_str) if filter_str else None
+        syncs = service.status(status_filter=status_filter)
+
+        if not syncs:
+            print("同期履歴はありません。")
+            return 0
+
+        print(f"{'SYNC ID':<40} {'DIRECTION':<8} {'STATUS':<12} {'BACKEND':<15} {'FILES'}")
+        print("-" * 100)
+        for s in syncs:
+            print(f"{s.sync_id:<40} {s.direction.value:<8} {s.status.value:<12} {s.backend:<15} {s.files_transferred}")
+        print(f"\n合計: {len(syncs)}件")
+        return 0
+
+    elif sync_command == "show":
+        sync_id = getattr(args, "sync_id", "")
+        state = service.get_sync(sync_id)
+        if state is None:
+            print(f"同期操作 '{sync_id}' が見つかりません。")
+            return 1
+
+        print(f"=== 同期詳細: {state.sync_id} ===")
+        print(f"  方向: {state.direction.value}")
+        print(f"  ステータス: {state.status.value}")
+        print(f"  バックエンド: {state.backend}")
+        print(f"  同期元: {state.source_path}")
+        print(f"  同期先: {state.destination_path}")
+        if state.started_at:
+            print(f"  開始: {state.started_at}")
+        if state.completed_at:
+            print(f"  完了: {state.completed_at}")
+        print(f"  転送ファイル数: {state.files_transferred}")
+        print(f"  スキップ数: {state.files_skipped}")
+        print(f"  転送バイト数: {state.bytes_transferred:,}")
+        if state.exclude_patterns:
+            print(f"  除外パターン: {', '.join(state.exclude_patterns)}")
+        if state.errors:
+            print(f"  エラー: {', '.join(state.errors)}")
+        return 0
+
+    else:
+        print("使用方法: jj sync <status|show>")
+        print("  status   同期履歴一覧")
+        print("  show     同期操作の詳細を表示")
+        return 1
+
+
 def run_ai(args: argparse.Namespace) -> int:
     """AIコマンドのハンドラ (T7)"""
     ai_command = getattr(args, "ai_command", None)
@@ -1049,6 +1249,18 @@ def dispatch(args: argparse.Namespace) -> int:
     # aiコマンド（T7: AI連携）
     if cmd == "ai":
         return run_ai(args)
+
+    # pushコマンド（T9: 同期）
+    if cmd == "push":
+        return run_push(args)
+
+    # cloneコマンド（T9: 同期）
+    if cmd == "clone":
+        return run_clone(args)
+
+    # syncコマンド（T9: 同期状態管理）
+    if cmd == "sync":
+        return run_sync(args)
 
     # submit系コマンド（SSH設定必要 — SubmitServiceを遅延初期化）
     targets = resolve_targets(args)
