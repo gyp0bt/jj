@@ -14,6 +14,21 @@
 - [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-6完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
 - [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
 
+### プロパティキー正規化
+
+- [x] K-1: `get_file_base_name()` 関数 + テスト
+- [x] K-2: MeshInheritParserプレフィックス正規化
+- [x] K-3: 既存テスト更新
+- [ ] K-4: （オプション）config property-key-aliases
+
+### ダッシュボード改善
+
+- [x] D-1: AgGridフィルタ強化（saved_viewでもAgGrid使用）
+- [x] D-2: テーブル/ギャラリーロジック関数抽出
+- [x] D-3: OverviewPage実装
+- [x] D-4: デフォルト保存ボタン + config書き戻し
+- [x] D-5: default-page config対応
+
 ### T3 改善候補
 
 - [ ] モデルレジストリ詳細ページ（チェックポイント選択・比較UI）
@@ -62,6 +77,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [075](status-075.md) | 03-13 | プロパティキー正規化(K-1〜K-3)・ダッシュボード改善(D-1〜D-5) | claude/execute-status-todos-W5eUH |
 | [074](status-074.md) | 03-11 | composite_target_keys外部化・resolve_externalized伝搬 | claude/execute-status-todos-7YJMZ |
 | [073](status-073.md) | 03-11 | Streamlit非推奨API修正・ギャラリー改善（idx整数ソート） | claude/setup-project-docs-KtzaJ |
 | [072](status-072.md) | 03-10 | プロパティ外部化（graph.yaml軽量化） | claude/refactor-graph-data-storage-Wsmdj |
