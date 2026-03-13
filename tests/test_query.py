@@ -550,6 +550,54 @@ class TestSelectTableColumns:
         assert "mesh_t50:mesh_node_count" in result
 
 
+class TestGetFileBaseName:
+    """get_file_base_name のテスト"""
+
+    def test_version_suffix(self):
+        from services.query.sort import get_file_base_name
+
+        assert get_file_base_name("mesh_v2") == "mesh"
+        assert get_file_base_name("mesh_v3") == "mesh"
+        assert get_file_base_name("mesh_v10") == "mesh"
+
+    def test_index_suffix(self):
+        from services.query.sort import get_file_base_name
+
+        assert get_file_base_name("mesh_idx1") == "mesh"
+        assert get_file_base_name("mesh_idx2") == "mesh"
+        assert get_file_base_name("mesh_idx100") == "mesh"
+
+    def test_non_version_suffix_unchanged(self):
+        from services.query.sort import get_file_base_name
+
+        assert get_file_base_name("mesh_fine") == "mesh_fine"
+        assert get_file_base_name("mesh_coarse") == "mesh_coarse"
+        assert get_file_base_name("material_steel") == "material_steel"
+
+    def test_no_suffix(self):
+        from services.query.sort import get_file_base_name
+
+        assert get_file_base_name("mesh") == "mesh"
+        assert get_file_base_name("go") == "go"
+
+    def test_multiple_parts_only_last_removed(self):
+        from services.query.sort import get_file_base_name
+
+        assert get_file_base_name("step_v10_idx3") == "step_v10"
+        assert get_file_base_name("mesh_fine_v2") == "mesh_fine"
+
+    def test_middle_version_not_removed(self):
+        from services.query.sort import get_file_base_name
+
+        # _v2 が末尾でない場合は除去しない
+        assert get_file_base_name("mesh_v2_fine") == "mesh_v2_fine"
+
+    def test_empty_string(self):
+        from services.query.sort import get_file_base_name
+
+        assert get_file_base_name("") == ""
+
+
 class TestGetBaseKey:
     """get_base_key のテスト"""
 

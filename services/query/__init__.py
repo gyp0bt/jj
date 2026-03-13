@@ -38,6 +38,7 @@ from services.query.filters import (
 )
 from services.query.sort import (
     get_base_key,
+    get_file_base_name,
     select_table_columns,
     sort_columns_by_vocab,
     sort_rows_by_index,
@@ -51,6 +52,7 @@ __all__ = [
     "apply_prop_filters",
     "apply_saved_view_filters",
     "get_base_key",
+    "get_file_base_name",
     "is_truthy",
     "node_prop_getter",
     "parse_prop_filters",

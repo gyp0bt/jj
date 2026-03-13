@@ -14,6 +14,36 @@ vocab辞書に基づくカラムソートと、configパターンに基づく
 from __future__ import annotations
 
 import fnmatch
+import re
+
+
+def get_file_base_name(filename: str) -> str:
+    """ファイル名からversion/index修飾子を除去してベース名を返す
+
+    末尾の ``_v{N}`` や ``_idx{N}`` を除去し、正規化されたベース名を返す。
+    バージョン/インデックスでない修飾子（``_fine``, ``_coarse`` 等）はそのまま保持する。
+
+    Examples:
+        >>> get_file_base_name("mesh_v2")
+        'mesh'
+        >>> get_file_base_name("mesh_v3")
+        'mesh'
+        >>> get_file_base_name("mesh_idx1")
+        'mesh'
+        >>> get_file_base_name("mesh_idx2")
+        'mesh'
+        >>> get_file_base_name("mesh_fine")
+        'mesh_fine'
+        >>> get_file_base_name("step_v10_idx3")
+        'step_v10'
+
+    Args:
+        filename: ファイル名（拡張子なし）
+
+    Returns:
+        バージョン/インデックス修飾子を除去したベース名
+    """
+    return re.sub(r"_(v\d+|idx\d+)$", "", filename)
 
 
 def get_base_key(column: str) -> str:
