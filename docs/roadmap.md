@@ -22,6 +22,7 @@
 | T6: ダッシュボード高度化 | **完了** | parseボタン・AgGrid・グラフ可視化・Run DAG |
 | T7: Ollama AI連携 | **進行中** | Phase 7-1〜7-3完了（AIProvider・summarize・diff） |
 | T8: 汎用データ管理 | **未着手** | Run中心プラットフォームへの昇華 |
+| T9: 共有フォルダ同期 | **進行中** | UNC共有フォルダ・GitLab連携（Phase 9-1〜9-6完了） |
 
 ### 依存関係
 
@@ -56,6 +57,14 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 - CAEに限定しない汎用Run管理プラットフォームへの昇華
 - 設計フェーズから開始
 
+#### T9: 共有フォルダ同期（中優先度・1セッション）
+
+- `jj push`: ローカル→Windows共有フォルダ/GitLabへの差分同期
+- `jj clone`: 共有フォルダ/GitLabからローカルへのクローン
+- UNCパス対応、mtime+size差分同期、除外パターン設定
+- GitLabバックエンド: git push/pull + .gitignore自動生成
+- API: POST sync/push, POST sync/clone, GET sync/status
+
 ### 実施ロードマップ
 
 | Phase | 内容 |
@@ -89,6 +98,7 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6 ML対応 |
 | [run-centric-schema.md](specs/run-centric-schema.md) | M7 Run中心スキーマ |
 | [neo4j-pipeline-design.md](specs/neo4j-pipeline-design.md) | M3 Neo4j統合 |
+| [sync-shared-folder.md](specs/sync-shared-folder.md) | T9 共有フォルダ同期 |
 
 ---
 

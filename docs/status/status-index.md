@@ -13,6 +13,7 @@
 - [x] **T5**: リモートジョブ実行基盤 — Phase 5-1〜5-9完了（Prefect統合含む）
 - [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-6完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
 - [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
+- [ ] **T9**: 共有フォルダ同期 — Phase 9-1〜9-6完了（SharedFolder・GitLab・CLI・API）、Windows実環境テスト待ち
 
 ### プロパティキー正規化
 
@@ -53,6 +54,7 @@
 | T6: ダッシュボード高度化 | **完了** | [053](status-053.md)-[061](status-061.md) |
 | T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[071](status-071.md) |
 | T8: 汎用データ管理 | **進行中** | [071](status-071.md) |
+| T9: 共有フォルダ同期 | **進行中** | [076](status-076.md) |
 
 ---
 
@@ -77,6 +79,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [076](status-076.md) | 03-13 | T9 Windows共有フォルダ同期 + GitLab連携 | claude/windows-folder-sync-SOkr8 |
 | [075](status-075.md) | 03-13 | プロパティキー正規化(K-1〜K-3)・ダッシュボード改善(D-1〜D-5) | claude/execute-status-todos-W5eUH |
 | [074](status-074.md) | 03-11 | composite_target_keys外部化・resolve_externalized伝搬 | claude/execute-status-todos-7YJMZ |
 | [073](status-073.md) | 03-11 | Streamlit非推奨API修正・ギャラリー改善（idx整数ソート） | claude/setup-project-docs-KtzaJ |

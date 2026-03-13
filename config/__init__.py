@@ -106,6 +106,95 @@ class FolderMapping:
 
 
 @dataclass
+class SharedFolderMapping:
+    """ローカル⇔共有フォルダ マッピング（UNCパス対応）"""
+
+    local: str
+    shared: str
+
+
+@dataclass
+class SyncConfig:
+    """同期設定（config.yamlのsyncセクション）"""
+
+    exclude: list[str]
+    shared_folder_mappings: list[SharedFolderMapping]
+    gitlab_url: str
+    gitlab_token_env: str
+    gitlab_default_group: str
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> SyncConfig:
+        if not data:
+            return cls(
+                exclude=[],
+                shared_folder_mappings=[],
+                gitlab_url="",
+                gitlab_token_env="GITLAB_TOKEN",
+                gitlab_default_group="",
+            )
+        exclude = data.get("exclude", [])
+        if not isinstance(exclude, list):
+            exclude = []
+
+        sf = data.get("shared_folder", {}) or {}
+        raw_mappings = sf.get("folder_mappings", [])
+        mappings = []
+        if isinstance(raw_mappings, list):
+            for m in raw_mappings:
+                if isinstance(m, dict) and "local" in m and "shared" in m:
+                    mappings.append(SharedFolderMapping(local=str(m["local"]), shared=str(m["shared"])))
+
+        gl = data.get("gitlab", {}) or {}
+        return cls(
+            exclude=[str(p) for p in exclude],
+            shared_folder_mappings=mappings,
+            gitlab_url=str(gl.get("url", "")),
+            gitlab_token_env=str(gl.get("token_env", "GITLAB_TOKEN")),
+            gitlab_default_group=str(gl.get("default_group", "")),
+        )
+
+    def resolve_shared_path(self, local_path: str) -> str | None:
+        """ローカルパスから共有フォルダパスを解決"""
+        if not self.shared_folder_mappings:
+            return None
+        normalized = local_path.replace("\\", "/").rstrip("/") + "/"
+        for mapping in self.shared_folder_mappings:
+            local_base = mapping.local.replace("\\", "/").rstrip("/") + "/"
+            if normalized.startswith(local_base):
+                relative = normalized[len(local_base) :].rstrip("/")
+                shared_base = mapping.shared.rstrip("\\/")
+                if relative:
+                    return shared_base + "\\" + relative.replace("/", "\\")
+                return shared_base
+        return None
+
+    def resolve_local_path(self, shared_path: str) -> str | None:
+        """共有フォルダパスからローカルパスを解決"""
+        if not self.shared_folder_mappings:
+            return None
+        normalized = shared_path.replace("/", "\\").rstrip("\\") + "\\"
+        for mapping in self.shared_folder_mappings:
+            shared_base = mapping.shared.replace("/", "\\").rstrip("\\") + "\\"
+            if normalized.startswith(shared_base):
+                relative = normalized[len(shared_base) :].rstrip("\\")
+                local_base = mapping.local.rstrip("\\/")
+                if relative:
+                    return local_base + "/" + relative.replace("\\", "/")
+                return local_base
+        return None
+
+
+def load_sync_config(base_dir: Path | None = None) -> SyncConfig:
+    """config.yamlからsyncセクションを読み込む"""
+    try:
+        data = load_project_config(base_dir)
+        return SyncConfig.from_dict(data.get("sync"))
+    except Exception:
+        return SyncConfig.from_dict(None)
+
+
+@dataclass
 class SSHConfig:
     host: str | None = None
     port: str | None = None

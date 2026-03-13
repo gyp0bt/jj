@@ -211,4 +211,87 @@ def create_app(project_root: Path) -> FastAPI:
         api_svc.reload_graph()
         return {"status": "reloaded"}
 
+    # ------------------------------------------
+    # POST /api/v1/sync/push
+    # ------------------------------------------
+    @app.post("/api/v1/sync/push")
+    def sync_push(
+        backend: str = Query("shared_folder", description="バックエンド名"),
+        target_dir: str | None = Query(None, description="pushするディレクトリ"),
+        destination: str | None = Query(None, description="同期先パス"),
+    ) -> dict[str, Any]:
+        """プロジェクトを共有フォルダ/GitLabにプッシュ"""
+        from services.sync.service import SyncService
+
+        service = SyncService(project_root)
+        try:
+            state = service.push(
+                backend_name=backend,
+                target_dir=target_dir,
+                destination=destination,
+            )
+            return state.model_dump(mode="json")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # ------------------------------------------
+    # POST /api/v1/sync/clone
+    # ------------------------------------------
+    @app.post("/api/v1/sync/clone")
+    def sync_clone(
+        source: str = Query(..., description="同期元パス"),
+        backend: str = Query("shared_folder", description="バックエンド名"),
+        destination: str | None = Query(None, description="クローン先ディレクトリ"),
+    ) -> dict[str, Any]:
+        """共有フォルダ/GitLabからプロジェクトをクローン"""
+        from pathlib import Path as _Path
+
+        from services.sync.service import SyncService
+
+        service = SyncService(project_root)
+        try:
+            dest = _Path(destination) if destination else None
+            state = service.clone(
+                source=source,
+                backend_name=backend,
+                destination=dest,
+            )
+            return state.model_dump(mode="json")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # ------------------------------------------
+    # GET /api/v1/sync/status
+    # ------------------------------------------
+    @app.get("/api/v1/sync/status")
+    def sync_status(
+        sync_id: str | None = Query(None, description="同期ID"),
+        status_filter: str | None = Query(None, description="ステータスフィルタ"),
+    ) -> dict[str, Any]:
+        """同期状態を取得"""
+        from services.sync.models import SyncStatus
+        from services.sync.service import SyncService
+
+        service = SyncService(project_root)
+        sf = SyncStatus(status_filter) if status_filter else None
+        syncs = service.status(sync_id=sync_id, status_filter=sf)
+        return {
+            "total": len(syncs),
+            "syncs": [s.model_dump(mode="json") for s in syncs],
+        }
+
+    # ------------------------------------------
+    # GET /api/v1/sync/{sync_id}
+    # ------------------------------------------
+    @app.get("/api/v1/sync/{sync_id}")
+    def sync_detail(sync_id: str) -> dict[str, Any]:
+        """同期操作の詳細を取得"""
+        from services.sync.service import SyncService
+
+        service = SyncService(project_root)
+        state = service.get_sync(sync_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="Sync not found")
+        return state.model_dump(mode="json")
+
     return app
