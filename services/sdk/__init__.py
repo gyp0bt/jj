@@ -51,6 +51,23 @@ from services.parse.base import AbstractFileParser
 from services.sdk.cache import CacheProvider
 
 # --------------------------------------------------
+# CapabilityRegistry
+# --------------------------------------------------
+from services.sdk.capabilities import Capability, CapabilityEntry, CapabilityRegistry
+
+# --------------------------------------------------
+# EventBus・イベント定義
+# --------------------------------------------------
+from services.sdk.event_bus import EventBus
+from services.sdk.events import Event, GraphExported, GraphParsed, PluginLoaded
+from services.sdk.plugin_manager import PluginManager
+
+# --------------------------------------------------
+# プラグインマニフェスト・マネージャー
+# --------------------------------------------------
+from services.sdk.plugin_manifest import PluginInfo, PluginManifest
+
+# --------------------------------------------------
 # プラグインレジストリ
 # --------------------------------------------------
 from services.sdk.plugin_registry import (
@@ -59,35 +76,30 @@ from services.sdk.plugin_registry import (
     reset_plugins,
 )
 
-# --------------------------------------------------
-# プラグインマニフェスト・マネージャー
-# --------------------------------------------------
-from services.sdk.plugin_manifest import PluginInfo, PluginManifest
-from services.sdk.plugin_manager import PluginManager
-
 __all__ = [
-    # エクスポーター
     "AbstractExporter",
-    # パーサー
     "AbstractFileParser",
-    # キャッシュ
     "CacheProvider",
-    # ダッシュボード
+    "Capability",
+    "CapabilityEntry",
+    "CapabilityRegistry",
     "DashboardPageConnector",
+    "Event",
+    "EventBus",
+    "GraphExported",
     "GraphModel",
-    # 型
+    "GraphParsed",
     "Node",
-    # プラグインマニフェスト・マネージャー
     "PluginInfo",
-    "PluginManifest",
+    "PluginLoaded",
     "PluginManager",
+    "PluginManifest",
     "ProjectDirectory",
     "ProjectFile",
     "ProjectGraph",
     "ProjectNonFileNode",
     "Relation",
     "discover_entry_point_plugins",
-    # プラグインレジストリ
     "load_all_plugins",
     "reset_plugins",
 ]

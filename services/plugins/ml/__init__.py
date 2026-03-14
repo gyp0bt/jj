@@ -33,16 +33,21 @@ from __future__ import annotations
 
 import logging
 
+from services.sdk.plugin_manifest import PluginManifest
+
 logger = logging.getLogger(__name__)
 
 _registered = False
 
 
-def register() -> None:
-    """MLプラグインの全コンポーネントを登録する"""
+def register() -> PluginManifest | None:
+    """MLプラグインの全コンポーネントを登録する
+
+    PluginManifest を返すことで PluginManager がメタデータを管理する。
+    """
     global _registered
     if _registered:
-        return
+        return None
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
@@ -62,6 +67,23 @@ def register() -> None:
     del services
 
     logger.debug("MLプラグインを登録完了")
+
+    return PluginManifest(
+        name="ml",
+        version="0.2.0",
+        description="機械学習プロジェクトのデータフローグラフ化",
+        parsers=[
+            "services.parse.connectors.ml.dataset_parser",
+            "services.parse.connectors.ml.config_parser",
+            "services.parse.connectors.ml.script_parser",
+            "services.parse.connectors.ml.checkpoint_parser",
+            "services.parse.connectors.ml.model_parser",
+            "services.parse.connectors.ml.experiment_parser",
+            "services.parse.connectors.ml.optimization_parser",
+            "services.parse.connectors.ml.dataflow_parser",
+            "services.parse.connectors.ml.surrogate_detector",
+        ],
+    )
 
 
 # モジュールインポート時に自動登録

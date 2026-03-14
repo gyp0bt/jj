@@ -28,34 +28,48 @@ from __future__ import annotations
 
 import logging
 
+from services.sdk.plugin_manifest import PluginManifest
+
 logger = logging.getLogger(__name__)
 
 _registered = False
 
 
-def register() -> None:
+def register() -> PluginManifest | None:
     """Obsidianプラグインの全コンポーネントを登録する
 
     __init_subclass__パターンにより、モジュールをimportするだけで
     各パーサー・エクスポーターがレジストリに自動登録される。
+    PluginManifest を返すことで PluginManager がメタデータを管理する。
     """
     global _registered
     if _registered:
-        return
+        return None
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
     import services.parse.connectors.obsidian.daily_parser
 
     # エクスポーターのインポート（自動登録が発動）
-    # ObsidianExporterはservices.export.connectors.obsidianで定義されている
-    # export/connectors/__init__.py経由で既にインポートされる場合がある
+    exporters: list[str] = []
     try:
         import services.export.connectors.obsidian  # noqa: F401
+
+        exporters.append("services.export.connectors.obsidian")
     except ImportError:
         logger.debug("Obsidianエクスポーターのロードをスキップ（依存パッケージ不足）")
 
     logger.debug("Obsidianプラグインを登録完了")
+
+    return PluginManifest(
+        name="obsidian",
+        version="0.2.0",
+        description="Obsidian Daily Note解析・Obsidianエクスポート",
+        parsers=[
+            "services.parse.connectors.obsidian.daily_parser",
+        ],
+        exporters=exporters,
+    )
 
 
 # モジュールインポート時に自動登録

@@ -15,7 +15,7 @@
 - [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
 - [ ] **T9**: 共有フォルダ同期 — Phase 9-1〜9-6完了（SharedFolder・GitLab・CLI・API）、Windows実環境テスト待ち
 - [ ] **W**: Office連携 — W-1〜W-5実装完了（パーサー・エクスポーター・ダッシュボード）、Windows実環境テスト待ち
-- [ ] **T10**: プラグインコア設計 — P-1/P-2実装完了（PluginManifest・JJApp）、P-3〜P-5で段階的実装予定
+- [ ] **T10**: プラグインコア設計 — P-1〜P-5実装完了（PluginManifest・JJApp・マニフェスト対応・EventBus・CapabilityRegistry）、P-6〜P-8で段階的実装予定
 
 ### プロパティキー正規化
 
@@ -57,7 +57,7 @@
 | T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[071](status-071.md) |
 | T8: 汎用データ管理 | **進行中** | [071](status-071.md) |
 | T9: 共有フォルダ同期 | **進行中** | [076](status-076.md) |
-| T10: プラグインコア設計 | **実装中** | [079](status-079.md)〜[080](status-080.md) |
+| T10: プラグインコア設計 | **実装中** | [079](status-079.md)〜[081](status-081.md) |
 
 ---
 
@@ -82,6 +82,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [081](status-081.md) | 03-14 | T10 P-3/P-4/P-5 マニフェスト対応・EventBus・CapabilityRegistry | claude/execute-status-todos-9VMW5 |
 | [080](status-080.md) | 03-14 | T10 P-1/P-2 PluginManifest・JJApp実装 | claude/execute-status-todos-YZtpS |
 | [079](status-079.md) | 03-14 | T10 プラグインコア設計仕様書策定 | claude/plugin-core-design-NZnTr |
 | [078](status-078.md) | 03-14 | PPTX/XLSX連携プラグイン実装（W-1〜W-5） | claude/pptx-xlsx-integration-PQbpD |
