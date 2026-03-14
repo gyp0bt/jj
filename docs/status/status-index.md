@@ -79,6 +79,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [077](status-077.md) | 03-13 | テストアセット追加・UI検証フロー整備（Abaqus） | claude/test-assets-ui-verification-jPGVa |
 | [076](status-076.md) | 03-13 | T9 Windows共有フォルダ同期 + GitLab連携 | claude/windows-folder-sync-SOkr8 |
 | [075](status-075.md) | 03-13 | プロパティキー正規化(K-1〜K-3)・ダッシュボード改善(D-1〜D-5) | claude/execute-status-todos-W5eUH |
 | [074](status-074.md) | 03-11 | composite_target_keys外部化・resolve_externalized伝搬 | claude/execute-status-todos-7YJMZ |

@@ -1,0 +1,52 @@
+** Test go input: Buckling analysis + BEAM SECTION
+**
+*MATERIAL, NAME=steel_beam
+*ELASTIC
+ 210000., 0.3
+*DENSITY
+ 7.85e-9
+**
+*BEAM SECTION, ELSET=beam_set, MATERIAL=steel_beam, SECTION=RECT
+ 10., 20.
+ 0., 0., -1.
+**
+*NODE, NSET=ALL
+ 1, 0.0, 0.0, 0.0
+ 2, 0.0, 100.0, 0.0
+ 3, 0.0, 200.0, 0.0
+**
+*ELEMENT, TYPE=B31, ELSET=beam_set
+ 1, 1, 2
+ 2, 2, 3
+**
+*NSET, NSET=base
+ 1
+*NSET, NSET=top
+ 3
+**
+** Static preload step
+*STEP, NLGEOM=YES
+*STATIC
+ 1., 1.
+**
+*BOUNDARY
+ base, 1, 6, 0.
+**
+*CLOAD
+ top, 2, -1000.
+**
+*OUTPUT, FIELD, VARIABLE=PRESELECT
+*END STEP
+**
+** Buckling step
+*STEP
+*BUCKLE
+ 5
+**
+*CLOAD
+ top, 2, -1.
+**
+*OUTPUT, FIELD
+*NODE OUTPUT
+ U
+*END STEP

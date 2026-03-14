@@ -1,0 +1,59 @@
+** Test go input: General Contact + Heat Transfer step
+**
+*include, input=material_advanced.inp
+**
+*PARAMETER
+ pressure_val = 50.0
+ film_coeff = 25.0
+**
+*SOLID SECTION, ELSET=body1, MATERIAL=composite_ortho
+*SOLID SECTION, ELSET=body2, MATERIAL=polymer_visco
+**
+*NODE, NSET=ALL
+ 1, 0.0, 0.0, 0.0
+ 2, 1.0, 0.0, 0.0
+ 3, 1.0, 1.0, 0.0
+ 4, 0.0, 1.0, 0.0
+**
+*ELEMENT, TYPE=C3D8R, ELSET=body1
+ 1, 1, 2, 3, 4, 1, 2, 3, 4
+*ELEMENT, TYPE=C3D8R, ELSET=body2
+ 2, 1, 2, 3, 4, 1, 2, 3, 4
+**
+*SURFACE, NAME=surf_top, TYPE=ELEMENT
+ body1, S2
+*SURFACE, NAME=surf_bottom, TYPE=ELEMENT
+ body2, S1
+**
+** General Contact (not CONTACT PAIR)
+*CONTACT
+*CONTACT INCLUSIONS, ALL EXTERIOR
+*CONTACT PROPERTY ASSIGNMENT
+ , , frict
+*SURFACE INTERACTION, NAME=frict
+*FRICTION
+ 0.3
+**
+*NSET, NSET=fixed
+ 1, 4
+*NSET, NSET=loaded
+ 2, 3
+**
+** Coupled temperature-displacement step
+*STEP, NLGEOM=YES
+*COUPLED TEMPERATURE-DISPLACEMENT
+ 0.1, 1.0
+**
+*BOUNDARY
+ fixed, 1, 6, 0.
+**
+*PRESSURE
+ surf_top, P, <pressure_val>
+**
+*FILM
+ surf_bottom, F, 20.0, <film_coeff>
+**
+*OUTPUT, FIELD, VARIABLE=PRESELECT
+*OUTPUT, HISTORY
+*ENERGY OUTPUT, VARIABLE=PRESELECT
+*END STEP
