@@ -58,6 +58,12 @@
 |-------------|------|
 | [neo4j-pipeline-design.md](neo4j-pipeline-design.md) | Neo4j統合パイプライン・IEntityRepository |
 
+### プラグイン・コアアーキテクチャ
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [plugin-core-design.md](plugin-core-design.md) | T10 プラグイン完全分離・CI/Dashboard/Server統一アーキテクチャ |
+
 ### 計画書
 
 | ドキュメント | 内容 |

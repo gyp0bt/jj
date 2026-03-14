@@ -23,6 +23,7 @@
 | T7: Ollama AI連携 | **進行中** | Phase 7-1〜7-3完了（AIProvider・summarize・diff） |
 | T8: 汎用データ管理 | **未着手** | Run中心プラットフォームへの昇華 |
 | T9: 共有フォルダ同期 | **進行中** | UNC共有フォルダ・GitLab連携（Phase 9-1〜9-6完了） |
+| T10: プラグインコア設計 | **設計中** | プラグイン完全分離・CI/Dashboard/Server統一アーキテクチャ |
 
 ### 依存関係
 
@@ -65,6 +66,19 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 - GitLabバックエンド: git push/pull + .gitignore自動生成
 - API: POST sync/push, POST sync/clone, GET sync/status
 
+#### T10: プラグインコア設計（高優先度・設計2セッション + 実装3-4セッション）
+
+- **目的**: プラグイン完全分離でスケーラビリティ確保、CI/Dashboard/Server統一コアAPI
+- **設計書**: [plugin-core-design.md](specs/plugin-core-design.md)
+- P-1: PluginManifest + PluginManager（宣言的プラグイン登録）
+- P-2: JJApp 統一コア（CLI/Dashboard/API共通APIオブジェクト）
+- P-3: 既存プラグインのマニフェスト対応
+- P-4: EventBus（コア⇔プラグイン疎結合通信）
+- P-5: CapabilityRegistry（拡張ポイントの統合管理）
+- P-6: CLIコマンド拡張ポイント
+- P-7: APIルート拡張ポイント
+- P-8: DashboardPageConnector データ分離
+
 ### 実施ロードマップ
 
 | Phase | 内容 |
@@ -99,6 +113,7 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 | [run-centric-schema.md](specs/run-centric-schema.md) | M7 Run中心スキーマ |
 | [neo4j-pipeline-design.md](specs/neo4j-pipeline-design.md) | M3 Neo4j統合 |
 | [sync-shared-folder.md](specs/sync-shared-folder.md) | T9 共有フォルダ同期 |
+| [plugin-core-design.md](specs/plugin-core-design.md) | T10 プラグインコア設計 |
 
 ---
 
