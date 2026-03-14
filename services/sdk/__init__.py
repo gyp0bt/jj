@@ -59,6 +59,12 @@ from services.sdk.plugin_registry import (
     reset_plugins,
 )
 
+# --------------------------------------------------
+# プラグインマニフェスト・マネージャー
+# --------------------------------------------------
+from services.sdk.plugin_manifest import PluginInfo, PluginManifest
+from services.sdk.plugin_manager import PluginManager
+
 __all__ = [
     # エクスポーター
     "AbstractExporter",
@@ -71,6 +77,10 @@ __all__ = [
     "GraphModel",
     # 型
     "Node",
+    # プラグインマニフェスト・マネージャー
+    "PluginInfo",
+    "PluginManifest",
+    "PluginManager",
     "ProjectDirectory",
     "ProjectFile",
     "ProjectGraph",
