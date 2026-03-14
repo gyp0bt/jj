@@ -1,4 +1,4 @@
-[← README.md](../../README.md)
+[← README.md](../../README.md) | [← docs/README.md](../README.md)
 
 # 仕様書・設計文書
 
