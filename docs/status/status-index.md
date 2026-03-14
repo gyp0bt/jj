@@ -14,6 +14,7 @@
 - [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-6完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
 - [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
 - [ ] **T9**: 共有フォルダ同期 — Phase 9-1〜9-6完了（SharedFolder・GitLab・CLI・API）、Windows実環境テスト待ち
+- [ ] **W**: Office連携 — W-1〜W-5実装完了（パーサー・エクスポーター・ダッシュボード）、Windows実環境テスト待ち
 
 ### プロパティキー正規化
 
@@ -79,6 +80,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [078](status-078.md) | 03-14 | PPTX/XLSX連携プラグイン実装（W-1〜W-5） | claude/pptx-xlsx-integration-PQbpD |
 | [077](status-077.md) | 03-13 | テストアセット追加・UI検証フロー整備（Abaqus） | claude/test-assets-ui-verification-jPGVa |
 | [076](status-076.md) | 03-13 | T9 Windows共有フォルダ同期 + GitLab連携 | claude/windows-folder-sync-SOkr8 |
 | [075](status-075.md) | 03-13 | プロパティキー正規化(K-1〜K-3)・ダッシュボード改善(D-1〜D-5) | claude/execute-status-todos-W5eUH |
