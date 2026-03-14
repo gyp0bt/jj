@@ -82,6 +82,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [083](status-083.md) | 03-14 | docsリファクタリング（ディレクトリ構造整理） | claude/refactor-docs-organization-jNIVP |
 | [082](status-082.md) | 03-14 | T10 P-6/P-7/P-8 CLI拡張・API拡張・JJApp統合 | claude/execute-status-todos-9OcUU |
 | [081](status-081.md) | 03-14 | T10 P-3/P-4/P-5 マニフェスト対応・EventBus・CapabilityRegistry | claude/execute-status-todos-9VMW5 |
 | [080](status-080.md) | 03-14 | T10 P-1/P-2 PluginManifest・JJApp実装 | claude/execute-status-todos-YZtpS |
