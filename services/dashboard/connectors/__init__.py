@@ -105,6 +105,29 @@ class DashboardPageConnector:
         """
         self.render_page(provider, dashboard_config)
 
+    def get_page_data(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> dict[str, Any]:
+        """フレームワーク非依存のページデータを返す
+
+        Streamlitに依存しないJSON-serializable なデータ辞書を返す。
+        APIからはそのままJSON応答として返却でき、
+        CLIからはテーブルやYAMLとして出力できる。
+
+        サブクラスでオーバーライドして実際のデータを返す。
+        デフォルト実装は空辞書を返す。
+
+        Args:
+            provider: DashboardDataProvider
+            dashboard_config: DashboardConfig
+
+        Returns:
+            JSON-serializableなデータ辞書
+        """
+        return {}
+
     def generate_html(
         self,
         provider: DashboardDataProvider,

@@ -46,6 +46,11 @@ from services.graph.project_graph import (
 from services.parse.base import AbstractFileParser
 
 # --------------------------------------------------
+# CLI拡張・API拡張
+# --------------------------------------------------
+from services.sdk.api_extension import APIRoute, collect_api_routes
+
+# --------------------------------------------------
 # キャッシュプロバイダープロトコル
 # --------------------------------------------------
 from services.sdk.cache import CacheProvider
@@ -54,6 +59,7 @@ from services.sdk.cache import CacheProvider
 # CapabilityRegistry
 # --------------------------------------------------
 from services.sdk.capabilities import Capability, CapabilityEntry, CapabilityRegistry
+from services.sdk.cli_extension import CLICommand, collect_cli_commands
 
 # --------------------------------------------------
 # EventBus・イベント定義
@@ -77,8 +83,10 @@ from services.sdk.plugin_registry import (
 )
 
 __all__ = [
+    "APIRoute",
     "AbstractExporter",
     "AbstractFileParser",
+    "CLICommand",
     "CacheProvider",
     "Capability",
     "CapabilityEntry",
@@ -99,6 +107,8 @@ __all__ = [
     "ProjectGraph",
     "ProjectNonFileNode",
     "Relation",
+    "collect_api_routes",
+    "collect_cli_commands",
     "discover_entry_point_plugins",
     "load_all_plugins",
     "reset_plugins",
