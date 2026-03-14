@@ -48,9 +48,11 @@ jj/                            # プロジェクトルート
 ├── shared/                    # 共有パッケージ（Neo4jスキーマ、テストアセット）
 ├── tests/                     # テストスイート
 ├── docs/                      # ドキュメント
-│   ├── roadmap.md             # v0.2.0 ロードマップ
-│   ├── specs/                 # 仕様書（01〜11 + マルチソルバー等）
-│   └── status/                # 実装状況
+│   ├── roadmap.md             # v0.3.0 ロードマップ
+│   ├── guides/                # ユーザー向けガイド・マニュアル
+│   ├── specs/                 # 仕様書・設計文書（01〜11 + 個別設計）
+│   ├── status/                # 実装状況（v0.3.0 status-053〜）
+│   └── archive/               # 旧バージョン文書
 ├── pyproject.toml             # パッケージ設定
 └── CLAUDE.md                  # 本ファイル
 ```
@@ -97,15 +99,27 @@ AbstractFileParser
 
 ```
 docs/                          # 全ドキュメント
-├── roadmap.md                 # v0.2.0 統合ロードマップ
-├── roadmap-v0.1.0.md          # v0.1.0 ロードマップ（アーカイブ）
-├── detail.md                  # 実装詳細
-├── review/                    # レビュー文書
-├── status/                    # statusファイル
-│   ├── status-index.md        # v0.2.0 statusインデックス
-│   ├── status-{NNN}.md        # 実装状況
-│   └── archive-v0.1.0/        # v0.1.0 statusアーカイブ
-├── specs/                     # 仕様書（01〜11 + マルチソルバー等）
+├── README.md                  # ナビゲーション（最初に読む）
+├── roadmap.md                 # v0.3.0 統合ロードマップ
+├── guides/                    # ユーザー向けガイド・マニュアル
+│   ├── README-jj.md           # jjコマンドリファレンス
+│   ├── abaqus-usage-guide.md  # Abaqus向けガイド
+│   ├── ml-usage-guide.md      # ML向けガイド
+│   ├── migration-guide.md     # バージョン移行ガイド
+│   └── prefect-integration-guide.md
+├── specs/                     # 仕様書・設計文書
+│   ├── 01〜11-*.md            # ドメイン仕様書
+│   ├── midterm-plan-v0.3.md   # 中期計画
+│   └── *.md                   # 個別設計文書
+├── status/                    # 実装ログ
+│   ├── status-index.md        # v0.3.0 statusインデックス
+│   ├── status-053〜*.md       # v0.3.0 アクティブstatus
+│   ├── archive-v0.2.0/        # v0.2.0 status（001-052）
+│   └── archive-v0.1.0/        # v0.1.0 status
+└── archive/                   # 旧バージョン文書
+    ├── roadmap-v0.1.0.md
+    ├── detail.md
+    └── review/
 ```
 
 ---

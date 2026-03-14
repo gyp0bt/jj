@@ -9,8 +9,8 @@
 ## 現在地
 
 - **バージョン**: v0.3.0 開発中
-- **完了トラック**: T1(TODO解消), T2(Config分離), T3(MLダッシュボード), T4(Deprecation), T6(ダッシュボード高度化)
-- **未着手トラック**: T5(リモートジョブ), T7(Ollama AI連携), T8(汎用データ管理)
+- **完了トラック**: T1(TODO解消), T2(Config分離), T3(MLダッシュボード), T4(Deprecation), T5(リモートジョブ), T6(ダッシュボード高度化)
+- **進行中トラック**: T7(Ollama AI連携), T8(汎用データ管理), T9(共有フォルダ同期), T10(プラグインコア設計)
 - **最新status**: [status-index.md](status/status-index.md) 末尾を参照
 - **アクティブTODO**: 最新statusファイルのTODOセクションに記載
 
@@ -23,7 +23,7 @@
 | ドキュメント | 内容 | 備考 |
 |-------------|------|------|
 | [roadmap.md](roadmap.md) | v0.3.0 ワークトラック進捗・依存関係 | **最初に読むべき計画書** |
-| [specs/midterm-plan-v0.3.md](specs/midterm-plan-v0.3.md) | T1-T8 詳細設計・工数見積 | roadmapの詳細版 |
+| [specs/midterm-plan-v0.3.md](specs/midterm-plan-v0.3.md) | T1-T10 詳細設計・工数見積 | roadmapの詳細版 |
 
 ### 仕様書（Specs） — 機能ドメイン定義
 
@@ -57,31 +57,41 @@
 | [config-classification.md](specs/config-classification.md) | T2: Config分離 |
 | [vocab-display-time.md](specs/vocab-display-time.md) | M2: 表示名 |
 | [results-directory-restructure.md](specs/results-directory-restructure.md) | M2: results構造 |
+| [plugin-core-design.md](specs/plugin-core-design.md) | T10: プラグインコア設計 |
+| [sync-shared-folder.md](specs/sync-shared-folder.md) | T9: 共有フォルダ同期 |
+| [windows-integration.md](specs/windows-integration.md) | W: Office連携 |
+| [t8-generic-data-management.md](specs/t8-generic-data-management.md) | T8: 汎用データ管理 |
+| [dashboard-improvements.md](specs/dashboard-improvements.md) | T6: ダッシュボード改善 |
+| [property-externalization.md](specs/property-externalization.md) | プロパティ外部化 |
+| [property-key-normalization.md](specs/property-key-normalization.md) | K: キー正規化 |
 
 ### ガイド（Guides） — ユーザー向けマニュアル
 
+> 詳細は [guides/README.md](guides/README.md) を参照
+
 | ドキュメント | 対象 |
 |-------------|------|
-| [abaqus-usage-guide.md](abaqus-usage-guide.md) | Abaqusリポジトリ向け実践ガイド |
-| [ml-usage-guide.md](ml-usage-guide.md) | 機械学習プロジェクト向けガイド |
-| [migration-guide.md](migration-guide.md) | バージョン移行ガイド |
-| [prefect-integration-guide.md](prefect-integration-guide.md) | Prefectワークフロー連携 |
-| [README-jj.md](README-jj.md) | jjコマンドリファレンス |
+| [README-jj.md](guides/README-jj.md) | jjコマンドリファレンス |
+| [abaqus-usage-guide.md](guides/abaqus-usage-guide.md) | Abaqusリポジトリ向け実践ガイド |
+| [ml-usage-guide.md](guides/ml-usage-guide.md) | 機械学習プロジェクト向けガイド |
+| [migration-guide.md](guides/migration-guide.md) | バージョン移行ガイド |
+| [prefect-integration-guide.md](guides/prefect-integration-guide.md) | Prefectワークフロー連携 |
 
 ### 実装ログ（Status）
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [status-index.md](status/status-index.md) | **v0.2.0+ statusインデックス（64件）** |
-| [status-index-v0.1.0.md](status/status-index-v0.1.0.md) | v0.1.0 statusアーカイブ（151件） |
+| [status-index.md](status/status-index.md) | **v0.3.0 statusインデックス（status-053〜）** |
 
-### レビュー・アーカイブ
+### アーカイブ
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [review-v0.1.0.md](review/review-v0.1.0.md) | v0.1.0 開発フェーズ総括 |
-| [roadmap-v0.1.0.md](roadmap-v0.1.0.md) | v0.1.0 ロードマップ（アーカイブ） |
-| [detail.md](detail.md) | 実装方針・技術詳細（初期設計） |
+| [archive/review/review-v0.1.0.md](archive/review/review-v0.1.0.md) | v0.1.0 開発フェーズ総括 |
+| [archive/roadmap-v0.1.0.md](archive/roadmap-v0.1.0.md) | v0.1.0 ロードマップ |
+| [archive/detail.md](archive/detail.md) | 実装方針・技術詳細（初期設計） |
+| [status/archive-v0.1.0/](status/archive-v0.1.0/) | v0.1.0 status（jj: 90件、jjrv: 60件） |
+| [status/archive-v0.2.0/](status/archive-v0.2.0/) | v0.2.0 status（001〜052） |
 
 ---
 
@@ -91,3 +101,40 @@
 - statusの内容はgitコミットメッセージと整合
 - 未完了TODOは次のstatusに引き継ぎ
 - v0.1.0のstatusは `docs/status/archive-v0.1.0/` にアーカイブ済み
+- v0.2.0のstatusは `docs/status/archive-v0.2.0/` にアーカイブ済み（status-001〜052）
+- v0.3.0のstatusは `docs/status/status-053.md` 以降
+
+---
+
+## ディレクトリ構成
+
+```
+docs/
+├── README.md                  # 本ファイル（ナビゲーション）
+├── roadmap.md                 # v0.3.0 ロードマップ（最新計画書）
+├── guides/                    # ユーザー向けガイド・マニュアル
+│   ├── README.md
+│   ├── README-jj.md           # jjコマンドリファレンス
+│   ├── abaqus-usage-guide.md
+│   ├── ml-usage-guide.md
+│   ├── migration-guide.md
+│   └── prefect-integration-guide.md
+├── specs/                     # 仕様書・設計文書
+│   ├── README.md
+│   ├── 01〜11-*.md            # ドメイン仕様書
+│   ├── midterm-plan-v0.3.md   # 中期計画
+│   └── *.md                   # 個別設計文書
+├── status/                    # 実装ログ
+│   ├── status-index.md        # v0.3.0 インデックス
+│   ├── status-053〜*.md       # v0.3.0 アクティブstatus
+│   ├── archive-v0.2.0/        # v0.2.0 status（001-052）
+│   └── archive-v0.1.0/        # v0.1.0 status
+│       ├── jj/
+│       ├── jjrv/
+│       └── status-index-v0.1.0.md
+└── archive/                   # 旧バージョン文書
+    ├── detail.md              # 初期実装方針
+    ├── roadmap-v0.1.0.md      # v0.1.0 ロードマップ
+    └── review/
+        └── review-v0.1.0.md   # v0.1.0 レビュー
+```
