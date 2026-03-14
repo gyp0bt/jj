@@ -20,6 +20,9 @@ from typing import Any
 
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
+from services.sdk.capabilities import Capability, CapabilityRegistry
+from services.sdk.event_bus import EventBus
+from services.sdk.events import GraphExported, GraphParsed, PluginLoaded
 from services.sdk.plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,8 @@ class JJApp:
     project_root: Path
     config: GraphConfig | None = field(default=None, repr=False)
     plugin_manager: PluginManager = field(default_factory=PluginManager)
+    event_bus: EventBus = field(default_factory=EventBus)
+    capability_registry: CapabilityRegistry = field(default_factory=CapabilityRegistry)
 
     # 内部サービス（遅延初期化）
     _graph_service: Any = field(default=None, init=False, repr=False)
@@ -82,6 +87,7 @@ class JJApp:
         if self.config is None:
             self.config = GraphConfig.load(base_dir=self.project_root)
         self.plugin_manager.load_all()
+        self._register_plugin_capabilities()
 
     # === Graph操作 ===
 
@@ -108,12 +114,21 @@ class JJApp:
             ParseResult
         """
         graph, save_path = self.graph_service.parse_and_save(full_mode=full, debug=debug)
-        return ParseResult(
+        result = ParseResult(
             graph=graph,
             save_path=save_path,
             node_count=len(graph.nodes),
             relation_count=len(graph.relations),
         )
+        self.event_bus.publish(
+            GraphParsed(
+                source="core",
+                node_count=result.node_count,
+                relation_count=result.relation_count,
+                full_mode=full,
+            )
+        )
+        return result
 
     def load_graph(self, *, resolve_externalized: bool = False) -> GraphModel:
         """保存済みグラフをロードする
@@ -152,11 +167,19 @@ class JJApp:
         if output_path is not None:
             output_path = Path(output_path)
 
-        return ExportResult(
+        export_result = ExportResult(
             format=format,
             output_path=output_path,
             metadata=metadata,
         )
+        self.event_bus.publish(
+            GraphExported(
+                source="core",
+                format=format,
+                output_path=str(output_path) if output_path else "",
+            )
+        )
+        return export_result
 
     # === クエリ操作 ===
 
@@ -260,3 +283,94 @@ class JJApp:
         from services.export import _exporter_registry
 
         return sorted({cls.format for cls in _exporter_registry})
+
+    def get_cli_commands(self) -> list[Any]:
+        """プラグインが提供するCLIコマンドを収集して返す"""
+        from services.sdk.cli_extension import CLICommand, collect_cli_commands
+
+        all_commands: list[CLICommand] = []
+        for manifest in self.plugin_manager.get_all_manifests().values():
+            if manifest.cli_commands:
+                all_commands.extend(collect_cli_commands(manifest.cli_commands))
+        return all_commands
+
+    def get_api_routes(self) -> list[Any]:
+        """プラグインが提供するAPIルートを収集して返す"""
+        from services.sdk.api_extension import APIRoute, collect_api_routes
+
+        all_routes: list[APIRoute] = []
+        for manifest in self.plugin_manager.get_all_manifests().values():
+            if manifest.api_routes:
+                all_routes.extend(collect_api_routes(manifest.api_routes))
+        return all_routes
+
+    def get_dashboard_pages(self) -> list[dict[str, str]]:
+        """利用可能なダッシュボードページ一覧"""
+        from services.dashboard.connectors import DashboardPageConnector
+
+        pages = []
+        for label, cls in DashboardPageConnector._registry.items():
+            pages.append({"label": label, "connector_key": cls.connector_key})
+        return pages
+
+    def get_dashboard_page_data(self, page_label: str, **params: Any) -> dict[str, Any]:
+        """指定ダッシュボードページのデータをJSON-serializable形式で返す
+
+        Args:
+            page_label: ページラベル
+            **params: 追加パラメータ
+
+        Returns:
+            ページデータ辞書。未登録の場合は空辞書。
+        """
+        from services.dashboard.connectors import DashboardPageConnector
+
+        cls = DashboardPageConnector._registry.get(page_label)
+        if cls is None:
+            return {}
+        connector = cls()
+        # get_page_data にはプロバイダーとconfigが必要
+        # ここでは簡易的にNone対応
+        return connector.get_page_data(None, None)
+
+    # === 内部メソッド ===
+
+    def _register_plugin_capabilities(self) -> None:
+        """PluginManagerのマニフェスト情報をCapabilityRegistryに登録する"""
+        for manifest in self.plugin_manager.get_all_manifests().values():
+            # パーサー
+            for parser_path in manifest.parsers:
+                self.capability_registry.register(Capability.PARSER, parser_path, manifest.name)
+            # エクスポーター
+            for exporter_path in manifest.exporters:
+                self.capability_registry.register(Capability.EXPORTER, exporter_path, manifest.name)
+            # ダッシュボードページ
+            for page_path in manifest.dashboard_pages:
+                self.capability_registry.register(Capability.DASHBOARD_PAGE, page_path, manifest.name)
+            # CLIコマンド
+            for cli_path in manifest.cli_commands:
+                self.capability_registry.register(Capability.CLI_COMMAND, cli_path, manifest.name)
+            # APIルート
+            for api_path in manifest.api_routes:
+                self.capability_registry.register(Capability.API_ROUTE, api_path, manifest.name)
+
+            # PluginLoadedイベント発行
+            capabilities = []
+            if manifest.parsers:
+                capabilities.append("parsers")
+            if manifest.exporters:
+                capabilities.append("exporters")
+            if manifest.dashboard_pages:
+                capabilities.append("dashboard_pages")
+            if manifest.cli_commands:
+                capabilities.append("cli_commands")
+            if manifest.api_routes:
+                capabilities.append("api_routes")
+
+            self.event_bus.publish(
+                PluginLoaded(
+                    source="core",
+                    plugin_name=manifest.name,
+                    capabilities=capabilities,
+                )
+            )
