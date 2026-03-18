@@ -147,7 +147,10 @@ def select_table_columns(
         表示するカラムのリスト（順序付き）
     """
     # 固定カラム（常に先頭に表示）
-    fixed = ["name", "type", "format"]
+    if table_columns is None:
+        fixed = ["name", "type", "format"]
+    else:
+        fixed = []
     exclude_set: set[str] = set(exclude_table_columns or [])
 
     if table_columns is None:

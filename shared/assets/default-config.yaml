@@ -44,7 +44,6 @@
 vocab:
   idx: 条件
   v: v
-  active: 〇
   verbose_name: 表示名
   wallclock_time: 計算時間
   cpu_time: 計算時間(CPU時間)

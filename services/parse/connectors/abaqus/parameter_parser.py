@@ -140,6 +140,7 @@ class AbaqusParameterParser(AbstractFileParser):
                         pending_line = None
                     else:
                         line = f.readline()
+                        pass
                     if not line:
                         break
                     s = line.strip()
@@ -169,9 +170,9 @@ class AbaqusParameterParser(AbstractFileParser):
                     # --------------------------------------------------
                     if s_l.startswith("*parameter"):
                         # ヘッダー行を読み飛ばす
-                        header = f.readline()
-                        if not header:
-                            break
+                        # header = f.readline()
+                        # if not header:
+                        # break
 
                         while True:
                             line2 = f.readline()

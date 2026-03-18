@@ -65,6 +65,11 @@ def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
         filterable=True,
         sortable=True,
         resizable=True,
+        groupable=True,
+        value=True,
+        enableRowGroup=True,
+        aggFunc="sum",
+        editable=True,
     )
     # 各列の幅と適切なフィルタータイプを設定
     for col_name in df.columns:
@@ -81,6 +86,8 @@ def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
         use_checkbox=True,
     )
     gb.configure_pagination(paginationAutoPageSize=True)
+    gb.configure_side_bar()
+
     grid_options = gb.build()
 
     # フィルタ共有ON時はフィルタ変更も検知する

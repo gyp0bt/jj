@@ -357,13 +357,11 @@ def group_images_by_composite_key(
         except Exception:
             pass
         img["idx"] = idx
-        print(idx)
         gk = build_composite_group_key(result_key, props, exclude_keys)
         groups.setdefault(gk, []).append(img)
 
     groups_sorted = groups.copy()
     for k, v in groups.items():
         groups_sorted[k] = list(sorted(v, key=lambda x: x.get("idx", 0)))
-        print([i for i in groups_sorted[k]])
 
-    return dict(groups)
+    return dict(groups_sorted)
