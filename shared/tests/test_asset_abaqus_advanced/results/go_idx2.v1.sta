@@ -1,0 +1,13 @@
+ Abaqus/Standard 2024                                 DATE 13-Mar-2026  TIME 14:00:00
+
+ STEP    INC   ATT  SEVERE     EQUIL    TOTAL    TOTAL     STEP       INC OF
+                    DISCON     ITERS    ITERS     TIME      TIME      TIME/LPF
+    1      1     1      0         5        5   1.000E-01  1.000E-01  1.000E-01
+    1      2     1U     0         8       13   1.000E-01  1.000E-01  1.000E-01
+    1      2     2U     0         8       21   1.000E-01  1.000E-01  5.000E-02
+    1      2     3      0         6       27   1.500E-01  1.500E-01  2.500E-02
+
+ ***ERROR: TOO MANY ATTEMPTS MADE FOR THIS INCREMENT
+
+ THE ANALYSIS HAS NOT BEEN COMPLETED
+

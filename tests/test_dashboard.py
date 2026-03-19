@@ -7972,3 +7972,81 @@ class TestRunComparisonComponent:
         result = _try_render_run_dag_graphviz(runs, run_io_map, dag_edges)
         # streamlitが入っていない/graphviz_chartが使えない場合はFalse
         assert isinstance(result, bool)
+
+
+class TestDashboardConfigDefaultPage:
+    """DashboardConfig.default_page のテスト"""
+
+    def test_default_page_none(self):
+        """未指定時はNone"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.default_page is None
+
+    def test_default_page_set(self):
+        """default-page指定時に値が設定される"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({"default-page": "overview"})
+        assert cfg.default_page == "overview"
+
+    def test_default_page_table(self):
+        """default-page: table"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({"default-page": "table"})
+        assert cfg.default_page == "table"
+
+
+class TestConfigWriter:
+    """config_writer のテスト"""
+
+    def test_save_dashboard_defaults(self, tmp_path):
+        """ダッシュボード設定の書き戻しテスト"""
+        from services.dashboard.config_writer import save_dashboard_defaults
+
+        # 初回書き込み（config.yaml未存在）
+        config_dir = tmp_path / ".j2" / "config"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text("parse:\n  key: value\n", encoding="utf-8")
+
+        result = save_dashboard_defaults(
+            tmp_path,
+            {"default-page": "overview", "gallery-defaults": {"columns": 3, "rows": 2}},
+        )
+
+        assert result == config_path
+        import yaml
+
+        with config_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        assert data["parse"]["key"] == "value"  # 他セクションは保持
+        assert data["dashboard"]["default-page"] == "overview"
+        assert data["dashboard"]["gallery-defaults"]["columns"] == 3
+
+        # バックアップが作成されている
+        backup = config_path.with_suffix(".yaml.bak")
+        assert backup.exists()
+
+    def test_save_removes_none_values(self, tmp_path):
+        """None値はキーを削除する"""
+        from services.dashboard.config_writer import save_dashboard_defaults
+
+        config_dir = tmp_path / ".j2" / "config"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text(
+            "dashboard:\n  default-page: overview\n  table-columns:\n    - a\n",
+            encoding="utf-8",
+        )
+
+        save_dashboard_defaults(tmp_path, {"default-page": None})
+
+        import yaml
+
+        with config_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        assert "default-page" not in data["dashboard"]
+        assert data["dashboard"]["table-columns"] == ["a"]  # 他キーは保持

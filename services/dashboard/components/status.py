@@ -116,21 +116,21 @@ class StatusPage(PageComponent[StatusViewConfig]):
             import pandas as pd
 
             df = pd.DataFrame(failed_items)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
         if unknown_items:
             st.subheader("不明 / 実行中")
             import pandas as pd
 
             df = pd.DataFrame(unknown_items)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
         if completed_items:
             st.subheader("完了")
             import pandas as pd
 
             df = pd.DataFrame(completed_items)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
     @staticmethod
     def _render_statistics(status: dict[str, Any]) -> None:
@@ -173,7 +173,7 @@ class StatusPage(PageComponent[StatusViewConfig]):
                         height=350,
                         margin={"t": 40, "b": 40, "l": 40, "r": 20},
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
 
                 with col_summary:
                     st.caption("CPU時間サマリー")
@@ -230,7 +230,7 @@ class StatusPage(PageComponent[StatusViewConfig]):
                         height=350,
                         margin={"t": 40, "b": 40, "l": 40, "r": 20},
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
 
                 with col_summary:
                     st.caption("警告サマリー")

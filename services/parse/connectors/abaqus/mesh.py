@@ -620,7 +620,11 @@ def extract_material_elset_mapping(inp_path: Path) -> dict[str, list[str]]:
 
                 norm = line.lower().replace(" ", "")
                 # *SOLID SECTION, *SHELL SECTION等
-                if norm.startswith("*solidsection") or norm.startswith("*shellsection"):
+                if (
+                    norm.startswith("*solidsection")
+                    or norm.startswith("*shellsection")
+                    or norm.startswith("*beamsection")
+                ):
                     # 元のケースを保持するため、空白除去のみの行からも値を取得
                     orig_no_space = line.replace(" ", "")
                     orig_tokens = [s.strip() for s in orig_no_space.split(",") if s.strip()]

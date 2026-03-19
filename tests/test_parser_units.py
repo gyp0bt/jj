@@ -705,8 +705,9 @@ class TestMeshInheritParser:
         go_node = result.get_node_by_id(1)
         # go_*自身の値が優先される
         assert go_node.properties["t"] == "100"
-        # 競合キーは「{child_name}:{key}」接頭辞付きで保存
-        assert go_node.properties["mesh_t50_v1:t"] == "50"
+        # 競合キーはベース名正規化済み接頭辞付きで保存
+        # mesh_t50_v1 → mesh_t50（_v1除去）
+        assert go_node.properties["mesh_t50:t"] == "50"
 
     def test_inherits_from_all_includes(self, config: GraphConfig):
         """mesh_*だけでなく全include先からプロパティを継承する"""
@@ -844,6 +845,49 @@ class TestMeshInheritParser:
         elem_types = go_node.properties["mesh_element_types"]
         assert elem_types["C3D8"] == 300
         assert elem_types["C3D6"] == 150
+
+    def test_versioned_includes_merge_to_base_name(self, config: GraphConfig):
+        """バージョン付きinclude先のキー競合がベース名に正規化・後勝ちマージされる"""
+        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+
+        nodes = [
+            Node(
+                id=1,
+                type="go",
+                name="go_idx1",
+                format="inp",
+                properties={"path": "go_idx1.inp", "v": "1"},
+            ),
+            Node(
+                id=2,
+                type="mesh",
+                name="mesh_v2",
+                format="inp",
+                properties={"path": "mesh_v2.inp", "v": "2", "mesh_node_count": 1000},
+            ),
+            Node(
+                id=3,
+                type="mesh",
+                name="mesh_v3",
+                format="inp",
+                properties={"path": "mesh_v3.inp", "v": "3", "mesh_node_count": 2000},
+            ),
+        ]
+        rels = [
+            Relation(id=1, label="includes", node1_id=1, node2_id=2),
+            Relation(id=2, label="includes", node1_id=1, node2_id=3),
+        ]
+        graph = _make_graph(nodes, rels, config=config)
+        result = MeshInheritParser().apply(graph)
+
+        go_node = result.get_node_by_id(1)
+        # go自身の v=1 は保持
+        assert go_node.properties["v"] == "1"
+        # mesh_v2, mesh_v3 → ベース名 "mesh" に正規化
+        # v は競合キーなので mesh:v として保存（後勝ち=v3の値）
+        assert go_node.properties["mesh:v"] == "3"
+        # mesh_node_count は競合しないので最初に来た v2 の値が入る
+        assert go_node.properties["mesh_node_count"] == 1000
 
 
 # ====================================================================

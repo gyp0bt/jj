@@ -4,9 +4,9 @@
 
 ---
 
-## v0.3.0 — 統合ワークフロー・AI連携・ダッシュボード高度化
+## v0.3.0 — 統合ワークフロー・AI連携・プラグインアーキテクチャ
 
-**テーマ**: 「Run中心プラットフォーム → リモートジョブ管理 → AI連携 → 汎用データ管理」
+**テーマ**: 「Run中心プラットフォーム → リモートジョブ管理 → AI連携 → プラグイン完全分離」
 
 > **詳細設計**: [中期計画 v0.3](specs/midterm-plan-v0.3.md)
 
@@ -20,48 +20,55 @@
 | T4: Deprecation Warning修正 | **完了** | 全APIモダン版確認済み |
 | T5: リモートジョブ実行基盤 | **完了** | Phase 5-1〜5-9完了（Prefect統合含む） |
 | T6: ダッシュボード高度化 | **完了** | parseボタン・AgGrid・グラフ可視化・Run DAG |
-| T7: Ollama AI連携 | **進行中** | Phase 7-1〜7-3完了（AIProvider・summarize・diff） |
-| T8: 汎用データ管理 | **未着手** | Run中心プラットフォームへの昇華 |
+| T7: Ollama AI連携 | **Phase 7-6完了** | AIProvider・summarize・diff・RAG・Tips・ダッシュボード |
+| T8: 汎用データ管理 | **Phase 8-2完了** | Run Discovery標準化・物理実験プラグイン |
+| T9: 共有フォルダ同期 | **Phase 9-6完了** | SharedFolder・GitLab・CLI・API、Windows実環境テスト待ち |
+| T10: プラグインコア設計 | **P-8完了** | PluginManifest・JJApp・EventBus・CapabilityRegistry・CLI/API拡張 |
+| W: Office連携 | **W-5完了** | PPTX/XLSXパーサー・エクスポーター・ダッシュボード、Windows実環境テスト待ち |
 
 ### 依存関係
 
 ```
-完了                                  未着手
+完了                                  進行中
 ──────────────────────────           ──────────────────────────
-T1 (TODO) ← T2 (Config) ──────────→ T5 (リモートジョブ)
+T1 (TODO) ← T2 (Config) ──────────→ T5 (リモートジョブ) ✓
 T4 (deprecation) ← T6 (Dashboard)
 T3 (MLダッシュボード) ────────────→ T7 (Ollama AI連携)
                           └───────→ T8 (汎用データ管理)
+                                     T9 (共有フォルダ同期)
+                                     T10 (プラグインコア設計)
 ```
 
-### 未着手トラック詳細
+### 残タスク詳細
 
-#### T5: リモートジョブ実行基盤（高優先度・4-5セッション）
+#### T7: Ollama AI連携（フル統合テスト・マニュアル作成待ち）
 
-- `jj submit`: ローカル→リモートへのジョブ送信（SSH + フォルダマッピング）
-- `jj watch`: リモートジョブの進捗監視（staファイルモニタリング）
-- `jj collect`: 完了ジョブの結果回収
-- Prefect統合: ワークフローオーケストレーション
-- 前提: T2完了済み（config基盤）
+- Phase 7-1〜7-6実装完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
+- 残: フル統合テスト・マニュアル作成
 
-#### T7: Ollama AI連携（中優先度・5-7セッション）
+#### T8: 汎用データ管理（設計フェーズ以降の実装）
 
-- AIProviderプロトコル（Ollama/OpenAI互換）
-- プロジェクト要約生成（parse結果→自然言語）
-- RAG: グラフデータに基づく質疑応答
-- Tips: 設定最適化の提案
+- Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
+- 残: 設計フェーズ以降の実装
 
-#### T8: 汎用データ管理（低-中優先度・設計2セッション）
+#### T9: 共有フォルダ同期（Windows実環境テスト待ち）
 
-- CAEに限定しない汎用Run管理プラットフォームへの昇華
-- 設計フェーズから開始
+- Phase 9-1〜9-6完了（SharedFolder・GitLab連携・CLI・API）
+- 残: Windows実環境テスト
+
+#### T10: プラグインコア設計（CLI/API統合で段階的移行予定）
+
+- P-1〜P-8実装完了
+- 残: 既存CLI統合、Abaqus CLICommand実装、FastAPI APIアダプター、get_page_data()各サブクラス実装
 
 ### 実施ロードマップ
 
-| Phase | 内容 |
-|-------|------|
-| **B: ワークフロー自動化** | T5 (submit/watch/collect/Prefect) |
-| **D: AI連携** | T7 (Ollama), T8 (設計) |
+| Phase | 内容 | 状態 |
+|-------|------|------|
+| **A: 基盤整備** | T1, T2, T4 | 完了 |
+| **B: ワークフロー自動化** | T5 (submit/watch/collect/Prefect) | 完了 |
+| **C: ダッシュボード高度化** | T3, T6 | 完了 |
+| **D: AI連携・拡張** | T7, T8, T9, T10, W | 進行中 |
 
 ---
 
@@ -84,7 +91,9 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 
 | 仕様書 | 対象 |
 |--------|------|
-| [midterm-plan-v0.3.md](specs/midterm-plan-v0.3.md) | T1-T8全体設計 |
+| [midterm-plan-v0.3.md](specs/midterm-plan-v0.3.md) | T1-T10全体設計 |
+| [plugin-core-design.md](specs/plugin-core-design.md) | T10 プラグインコア設計 |
+| [sync-shared-folder.md](specs/sync-shared-folder.md) | T9 共有フォルダ同期 |
 | [multi-solver.md](specs/multi-solver.md) | M2 マルチソルバー |
 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6 ML対応 |
 | [run-centric-schema.md](specs/run-centric-schema.md) | M7 Run中心スキーマ |
@@ -94,5 +103,5 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 
 ## アーカイブ
 
-- [v0.1.0 ロードマップ](roadmap-v0.1.0.md) — Phase 0〜P 全完了
-- [v0.1.0 レビュー](review/review-v0.1.0.md) — 3週間の開発総括
+- [v0.1.0 ロードマップ](archive/roadmap-v0.1.0.md) — Phase 0〜P 全完了
+- [v0.1.0 レビュー](archive/review/review-v0.1.0.md) — 3週間の開発総括

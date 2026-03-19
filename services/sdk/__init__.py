@@ -46,9 +46,32 @@ from services.graph.project_graph import (
 from services.parse.base import AbstractFileParser
 
 # --------------------------------------------------
+# CLI拡張・API拡張
+# --------------------------------------------------
+from services.sdk.api_extension import APIRoute, collect_api_routes
+
+# --------------------------------------------------
 # キャッシュプロバイダープロトコル
 # --------------------------------------------------
 from services.sdk.cache import CacheProvider
+
+# --------------------------------------------------
+# CapabilityRegistry
+# --------------------------------------------------
+from services.sdk.capabilities import Capability, CapabilityEntry, CapabilityRegistry
+from services.sdk.cli_extension import CLICommand, collect_cli_commands
+
+# --------------------------------------------------
+# EventBus・イベント定義
+# --------------------------------------------------
+from services.sdk.event_bus import EventBus
+from services.sdk.events import Event, GraphExported, GraphParsed, PluginLoaded
+from services.sdk.plugin_manager import PluginManager
+
+# --------------------------------------------------
+# プラグインマニフェスト・マネージャー
+# --------------------------------------------------
+from services.sdk.plugin_manifest import PluginInfo, PluginManifest
 
 # --------------------------------------------------
 # プラグインレジストリ
@@ -60,24 +83,33 @@ from services.sdk.plugin_registry import (
 )
 
 __all__ = [
-    # エクスポーター
+    "APIRoute",
     "AbstractExporter",
-    # パーサー
     "AbstractFileParser",
-    # キャッシュ
+    "CLICommand",
     "CacheProvider",
-    # ダッシュボード
+    "Capability",
+    "CapabilityEntry",
+    "CapabilityRegistry",
     "DashboardPageConnector",
+    "Event",
+    "EventBus",
+    "GraphExported",
     "GraphModel",
-    # 型
+    "GraphParsed",
     "Node",
+    "PluginInfo",
+    "PluginLoaded",
+    "PluginManager",
+    "PluginManifest",
     "ProjectDirectory",
     "ProjectFile",
     "ProjectGraph",
     "ProjectNonFileNode",
     "Relation",
+    "collect_api_routes",
+    "collect_cli_commands",
     "discover_entry_point_plugins",
-    # プラグインレジストリ
     "load_all_plugins",
     "reset_plugins",
 ]

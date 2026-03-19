@@ -1,0 +1,17 @@
+** Test: 3-level nested INCLUDE
+** main.inp -> sub/assembly.inp -> ../material_advanced.inp
+**
+*include, input=sub/assembly.inp
+**
+*STEP, NLGEOM=YES
+*STATIC
+ 0.1, 1.0
+**
+*BOUNDARY
+ fix_nodes, 1, 6, 0.
+**
+*CLOAD
+ load_nodes, 2, 500.0
+**
+*OUTPUT, FIELD, VARIABLE=PRESELECT
+*END STEP

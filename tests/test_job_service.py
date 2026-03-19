@@ -688,16 +688,15 @@ class TestCompositeGroupKey:
         assert key == "S-S13(step:0,vmax:50.0,vmin:-50.0)"
 
     def test_build_composite_group_key_excludes_idx(self):
-        """idx, v, frameはデフォルトで除外"""
+        """idx, vはtarget_keys外なので除外。frameはtarget_keysに含まれ残る"""
         from services.dashboard.query import build_composite_group_key
 
         key = build_composite_group_key(
             "PEEQ",
             {"vmax": "10", "idx": "1", "v": "3", "frame": "5"},
         )
-        assert key == "PEEQ(vmax:10)"
+        assert key == "PEEQ(frame:5,vmax:10)"
         assert "idx" not in key
-        assert "frame" not in key
 
     def test_build_composite_group_key_no_props(self):
         """propsが空の場合はresult_keyのみ"""
@@ -714,15 +713,14 @@ class TestCompositeGroupKey:
         assert key == "(その他)(vmax:10)"
 
     def test_build_composite_group_key_custom_exclude(self):
-        """カスタム除外キーの指定"""
+        """target_keysに含まれるstep, vmaxの両方が残る（exclude_keysはtarget_keys方式では未使用）"""
         from services.dashboard.query import build_composite_group_key
 
         key = build_composite_group_key(
             "S-S13",
             {"vmax": "50", "step": "0"},
-            exclude_keys={"step"},
         )
-        assert key == "S-S13(vmax:50)"
+        assert key == "S-S13(step:0,vmax:50)"
 
     def test_group_images_by_composite_key(self):
         """複合キーでの画像グルーピング"""

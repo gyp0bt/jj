@@ -1,0 +1,68 @@
+** Test go input with advanced features
+** HYPERELASTIC material, SHELL SECTION, FREQUENCY step, CLOAD
+**
+*include, input=material_advanced.inp
+**
+*PARAMETER
+** props start
+ thickness = 1.5
+ load_magnitude = 1000.0
+** props end
+**
+*SHELL SECTION, ELSET=shell_part, MATERIAL=rubber_neohooke
+ <thickness>,
+**
+*SOLID SECTION, ELSET=solid_part, MATERIAL=steel_kinematic
+**
+*NODE, NSET=ALL
+ 1, 0.0, 0.0, 0.0
+ 2, 1.0, 0.0, 0.0
+ 3, 1.0, 1.0, 0.0
+ 4, 0.0, 1.0, 0.0
+ 5, 0.5, 0.5, 0.0
+**
+*ELEMENT, TYPE=S4R, ELSET=shell_part
+ 1, 1, 2, 3, 4
+**
+*ELEMENT, TYPE=C3D8R, ELSET=solid_part
+**
+*NSET, NSET=fix_nodes
+ 1, 4
+*NSET, NSET=load_nodes
+ 2, 3
+**
+** Static step
+*STEP, NLGEOM=YES
+*STATIC
+ 0.1, 1.0, 1e-6, 0.5
+**
+*BOUNDARY
+ fix_nodes, 1, 6, 0.
+**
+*CLOAD
+ load_nodes, 2, <load_magnitude>
+**
+*DLOAD
+ shell_part, P, 100.0
+**
+*OUTPUT, FIELD, VARIABLE=PRESELECT
+*OUTPUT, HISTORY
+*ENERGY OUTPUT, VARIABLE=PRESELECT
+*NODE OUTPUT, NSET=load_nodes
+ U, RF
+*ELEMENT OUTPUT, ELSET=shell_part
+ S, E, PEEQ
+*END STEP
+**
+** Frequency step (modal analysis)
+*STEP
+*FREQUENCY, EIGENSOLVER=LANCZOS
+ 10, , , , ,
+**
+*BOUNDARY
+ fix_nodes, 1, 6, 0.
+**
+*OUTPUT, FIELD
+*NODE OUTPUT
+ U
+*END STEP

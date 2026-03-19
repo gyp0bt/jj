@@ -13,6 +13,24 @@
 - [x] **T5**: リモートジョブ実行基盤 — Phase 5-1〜5-9完了（Prefect統合含む）
 - [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-6完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
 - [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
+- [ ] **T9**: 共有フォルダ同期 — Phase 9-1〜9-6完了（SharedFolder・GitLab・CLI・API）、Windows実環境テスト待ち
+- [ ] **W**: Office連携 — W-1〜W-5実装完了（パーサー・エクスポーター・ダッシュボード）、Windows実環境テスト待ち
+- [ ] **T10**: プラグインコア設計 — P-1〜P-8実装完了（PluginManifest・JJApp・マニフェスト対応・EventBus・CapabilityRegistry・CLICommand・APIRoute・get_page_data）、CLI/API統合で段階的移行予定
+
+### プロパティキー正規化
+
+- [x] K-1: `get_file_base_name()` 関数 + テスト
+- [x] K-2: MeshInheritParserプレフィックス正規化
+- [x] K-3: 既存テスト更新
+- [ ] K-4: （オプション）config property-key-aliases
+
+### ダッシュボード改善
+
+- [x] D-1: AgGridフィルタ強化（saved_viewでもAgGrid使用）
+- [x] D-2: テーブル/ギャラリーロジック関数抽出
+- [x] D-3: OverviewPage実装
+- [x] D-4: デフォルト保存ボタン + config書き戻し
+- [x] D-5: default-page config対応
 
 ### T3 改善候補
 
@@ -38,6 +56,8 @@
 | T6: ダッシュボード高度化 | **完了** | [053](status-053.md)-[061](status-061.md) |
 | T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[071](status-071.md) |
 | T8: 汎用データ管理 | **進行中** | [071](status-071.md) |
+| T9: 共有フォルダ同期 | **進行中** | [076](status-076.md) |
+| T10: プラグインコア設計 | **実装中** | [079](status-079.md)〜[082](status-082.md) |
 
 ---
 
@@ -62,6 +82,17 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [083](status-083.md) | 03-14 | docsリファクタリング（ディレクトリ構造整理） | claude/refactor-docs-organization-jNIVP |
+| [082](status-082.md) | 03-14 | T10 P-6/P-7/P-8 CLI拡張・API拡張・JJApp統合 | claude/execute-status-todos-9OcUU |
+| [081](status-081.md) | 03-14 | T10 P-3/P-4/P-5 マニフェスト対応・EventBus・CapabilityRegistry | claude/execute-status-todos-9VMW5 |
+| [080](status-080.md) | 03-14 | T10 P-1/P-2 PluginManifest・JJApp実装 | claude/execute-status-todos-YZtpS |
+| [079](status-079.md) | 03-14 | T10 プラグインコア設計仕様書策定 | claude/plugin-core-design-NZnTr |
+| [078](status-078.md) | 03-14 | PPTX/XLSX連携プラグイン実装（W-1〜W-5） | claude/pptx-xlsx-integration-PQbpD |
+| [077](status-077.md) | 03-13 | テストアセット追加・UI検証フロー整備（Abaqus） | claude/test-assets-ui-verification-jPGVa |
+| [076](status-076.md) | 03-13 | T9 Windows共有フォルダ同期 + GitLab連携 | claude/windows-folder-sync-SOkr8 |
+| [075](status-075.md) | 03-13 | プロパティキー正規化(K-1〜K-3)・ダッシュボード改善(D-1〜D-5) | claude/execute-status-todos-W5eUH |
+| [074](status-074.md) | 03-11 | composite_target_keys外部化・resolve_externalized伝搬 | claude/execute-status-todos-7YJMZ |
+| [073](status-073.md) | 03-11 | Streamlit非推奨API修正・ギャラリー改善（idx整数ソート） | claude/setup-project-docs-KtzaJ |
 | [072](status-072.md) | 03-10 | プロパティ外部化（graph.yaml軽量化） | claude/refactor-graph-data-storage-Wsmdj |
 | [071](status-071.md) | 03-10 | T7-6 AIアシスタントパネル / T8 汎用データ管理基盤 | claude/execute-status-todos-2xvZf |
 | [070](status-070.md) | 03-10 | T7-4/7-5 RAG検索・Tips抽出 | claude/execute-status-todos-eL76K |
@@ -81,80 +112,13 @@
 | [054](status-054.md) | 03-07 | T1#1ソートロジック・T2 Config二層分離基盤 | claude/execute-status-todos-aoOqK |
 | [053](status-053.md) | 03-07 | 中期計画v0.3統合・T1(#3,#4)・T4完了・T6-1 | claude/integrate-midterm-plan-j9Zm2 |
 
-### v0.2.0 M7: Run中心スキーマ (status-043〜052)
+### v0.2.0 アーカイブ (status-001〜052)
 
-| # | 日付 | 概要 | ブランチ |
-|---|------|------|---------|
-| [052](status-052.md) | 03-06 | M7完了: バッチ俯瞰・Run比較・Neo4j対応 | claude/execute-status-todos-h9bRM |
-| [051](status-051.md) | 03-06 | 配列プロット凡例vocab変換・バッチ俯瞰Run統合 | claude/execute-status-todos-h9bRM |
-| [050](status-050.md) | 03-06 | プロット軸vocab変換・Run --show-properties | claude/execute-status-todos-ifjHD |
-| [049](status-049.md) | 03-06 | Activeフィルタ全ページ適用・バッチ俯瞰ページ | claude/batch-run-visualization-iOJAa |
-| [048](status-048.md) | 03-06 | Config classification実装・vocab_display UI | claude/execute-status-todos-oFw3W |
-| [047](status-047.md) | 03-06 | 配列プロット クロスグループ軸選択 | claude/dashboard-configurable-axes-FLuI3 |
-| [046](status-046.md) | 03-06 | Run-Propertyトレーサビリティ・Vocab表示時適用 | claude/track-feature-implementation-UCgLX |
-| [045](status-045.md) | 03-04 | Parse-Run統合: jj run後にparse自動実行 | claude/integrate-parse-run-sujin |
-| [044](status-044.md) | 03-04 | テスト全件通過: パス修正・importorskip | claude/execute-status-todos-lfDl8 |
-| [043](status-043.md) | 03-04 | フォルダフラット化・jjrv分離反映・M7 Phase 4 | claude/update-docs-jjrv-separation-KiW6d |
-
-### v0.2.0 M6: ML/最適化 + パフォーマンス (status-024〜042)
-
-| # | 日付 | 概要 |
-|---|------|------|
-| [042](status-042.md) | 02-24 | .jj → .j2 リネーム |
-| [041](status-041.md) | 02-21 | 等高線モード・サムネイル・ビュー編集 |
-| [040](status-040.md) | 02-21 | スタイル永続化・コンタープロット・ギャラリー上限 |
-| [039](status-039.md) | 02-20 | HTMLエクスポート: plotスタイル反映・ギャラリー |
-| [038](status-038.md) | 02-20 | ダークモード視認性・ベンチマーク・キーワード拡充 |
-| [037](status-037.md) | 02-20 | plotlyテーマ横断適用・ProcessPool検証 |
-| [036](status-036.md) | 02-19 | ProcessPool並列化・plotlyダークモード |
-| [035](status-035.md) | 02-19 | lightweight最適化・ワーカーチューニング |
-| [034](status-034.md) | 02-19 | 並列プリフェッチ・lightweight対応・plotly統合 |
-| [033](status-033.md) | 02-19 | UTF-8ファースト・段階的INP解析・パーサー並列化 |
-| [032](status-032.md) | 02-19 | メッシュ統計キャッシュ |
-| [031](status-031.md) | 02-19 | ProjectGraphインデックス・IgnoreConfigプリコンパイル |
-| [030](status-030.md) | 02-19 | M7 Phase 2-3: RunDiscoverer |
-| [029](status-029.md) | 02-19 | M7 Phase 1: コアモデル拡張 |
-| [028](status-028.md) | 02-19 | Phase 4.5: バグ修正・パスマッチング改善 |
-| [027](status-027.md) | 02-18 | サロゲートモデルフレームワーク Phase 4 |
-| [026](status-026.md) | 02-18 | MLプラグイン Phase 3 |
-| [025](status-025.md) | 02-18 | MLプラグイン Phase 2 |
-| [024](status-024.md) | 02-18 | ML対応ロードマップ策定 |
-
-### v0.2.0 M1-M3: 基盤・ダッシュボード (status-001〜023)
-
-<details>
-<summary>status-001〜023（クリックで展開）</summary>
-
-| # | 日付 | 概要 |
-|---|------|------|
-| [023](status-023.md) | 02-18 | 接続設定UI・Neo4j検索アダプター |
-| [022](status-022.md) | 02-18 | Neo4j Docker環境・IEntityRepository |
-| [021](status-021.md) | 02-18 | Neo4jスキーマ反映・接頭辞キー表示 |
-| [020](status-020.md) | 02-18 | pymeshリファクタリング |
-| [019](status-019.md) | 02-18 | 新構造パーサー・connector_config UI |
-| [018](status-018.md) | 02-17 | 設計仕様書・コネクター保存ビュー |
-| [017](status-017.md) | 02-17 | ビュー保存/HTMLエクスポート横断対応 |
-| [016](status-016.md) | 02-17 | メッシュ品質修正・E2Eテスト |
-| [015](status-015.md) | 02-17 | メッシュ品質ダッシュボード分離 |
-| [014](status-014.md) | 02-17 | バグ修正4件 |
-| [013](status-013.md) | 02-17 | PageComponent描画ロジック移動 |
-| [012](status-012.md) | 02-17 | PageComponent[ViewConfig]導入 |
-| [011](status-011.md) | 02-17 | 表示名parse時移動・プロットスタイル |
-| [010](status-010.md) | 02-17 | verbose_name展開・グループ結線修正 |
-| [009](status-009.md) | 02-17 | ライトテーマ・ビュー永続化 |
-| [008](status-008.md) | 02-16 | results/メタデータ抽出パーサー |
-| [007](status-007.md) | 02-16 | verbose-name-format・vocab表示名 |
-| [006](status-006.md) | 02-16 | ダッシュボード表示改善 |
-| [005](status-005.md) | 02-15 | SolverProfileConfigテスト34件 |
-| [004](status-004.md) | 02-15 | プラグイン雛形6ソルバー |
-| [003](status-003.md) | 02-14 | ドキュメント再構成 |
-| [002](status-002.md) | 02-14 | CLAUDE.md作成、Getting Started |
-| [001](status-001.md) | 02-14 | CI/CD構築、statusアーカイブ |
-
-</details>
+> v0.2.0のstatus（001〜052）は [archive-v0.2.0/](archive-v0.2.0/) に移動済み。
+> 各ファイルへのリンクは `archive-v0.2.0/status-{NNN}.md` を参照。
 
 ---
 
 ## 過去バージョン
 
-- [v0.1.0 statusインデックス](status-index-v0.1.0.md) — 151件（jj: 90件、jjrv: 61件・分離済み）
+- [v0.1.0 statusインデックス](archive-v0.1.0/status-index-v0.1.0.md) — 151件（jj: 90件、jjrv: 61件・分離済み）

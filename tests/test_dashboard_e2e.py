@@ -626,3 +626,347 @@ class TestConnectorConfigSchema:
             assert "label" in field
             assert "type" in field
             assert field["type"] in ("text", "checkbox")
+
+
+# ====================================================================
+# PageComponent レジストリ検証テスト
+# ====================================================================
+
+
+class TestPageComponentRegistry:
+    """PageComponentレジストリの包括的テスト"""
+
+    def test_all_expected_page_keys_registered(self):
+        """全期待PageComponentがレジストリに登録されている"""
+        # コンポーネントモジュールをインポートして登録を発火
+        import services.dashboard.components.card
+        import services.dashboard.components.gallery
+        import services.dashboard.components.overview
+        import services.dashboard.components.status
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import get_page_keys
+
+        keys = get_page_keys()
+        # 基本ページキーが含まれている
+        assert "table" in keys
+        assert "card" in keys
+        assert "gallery" in keys
+        assert "overview" in keys
+
+    def test_page_labels_are_japanese(self):
+        """ページラベルが日本語表示名を持つ"""
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import get_page_labels
+
+        labels = get_page_labels()
+        assert len(labels) >= 1
+        # テーブルラベルが日本語
+        assert "テーブル" in labels
+
+    def test_page_component_instantiation(self):
+        """各PageComponentがインスタンス化できる"""
+        import services.dashboard.components.card
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import get_page_component
+
+        for key in ["table", "card"]:
+            component = get_page_component(key)
+            assert component is not None, f"page_key={key} のコンポーネントが取得できない"
+
+
+# ====================================================================
+# DashboardPageConnector レジストリ検証テスト
+# ====================================================================
+
+
+class TestDashboardConnectorRegistry:
+    """DashboardPageConnectorレジストリの包括的テスト"""
+
+    @pytest.fixture(autouse=True)
+    def _require_pandas(self):
+        pytest.importorskip("pandas")
+
+    def _make_provider_with_materials(self):
+        """物性データを含むProvider"""
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1.inp",
+                        "analysis_status": "COMPLETED",
+                        "active": True,
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={
+                        "elastic": [[210000.0, 0.3]],
+                        "plastic": [[200.0, 0.0], [300.0, 0.1]],
+                    },
+                ),
+                Node(
+                    id=3,
+                    type="abaqus_material",
+                    name="rubber_neohooke",
+                    format="material",
+                    properties={
+                        "hyperelastic": [[0.5, 0.02]],
+                        "keywords": ["hyperelastic", "density"],
+                    },
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="assigned_to", node1_id=2, node2_id=1),
+            ],
+        )
+        return DashboardDataProvider(graph)
+
+    def test_abaqus_material_connector_available(self):
+        """Abaqus物性コネクターがmaterialノード存在時に利用可能"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import get_connector_pages
+
+        provider = self._make_provider_with_materials()
+        pages = get_connector_pages(provider)
+        assert "物性一覧" in pages
+
+    def test_abaqus_material_connector_html(self):
+        """物性コネクターがHTMLを生成できる"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from services.dashboard.connectors import generate_connector_pages_html
+
+        provider = self._make_provider_with_materials()
+        config = self._make_dashboard_config()
+        pages_html = generate_connector_pages_html(provider, config)
+        labels = [label for label, _ in pages_html]
+        # 物性一覧 or ジョブサマリー or メッシュ品質のHTMLが生成される
+        assert len(pages_html) >= 1
+        assert any(label in ["物性一覧", "ジョブサマリー", "メッシュ品質"] for label in labels)
+
+    def test_abaqus_job_summary_connector_html(self):
+        """ジョブサマリーコネクターがHTMLを生成"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from config import DashboardConfig, SavedViewConfig
+        from services.dashboard.connectors import generate_connector_saved_view_html
+
+        provider = self._make_provider_with_materials()
+        config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "全ジョブ",
+                "type": "connector:ジョブサマリー",
+            }
+        )
+        html = generate_connector_saved_view_html("ジョブサマリー", provider, view, config)
+        # HTMLが生成されること（空でも可）
+        assert isinstance(html, str)
+
+    def test_hyperelastic_material_in_provider(self):
+        """HYPERELASTIC材料がProviderで取得できる"""
+        provider = self._make_provider_with_materials()
+        graph = provider.graph
+        mat_nodes = [n for n in graph.nodes if n.type == "abaqus_material"]
+        mat_names = [n.name for n in mat_nodes]
+        assert "rubber_neohooke" in mat_names
+        # hyperelasticプロパティの存在確認
+        rubber = next(n for n in mat_nodes if n.name == "rubber_neohooke")
+        assert "hyperelastic" in rubber.properties
+
+    @staticmethod
+    def _make_dashboard_config():
+        from config import DashboardConfig
+
+        return DashboardConfig.from_dict({})
+
+
+# ====================================================================
+# HTMLエクスポート整合性テスト
+# ====================================================================
+
+
+@pytest.mark.skipif(not HAS_APPTEST, reason="streamlit.testing.v1 not available")
+class TestHtmlExportIntegrity:
+    """HTMLエクスポートの包括的整合性テスト"""
+
+    def test_html_export_includes_all_data_nodes(self, project_with_graph: Path):
+        """HTMLエクスポートにノードデータが反映される"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from config import DashboardConfig, SavedViewConfig
+        from services.dashboard.data_provider import DashboardDataProvider
+        from services.dashboard.html_export import generate_saved_views_html
+        from services.graph import GraphService
+
+        svc = GraphService(project_root=project_with_graph)
+        graph = svc.load()
+        provider = DashboardDataProvider(graph)
+        config = DashboardConfig.from_dict({})
+
+        views = [
+            SavedViewConfig.from_dict(
+                {
+                    "name": "テストテーブル",
+                    "view_type": "table",
+                }
+            ),
+        ]
+
+        html = generate_saved_views_html(provider, project_with_graph, config, views)
+        assert "<!DOCTYPE html>" in html
+        assert "jj Dashboard" in html
+        # テーブルビューのセクションが含まれる
+        assert "テストテーブル" in html
+
+    def test_html_export_material_connector(self, project_with_graph: Path):
+        """HTMLエクスポートに物性コネクターが含まれる"""
+        import services.dashboard.connectors.abaqus  # noqa: F401
+        from config import DashboardConfig
+        from services.dashboard.data_provider import DashboardDataProvider
+        from services.dashboard.html_export import generate_saved_views_html
+        from services.graph import GraphService
+
+        svc = GraphService(project_root=project_with_graph)
+        graph = svc.load()
+        provider = DashboardDataProvider(graph)
+        config = DashboardConfig.from_dict({})
+
+        html = generate_saved_views_html(provider, project_with_graph, config, views=[])
+        # 物性データがあるのでコネクターHTMLが含まれる
+        assert "物性一覧" in html or "ジョブサマリー" in html or "メッシュ品質" in html
+
+
+# ====================================================================
+# DashboardDataProvider 拡張テスト
+# ====================================================================
+
+
+class TestDashboardDataProviderAdvanced:
+    """DataProviderの多様なデータパターンテスト"""
+
+    @pytest.fixture(autouse=True)
+    def _require_pandas(self):
+        pytest.importorskip("pandas")
+
+    def test_provider_with_mixed_node_types(self):
+        """多様なノードタイプが混在するグラフ"""
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"active": True, "analysis_status": "COMPLETED"},
+                ),
+                Node(
+                    id=2,
+                    type="abaqus_material",
+                    name="Steel",
+                    format="material",
+                    properties={"elastic": [[210000.0, 0.3]]},
+                ),
+                Node(
+                    id=3,
+                    type="abaqus_keyword",
+                    name="FREQUENCY",
+                    format="keyword",
+                    properties={"EIGENSOLVER": "LANCZOS"},
+                ),
+                Node(
+                    id=4,
+                    type="abaqus_elset",
+                    name="shell_part",
+                    format="elset",
+                    properties={"material": "Steel", "element_count": 100},
+                ),
+            ],
+            relations=[
+                Relation(id=1, label="assigned_to", node1_id=2, node2_id=1),
+                Relation(id=2, label="uses_keyword", node1_id=1, node2_id=3),
+                Relation(id=3, label="has_elset", node1_id=1, node2_id=4),
+            ],
+        )
+        provider = DashboardDataProvider(graph)
+        # テーブルデータの取得が可能
+        table = provider.get_go_table()
+        assert len(table) >= 1
+
+    def test_provider_with_convergence_data(self):
+        """収束情報を持つノードのテーブル表示"""
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "active": True,
+                        "analysis_status": "COMPLETED",
+                        "cpu_time": 67.8,
+                        "wallclock_time": 35.0,
+                        "increment_count": 12,
+                        "cutback_count": 1,
+                        "step_count": 2,
+                        "total_iterations": 37,
+                        "max_equilibrium_iters": 5,
+                    },
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        table = provider.get_go_table()
+        assert len(table) == 1
+        row = table[0]
+        assert row.get("cpu_time") == 67.8
+        assert row.get("cutback_count") == 1
+
+    def test_provider_with_multiple_status(self):
+        """異なるステータスのノードが混在"""
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={"active": True, "analysis_status": "COMPLETED"},
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={"active": True, "analysis_status": "FAILED"},
+                ),
+                Node(
+                    id=3,
+                    type="go",
+                    name="go_idx3_v1",
+                    format="inp",
+                    properties={"active": False, "analysis_status": "COMPLETED"},
+                ),
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
+        table = provider.get_go_table()
+        assert len(table) == 3
+        statuses = {row.get("analysis_status") for row in table}
+        assert "COMPLETED" in statuses
+        assert "FAILED" in statuses

@@ -84,7 +84,7 @@ class JobMonitorPageConnector(DashboardPageConnector):
                         "Submitted": submitted,
                     }
                 )
-            st.dataframe(table_data, use_container_width=True)
+            st.dataframe(table_data, width="stretch")
         else:
             st.info("該当するジョブがありません。")
 

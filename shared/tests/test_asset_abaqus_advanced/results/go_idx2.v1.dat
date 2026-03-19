@@ -1,0 +1,11 @@
+ Abaqus/Standard 2024                                 DATE 13-Mar-2026  TIME 14:00:00
+
+
+                               S T E P       1     C O U P L E D  T E M P E R A T U R E - D I S P L A C E M E N T
+
+
+ ***WARNING: SOLVER PROBLEM. NUMERICAL SINGULARITY WHEN PROCESSING NODE 42 D.O.F. 1
+
+ TOTAL CPU TIME (SEC)     =   12.3
+ WALLCLOCK TIME (SEC)     =   8
+

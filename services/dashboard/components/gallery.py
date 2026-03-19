@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -12,7 +13,6 @@ from services.dashboard.components import PageComponent, ViewConfig
 
 if TYPE_CHECKING:
     from config import DashboardConfig, SavedViewConfig
-
     from services.dashboard.data_provider import DashboardDataProvider
 
 
@@ -43,25 +43,15 @@ class GalleryViewConfig(ViewConfig):
         st.markdown("**ギャラリー設定**")
         gc1, gc2, gc3 = st.columns(3)
         with gc1:
-            g_source = st.selectbox(
-                "ソース", ["has_output", "property"], key="_add_view_gsrc"
-            )
+            g_source = st.selectbox("ソース", ["has_output", "property"], key="_add_view_gsrc")
         with gc2:
             g_format = st.text_input("フォーマット", key="_add_view_gfmt")
         with gc3:
             # propertyソース時のキー指定
             if g_source == "property":
                 prop_images = provider.get_property_images()
-                prop_keys = sorted(
-                    {
-                        img["property_key"]
-                        for img in prop_images
-                        if img.get("property_key")
-                    }
-                )
-                g_prop_key = st.selectbox(
-                    "プロパティキー", ["（すべて）", *prop_keys], key="_add_view_gpkey"
-                )
+                prop_keys = sorted({img["property_key"] for img in prop_images if img.get("property_key")})
+                g_prop_key = st.selectbox("プロパティキー", ["（すべて）", *prop_keys], key="_add_view_gpkey")
             else:
                 g_prop_key = "（すべて）"
         gallery_config: dict[str, Any] = {"source": g_source}
@@ -70,6 +60,78 @@ class GalleryViewConfig(ViewConfig):
         if g_prop_key and g_prop_key != "（すべて）":
             gallery_config["property_key"] = g_prop_key
         return {"gallery": gallery_config}
+
+
+def render_gallery_section(
+    provider: DashboardDataProvider,
+    dashboard_config: DashboardConfig,
+    project_root: Path,
+    active_filters: dict[str, Any] | None = None,
+    *,
+    show_header: bool = True,
+    show_grid_settings: bool = True,
+    show_source_selector: bool = True,
+    key_prefix: str = "",
+) -> None:
+    """ギャラリーセクションの描画（OverviewPage等から再利用可能）
+
+    Args:
+        provider: データプロバイダ
+        dashboard_config: ダッシュボード設定
+        project_root: プロジェクトルート
+        active_filters: アクティブフィルタ（Noneで全件）
+        show_header: ヘッダーを表示するか
+        show_grid_settings: グリッド設定UIを表示するか
+        show_source_selector: ソース選択UIを表示するか
+        key_prefix: session_stateキーの接頭辞（同一ページで複数描画する場合の衝突防止）
+    """
+    import streamlit as st
+
+    if show_header:
+        st.header("画像ギャラリー")
+
+    if show_grid_settings:
+        default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
+        persisted_cols = st.session_state.get(f"{key_prefix}_gallery_user_cols", default_cols)
+        persisted_rows = st.session_state.get(f"{key_prefix}_gallery_user_rows", default_rows)
+        gc1, gc2 = st.columns(2)
+        with gc1:
+            cols_per_row = st.number_input(
+                "列数",
+                min_value=1,
+                max_value=10,
+                value=persisted_cols,
+                key=f"{key_prefix}_gallery_cols",
+            )
+        with gc2:
+            rows_per_page = st.number_input(
+                "行数",
+                min_value=1,
+                max_value=20,
+                value=persisted_rows,
+                key=f"{key_prefix}_gallery_rows",
+            )
+        st.session_state[f"{key_prefix}_gallery_user_cols"] = cols_per_row
+        st.session_state[f"{key_prefix}_gallery_user_rows"] = rows_per_page
+
+    if show_source_selector:
+        source_options = ["has_output関係", "プロパティ画像パス"]
+        persisted_source_idx = st.session_state.get(f"{key_prefix}_gallery_source_idx", 0)
+        image_source = st.radio(
+            "画像ソース",
+            source_options,
+            index=persisted_source_idx,
+            horizontal=True,
+            key=f"{key_prefix}_gallery_source_radio",
+        )
+        st.session_state[f"{key_prefix}_gallery_source_idx"] = source_options.index(image_source)
+    else:
+        image_source = "has_output関係"
+
+    if image_source == "has_output関係":
+        _render_gallery_output_images(provider, project_root, dashboard_config, active_filters=active_filters)
+    else:
+        _render_gallery_property_images(provider, project_root, dashboard_config, active_filters=active_filters)
 
 
 class GalleryPage(PageComponent[GalleryViewConfig]):
@@ -92,61 +154,19 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
             return
         project_root = Path(project_root)
 
-        st.header("画像ギャラリー")
-
-        # グリッド設定（列数・行数をユーザーが変更可能）
-        # session_stateに保存済みの値があればそちらを優先（ページ遷移時の復元）
-        default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
-        persisted_cols = st.session_state.get("_gallery_user_cols", default_cols)
-        persisted_rows = st.session_state.get("_gallery_user_rows", default_rows)
-        gc1, gc2 = st.columns(2)
-        with gc1:
-            cols_per_row = st.number_input(
-                "列数",
-                min_value=1,
-                max_value=10,
-                value=persisted_cols,
-                key="_gallery_cols",
-            )
-        with gc2:
-            rows_per_page = st.number_input(
-                "行数",
-                min_value=1,
-                max_value=20,
-                value=persisted_rows,
-                key="_gallery_rows",
-            )
-        # セッション状態に保存して下流関数で参照
-        st.session_state["_gallery_user_cols"] = cols_per_row
-        st.session_state["_gallery_user_rows"] = rows_per_page
-
         # 共有フィルタ
         from services.dashboard.widgets import get_active_filters, render_shared_filters
 
         rows = provider.get_go_table()
         render_shared_filters(rows)
 
-        # 画像ソース選択（ページ遷移時の復元対応）
-        source_options = ["has_output関係", "プロパティ画像パス"]
-        persisted_source_idx = st.session_state.get("_gallery_source_idx", 0)
-        image_source = st.radio(
-            "画像ソース",
-            source_options,
-            index=persisted_source_idx,
-            horizontal=True,
-            key="_gallery_source_radio",
-        )
-        st.session_state["_gallery_source_idx"] = source_options.index(image_source)
-
         active_filters = get_active_filters()
-        if image_source == "has_output関係":
-            _render_gallery_output_images(
-                provider, project_root, dashboard_config, active_filters=active_filters
-            )
-        else:
-            _render_gallery_property_images(
-                provider, project_root, dashboard_config, active_filters=active_filters
-            )
+        render_gallery_section(
+            provider,
+            dashboard_config,
+            project_root,
+            active_filters=active_filters,
+        )
 
     def render_saved_view(
         self,
@@ -181,9 +201,7 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
             st.info("条件に一致する画像がありません。")
             return
 
-        cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(
-            dashboard_config
-        )
+        cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
         max_display = cols_per_row * rows_per_page
         images = images[:max_display]
 
@@ -229,14 +247,31 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         max_display = cols_per_row * rows_per_page
         images = images[:max_display]
 
-        return _generate_gallery_html_grid(
-            images, cols_per_row, project_root, source, max_image_bytes=max_bytes
-        )
+        return _generate_gallery_html_grid(images, cols_per_row, project_root, source, max_image_bytes=max_bytes)
 
 
 # ====================================================================
 # ギャラリー内部描画関数
 # ====================================================================
+
+
+def _sort_by_idx(images: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """idxキーがあれば整数に変換してソートする"""
+    has_idx = any("idx" in img for img in images)
+    if not has_idx:
+        return images
+    for img in images:
+        if "idx" in img:
+            with contextlib.suppress(ValueError, TypeError):
+                img["idx"] = int(img["idx"])
+
+    def _sort_key(img: dict[str, Any]) -> tuple[int, int | float]:
+        val = img.get("idx")
+        if isinstance(val, int):
+            return (0, val)
+        return (1, 0)
+
+    return sorted(images, key=_sort_key)
 
 
 def _render_gallery_output_images(
@@ -280,10 +315,7 @@ def _render_gallery_output_images(
     # フィルタ: キー名リスト指定（result_keyベース）
     from services.dashboard.query import _extract_result_key_from_path
 
-    available_result_keys = sorted(
-        {_extract_result_key_from_path(img.get("image_path", "")) for img in images}
-        - {""}
-    )
+    available_result_keys = sorted({_extract_result_key_from_path(img.get("image_path", "")) for img in images} - {""})
     if available_result_keys:
         persisted_keys = st.session_state.get("_gallery_output_keys", [])
         default_keys = [k for k in persisted_keys if k in available_result_keys]
@@ -299,6 +331,11 @@ def _render_gallery_output_images(
 
     # グループ表示オプション（デフォルト: 最初の利用可能キー / 復元値）
     group_keys = collect_group_keys(images, source="output")
+<<<<<<< HEAD
+=======
+    allowed_group_keys = set(dashboard_config.gallery_defaults.group_keys)
+    group_keys = [i for i in group_keys if i in allowed_group_keys]
+>>>>>>> refs/remotes/origin/master
     group_options = ["なし", *group_keys]
     persisted_group = st.session_state.get("_gallery_output_group_val")
     if persisted_group and persisted_group in group_options:
@@ -318,11 +355,12 @@ def _render_gallery_output_images(
     cols_per_row = st.session_state.get("_gallery_user_cols", default_cols)
     rows_per_page = st.session_state.get("_gallery_user_rows", default_rows)
 
+    # idxキーがあれば整数変換してソート
+    images = _sort_by_idx(images)
+
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")
-        _render_gallery_grouped(
-            images, cols_per_row, project_root, source="output", group_key=group_by
-        )
+        _render_gallery_grouped(images, cols_per_row, project_root, source="output", group_key=group_by)
         return
 
     max_display = cols_per_row * rows_per_page
@@ -332,9 +370,7 @@ def _render_gallery_output_images(
     total_pages = max(1, (total_images + max_display - 1) // max_display)
     persisted_page = st.session_state.get("_gallery_output_page", 1)
     persisted_page = min(persisted_page, total_pages)
-    page_num = st.sidebar.number_input(
-        "ページ", min_value=1, max_value=total_pages, value=persisted_page
-    )
+    page_num = st.sidebar.number_input("ページ", min_value=1, max_value=total_pages, value=persisted_page)
     st.session_state["_gallery_output_page"] = page_num
     start_idx = (page_num - 1) * max_display
     page_images = images[start_idx : start_idx + max_display]
@@ -400,11 +436,7 @@ def _render_gallery_property_images(
     formats = sorted({img["image_format"] for img in images})
     prop_fmt_options = ["すべて", *formats]
     persisted_prop_fmt = st.session_state.get("_gallery_prop_fmt", "すべて")
-    prop_fmt_idx = (
-        prop_fmt_options.index(persisted_prop_fmt)
-        if persisted_prop_fmt in prop_fmt_options
-        else 0
-    )
+    prop_fmt_idx = prop_fmt_options.index(persisted_prop_fmt) if persisted_prop_fmt in prop_fmt_options else 0
     selected_format = st.sidebar.selectbox(
         "画像フォーマット（プロパティ）",
         prop_fmt_options,
@@ -440,11 +472,12 @@ def _render_gallery_property_images(
     cols_per_row = st.session_state.get("_gallery_user_cols", default_cols)
     rows_per_page = st.session_state.get("_gallery_user_rows", default_rows)
 
+    # idxキーがあれば整数変換してソート
+    images = _sort_by_idx(images)
+
     if group_by != "なし":
         st.caption(f"{len(images)} 件（グループ: {group_by}）")
-        _render_gallery_grouped(
-            images, cols_per_row, project_root, source="property", group_key=group_by
-        )
+        _render_gallery_grouped(images, cols_per_row, project_root, source="property", group_key=group_by)
         return
 
     max_display = cols_per_row * rows_per_page
@@ -523,6 +556,8 @@ def _render_gallery_grouped(
         groups_ord.setdefault(gk, []).append(img)
 
     for group_name, group_images in groups_ord.items():
+        # idxキーがあれば整数変換してソート
+        group_images = _sort_by_idx(group_images)
         st.subheader(f"{group_key}: {group_name}")
         st.caption(f"{len(group_images)} 件")
         _render_image_grid(group_images, cols_per_row, project_root, source=source)
@@ -546,9 +581,7 @@ def _render_image_grid(
 
     for row_start in range(0, len(images), cols_per_row):
         cols = st.columns(cols_per_row)
-        for col_idx, img_info in enumerate(
-            images[row_start : row_start + cols_per_row]
-        ):
+        for col_idx, img_info in enumerate(images[row_start : row_start + cols_per_row]):
             with cols[col_idx]:
                 # ヘッダー情報（表示名を優先使用）
                 display_name = img_info.get("display_name", img_info["go_node_name"])
@@ -573,7 +606,7 @@ def _render_image_grid(
                     st.image(
                         str(image_path),
                         caption=caption,
-                        use_container_width=True,
+                        width="stretch",
                     )
                 else:
                     st.warning(f"画像が見つかりません: {image_path_str}")
@@ -604,9 +637,7 @@ def _generate_gallery_html_grid(
     parts: list[str] = []
     skipped_count = 0
     resized_count = 0
-    parts.append(
-        f'<div style="display:grid;grid-template-columns:repeat({cols_per_row},1fr);gap:12px;">'
-    )
+    parts.append(f'<div style="display:grid;grid-template-columns:repeat({cols_per_row},1fr);gap:12px;">')
 
     for img_info in images:
         display_name = img_info.get("display_name", img_info["go_node_name"])
@@ -662,24 +693,16 @@ def _generate_gallery_html_grid(
                         f'alt="{display_name}">'
                     )
                 except OSError:
-                    cell_parts.append(
-                        f'<p style="color:#ef4444;">読み取りエラー: {image_path_str}</p>'
-                    )
+                    cell_parts.append(f'<p style="color:#ef4444;">読み取りエラー: {image_path_str}</p>')
         else:
-            cell_parts.append(
-                f'<p style="color:#6b7280;">画像なし: {image_path_str}</p>'
-            )
+            cell_parts.append(f'<p style="color:#6b7280;">画像なし: {image_path_str}</p>')
 
         if source == "property":
             prop_key = img_info.get("property_key", "")
-            cell_parts.append(
-                f'<p style="color:#6b7280;font-size:0.75em;margin:4px 0 0 0;">{prop_key}</p>'
-            )
+            cell_parts.append(f'<p style="color:#6b7280;font-size:0.75em;margin:4px 0 0 0;">{prop_key}</p>')
         else:
             img_name = img_info.get("image_name", "")
-            cell_parts.append(
-                f'<p style="color:#6b7280;font-size:0.75em;margin:4px 0 0 0;">{img_name}</p>'
-            )
+            cell_parts.append(f'<p style="color:#6b7280;font-size:0.75em;margin:4px 0 0 0;">{img_name}</p>')
 
         cell_parts.append("</div>")
         parts.append("\n".join(cell_parts))

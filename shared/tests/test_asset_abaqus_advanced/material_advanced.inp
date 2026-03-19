@@ -1,0 +1,62 @@
+** Advanced material definitions for testing parse coverage
+** Includes: HYPERELASTIC, ORTHOTROPIC, KINEMATIC hardening, VISCOELASTIC
+**
+** [README](../../../README.md)
+**
+*MATERIAL, NAME=rubber_neohooke
+*HYPERELASTIC, NEO HOOKE
+ 0.5, 0.02
+*DENSITY
+ 1.1e-9
+**
+*MATERIAL, NAME=rubber_mooney
+*HYPERELASTIC, MOONEY-RIVLIN
+ 0.18, 0.045, 0.001
+*DENSITY
+ 1.05e-9
+**
+*MATERIAL, NAME=composite_ortho
+*ELASTIC, TYPE=ORTHOTROPIC
+ 135000., 10000., 10000., 0.25, 0.25, 0.45, 5000., 5000.,
+ 3500.
+*DENSITY
+ 1.6e-9
+**
+*MATERIAL, NAME=steel_kinematic
+*ELASTIC
+ 210000., 0.3
+*PLASTIC, HARDENING=KINEMATIC
+ 250., 0.0
+ 300., 0.01
+ 350., 0.05
+ 400., 0.10
+*DENSITY
+ 7.85e-9
+**
+*MATERIAL, NAME=polymer_visco
+*ELASTIC
+ 3000., 0.35
+*VISCOELASTIC, TIME=PRONY
+ 0.2, 0.0, 1.0
+ 0.1, 0.0, 10.0
+*DENSITY
+ 1.2e-9
+**
+*MATERIAL, NAME=Steel
+*ELASTIC
+ 210000., 0.3
+*PLASTIC
+ 350., 0.0
+ 450., 0.1
+*DENSITY
+ 7.85e-9
+**
+** Case sensitivity test: same name different case
+*MATERIAL, NAME=STEEL
+*ELASTIC
+ 200000., 0.29
+*PLASTIC
+ 300., 0.0
+ 400., 0.1
+*DENSITY
+ 7.90e-9

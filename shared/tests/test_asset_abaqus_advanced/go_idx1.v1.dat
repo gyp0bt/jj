@@ -1,0 +1,16 @@
+ Abaqus/Standard 2024                                 DATE 13-Mar-2026  TIME 10:00:00
+
+
+                               S T E P       1     S T A T I C   A N A L Y S I S
+
+
+ TOTAL CPU TIME (SEC)     =   45.2
+ WALLCLOCK TIME (SEC)     =   23
+
+
+                               S T E P       2     F R E Q U E N C Y   E X T R A C T I O N
+
+
+ TOTAL CPU TIME (SEC)     =   67.8
+ WALLCLOCK TIME (SEC)     =   35
+

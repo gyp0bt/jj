@@ -266,7 +266,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                             height=500,
                             template=get_plotly_template(),
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                     except ImportError:
                         st.warning("plotlyが必要です。")
         else:
@@ -368,7 +368,7 @@ def _render_array_overlay(
                 fig.update_yaxes(range=y_range)
             if style:
                 apply_style_to_fig(fig, style)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         except ImportError:
             st.warning("plotlyが必要です: pip install plotly")
@@ -486,6 +486,6 @@ def _render_array_single(
             fig.update_yaxes(range=y_range)
         if style:
             apply_style_to_fig(fig, style)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     except ImportError:
         st.warning("plotlyが必要です: pip install plotly")

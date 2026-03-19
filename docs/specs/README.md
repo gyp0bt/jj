@@ -1,4 +1,4 @@
-[← README.md](../../README.md)
+[← README.md](../../README.md) | [← docs/README.md](../README.md)
 
 # 仕様書・設計文書
 
@@ -58,11 +58,27 @@
 |-------------|------|
 | [neo4j-pipeline-design.md](neo4j-pipeline-design.md) | Neo4j統合パイプライン・IEntityRepository |
 
+### プラグイン・コアアーキテクチャ
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [plugin-core-design.md](plugin-core-design.md) | T10 プラグイン完全分離・CI/Dashboard/Server統一アーキテクチャ |
+
 ### 計画書
 
 | ドキュメント | 内容 |
 |-------------|------|
 | [midterm-plan-v0.3.md](midterm-plan-v0.3.md) | v0.3.0 全8ワークトラック詳細設計 |
+
+### ダッシュボード改善・出力連携
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [dashboard-improvements.md](dashboard-improvements.md) | テーブルフィルタ強化・統合レイアウト・デフォルト保存 |
+| [windows-integration.md](windows-integration.md) | Windows連携（PPT貼り付け・Excel書き出し） |
+| [property-key-normalization.md](property-key-normalization.md) | include継承時のバージョン付きキー正規化 |
+| [property-externalization.md](property-externalization.md) | プロパティ外部化（graph.yaml軽量化） |
+| [t8-generic-data-management.md](t8-generic-data-management.md) | T8 汎用データ管理基盤 |
 
 ---
 

@@ -106,6 +106,95 @@ class FolderMapping:
 
 
 @dataclass
+class SharedFolderMapping:
+    """ローカル⇔共有フォルダ マッピング（UNCパス対応）"""
+
+    local: str
+    shared: str
+
+
+@dataclass
+class SyncConfig:
+    """同期設定（config.yamlのsyncセクション）"""
+
+    exclude: list[str]
+    shared_folder_mappings: list[SharedFolderMapping]
+    gitlab_url: str
+    gitlab_token_env: str
+    gitlab_default_group: str
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> SyncConfig:
+        if not data:
+            return cls(
+                exclude=[],
+                shared_folder_mappings=[],
+                gitlab_url="",
+                gitlab_token_env="GITLAB_TOKEN",
+                gitlab_default_group="",
+            )
+        exclude = data.get("exclude", [])
+        if not isinstance(exclude, list):
+            exclude = []
+
+        sf = data.get("shared_folder", {}) or {}
+        raw_mappings = sf.get("folder_mappings", [])
+        mappings = []
+        if isinstance(raw_mappings, list):
+            for m in raw_mappings:
+                if isinstance(m, dict) and "local" in m and "shared" in m:
+                    mappings.append(SharedFolderMapping(local=str(m["local"]), shared=str(m["shared"])))
+
+        gl = data.get("gitlab", {}) or {}
+        return cls(
+            exclude=[str(p) for p in exclude],
+            shared_folder_mappings=mappings,
+            gitlab_url=str(gl.get("url", "")),
+            gitlab_token_env=str(gl.get("token_env", "GITLAB_TOKEN")),
+            gitlab_default_group=str(gl.get("default_group", "")),
+        )
+
+    def resolve_shared_path(self, local_path: str) -> str | None:
+        """ローカルパスから共有フォルダパスを解決"""
+        if not self.shared_folder_mappings:
+            return None
+        normalized = local_path.replace("\\", "/").rstrip("/") + "/"
+        for mapping in self.shared_folder_mappings:
+            local_base = mapping.local.replace("\\", "/").rstrip("/") + "/"
+            if normalized.startswith(local_base):
+                relative = normalized[len(local_base) :].rstrip("/")
+                shared_base = mapping.shared.rstrip("\\/")
+                if relative:
+                    return shared_base + "\\" + relative.replace("/", "\\")
+                return shared_base
+        return None
+
+    def resolve_local_path(self, shared_path: str) -> str | None:
+        """共有フォルダパスからローカルパスを解決"""
+        if not self.shared_folder_mappings:
+            return None
+        normalized = shared_path.replace("/", "\\").rstrip("\\") + "\\"
+        for mapping in self.shared_folder_mappings:
+            shared_base = mapping.shared.replace("/", "\\").rstrip("\\") + "\\"
+            if normalized.startswith(shared_base):
+                relative = normalized[len(shared_base) :].rstrip("\\")
+                local_base = mapping.local.rstrip("\\/")
+                if relative:
+                    return local_base + "/" + relative.replace("\\", "/")
+                return local_base
+        return None
+
+
+def load_sync_config(base_dir: Path | None = None) -> SyncConfig:
+    """config.yamlからsyncセクションを読み込む"""
+    try:
+        data = load_project_config(base_dir)
+        return SyncConfig.from_dict(data.get("sync"))
+    except Exception:
+        return SyncConfig.from_dict(None)
+
+
+@dataclass
 class SSHConfig:
     host: str | None = None
     port: str | None = None
@@ -884,6 +973,8 @@ class GalleryDefaults:
     columns: int = 5
     rows: int = 4
     max_image_bytes: int = 5 * 1024 * 1024
+    group_keys: tuple[str, ...] = ("result_key", "step", "frame", "vmax", "vmin")
+    composite_target_keys: tuple[str, ...] = ("step", "frame", "vmax", "vmin", "gallery")
 
 
 @dataclass(frozen=True)
@@ -911,6 +1002,7 @@ class DashboardConfig:
     plot_style_defaults: PlotStyleDefaults  # プロットスタイルデフォルト値
     gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
     list_summary_columns: list[str]  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
+    default_page: str | None  # デフォルト表示ページ（"table"|"gallery"|"plot"|"overview"等）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -941,6 +1033,7 @@ class DashboardConfig:
                 plot_style_defaults=PlotStyleDefaults(),
                 gallery_defaults=GalleryDefaults(),
                 list_summary_columns=["msg_errors", "dat_errors"],
+                default_page=None,
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -1063,6 +1156,14 @@ class DashboardConfig:
             gd_kwargs["rows"] = int(raw_gd["rows"])
         if raw_gd.get("max-image-bytes") is not None:
             gd_kwargs["max_image_bytes"] = int(raw_gd["max-image-bytes"])
+        if raw_gd.get("group-keys") is not None:
+            raw_gkeys = raw_gd["group-keys"]
+            if isinstance(raw_gkeys, list):
+                gd_kwargs["group_keys"] = tuple(str(k) for k in raw_gkeys)
+        if raw_gd.get("composite-target-keys") is not None:
+            raw_ctk = raw_gd["composite-target-keys"]
+            if isinstance(raw_ctk, list):
+                gd_kwargs["composite_target_keys"] = tuple(str(k) for k in raw_ctk)
         gallery_defaults = GalleryDefaults(**gd_kwargs)
         if gallery_defaults.columns < 1:
             raise ValueError("gallery-defaults.columns must be >= 1")
@@ -1076,6 +1177,9 @@ class DashboardConfig:
             list_summary_columns = [str(c) for c in raw_lsc]
         else:
             list_summary_columns = ["msg_errors", "dat_errors"]
+        # デフォルト表示ページ
+        raw_default_page = data.get("default-page")
+        default_page = str(raw_default_page) if raw_default_page is not None else None
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -1091,6 +1195,7 @@ class DashboardConfig:
             plot_style_defaults=plot_style_defaults,
             gallery_defaults=gallery_defaults,
             list_summary_columns=list_summary_columns,
+            default_page=default_page,
         )
 
 

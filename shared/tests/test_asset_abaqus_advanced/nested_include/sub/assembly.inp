@@ -1,0 +1,22 @@
+** Level 2 include: assembly definitions
+** Includes material from parent directory
+**
+*include, input=../material_advanced.inp
+**
+*SOLID SECTION, ELSET=solid_body, MATERIAL=Steel
+**
+*NODE, NSET=ALL
+ 1, 0.0, 0.0, 0.0
+ 2, 1.0, 0.0, 0.0
+ 3, 1.0, 1.0, 0.0
+ 4, 0.0, 1.0, 0.0
+ 5, 0.5, 0.5, 1.0
+**
+*ELEMENT, TYPE=C3D4, ELSET=solid_body
+ 1, 1, 2, 3, 5
+ 2, 1, 3, 4, 5
+**
+*NSET, NSET=fix_nodes
+ 1, 4
+*NSET, NSET=load_nodes
+ 2, 3, 5

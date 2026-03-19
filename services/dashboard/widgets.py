@@ -229,31 +229,148 @@ def get_active_filters() -> dict[str, Any] | None:
 
 
 def render_excel_download(df: pd.DataFrame, filename_prefix: str = "data") -> None:
-    """DataFrameをExcelファイルとしてダウンロードするボタンを表示
+    """DataFrameを書式付きExcelファイルとしてダウンロードするボタンを表示
 
-    openpyxlが利用可能な場合のみ表示する。
+    書式付きExcel出力（メイリオフォント・ヘッダー色付き・列幅自動調整）を試行し、
+    失敗時はpandas標準のExcel出力にフォールバックする。
 
     Args:
         df: ダウンロード対象のDataFrame
         filename_prefix: ファイル名の接頭辞
     """
     try:
-        import io
-
         import openpyxl  # noqa: F401
         import streamlit as st
+    except ImportError:
+        return
+
+    # 書式付きExcel出力を試行
+    try:
+        from services.export.connectors.excel_export import export_table_to_excel_bytes
+
+        excel_bytes = export_table_to_excel_bytes(df)
+    except Exception:
+        # フォールバック: pandas標準出力
+        import io
 
         buffer = io.BytesIO()
         with __import__("pandas").ExcelWriter(buffer, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="data")
         buffer.seek(0)
+        excel_bytes = buffer.getvalue()
 
-        st.download_button(
-            label="Excelダウンロード",
-            data=buffer,
-            file_name=f"{filename_prefix}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+    st.download_button(
+        label="Excelダウンロード",
+        data=excel_bytes,
+        file_name=f"{filename_prefix}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def render_pptx_gallery_download(
+    image_paths: list[Any],
+    title: str = "Gallery",
+    cols: int = 3,
+    rows: int = 2,
+    filename_prefix: str = "gallery",
+) -> None:
+    """ギャラリー画像をPPTXファイルとしてダウンロードするボタンを表示
+
+    python-pptxが利用可能な場合のみ表示する。
+
+    Args:
+        image_paths: 画像ファイルパスのリスト
+        title: プレゼンテーションタイトル
+        cols: グリッド列数
+        rows: グリッド行数
+        filename_prefix: ファイル名の接頭辞
+    """
+    try:
+        from pathlib import Path
+
+        import streamlit as st
+
+        from services.export.connectors.pptx_export import export_gallery_to_pptx_bytes
+
+        paths = [Path(p) for p in image_paths]
+        existing = [p for p in paths if p.exists()]
+        if not existing:
+            return
+
+        if st.button("PPTXダウンロード", key=f"pptx_gallery_{filename_prefix}"):
+            pptx_bytes = export_gallery_to_pptx_bytes(existing, cols, rows, title)
+            st.download_button(
+                label="PPTXファイルを保存",
+                data=pptx_bytes,
+                file_name=f"{filename_prefix}.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                key=f"pptx_save_{filename_prefix}",
+            )
+    except ImportError:
+        pass
+
+
+def render_pptx_plot_download(
+    figs: list[Any],
+    titles: list[str] | None = None,
+    filename_prefix: str = "plots",
+) -> None:
+    """Plotly figureリストをPPTXファイルとしてダウンロードするボタンを表示
+
+    python-pptx + kaleido が利用可能な場合のみ表示する。
+
+    Args:
+        figs: plotly.graph_objects.Figure のリスト
+        titles: 各スライドのタイトル
+        filename_prefix: ファイル名の接頭辞
+    """
+    try:
+        import streamlit as st
+
+        from services.export.connectors.pptx_export import plotly_fig_to_pptx_bytes
+
+        if st.button("PPTXダウンロード", key=f"pptx_plot_{filename_prefix}"):
+            try:
+                pptx_bytes = plotly_fig_to_pptx_bytes(figs, titles)
+                st.download_button(
+                    label="PPTXファイルを保存",
+                    data=pptx_bytes,
+                    file_name=f"{filename_prefix}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    key=f"pptx_plot_save_{filename_prefix}",
+                )
+            except ValueError as e:
+                st.warning(str(e))
+    except ImportError:
+        pass
+
+
+def render_array_excel_download(
+    array_data: list[dict[str, Any]],
+    filename_prefix: str = "array_data",
+) -> None:
+    """配列データを書式付きExcelファイルとしてダウンロードするボタンを表示
+
+    openpyxlが利用可能な場合のみ表示する。
+
+    Args:
+        array_data: [{"name": str, "x": list, "y": list, "props": dict}, ...]
+        filename_prefix: ファイル名の接頭辞
+    """
+    try:
+        import streamlit as st
+
+        from services.export.connectors.excel_export import export_array_data_to_excel_bytes
+
+        if st.button("配列Excel", key=f"array_excel_{filename_prefix}"):
+            excel_bytes = export_array_data_to_excel_bytes(array_data)
+            st.download_button(
+                label="Excelファイルを保存",
+                data=excel_bytes,
+                file_name=f"{filename_prefix}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"array_excel_save_{filename_prefix}",
+            )
     except ImportError:
         pass
 

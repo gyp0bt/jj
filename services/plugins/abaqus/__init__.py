@@ -40,20 +40,23 @@ from __future__ import annotations
 
 import logging
 
+from services.sdk.plugin_manifest import PluginManifest
+
 logger = logging.getLogger(__name__)
 
 _registered = False
 
 
-def register() -> None:
+def register() -> PluginManifest | None:
     """Abaqusプラグインの全コンポーネントを登録する
 
     __init_subclass__パターンにより、モジュールをimportするだけで
     各パーサー・コネクターがレジストリに自動登録される。
+    PluginManifest を返すことで PluginManager がメタデータを管理する。
     """
     global _registered
     if _registered:
-        return
+        return None
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
@@ -66,12 +69,33 @@ def register() -> None:
     import services.parse.connectors.abaqus.result_parser
 
     # ダッシュボードコネクターのインポート（自動登録が発動）
+    dashboard_pages: list[str] = []
     try:
         import services.dashboard.connectors.abaqus  # noqa: F401
+
+        dashboard_pages.append("services.dashboard.connectors.abaqus")
     except ImportError:
         logger.debug("Abaqusダッシュボードコネクターのロードをスキップ（依存パッケージ不足）")
 
     logger.debug("Abaqusプラグインを登録完了")
+
+    return PluginManifest(
+        name="abaqus",
+        version="0.2.0",
+        description="Abaqus INP解析・結果ファイル解析・メッシュ統計・差分比較・ジョブ投入",
+        parsers=[
+            "services.parse.connectors.abaqus.parameter_parser",
+            "services.parse.connectors.abaqus.inp_parser",
+            "services.parse.connectors.abaqus.result_parser",
+            "services.parse.connectors.abaqus.mesh_parser",
+            "services.parse.connectors.abaqus.mesh_inherit_parser",
+            "services.parse.connectors.abaqus.diff_parser",
+        ],
+        dashboard_pages=dashboard_pages,
+        optional_dependencies={
+            "pymesh": "pymesh（メッシュ統計）",
+        },
+    )
 
 
 # モジュールインポート時に自動登録
