@@ -190,6 +190,7 @@ def _export_data(
                     ordered_keys.append(k)
                     seen.add(k)
             for pattern in csv_cols:
+                print(pattern)
                 for k in all_keys:
                     if k not in seen and fnmatch.fnmatch(k, pattern):
                         ordered_keys.append(k)

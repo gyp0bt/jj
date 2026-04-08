@@ -62,8 +62,7 @@ def register() -> PluginManifest | None:
     # パーサーのインポート（自動登録が発動）
     import services.parse.connectors.abaqus.diff_parser
     import services.parse.connectors.abaqus.inp_parser
-
-    # import services.parse.connectors.abaqus.mesh_inherit_parser
+    import services.parse.connectors.abaqus.mesh_inherit_parser
     import services.parse.connectors.abaqus.mesh_parser
     import services.parse.connectors.abaqus.parameter_parser
     import services.parse.connectors.abaqus.result_parser

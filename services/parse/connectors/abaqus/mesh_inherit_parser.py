@@ -104,6 +104,7 @@ class MeshInheritParser(AbstractFileParser):
                     else:
                         # キー競合: ベース名を正規化して接頭辞付与
                         # mesh_v2:v, mesh_v3:v → mesh:v（後勝ち）
+                        continue
                         base_name = get_file_base_name(child.name)
                         prefixed_key = f"{base_name}:{key}"
                         node.properties[prefixed_key] = value

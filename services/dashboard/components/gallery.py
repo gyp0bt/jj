@@ -331,11 +331,8 @@ def _render_gallery_output_images(
 
     # グループ表示オプション（デフォルト: 最初の利用可能キー / 復元値）
     group_keys = collect_group_keys(images, source="output")
-<<<<<<< HEAD
-=======
     allowed_group_keys = set(dashboard_config.gallery_defaults.group_keys)
     group_keys = [i for i in group_keys if i in allowed_group_keys]
->>>>>>> refs/remotes/origin/master
     group_options = ["なし", *group_keys]
     persisted_group = st.session_state.get("_gallery_output_group_val")
     if persisted_group and persisted_group in group_options:
