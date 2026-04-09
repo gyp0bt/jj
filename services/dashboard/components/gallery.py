@@ -41,7 +41,7 @@ class GalleryViewConfig(ViewConfig):
         import streamlit as st
 
         st.markdown("**ギャラリー設定**")
-        gc1, gc2, gc3 = st.columns(3)
+        gc1, gc2, gc3 = st.columns(3, gap="large")
         with gc1:
             g_source = st.selectbox("ソース", ["has_output", "property"], key="_add_view_gsrc")
         with gc2:
@@ -577,7 +577,7 @@ def _render_image_grid(
     import streamlit as st
 
     for row_start in range(0, len(images), cols_per_row):
-        cols = st.columns(cols_per_row)
+        cols = st.columns(cols_per_row, gap="large")
         for col_idx, img_info in enumerate(images[row_start : row_start + cols_per_row]):
             with cols[col_idx]:
                 # ヘッダー情報（表示名を優先使用）
