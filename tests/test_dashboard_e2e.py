@@ -155,23 +155,24 @@ class TestDashboardAppTest:
         assert len(metrics) >= 1
 
     def test_default_enabled_pages_render_as_sections(self, project_with_graph: Path):
-        """デフォルトのenabled-pages（table/array_plot/gallery）がセクションとして描画される"""
-        at = self._run_app(project_with_graph)
-        assert not at.exception
-        # シングルページ構成では各ページがヘッダーで区切られて描画される
-        headers = [h.value for h in at.header]
-        # テーブル/配列プロット/ギャラリーのヘッダーが存在する
-        assert any("テーブル" in h for h in headers)
-        assert any("配列プロット" in h for h in headers) or any("配列" in h for h in headers)
-        assert any("ギャラリー" in h for h in headers)
+        """デフォルトのenabled-pages（table/array_plot/gallery）がセクションとして描画される
 
-    def test_saved_views_section_present(self, project_with_graph: Path):
-        """保存済みビューが折りたたみセクションとして表示される"""
+        各エントリはSavedViewConfigでview.nameがそのままヘッダー文字列の一部になる。
+        """
         at = self._run_app(project_with_graph)
         assert not at.exception
-        # expanderラベルに保存済みビューが含まれる
+        headers = [h.value for h in at.header]
+        joined = " | ".join(headers)
+        assert "table" in joined
+        assert "array_plot" in joined
+        assert "gallery" in joined
+
+    def test_view_add_form_present(self, project_with_graph: Path):
+        """ビュー追加フォームが折りたたみセクションとして表示される"""
+        at = self._run_app(project_with_graph)
+        assert not at.exception
         expander_labels = [e.label for e in at.expander]
-        assert any("保存済みビュー" in lbl for lbl in expander_labels)
+        assert any("ビューを追加" in lbl for lbl in expander_labels)
 
     def test_default_page_renders_table(self, project_with_graph: Path):
         """デフォルトページ（テーブル）がレンダリングされる"""
@@ -214,9 +215,26 @@ class TestDashboardEnabledPagesE2E:
         at = self._run_app_with_config(project_with_graph, ["table"])
         assert not at.exception
         headers = [h.value for h in at.header]
-        assert any("テーブル" in h for h in headers)
-        # ギャラリーはレンダリングされない
-        assert not any("ギャラリー" in h for h in headers)
+        joined = " | ".join(headers)
+        assert "table" in joined
+        assert "gallery" not in joined
+        assert "array_plot" not in joined
+
+    def test_dict_entry_renders_with_custom_name(self, project_with_graph: Path):
+        """dict指定のenabled-pagesでは name がヘッダーに反映される"""
+        at = self._run_app_with_config(
+            project_with_graph,
+            [
+                {
+                    "name": "メインテーブル",
+                    "type": "table",
+                    "filters": {"active": True},
+                }
+            ],
+        )
+        assert not at.exception
+        headers = [h.value for h in at.header]
+        assert any("メインテーブル" in h for h in headers)
 
     def test_connector_page_enabled_via_prefix(self, project_with_graph: Path):
         """connector:プレフィックスでコネクターページを有効化できる"""
@@ -228,7 +246,7 @@ class TestDashboardEnabledPagesE2E:
         at = self._run_app_with_config(project_with_graph, [])
         assert not at.exception
         infos = [i.value for i in at.info]
-        assert any("有効なページがありません" in msg for msg in infos)
+        assert any("有効なビューがありません" in msg for msg in infos)
 
 
 class TestDashboardFilterE2E:

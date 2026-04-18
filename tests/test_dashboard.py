@@ -8000,28 +8000,73 @@ class TestDashboardConfigDefaultPage:
 
 
 class TestDashboardConfigEnabledPages:
-    """DashboardConfig.enabled_pages のテスト"""
+    """DashboardConfig.enabled_pages のテスト（SavedViewConfig化）"""
 
     def test_default_enabled_pages(self):
-        """未指定時はtable/array_plot/gallery"""
+        """未指定時はtable/array_plot/galleryの最小SavedViewConfig"""
         from config import DashboardConfig
 
         cfg = DashboardConfig.from_dict({})
-        assert cfg.enabled_pages == ["table", "array_plot", "gallery"]
+        assert [v.view_type for v in cfg.enabled_pages] == ["table", "array_plot", "gallery"]
+        assert [v.name for v in cfg.enabled_pages] == ["table", "array_plot", "gallery"]
 
     def test_empty_data_default(self):
         """空dict（早期returnパス）でもデフォルトが効く"""
         from config import DashboardConfig
 
         cfg = DashboardConfig.from_dict({})
-        assert cfg.enabled_pages == ["table", "array_plot", "gallery"]
+        assert len(cfg.enabled_pages) == 3
 
-    def test_custom_enabled_pages(self):
-        """enabled-pages指定時に値が反映される"""
+    def test_custom_enabled_pages_strings(self):
+        """string指定はtype名そのものがnameになる最小ビュー"""
         from config import DashboardConfig
 
         cfg = DashboardConfig.from_dict({"enabled-pages": ["table", "plot"]})
-        assert cfg.enabled_pages == ["table", "plot"]
+        assert len(cfg.enabled_pages) == 2
+        assert cfg.enabled_pages[0].view_type == "table"
+        assert cfg.enabled_pages[1].view_type == "plot"
+        # 空のオプションで初期化される
+        assert cfg.enabled_pages[0].plot == {}
+        assert cfg.enabled_pages[0].filters == {}
+
+    def test_custom_enabled_pages_dicts(self):
+        """dict指定はSavedViewConfig.from_dict経由でフル設定が保持される"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict(
+            {
+                "enabled-pages": [
+                    {
+                        "name": "応力-ひずみ",
+                        "type": "array_plot",
+                        "filters": {"active": True},
+                        "array_plot": {
+                            "prefix": "material",
+                            "x": "material.strain",
+                            "y": ["material.stress"],
+                        },
+                    },
+                ]
+            }
+        )
+        assert len(cfg.enabled_pages) == 1
+        v = cfg.enabled_pages[0]
+        assert v.name == "応力-ひずみ"
+        assert v.view_type == "array_plot"
+        assert v.filters == {"active": True}
+        assert v.array_plot["prefix"] == "material"
+        assert v.array_plot["y"] == ["material.stress"]
+
+    def test_mixed_string_and_dict(self):
+        """stringとdictが混在してもOK"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict(
+            {"enabled-pages": ["table", {"name": "詳細", "type": "plot", "plot": {"x": "a", "y": "b"}}]}
+        )
+        assert len(cfg.enabled_pages) == 2
+        assert cfg.enabled_pages[0].view_type == "table"
+        assert cfg.enabled_pages[1].plot == {"x": "a", "y": "b"}
 
     def test_empty_enabled_pages_allowed(self):
         """enabled-pagesを空リストで明示的に無効化できる"""
@@ -8037,7 +8082,8 @@ class TestDashboardConfigEnabledPages:
         cfg = DashboardConfig.from_dict(
             {"enabled-pages": ["table", "connector:物性一覧"]},
         )
-        assert cfg.enabled_pages == ["table", "connector:物性一覧"]
+        assert [v.view_type for v in cfg.enabled_pages] == ["table", "connector:物性一覧"]
+        assert cfg.enabled_pages[1].is_connector_view
 
     def test_invalid_type_rejected(self):
         """enabled-pagesがlist以外ならValueError"""
@@ -8047,6 +8093,108 @@ class TestDashboardConfigEnabledPages:
 
         with pytest.raises(ValueError, match="enabled-pages"):
             DashboardConfig.from_dict({"enabled-pages": "table"})
+
+    def test_invalid_entry_type_rejected(self):
+        """enabled-pages内要素がstr/dict以外ならValueError"""
+        import pytest
+
+        from config import DashboardConfig
+
+        with pytest.raises(ValueError, match="str or dict"):
+            DashboardConfig.from_dict({"enabled-pages": [42]})
+
+
+class TestSavedViewToDict:
+    """saved_view_to_dict (config書き戻し用シリアライザ) のテスト"""
+
+    def test_roundtrip_minimal(self):
+        """最小SavedViewConfigをシリアライズして戻せる"""
+        from config import SavedViewConfig, saved_view_to_dict
+
+        view = SavedViewConfig.from_dict({"name": "t", "type": "table"})
+        d = saved_view_to_dict(view)
+        assert d == {"name": "t", "type": "table"}
+        # roundtrip
+        view2 = SavedViewConfig.from_dict(d)
+        assert view2.name == "t"
+        assert view2.view_type == "table"
+
+    def test_roundtrip_full(self):
+        """全フィールド持ちでもroundtripできる"""
+        from config import SavedViewConfig, saved_view_to_dict
+
+        data = {
+            "name": "mixed",
+            "type": "plot",
+            "filters": {"active": True},
+            "local_filters": {"foo": "bar"},
+            "plot": {"x": "a", "y": "b"},
+            "gallery": {"source": "has_output"},
+            "array_plot": {"prefix": "p"},
+            "connector_config": {"k": "v"},
+        }
+        view = SavedViewConfig.from_dict(data)
+        d = saved_view_to_dict(view)
+        assert d == data
+
+    def test_empty_fields_omitted(self):
+        """空のdict/listフィールドは出力から除外される"""
+        from config import SavedViewConfig, saved_view_to_dict
+
+        view = SavedViewConfig.from_dict({"name": "n", "type": "table", "filters": {"active": True}})
+        d = saved_view_to_dict(view)
+        assert "plot" not in d
+        assert "gallery" not in d
+        assert "array_plot" not in d
+        assert d["filters"] == {"active": True}
+
+
+class TestSaveEnabledPages:
+    """save_enabled_pages のテスト"""
+
+    def test_write_and_read_roundtrip(self, tmp_path):
+        """enabled-pagesを書き込み、再読み込みでround-tripできる"""
+        import yaml
+
+        from config import GraphConfig, SavedViewConfig
+        from services.dashboard.config_writer import save_enabled_pages
+
+        config_dir = tmp_path / ".j2" / "config"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text("dashboard: {}\n", encoding="utf-8")
+
+        views = [
+            SavedViewConfig.from_dict({"name": "t1", "type": "table"}),
+            SavedViewConfig.from_dict(
+                {
+                    "name": "p1",
+                    "type": "plot",
+                    "plot": {"x": "cpu", "y": "wall"},
+                    "filters": {"active": True},
+                }
+            ),
+        ]
+        save_enabled_pages(tmp_path, views)
+
+        with config_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        assert data["dashboard"]["enabled-pages"] == [
+            {"name": "t1", "type": "table"},
+            {
+                "name": "p1",
+                "type": "plot",
+                "filters": {"active": True},
+                "plot": {"x": "cpu", "y": "wall"},
+            },
+        ]
+
+        # configとして再読み込みしてもちゃんと復元される
+        cfg = GraphConfig.load(base_dir=tmp_path)
+        enabled = cfg.dashboard.enabled_pages
+        assert [v.name for v in enabled] == ["t1", "p1"]
+        assert enabled[1].plot == {"x": "cpu", "y": "wall"}
+        assert enabled[1].filters == {"active": True}
 
 
 class TestConfigWriter:

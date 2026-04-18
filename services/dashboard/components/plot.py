@@ -368,8 +368,20 @@ class PlotPage(PageComponent[PlotViewConfig]):
         color = plot_config.get("color")
         chart_type = plot_config.get("chart_type", "散布図")
 
+        # プロット軸のplaceholder: config未指定時は dashboard_config.plot_x/plot_y、
+        # それも無ければプロパティキー先頭2つで補完する
+        if not x_key:
+            x_key = getattr(dashboard_config, "plot_x", None)
+        if not y_key:
+            y_key = getattr(dashboard_config, "plot_y", None)
         if not x_key or not y_key:
-            st.warning("プロット設定にx/yが指定されていません。")
+            keys = provider.get_property_keys()
+            if not x_key and keys:
+                x_key = keys[0]
+            if not y_key and len(keys) > 1:
+                y_key = keys[1]
+        if not x_key or not y_key:
+            st.info("プロットできる数値プロパティがありません。config.dashboard.plot.x / plot.y を設定してください。")
             return
 
         # グループ結線キーをextra_keysに含める
