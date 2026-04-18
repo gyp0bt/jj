@@ -7999,6 +7999,56 @@ class TestDashboardConfigDefaultPage:
         assert cfg.default_page == "table"
 
 
+class TestDashboardConfigEnabledPages:
+    """DashboardConfig.enabled_pages のテスト"""
+
+    def test_default_enabled_pages(self):
+        """未指定時はtable/array_plot/gallery"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.enabled_pages == ["table", "array_plot", "gallery"]
+
+    def test_empty_data_default(self):
+        """空dict（早期returnパス）でもデフォルトが効く"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({})
+        assert cfg.enabled_pages == ["table", "array_plot", "gallery"]
+
+    def test_custom_enabled_pages(self):
+        """enabled-pages指定時に値が反映される"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({"enabled-pages": ["table", "plot"]})
+        assert cfg.enabled_pages == ["table", "plot"]
+
+    def test_empty_enabled_pages_allowed(self):
+        """enabled-pagesを空リストで明示的に無効化できる"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict({"enabled-pages": []})
+        assert cfg.enabled_pages == []
+
+    def test_connector_prefix_preserved(self):
+        """connector:{label} 形式のキーは文字列としてそのまま保持される"""
+        from config import DashboardConfig
+
+        cfg = DashboardConfig.from_dict(
+            {"enabled-pages": ["table", "connector:物性一覧"]},
+        )
+        assert cfg.enabled_pages == ["table", "connector:物性一覧"]
+
+    def test_invalid_type_rejected(self):
+        """enabled-pagesがlist以外ならValueError"""
+        import pytest
+
+        from config import DashboardConfig
+
+        with pytest.raises(ValueError, match="enabled-pages"):
+            DashboardConfig.from_dict({"enabled-pages": "table"})
+
+
 class TestConfigWriter:
     """config_writer のテスト"""
 

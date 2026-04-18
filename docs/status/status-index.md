@@ -31,6 +31,7 @@
 - [x] D-3: OverviewPage実装
 - [x] D-4: デフォルト保存ボタン + config書き戻し
 - [x] D-5: default-page config対応
+- [x] D-6: シングルページ化（enabled-pages config制御）
 
 ### T3 改善候補
 
@@ -82,6 +83,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [084](status-084.md) | 04-18 | ダッシュボードのシングルページ化（enabled-pages config制御） | claude/dashboard-single-page-YMTol |
 | [083](status-083.md) | 03-14 | docsリファクタリング（ディレクトリ構造整理） | claude/refactor-docs-organization-jNIVP |
 | [082](status-082.md) | 03-14 | T10 P-6/P-7/P-8 CLI拡張・API拡張・JJApp統合 | claude/execute-status-todos-9OcUU |
 | [081](status-081.md) | 03-14 | T10 P-3/P-4/P-5 マニフェスト対応・EventBus・CapabilityRegistry | claude/execute-status-todos-9VMW5 |

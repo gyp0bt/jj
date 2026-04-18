@@ -56,7 +56,6 @@ from services.dashboard.components import (  # noqa: E402
     PageComponent,
     get_page_component,
     get_page_component_by_label,
-    get_page_labels,
     get_view_config,
     get_view_type_options,
     load_dashboard_plugins,
@@ -318,30 +317,8 @@ def main() -> None:
     # 共有フィルタ初期化
     _init_shared_filters(dashboard_config.default_filters)
 
-    # ページ選択（PageComponentレジストリ + コネクターページ + 保存済みビュー）
-    page_options = get_page_labels()
-    # コネクターが提供するページを動的追加
+    # 利用可能なコネクターページを取得（enabled_pages解決に必要）
     connector_pages = get_connector_pages(provider)
-    page_options.extend(connector_pages)
-    # 保存済みビューは常に表示（config定義 + 永続化ビュー）
-    page_options.append("保存済みビュー")
-
-    # プリセットからの自動遷移: session_stateにページラベルが設定されていれば優先
-    preset_label = st.session_state.pop("_preset_page_label", None)
-    default_page_idx = 0
-    if preset_label and preset_label in page_options:
-        default_page_idx = page_options.index(preset_label)
-    elif dashboard_config.default_page:
-        # config.default_page（page_key）から対応するラベルを検索
-        dp_component = get_page_component(dashboard_config.default_page)
-        if dp_component is not None and dp_component.page_label in page_options:
-            default_page_idx = page_options.index(dp_component.page_label)
-
-    page = st.sidebar.radio(
-        "ページ",
-        page_options,
-        index=default_page_idx,
-    )
 
     # サマリー情報
     status = provider.get_status_summary()
@@ -359,16 +336,84 @@ def main() -> None:
         "project_root": project_root,
     }
 
-    # PageComponentレジストリからディスパッチ
-    component = get_page_component_by_label(page)
-    if component is not None:
-        component.render_page(provider, dashboard_config, **render_kwargs)
-        # 各ビューページにビュー保存ボタンを追加
-        _render_quick_save_button(provider, project_root, component.page_key)
-    elif page == "保存済みビュー":
+    # 共有フィルタのレンダリング済みフラグを実行ごとにリセット
+    # （複数ページが同一実行中にrender_shared_filtersを呼んでも一度だけ描画する）
+    st.session_state["_shared_filters_rendered"] = False
+
+    # シングルページレンダリング: enabled_pagesで指定された各ページを順次描画
+    _render_single_page(
+        provider,
+        project_root,
+        dashboard_config,
+        render_kwargs,
+        connector_pages,
+        vocab,
+    )
+
+
+def _render_single_page(
+    provider: DashboardDataProvider,
+    project_root: Path,
+    dashboard_config: Any,
+    render_kwargs: dict[str, Any],
+    connector_pages: list[str],
+    vocab: dict[str, str] | None,
+) -> None:
+    """enabled_pagesに含まれる各ページをシングルページ上に順次描画
+
+    各ページは連続するセクションとして表示され、ユーザーはスクロールで
+    横断的に閲覧できる。保存済みビューは最下段の折りたたみ式セクションに配置する。
+    """
+    enabled: list[str] = list(getattr(dashboard_config, "enabled_pages", []) or [])
+
+    if not enabled:
+        st.info("有効なページがありません。config の dashboard.enabled-pages で有効化してください。")
+    else:
+        for page_key in enabled:
+            st.markdown("---")
+            _render_enabled_entry(
+                page_key,
+                provider,
+                dashboard_config,
+                render_kwargs,
+                connector_pages,
+                project_root,
+            )
+
+    # 保存済みビューは常に最下段に折りたたみ式で配置
+    st.markdown("---")
+    with st.expander("保存済みビュー", expanded=False):
         _render_saved_views_page(provider, project_root, dashboard_config, vocab)
-    elif page in connector_pages:
-        render_connector_page(page, provider, dashboard_config)
+
+
+def _render_enabled_entry(
+    page_key: str,
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    render_kwargs: dict[str, Any],
+    connector_pages: list[str],
+    project_root: Path,
+) -> None:
+    """enabled_pagesの1エントリを描画
+
+    ``connector:{label}`` プレフィックス付きキーはコネクターページとして扱う。
+    それ以外は PageComponent レジストリを参照する。
+    """
+    if page_key.startswith("connector:"):
+        label = page_key[len("connector:") :]
+        if label in connector_pages:
+            render_connector_page(label, provider, dashboard_config)
+        else:
+            st.caption(f"コネクターページ '{label}' は利用できません。")
+        return
+
+    component = get_page_component(page_key)
+    if component is None:
+        st.caption(f"ページ '{page_key}' は未登録です。")
+        return
+
+    component.render_page(provider, dashboard_config, **render_kwargs)
+    _render_quick_save_button(provider, project_root, component.page_key)
 
 
 # ====================================================================
@@ -583,14 +628,15 @@ def _render_quick_save_button(
     project_root: Path,
     view_type: str,
 ) -> None:
-    """各ビューページ下部にビュー保存ボタンを表示
+    """各ビューセクション下部にビュー保存ボタンを表示
 
     現在のページタイプと名前を入力して、動的ビューとして保存する。
+    シングルページ構成で同時に複数描画されるため、ウィジェットキーは
+    view_typeでユニーク化する。
     """
-    st.markdown("---")
     with st.expander("このビューを保存", expanded=False):
-        save_name = st.text_input("ビュー名", key="_quick_save_name")
-        if st.button("ビューとして保存", key="_quick_save_btn"):
+        save_name = st.text_input("ビュー名", key=f"_quick_save_name_{view_type}")
+        if st.button("ビューとして保存", key=f"_quick_save_btn_{view_type}"):
             if not save_name:
                 st.warning("ビュー名を入力してください。")
             else:

@@ -154,29 +154,24 @@ class TestDashboardAppTest:
         metrics = at.sidebar.metric
         assert len(metrics) >= 1
 
-    def test_page_options_include_default_pages(self, project_with_graph: Path):
-        """ページ選択にデフォルトページが含まれる"""
+    def test_default_enabled_pages_render_as_sections(self, project_with_graph: Path):
+        """デフォルトのenabled-pages（table/array_plot/gallery）がセクションとして描画される"""
         at = self._run_app(project_with_graph)
         assert not at.exception
-        # サイドバーのradioウィジェットを確認
-        radios = at.sidebar.radio
-        assert len(radios) >= 1
-        page_radio = radios[0]
-        # デフォルトページが含まれること
-        options = page_radio.options
-        assert "テーブル" in options
-        assert "保存済みビュー" in options
+        # シングルページ構成では各ページがヘッダーで区切られて描画される
+        headers = [h.value for h in at.header]
+        # テーブル/配列プロット/ギャラリーのヘッダーが存在する
+        assert any("テーブル" in h for h in headers)
+        assert any("配列プロット" in h for h in headers) or any("配列" in h for h in headers)
+        assert any("ギャラリー" in h for h in headers)
 
-    def test_connector_pages_appear_when_data_exists(self, project_with_graph: Path):
-        """コネクターページがデータ存在時に表示される"""
+    def test_saved_views_section_present(self, project_with_graph: Path):
+        """保存済みビューが折りたたみセクションとして表示される"""
         at = self._run_app(project_with_graph)
         assert not at.exception
-        radios = at.sidebar.radio
-        assert len(radios) >= 1
-        options = radios[0].options
-        # Abaqusコネクターページが含まれること
-        assert "物性一覧" in options
-        assert "ジョブサマリー" in options or "メッシュ品質" in options
+        # expanderラベルに保存済みビューが含まれる
+        expander_labels = [e.label for e in at.expander]
+        assert any("保存済みビュー" in lbl for lbl in expander_labels)
 
     def test_default_page_renders_table(self, project_with_graph: Path):
         """デフォルトページ（テーブル）がレンダリングされる"""
@@ -190,12 +185,20 @@ class TestDashboardAppTest:
 
 
 @pytest.mark.skipif(not HAS_APPTEST, reason="streamlit.testing.v1 not available")
-class TestDashboardPageNavigationE2E:
-    """ページ遷移E2Eテスト"""
+class TestDashboardEnabledPagesE2E:
+    """シングルページ構成 enabled-pages 切替E2Eテスト"""
 
-    def _run_app(self, project_root: Path) -> AppTest:
-        """テスト用にアプリを実行"""
+    def _run_app_with_config(self, project_root: Path, enabled_pages: list[str]) -> AppTest:
+        """config.yamlのenabled-pagesを差し替えてアプリを実行"""
         import os
+
+        config_dir = project_root / ".j2" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text(
+            yaml.dump({"dashboard": {"enabled-pages": enabled_pages}}, allow_unicode=True),
+            encoding="utf-8",
+        )
 
         app_path = str(Path(__file__).resolve().parents[1] / "services" / "dashboard" / "app.py")
         os.environ["JJ_PROJECT_ROOT"] = str(project_root)
@@ -206,54 +209,26 @@ class TestDashboardPageNavigationE2E:
         finally:
             os.environ.pop("JJ_PROJECT_ROOT", None)
 
-    def test_navigate_to_saved_views_page(self, project_with_graph: Path):
-        """保存済みビューページへの遷移"""
-        at = self._run_app(project_with_graph)
+    def test_only_table_enabled(self, project_with_graph: Path):
+        """enabled-pages=['table']ではテーブルのみ描画される"""
+        at = self._run_app_with_config(project_with_graph, ["table"])
         assert not at.exception
-        radios = at.sidebar.radio
-        assert len(radios) >= 1
-        page_radio = radios[0]
-        assert "保存済みビュー" in page_radio.options
-        # 保存済みビューページを選択
-        page_radio.set_value("保存済みビュー")
-        at.run()
+        headers = [h.value for h in at.header]
+        assert any("テーブル" in h for h in headers)
+        # ギャラリーはレンダリングされない
+        assert not any("ギャラリー" in h for h in headers)
+
+    def test_connector_page_enabled_via_prefix(self, project_with_graph: Path):
+        """connector:プレフィックスでコネクターページを有効化できる"""
+        at = self._run_app_with_config(project_with_graph, ["connector:物性一覧"])
         assert not at.exception
 
-    def test_navigate_to_connector_page(self, project_with_graph: Path):
-        """コネクターページへの遷移（物性一覧）"""
-        at = self._run_app(project_with_graph)
+    def test_empty_enabled_pages_shows_info(self, project_with_graph: Path):
+        """enabled-pagesが空のとき情報メッセージが表示される"""
+        at = self._run_app_with_config(project_with_graph, [])
         assert not at.exception
-        radios = at.sidebar.radio
-        assert len(radios) >= 1
-        page_radio = radios[0]
-        if "物性一覧" in page_radio.options:
-            page_radio.set_value("物性一覧")
-            at.run()
-            assert not at.exception
-
-    def test_navigate_to_mesh_quality_page(self, project_with_graph: Path):
-        """コネクターページへの遷移（メッシュ品質）"""
-        at = self._run_app(project_with_graph)
-        assert not at.exception
-        radios = at.sidebar.radio
-        assert len(radios) >= 1
-        page_radio = radios[0]
-        if "メッシュ品質" in page_radio.options:
-            page_radio.set_value("メッシュ品質")
-            at.run()
-            assert not at.exception
-
-    def test_navigate_to_job_summary_page(self, project_with_graph: Path):
-        """コネクターページへの遷移（ジョブサマリー）"""
-        at = self._run_app(project_with_graph)
-        assert not at.exception
-        radios = at.sidebar.radio
-        assert len(radios) >= 1
-        page_radio = radios[0]
-        if "ジョブサマリー" in page_radio.options:
-            page_radio.set_value("ジョブサマリー")
-            at.run()
-            assert not at.exception
+        infos = [i.value for i in at.info]
+        assert any("有効なページがありません" in msg for msg in infos)
 
 
 class TestDashboardFilterE2E:

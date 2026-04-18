@@ -1003,6 +1003,7 @@ class DashboardConfig:
     gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
     list_summary_columns: list[str]  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
     default_page: str | None  # デフォルト表示ページ（"table"|"gallery"|"plot"|"overview"等）
+    enabled_pages: list[str]  # シングルページに表示する有効ページキー列（例: ["table", "array_plot", "gallery"]）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -1034,6 +1035,7 @@ class DashboardConfig:
                 gallery_defaults=GalleryDefaults(),
                 list_summary_columns=["msg_errors", "dat_errors"],
                 default_page=None,
+                enabled_pages=["table", "array_plot", "gallery"],
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -1180,6 +1182,14 @@ class DashboardConfig:
         # デフォルト表示ページ
         raw_default_page = data.get("default-page")
         default_page = str(raw_default_page) if raw_default_page is not None else None
+        # シングルページで表示するページキー一覧
+        raw_enabled_pages = data.get("enabled-pages")
+        if raw_enabled_pages is None:
+            enabled_pages = ["table", "array_plot", "gallery"]
+        else:
+            if not isinstance(raw_enabled_pages, list):
+                raise ValueError("dashboard.enabled-pages must be list[str]")
+            enabled_pages = [str(p) for p in raw_enabled_pages]
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -1196,6 +1206,7 @@ class DashboardConfig:
             gallery_defaults=gallery_defaults,
             list_summary_columns=list_summary_columns,
             default_page=default_page,
+            enabled_pages=enabled_pages,
         )
 
 
