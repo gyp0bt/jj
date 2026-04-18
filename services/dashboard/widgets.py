@@ -145,10 +145,18 @@ def init_shared_filters(default_filters: dict[str, Any]) -> None:
 def render_shared_filters(rows: list[dict[str, Any]]) -> None:
     """共有フィルタのサイドバーUI描画
 
+    シングルページ構成では複数のページコンポーネントが同一実行中に
+    本関数を呼び出すため、2回目以降はウィジェットキー重複を避けるため
+    スキップする（サイドバーには1回のみ描画）。
+
     Args:
         rows: フィルタ対象の全行データ
     """
     import streamlit as st
+
+    if st.session_state.get("_shared_filters_rendered", False):
+        return
+    st.session_state["_shared_filters_rendered"] = True
 
     st.sidebar.markdown("### フィルタ")
 

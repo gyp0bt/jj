@@ -129,64 +129,28 @@ class TablePage(PageComponent[TableViewConfig]):
     page_key = "table"
     page_label = "テーブル"
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        import streamlit as st
-
-        from services.dashboard.query import apply_filters, sort_rows_by_index
-        from services.dashboard.widgets import render_shared_filters
-
-        vocab = kwargs.get("vocab") or {}
-
-        st.header("テーブルビュー")
-
-        rows = provider.get_go_table()
-        if not rows:
-            st.info("go_ ファイルが見つかりません。")
-            return
-
-        # 共有フィルタ（サイドバー描画 + 適用）
-        render_shared_filters(rows)
-
-        vocab = kwargs.get("vocab")
-
-        filtered = apply_filters(
-            rows,
-            type_filter=st.session_state.get("_filter_type", "すべて"),
-            status_filter=st.session_state.get("_filter_status", "すべて"),
-            active_only=st.session_state.get("_filter_active", False),
-            vocab=vocab,
-        )
-
-        idx_key = provider._index_key
-        ver_key = provider._version_key
-        filtered = sort_rows_by_index(filtered, idx_key, ver_key)
-
-        render_table_section(provider, dashboard_config, filtered, len(rows), vocab=vocab)
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        from services.dashboard.query import apply_saved_view_filters
+        import streamlit as st
+
+        from services.dashboard.query import apply_saved_view_filters, sort_rows_by_index
 
         vocab = kwargs.get("vocab") or {}
 
         rows = provider.get_go_table()
         if not rows:
-            import streamlit as st
-
             st.info("go_ ファイルが見つかりません。")
             return
 
-        filtered = apply_saved_view_filters(rows, view.filters)
+        filtered = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+        idx_key = provider._index_key
+        ver_key = provider._version_key
+        filtered = sort_rows_by_index(filtered, idx_key, ver_key)
 
         render_table_section(
             provider,
@@ -194,8 +158,8 @@ class TablePage(PageComponent[TableViewConfig]):
             filtered,
             len(rows),
             vocab=vocab,
-            grid_key=f"saved_view_{view.name}",
-            download_key=f"saved_view_{view.name}",
+            grid_key=f"view_{view.name}",
+            download_key=f"view_{view.name}",
         )
 
     def generate_html(

@@ -871,7 +871,19 @@ class ObsidianExportConfig:
         )
 
 
-_BUILTIN_VIEW_TYPES = frozenset({"table", "plot", "gallery", "card", "status", "array_plot"})
+_BUILTIN_VIEW_TYPES = frozenset(
+    {
+        "table",
+        "plot",
+        "gallery",
+        "card",
+        "status",
+        "array_plot",
+        "overview",
+        "batch_overview",
+        "run_comparison",
+    }
+)
 _CONNECTOR_VIEW_PREFIX = "connector:"
 
 
@@ -984,6 +996,57 @@ class ParseDefaults:
     exclude_dirs: frozenset[str] = frozenset({".git", ".j2", "__pycache__", "node_modules", ".venv"})
 
 
+_DEFAULT_ENABLED_PAGE_TYPES: tuple[str, ...] = ("table", "array_plot", "gallery")
+
+
+def _auto_view_name(view_type: str) -> str:
+    """view_typeから自動でビュー名を生成する（型名そのもの）"""
+    if view_type.startswith(_CONNECTOR_VIEW_PREFIX):
+        return view_type[len(_CONNECTOR_VIEW_PREFIX) :]
+    return view_type
+
+
+def _parse_enabled_page_entry(entry: Any) -> SavedViewConfig:
+    """enabled-pagesの1エントリをSavedViewConfigに変換する
+
+    - str: type指定のみの最小エントリ（name=typeで補完）
+    - dict: SavedViewConfig.from_dictでパース（name省略時はtypeで補完）
+    """
+    if isinstance(entry, str):
+        return SavedViewConfig.from_dict({"name": _auto_view_name(entry), "type": entry})
+    if isinstance(entry, dict):
+        data = dict(entry)
+        data.setdefault("name", _auto_view_name(str(data.get("type", "table"))))
+        return SavedViewConfig.from_dict(data)
+    raise ValueError(f"dashboard.enabled-pages entry must be str or dict (got {type(entry).__name__})")
+
+
+def _default_enabled_pages() -> list[SavedViewConfig]:
+    """enabled-pagesのデフォルト値を生成する"""
+    return [_parse_enabled_page_entry(t) for t in _DEFAULT_ENABLED_PAGE_TYPES]
+
+
+def saved_view_to_dict(view: SavedViewConfig) -> dict[str, Any]:
+    """SavedViewConfigをconfig.yaml書き込み用の辞書にシリアライズする
+
+    空dict/listのフィールドは出力から除外し、YAMLを簡潔に保つ。
+    """
+    out: dict[str, Any] = {"name": view.name, "type": view.view_type}
+    if view.filters:
+        out["filters"] = dict(view.filters)
+    if view.local_filters:
+        out["local_filters"] = dict(view.local_filters)
+    if view.plot:
+        out["plot"] = dict(view.plot)
+    if view.gallery:
+        out["gallery"] = dict(view.gallery)
+    if view.array_plot:
+        out["array_plot"] = dict(view.array_plot)
+    if view.connector_config:
+        out["connector_config"] = dict(view.connector_config)
+    return out
+
+
 @dataclass(frozen=True)
 class DashboardConfig:
     """ダッシュボード設定: テーブルカラム・フィルタ・プロット・ギャラリー・保存済みビュー・コネクタ固有設定"""
@@ -1003,6 +1066,7 @@ class DashboardConfig:
     gallery_defaults: GalleryDefaults  # ギャラリー設定（列数・行数・画像サイズ上限）
     list_summary_columns: list[str]  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
     default_page: str | None  # デフォルト表示ページ（"table"|"gallery"|"plot"|"overview"等）
+    enabled_pages: list[SavedViewConfig]  # シングルページに表示する有効ビュー列（各要素は保存済みビュー相当）
 
     def get_connector_config(self, connector_key: str) -> dict[str, Any]:
         """コネクタ固有設定を取得
@@ -1034,6 +1098,7 @@ class DashboardConfig:
                 gallery_defaults=GalleryDefaults(),
                 list_summary_columns=["msg_errors", "dat_errors"],
                 default_page=None,
+                enabled_pages=_default_enabled_pages(),
             )
         table_columns = data.get("table-columns")
         if table_columns is not None and not isinstance(table_columns, list):
@@ -1180,6 +1245,14 @@ class DashboardConfig:
         # デフォルト表示ページ
         raw_default_page = data.get("default-page")
         default_page = str(raw_default_page) if raw_default_page is not None else None
+        # シングルページで表示する有効ビュー列
+        raw_enabled_pages = data.get("enabled-pages")
+        if raw_enabled_pages is None:
+            enabled_pages = _default_enabled_pages()
+        else:
+            if not isinstance(raw_enabled_pages, list):
+                raise ValueError("dashboard.enabled-pages must be list")
+            enabled_pages = [_parse_enabled_page_entry(entry) for entry in raw_enabled_pages]
         return cls(
             table_columns=[str(c) for c in table_columns] if table_columns else None,
             exclude_table_columns=[str(c) for c in exclude_table_columns] if exclude_table_columns else None,
@@ -1196,6 +1269,7 @@ class DashboardConfig:
             gallery_defaults=gallery_defaults,
             list_summary_columns=list_summary_columns,
             default_page=default_page,
+            enabled_pages=enabled_pages,
         )
 
 

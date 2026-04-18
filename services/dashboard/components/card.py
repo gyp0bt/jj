@@ -34,97 +34,7 @@ class CardPage(PageComponent[CardViewConfig]):
     page_key = "card"
     page_label = "カード"
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        import streamlit as st
-
-        st.header("カードビュー")
-
-        # 共有フィルタ
-        from services.dashboard.widgets import get_active_filters, render_shared_filters
-
-        rows = provider.get_go_table()
-        render_shared_filters(rows)
-        active_filters = get_active_filters()
-        if active_filters:
-            rows = provider.get_go_table(filters=active_filters)
-        if not rows:
-            st.info("go_ ファイルが見つかりません。")
-            return
-
-        # verbose_nameキー（vocab変換後）
-        vn_key = provider._verbose_name_key
-        # 選択肢: 表示名があればそれを使用
-        display_names = [r.get(vn_key, r["name"]) for r in rows]
-        selected = st.selectbox("ノード選択", display_names)
-
-        if not selected:
-            return
-
-        # IDを取得
-        node_id = next((r["id"] for r in rows if r.get(vn_key, r["name"]) == selected), None)
-        if node_id is None:
-            return
-
-        card = provider.get_node_card(node_id)
-        if card is None:
-            st.error("ノード情報を取得できませんでした。")
-            return
-
-        # カード表示
-        col1, col2 = st.columns(2)
-
-        # 表示名を取得
-        display_name = card["properties"].get(vn_key) or card["properties"].get("verbose_name") or card["name"]
-
-        with col1:
-            st.subheader(display_name)
-            st.markdown(f"**タイプ**: {card['type']}")
-            st.markdown(f"**フォーマット**: {card['format']}")
-
-        with col2:
-            status = card["properties"].get("analysis_status", "unknown")
-            status_emoji = {"completed": "✅", "failed": "❌"}.get(status, "❓")
-            st.markdown(f"**ステータス**: {status_emoji} {status}")
-            if "active" in card["properties"]:
-                st.markdown(f"**active**: {card['properties']['active']}")
-
-        # プロパティ
-        st.markdown("---")
-        st.subheader("プロパティ")
-
-        props = {k: v for k, v in card["properties"].items() if k != "path"}
-        if props:
-            import pandas as pd
-
-            props_flat = {}
-            for k, v in props.items():
-                if isinstance(v, (dict, list)):
-                    props_flat[k] = str(v)
-                else:
-                    props_flat[k] = v
-            df = pd.DataFrame([props_flat]).T
-            df.columns = ["値"]
-            st.dataframe(df, width="stretch")
-        else:
-            st.info("プロパティがありません。")
-
-        # リレーション
-        st.markdown("---")
-        st.subheader("リレーション")
-        relations = card.get("relations", [])
-        if relations:
-            for rel in relations:
-                direction = "→" if rel["direction"] == "outgoing" else "←"
-                st.markdown(f"- {direction} **{rel['label']}** → {rel['node_name']} ({rel['node_type']})")
-        else:
-            st.info("リレーションがありません。")
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
@@ -140,36 +50,61 @@ class CardPage(PageComponent[CardViewConfig]):
             st.info("go_ ファイルが見つかりません。")
             return
 
-        # 保存済みフィルタを適用
-        filtered = apply_saved_view_filters(rows, view.filters)
+        filtered = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
         if not filtered:
             st.info("条件に一致するデータがありません。")
             return
 
-        # 先頭のノードをカード表示
-        first_row = filtered[0]
-        node_id = first_row.get("id")
+        # view.plot or local_filters に "node" 指定があればそれを採用、無ければ先頭
+        vn_key = provider._verbose_name_key
+        target_name = view.local_filters.get("node") if view.local_filters else None
+        target_row = None
+        if target_name:
+            target_row = next(
+                (r for r in filtered if r.get(vn_key, r["name"]) == target_name or r["name"] == target_name),
+                None,
+            )
+        if target_row is None:
+            target_row = filtered[0]
+
+        node_id = target_row.get("id")
         if node_id is None:
             return
 
         card = provider.get_node_card(node_id)
         if card is None:
+            st.error("ノード情報を取得できませんでした。")
             return
 
-        st.markdown(f"**{card['name']}** ({card['type']})")
+        display_name = card["properties"].get(vn_key) or card["properties"].get("verbose_name") or card["name"]
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader(display_name)
+            st.markdown(f"**タイプ**: {card['type']}")
+            st.markdown(f"**フォーマット**: {card['format']}")
+        with col2:
+            status = card["properties"].get("analysis_status", "unknown")
+            status_emoji = {"completed": "✅", "failed": "❌"}.get(status, "❓")
+            st.markdown(f"**ステータス**: {status_emoji} {status}")
+            if "active" in card["properties"]:
+                st.markdown(f"**active**: {card['properties']['active']}")
+
         props = {k: v for k, v in card["properties"].items() if k != "path"}
         if props:
             import pandas as pd
 
-            props_flat = {}
-            for k, v in props.items():
-                if isinstance(v, (dict, list)):
-                    props_flat[k] = str(v)
-                else:
-                    props_flat[k] = v
+            props_flat = {k: (str(v) if isinstance(v, (dict, list)) else v) for k, v in props.items()}
             df = pd.DataFrame([props_flat]).T
             df.columns = ["値"]
             st.dataframe(df, width="stretch")
+
+        relations = card.get("relations", [])
+        if relations:
+            st.markdown("**リレーション**")
+            for rel in relations:
+                direction = "→" if rel["direction"] == "outgoing" else "←"
+                st.markdown(f"- {direction} **{rel['label']}** → {rel['node_name']} ({rel['node_type']})")
 
     def generate_html(
         self,

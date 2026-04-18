@@ -72,60 +72,7 @@ class MLOverviewPageConnector(DashboardPageConnector):
     def is_available(self, provider: DashboardDataProvider) -> bool:
         return has_ml_nodes(provider)
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> None:
-        import streamlit as st
-
-        st.header("ML概要")
-
-        # サマリーメトリクス
-        summary = get_ml_summary(provider)
-        cols = st.columns(6)
-        labels = [
-            ("データセット", summary["datasets"]),
-            ("モデル", summary["models"]),
-            ("スクリプト", summary["scripts"]),
-            ("設定", summary["configs"]),
-            ("メトリクス", summary["metrics"]),
-            ("最適化", summary["optimizations"]),
-        ]
-        for col, (label, count) in zip(cols, labels, strict=True):
-            col.metric(label, count)
-
-        st.markdown("---")
-
-        # タブ構成
-        tabs = st.tabs(["実験メトリクス", "データセット", "モデル", "スクリプト", "最適化", "リレーション"])
-
-        with tabs[0]:
-            _render_experiment_tab(provider)
-
-        with tabs[1]:
-            _render_dataset_tab(provider)
-
-        with tabs[2]:
-            _render_model_tab(provider)
-
-        with tabs[3]:
-            _render_script_tab(provider)
-
-        with tabs[4]:
-            _render_optimization_tab(provider)
-
-        with tabs[5]:
-            _render_relations_tab(provider)
-
-    def generate_html(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> str:
-        return _generate_overview_html(provider)
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: Any,
@@ -135,15 +82,43 @@ class MLOverviewPageConnector(DashboardPageConnector):
 
         cc = view.connector_config if hasattr(view, "connector_config") else {}
         tab = cc.get("tab", "")
-        metric_keys_str = cc.get("metric_keys", "")
-        experiment_ids_str = cc.get("experiment_ids", "")
-
-        metric_keys = [k.strip() for k in metric_keys_str.split(",") if k.strip()] if metric_keys_str else None
-        experiment_ids = [e.strip() for e in experiment_ids_str.split(",") if e.strip()] if experiment_ids_str else None
 
         if not tab:
-            self.render_page(provider, dashboard_config)
+            # デフォルト: 全タブを表示
+            st.header("ML概要")
+            summary = get_ml_summary(provider)
+            cols = st.columns(6)
+            labels = [
+                ("データセット", summary["datasets"]),
+                ("モデル", summary["models"]),
+                ("スクリプト", summary["scripts"]),
+                ("設定", summary["configs"]),
+                ("メトリクス", summary["metrics"]),
+                ("最適化", summary["optimizations"]),
+            ]
+            for col, (label, count) in zip(cols, labels, strict=True):
+                col.metric(label, count)
+            st.markdown("---")
+            tabs = st.tabs(["実験メトリクス", "データセット", "モデル", "スクリプト", "最適化", "リレーション"])
+            with tabs[0]:
+                _render_experiment_tab(provider)
+            with tabs[1]:
+                _render_dataset_tab(provider)
+            with tabs[2]:
+                _render_model_tab(provider)
+            with tabs[3]:
+                _render_script_tab(provider)
+            with tabs[4]:
+                _render_optimization_tab(provider)
+            with tabs[5]:
+                _render_relations_tab(provider)
             return
+
+        # tabが指定されていれば対応タブのみ表示
+        metric_keys_str = cc.get("metric_keys", "")
+        experiment_ids_str = cc.get("experiment_ids", "")
+        metric_keys = [k.strip() for k in metric_keys_str.split(",") if k.strip()] if metric_keys_str else None
+        experiment_ids = [e.strip() for e in experiment_ids_str.split(",") if e.strip()] if experiment_ids_str else None
 
         st.header(f"ML概要 — {view.name}")
         tab_map = {
@@ -160,7 +135,13 @@ class MLOverviewPageConnector(DashboardPageConnector):
             renderer()
         else:
             st.warning(f"不明なタブ: {tab}")
-            self.render_page(provider, dashboard_config)
+
+    def generate_html(
+        self,
+        provider: DashboardDataProvider,
+        dashboard_config: Any,
+    ) -> str:
+        return _generate_overview_html(provider)
 
     def generate_saved_view_html(
         self,
@@ -215,39 +196,7 @@ class MLDataFlowPageConnector(DashboardPageConnector):
     def is_available(self, provider: DashboardDataProvider) -> bool:
         return has_ml_nodes(provider)
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> None:
-        import streamlit as st
-
-        st.header("三層データフロー")
-        st.caption("CAE (Layer 1) → ML/実験 (Layer 2) → 最適化 (Layer 3)")
-
-        graph_data = get_dataflow_graph_data(provider)
-
-        # レイヤー統計
-        lc = graph_data["layer_counts"]
-        cols = st.columns(3)
-        for col, (layer_id, label) in zip(cols, LAYER_LABELS.items(), strict=True):
-            col.metric(label, lc.get(layer_id, 0))
-
-        st.markdown("---")
-
-        # データフローグラフ表示
-        _render_dataflow_graph(provider, graph_data)
-
-        # エッジテーブル
-        st.markdown("---")
-        st.subheader("層間リレーション")
-        cross_edges = [e for e in graph_data["edges"] if e["cross_layer"]]
-        if cross_edges:
-            _render_edge_table(provider, cross_edges)
-        else:
-            st.info("層間リレーションはありません。")
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: Any,
@@ -258,9 +207,15 @@ class MLDataFlowPageConnector(DashboardPageConnector):
         cc = view.connector_config if hasattr(view, "connector_config") else {}
         layer_filter = cc.get("layer_filter", "")
 
-        st.header(f"MLデータフロー — {view.name}")
-
         graph_data = get_dataflow_graph_data(provider)
+
+        # レイヤー統計
+        lc = graph_data["layer_counts"]
+        cols = st.columns(3)
+        for col, (layer_id, label) in zip(cols, LAYER_LABELS.items(), strict=True):
+            col.metric(label, lc.get(layer_id, 0))
+
+        st.markdown("---")
 
         # レイヤーフィルタ適用
         if layer_filter:
@@ -275,6 +230,15 @@ class MLDataFlowPageConnector(DashboardPageConnector):
                 st.warning(f"不正なレイヤーフィルタ: {layer_filter}")
 
         _render_dataflow_graph(provider, graph_data)
+
+        if not layer_filter:
+            st.markdown("---")
+            st.subheader("層間リレーション")
+            cross_edges = [e for e in graph_data["edges"] if e["cross_layer"]]
+            if cross_edges:
+                _render_edge_table(provider, cross_edges)
+            else:
+                st.info("層間リレーションはありません。")
 
     def generate_html(
         self,

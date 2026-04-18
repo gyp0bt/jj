@@ -90,12 +90,14 @@ class AIAssistantPageConnector(DashboardPageConnector):
         """AI設定が存在する場合に利用可能"""
         return _is_ai_configured()
 
-    def render_page(
+    def render(
         self,
         provider: DashboardDataProvider,
+        view: Any,
         dashboard_config: Any,
     ) -> None:
         """AIアシスタントページを描画"""
+        _ = view  # チャット対話は ephemeral、config化しない
         import streamlit as st
 
         st.header("AIアシスタント")

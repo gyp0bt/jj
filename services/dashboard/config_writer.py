@@ -101,3 +101,25 @@ def collect_current_dashboard_state() -> dict[str, Any]:
         items["gallery-defaults"] = gd
 
     return items
+
+
+def save_enabled_pages(
+    project_root: Path,
+    views: list[Any],
+) -> Path:
+    """enabled-pagesセクションをconfig.yamlに書き戻す
+
+    各SavedViewConfigを辞書にシリアライズして ``dashboard.enabled-pages`` に
+    上書き保存する。空フィールドは除外される。
+
+    Args:
+        project_root: プロジェクトルート
+        views: 保存するSavedViewConfigのリスト
+
+    Returns:
+        書き込んだconfig.yamlのパス
+    """
+    from config import saved_view_to_dict
+
+    serialized = [saved_view_to_dict(v) for v in views]
+    return save_dashboard_defaults(project_root, {"enabled-pages": serialized})

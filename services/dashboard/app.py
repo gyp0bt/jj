@@ -24,7 +24,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
-import yaml
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -33,9 +32,6 @@ if TYPE_CHECKING:
 _project_src = str(Path(__file__).resolve().parents[2])
 if _project_src not in sys.path:
     sys.path.insert(0, _project_src)
-
-# コネクター自動登録（インポート時に__init_subclass__で登録される）
-import contextlib  # noqa: E402
 
 # PageComponent/ViewConfig自動登録（インポート時に__init_subclass__で登録される）
 import services.dashboard.components.array_plot  # noqa: E402
@@ -51,12 +47,10 @@ import services.dashboard.connectors.abaqus  # noqa: E402
 import services.dashboard.connectors.ai_assistant  # noqa: E402
 import services.dashboard.connectors.job_monitor  # noqa: E402
 import services.dashboard.connectors.ml  # noqa: F401, E402
+from config import SavedViewConfig  # noqa: E402
 from jj_types import GraphModel  # noqa: E402
 from services.dashboard.components import (  # noqa: E402
-    PageComponent,
     get_page_component,
-    get_page_component_by_label,
-    get_page_labels,
     get_view_config,
     get_view_type_options,
     load_dashboard_plugins,
@@ -65,12 +59,11 @@ from services.dashboard.connectors import (  # noqa: E402
     get_connector_config_schema,
     get_connector_pages,
     get_connector_view_type_options,
-    render_connector_page,
-    render_connector_saved_view,
+    render_connector,
 )
 from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
 from services.dashboard.html_export import generate_saved_views_html  # noqa: E402
-from services.dashboard.query import get_graph_mtime, is_truthy  # noqa: E402
+from services.dashboard.query import get_graph_mtime  # noqa: E402
 from services.graph import GraphService  # noqa: E402
 
 
@@ -115,45 +108,19 @@ def _get_project_root() -> Path:
 
 
 # ====================================================================
-# ビュー永続化（.j2/storage/saved-views.yaml）
+# enabled-pages 永続化（config.yaml に直接保存）
 # ====================================================================
 
-_SAVED_VIEWS_FILENAME = "saved-views.yaml"
 
+def _persist_enabled_pages(project_root: Path, views: list[Any]) -> None:
+    """現在のenabled_pagesをconfig.yamlに書き戻す
 
-def _saved_views_path(project_root: Path) -> Path:
-    """保存済みビューファイルのパスを返す"""
-    return project_root / ".j2" / "storage" / _SAVED_VIEWS_FILENAME
-
-
-def _load_persistent_views(project_root: Path) -> list[dict[str, Any]]:
-    """永続化されたビューをファイルから読み込む
-
-    .j2/storage/saved-views.yaml が存在しない場合は空リストを返す。
+    views は SavedViewConfig のリスト。config_writer 経由で
+    ``dashboard.enabled-pages`` を上書き保存する。
     """
-    path = _saved_views_path(project_root)
-    if not path.exists():
-        return []
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return data
-    except Exception:
-        pass
-    return []
+    from services.dashboard.config_writer import save_enabled_pages
 
-
-def _save_persistent_views(project_root: Path, views: list[dict[str, Any]]) -> None:
-    """ビューをファイルに永続化する
-
-    .j2/storage/saved-views.yaml に書き出す。
-    """
-    path = _saved_views_path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.dump(views, allow_unicode=True, default_flow_style=False, sort_keys=False),
-        encoding="utf-8",
-    )
+    save_enabled_pages(project_root, views)
 
 
 # ====================================================================
@@ -173,26 +140,6 @@ def _estimate_column_width(col_name: str) -> int:
     from services.dashboard.widgets import estimate_column_width
 
     return estimate_column_width(col_name)
-
-
-# ====================================================================
-# 共有フィルタ初期化
-# ====================================================================
-
-
-def _init_shared_filters(default_filters: dict[str, Any]) -> None:
-    """共有フィルタの初期化（初回のみ）
-
-    Args:
-        default_filters: config.dashboard.default-filters
-    """
-    if "_filters_initialized" not in st.session_state:
-        st.session_state["_filters_initialized"] = True
-        # active値はYAML由来のboolまたは文字列"true"の両方に対応
-        raw_active = default_filters.get("active", False)
-        st.session_state.setdefault("_filter_active", is_truthy(raw_active))
-        st.session_state.setdefault("_filter_type", "すべて")
-        st.session_state.setdefault("_filter_status", "すべて")
 
 
 # ====================================================================
@@ -315,33 +262,8 @@ def main() -> None:
         project_root=project_root,
     )
 
-    # 共有フィルタ初期化
-    _init_shared_filters(dashboard_config.default_filters)
-
-    # ページ選択（PageComponentレジストリ + コネクターページ + 保存済みビュー）
-    page_options = get_page_labels()
-    # コネクターが提供するページを動的追加
+    # 利用可能なコネクターページを取得（enabled_pages解決に必要）
     connector_pages = get_connector_pages(provider)
-    page_options.extend(connector_pages)
-    # 保存済みビューは常に表示（config定義 + 永続化ビュー）
-    page_options.append("保存済みビュー")
-
-    # プリセットからの自動遷移: session_stateにページラベルが設定されていれば優先
-    preset_label = st.session_state.pop("_preset_page_label", None)
-    default_page_idx = 0
-    if preset_label and preset_label in page_options:
-        default_page_idx = page_options.index(preset_label)
-    elif dashboard_config.default_page:
-        # config.default_page（page_key）から対応するラベルを検索
-        dp_component = get_page_component(dashboard_config.default_page)
-        if dp_component is not None and dp_component.page_label in page_options:
-            default_page_idx = page_options.index(dp_component.page_label)
-
-    page = st.sidebar.radio(
-        "ページ",
-        page_options,
-        index=default_page_idx,
-    )
 
     # サマリー情報
     status = provider.get_status_summary()
@@ -359,191 +281,112 @@ def main() -> None:
         "project_root": project_root,
     }
 
-    # PageComponentレジストリからディスパッチ
-    component = get_page_component_by_label(page)
-    if component is not None:
-        component.render_page(provider, dashboard_config, **render_kwargs)
-        # 各ビューページにビュー保存ボタンを追加
-        _render_quick_save_button(provider, project_root, component.page_key)
-    elif page == "保存済みビュー":
-        _render_saved_views_page(provider, project_root, dashboard_config, vocab)
-    elif page in connector_pages:
-        render_connector_page(page, provider, dashboard_config)
+    # シングルページレンダリング: enabled_pagesで指定された各ビューを順次描画
+    _render_single_page(
+        provider,
+        project_root,
+        dashboard_config,
+        render_kwargs,
+        connector_pages,
+        vocab,
+    )
 
 
-# ====================================================================
-# 保存済みビュー プリセット機能
-# ====================================================================
-
-
-def _apply_preset_and_navigate(view: Any) -> None:
-    """保存済みビューの設定をsession_stateにロードし、通常ページに遷移する
-
-    ビューの設定値（フィルタ、プロット軸、ギャラリー設定等）を
-    各ページコンポーネントが参照するsession_stateキーにセットした上で、
-    対応するページに自動遷移する。
-
-    Args:
-        view: SavedViewConfig
-    """
-    # ビュー設定をプリセットとしてsession_stateに保存
-    st.session_state["_preset_view"] = {
-        "name": view.name,
-        "view_type": view.view_type,
-        "filters": view.filters,
-        "local_filters": view.local_filters,
-        "plot": view.plot,
-        "gallery": view.gallery,
-        "array_plot": view.array_plot,
-        "connector_config": view.connector_config,
-    }
-
-    # 共有フィルタをビューのフィルタで上書き
-    filters = view.filters
-    if filters.get("type"):
-        st.session_state["_filter_type"] = filters["type"]
-    if filters.get("analysis_status"):
-        st.session_state["_filter_status"] = filters["analysis_status"]
-    if filters.get("active"):
-        st.session_state["_filter_active"] = True
-
-    # ギャラリー設定のプリセット
-    gallery = view.gallery
-    if gallery.get("source"):
-        source_map = {"has_output": 0, "property": 1}
-        st.session_state["_gallery_source_idx"] = source_map.get(gallery["source"], 0)
-
-    # プロット設定のプリセット
-    plot = view.plot
-    if plot.get("x"):
-        st.session_state["_preset_plot_x"] = plot["x"]
-    if plot.get("y"):
-        st.session_state["_preset_plot_y"] = plot["y"]
-    if plot.get("color"):
-        st.session_state["_preset_plot_color"] = plot["color"]
-    if plot.get("chart_type"):
-        st.session_state["_preset_plot_chart"] = plot["chart_type"]
-
-    # 対応ページへ遷移（radioボタンのインデックスを設定）
-    page_key = view.view_type
-    if view.is_connector_view:
-        # コネクタービューは直接遷移不可（保存済みビューページに留まる）
-        return
-
-    # ページラベルを取得して遷移
-    for cls in PageComponent._registry.values():
-        if cls.page_key == page_key:
-            st.session_state["_preset_page_label"] = cls.page_label
-            break
-
-    st.rerun()
-
-
-# ====================================================================
-# 保存済みビュー（config.yamlのsaved-views順に各ビューを表示）
-# ====================================================================
-
-
-def _render_saved_views_page(
+def _render_single_page(
     provider: DashboardDataProvider,
     project_root: Path,
     dashboard_config: Any,
-    vocab: dict[str, str] | None = None,
+    render_kwargs: dict[str, Any],
+    connector_pages: list[str],
+    vocab: dict[str, str] | None,
 ) -> None:
-    """保存済みビュー: config.yamlのsaved-views順に各ビューをまとめて表示
+    """enabled_pagesに含まれる各ビューをシングルページ上に順次描画
 
-    config.yamlからの静的ビューに加え、永続化された動的ビューも表示する。
-    動的ビューはUI上で追加・編集・削除が可能で、.j2/storage/saved-views.yaml
-    にファイル永続化される。
+    各ビューは ``SavedViewConfig`` として設定を持ち、``PageComponent.render`` /
+    ``DashboardPageConnector.render`` の単一エントリポイント経由で描画される。
+    configに表示オプションがない場合は各コンポーネントの placeholder が表示される。
     """
-    st.header("保存済みビュー")
+    enabled: list[SavedViewConfig] = list(getattr(dashboard_config, "enabled_pages", []) or [])
 
-    saved_views = list(getattr(dashboard_config, "saved_views", []))
-
-    # 永続化された動的ビューをファイルから読み込み（初回のみ）
-    if "_dynamic_views" not in st.session_state:
-        st.session_state["_dynamic_views"] = _load_persistent_views(project_root)
-    dynamic_views: list[dict[str, Any]] = st.session_state["_dynamic_views"]
-
-    # 動的ビューをSavedViewConfigに変換
-    from config import SavedViewConfig
-
-    dynamic_view_configs: list[SavedViewConfig] = []
-    for dv in dynamic_views:
-        with contextlib.suppress(ValueError, KeyError):
-            dynamic_view_configs.append(SavedViewConfig.from_dict(dv))
-
-    all_views = saved_views + dynamic_view_configs
-
-    if not all_views:
-        st.info(
-            "保存済みビューがありません。config.yaml の "
-            "dashboard.saved-views に定義するか、下のフォームから追加してください。"
-        )
-
-    for idx, view in enumerate(all_views):
-        st.markdown("---")
-        is_dynamic = idx >= len(saved_views)
-        dyn_idx = idx - len(saved_views) if is_dynamic else -1
-
-        # ビューヘッダー（動的ビューは編集・削除ボタン付き、全ビューにプリセットボタン）
-        if is_dynamic:
-            hcol1, hcol2, hcol3, hcol4 = st.columns([5, 1, 1, 1])
-            with hcol1:
-                st.subheader(f"{view.name}")
-            with hcol2:
-                if st.button("開く", key=f"_open_preset_{idx}", help="通常ページとして設定をロード"):
-                    _apply_preset_and_navigate(view)
-            with hcol3:
-                if st.button("編集", key=f"_edit_dv_{dyn_idx}"):
-                    st.session_state[f"_editing_dv_{dyn_idx}"] = True
-            with hcol4:
-                if st.button("削除", key=f"_del_dv_{dyn_idx}"):
-                    st.session_state["_dynamic_views"].pop(dyn_idx)
-                    _save_persistent_views(project_root, st.session_state["_dynamic_views"])
-                    st.rerun()
-        else:
-            hcol1, hcol2 = st.columns([7, 1])
-            with hcol1:
-                st.subheader(f"{view.name}")
-            with hcol2:
-                if st.button("開く", key=f"_open_preset_{idx}", help="通常ページとして設定をロード"):
-                    _apply_preset_and_navigate(view)
-
-        st.caption(f"タイプ: {view.view_type}" + (" (動的)" if is_dynamic else ""))
-
-        # 動的ビュー編集フォーム
-        if is_dynamic and st.session_state.get(f"_editing_dv_{dyn_idx}", False):
-            _render_view_edit_form(provider, project_root, dyn_idx, dynamic_views[dyn_idx])
-            continue
-
-        # PageComponentレジストリまたはコネクターレジストリからview_typeでディスパッチ
-        if view.is_connector_view:
-            # コネクタービュー: connector:{page_label}
-            render_connector_saved_view(
-                view.connector_page_label,
-                provider,
+    if not enabled:
+        st.info("有効なビューがありません。config の dashboard.enabled-pages で有効化してください。")
+    else:
+        for idx, view in enumerate(enabled):
+            st.markdown("---")
+            _render_enabled_view(
+                idx,
                 view,
+                enabled,
+                provider,
                 dashboard_config,
+                render_kwargs,
+                connector_pages,
+                project_root,
             )
-        else:
-            saved_component = get_page_component(view.view_type)
-            if saved_component is not None:
-                saved_component.render_saved_view(
-                    provider,
-                    view,
-                    dashboard_config,
-                    vocab=vocab,
-                    project_root=project_root,
-                )
 
-    # HTMLエクスポート
+    # ビュー追加フォームとHTMLエクスポート
     st.markdown("---")
+    with st.expander("ビューを追加", expanded=False):
+        _render_view_add_form(provider, project_root, enabled)
     _render_html_export_button(provider, project_root, dashboard_config, vocab)
 
-    # 新規ビュー追加セクション
-    st.markdown("---")
-    _render_view_add_form(provider, project_root)
+
+def _render_enabled_view(
+    idx: int,
+    view: SavedViewConfig,
+    enabled: list[SavedViewConfig],
+    provider: DashboardDataProvider,
+    dashboard_config: Any,
+    render_kwargs: dict[str, Any],
+    connector_pages: list[str],
+    project_root: Path,
+) -> None:
+    """enabled_pagesの1エントリをSavedViewConfigとして描画
+
+    ヘッダーに編集・削除ボタンを配置し、通常は ``component.render(view, ...)``
+    を呼ぶ。編集中の場合は編集フォームを表示する。
+    """
+    editing_key = f"_editing_view_{idx}"
+    editing = st.session_state.get(editing_key, False)
+
+    hcol1, hcol2, hcol3 = st.columns([7, 1, 1])
+    with hcol1:
+        header_suffix = f"（{view.view_type}）" if view.name != view.view_type else ""
+        st.header(f"{view.name}{header_suffix}")
+    with hcol2:
+        if st.button("編集" if not editing else "キャンセル", key=f"_toggle_edit_{idx}"):
+            st.session_state[editing_key] = not editing
+            st.rerun()
+    with hcol3:
+        if st.button("削除", key=f"_delete_view_{idx}"):
+            del enabled[idx]
+            _persist_enabled_pages(project_root, enabled)
+            st.rerun()
+
+    if editing:
+        _render_view_edit_form(provider, project_root, idx, view, enabled)
+        return
+
+    # 描画: connector or PageComponent.render（単一エントリポイント）
+    if view.is_connector_view:
+        label = view.connector_page_label
+        if label in connector_pages:
+            render_connector(label, provider, view, dashboard_config)
+        else:
+            st.caption(f"コネクターページ '{label}' は利用できません。")
+        return
+
+    component = get_page_component(view.view_type)
+    if component is None:
+        st.caption(f"ビュー '{view.view_type}' は未登録です。")
+        return
+
+    component.render(provider, view, dashboard_config, **render_kwargs)
+
+
+# ====================================================================
+# HTMLエクスポート
+# ====================================================================
 
 
 def _render_html_export_button(
@@ -552,23 +395,18 @@ def _render_html_export_button(
     dashboard_config: Any,
     vocab: dict[str, str] | None = None,
 ) -> None:
-    """保存済みビューをスタンドアロンHTMLとしてエクスポート"""
-    saved_views = list(getattr(dashboard_config, "saved_views", []))
+    """enabled-pagesをスタンドアロンHTMLとしてエクスポート"""
+    views = list(getattr(dashboard_config, "enabled_pages", []) or [])
+    # 後方互換: saved_views もあればマージ
+    legacy_saved = list(getattr(dashboard_config, "saved_views", []) or [])
+    all_views = views + legacy_saved
 
-    # 動的ビューも含める
-    dynamic_views = st.session_state.get("_dynamic_views", [])
-    from config import SavedViewConfig
-
-    for dv in dynamic_views:
-        with contextlib.suppress(ValueError, KeyError):
-            saved_views.append(SavedViewConfig.from_dict(dv))
-
-    if not saved_views:
+    if not all_views:
         return
 
     if st.button("HTMLエクスポート", key="_html_export_btn"):
         with st.spinner("HTMLを生成中..."):
-            html = generate_saved_views_html(provider, project_root, dashboard_config, saved_views, vocab)
+            html = generate_saved_views_html(provider, project_root, dashboard_config, all_views, vocab)
         st.download_button(
             label="HTMLダウンロード",
             data=html.encode("utf-8"),
@@ -578,485 +416,369 @@ def _render_html_export_button(
         )
 
 
-def _render_quick_save_button(
-    provider: DashboardDataProvider,
-    project_root: Path,
-    view_type: str,
-) -> None:
-    """各ビューページ下部にビュー保存ボタンを表示
-
-    現在のページタイプと名前を入力して、動的ビューとして保存する。
-    """
-    st.markdown("---")
-    with st.expander("このビューを保存", expanded=False):
-        save_name = st.text_input("ビュー名", key="_quick_save_name")
-        if st.button("ビューとして保存", key="_quick_save_btn"):
-            if not save_name:
-                st.warning("ビュー名を入力してください。")
-            else:
-                new_view: dict[str, Any] = {
-                    "name": save_name,
-                    "type": view_type,
-                    "filters": {},
-                    "local_filters": {},
-                    "plot": {},
-                    "array_plot": {},
-                    "gallery": {},
-                    "connector_config": {},
-                }
-                if "_dynamic_views" not in st.session_state:
-                    st.session_state["_dynamic_views"] = _load_persistent_views(project_root)
-                st.session_state["_dynamic_views"].append(new_view)
-                _save_persistent_views(project_root, st.session_state["_dynamic_views"])
-                st.success(f"ビュー '{save_name}' を保存しました。")
-
-
 def _render_view_add_form(
     provider: DashboardDataProvider,
-    project_root: Path | None = None,
+    project_root: Path,
+    enabled: list[SavedViewConfig],
 ) -> None:
-    """保存済みビューの新規追加フォーム"""
-    with st.expander("ビューを追加", expanded=False):
-        view_name = st.text_input("ビュー名", key="_add_view_name")
-        # ViewConfigレジストリ + コネクタービュータイプの一覧
-        type_options = get_view_type_options()
-        connector_type_options = get_connector_view_type_options(provider)
-        all_type_options = type_options + connector_type_options
-        view_type = st.selectbox(
-            "タイプ",
-            all_type_options,
-            key="_add_view_type",
+    """新規ビューをenabled_pagesに追加するフォーム
+
+    追加した瞬間にconfig.yamlのdashboard.enabled-pagesへ書き戻す。
+    """
+    view_name = st.text_input("ビュー名", key="_add_view_name")
+    # ViewConfigレジストリ + コネクタービュータイプの一覧
+    type_options = get_view_type_options()
+    connector_type_options = get_connector_view_type_options(provider)
+    all_type_options = type_options + connector_type_options
+    view_type = st.selectbox(
+        "タイプ",
+        all_type_options,
+        key="_add_view_type",
+    )
+
+    filters = _render_global_filter_inputs("_add_view", {})
+    local_filters = _render_local_filter_inputs("_add_view", "_add_lf_count", {})
+
+    # ViewConfigレジストリからビュータイプ固有の設定UIを描画
+    type_specific_config: dict[str, Any] = {}
+    is_connector = view_type.startswith("connector:")
+    connector_config_values: dict[str, Any] = {}
+    if not is_connector:
+        vc = get_view_config(view_type)
+        if vc is not None:
+            type_specific_config = vc.render_add_form(provider)
+    else:
+        page_label = view_type[len("connector:") :]
+        connector_config_values = _render_connector_config_inputs(page_label, "_add_cc", {})
+
+    if st.button("追加", key="_add_view_btn"):
+        if not view_name:
+            st.warning("ビュー名を入力してください。")
+            return
+
+        final_cc = _normalize_connector_config(connector_config_values)
+        from config import SavedViewConfig
+
+        view = SavedViewConfig.from_dict(
+            {
+                "name": view_name,
+                "type": view_type,
+                "filters": filters,
+                "local_filters": local_filters,
+                "plot": type_specific_config.get("plot", {}),
+                "array_plot": type_specific_config.get("array_plot", {}),
+                "gallery": type_specific_config.get("gallery", {}),
+                "connector_config": final_cc,
+            }
         )
+        enabled.append(view)
+        _persist_enabled_pages(project_root, enabled)
+        st.session_state["_add_lf_count"] = 1
+        st.rerun()
 
-        # フィルタ設定
-        st.markdown("**フィルタ（任意）**")
-        fc1, fc2, fc3 = st.columns(3)
-        with fc1:
-            f_type = st.text_input("type", key="_add_view_f_type")
-        with fc2:
-            f_status = st.text_input("analysis_status", key="_add_view_f_status")
-        with fc3:
-            f_active = st.checkbox("active", key="_add_view_f_active")
 
-        # ローカルフィルタ設定（複数キー/値ペア対応）
-        st.markdown("**ローカルフィルタ（任意・ページ固有）**")
-        if "_add_lf_count" not in st.session_state:
-            st.session_state["_add_lf_count"] = 1
-        lf_count: int = st.session_state["_add_lf_count"]
-        lf_pairs: list[tuple[str, str]] = []
-        for lfi in range(lf_count):
-            lfc1, lfc2 = st.columns(2)
-            with lfc1:
-                lf_key = st.text_input("プロパティキー", key=f"_add_view_lf_key_{lfi}")
-            with lfc2:
-                lf_value = st.text_input("値", key=f"_add_view_lf_value_{lfi}")
-            if lf_key and lf_value:
-                lf_pairs.append((lf_key, lf_value))
-        lf_btn1, lf_btn2 = st.columns(2)
-        with lf_btn1:
-            if st.button("フィルタ追加", key="_add_lf_more"):
-                st.session_state["_add_lf_count"] = lf_count + 1
-                st.rerun()
-        with lf_btn2:
-            if lf_count > 1 and st.button("フィルタ削除", key="_remove_lf"):
-                st.session_state["_add_lf_count"] = max(1, lf_count - 1)
-                st.rerun()
+def _render_global_filter_inputs(
+    prefix: str,
+    existing: dict[str, Any],
+) -> dict[str, Any]:
+    """グローバルフィルタ入力UI（type/analysis_status/active）"""
+    st.markdown("**フィルタ**")
+    fc1, fc2, fc3 = st.columns(3)
+    with fc1:
+        f_type = st.text_input("type", value=existing.get("type", ""), key=f"{prefix}_f_type")
+    with fc2:
+        f_status = st.text_input(
+            "analysis_status",
+            value=existing.get("analysis_status", ""),
+            key=f"{prefix}_f_status",
+        )
+    with fc3:
+        f_active = st.checkbox("active", value=existing.get("active", False), key=f"{prefix}_f_active")
+    filters: dict[str, Any] = {}
+    if f_type:
+        filters["type"] = f_type
+    if f_status:
+        filters["analysis_status"] = f_status
+    if f_active:
+        filters["active"] = True
+    return filters
 
-        # ViewConfigレジストリからビュータイプ固有の設定UIを描画
-        type_specific_config: dict[str, Any] = {}
-        is_connector = view_type.startswith("connector:")
-        connector_config_values: dict[str, Any] = {}
-        if not is_connector:
-            vc = get_view_config(view_type)
-            if vc is not None:
-                type_specific_config = vc.render_add_form(provider)
+
+def _render_local_filter_inputs(
+    prefix: str,
+    count_key: str,
+    existing: dict[str, Any],
+) -> dict[str, Any]:
+    """ローカルフィルタ入力UI（複数キー/値ペア）"""
+    st.markdown("**ローカルフィルタ**")
+    if count_key not in st.session_state:
+        st.session_state[count_key] = max(1, len(existing))
+    lf_count: int = st.session_state[count_key]
+    existing_items = list(existing.items())
+    pairs: list[tuple[str, str]] = []
+    for lfi in range(lf_count):
+        default_key = existing_items[lfi][0] if lfi < len(existing_items) else ""
+        default_val = str(existing_items[lfi][1]) if lfi < len(existing_items) else ""
+        lfc1, lfc2 = st.columns(2)
+        with lfc1:
+            lf_key = st.text_input("プロパティキー", value=default_key, key=f"{prefix}_lf_key_{lfi}")
+        with lfc2:
+            lf_value = st.text_input("値", value=default_val, key=f"{prefix}_lf_value_{lfi}")
+        if lf_key and lf_value:
+            pairs.append((lf_key, lf_value))
+    lf_btn1, lf_btn2 = st.columns(2)
+    with lf_btn1:
+        if st.button("フィルタ追加", key=f"{prefix}_lf_more"):
+            st.session_state[count_key] = lf_count + 1
+            st.rerun()
+    with lf_btn2:
+        if lf_count > 1 and st.button("フィルタ削除", key=f"{prefix}_lf_remove"):
+            st.session_state[count_key] = max(1, lf_count - 1)
+            st.rerun()
+    return dict(pairs)
+
+
+def _render_connector_config_inputs(
+    page_label: str,
+    prefix: str,
+    existing: dict[str, Any],
+) -> dict[str, Any]:
+    """コネクターconfig入力UI"""
+    schema = get_connector_config_schema(page_label)
+    values: dict[str, Any] = {}
+    if not schema:
+        return values
+    st.markdown("**コネクター設定**")
+    for field in schema:
+        fkey = field["key"]
+        flabel = field.get("label", fkey)
+        fhelp = field.get("help", "")
+        if field.get("type") == "checkbox":
+            values[fkey] = st.checkbox(
+                flabel,
+                value=existing.get(fkey, True),
+                key=f"{prefix}_{fkey}",
+                help=fhelp,
+            )
         else:
-            # コネクターの場合: connector_config入力UIを表示
-            page_label = view_type[len("connector:") :]
-            schema = get_connector_config_schema(page_label)
-            if schema:
-                st.markdown("**コネクター設定**")
-                for field in schema:
-                    fkey = field["key"]
-                    flabel = field.get("label", fkey)
-                    fhelp = field.get("help", "")
-                    if field.get("type") == "checkbox":
-                        connector_config_values[fkey] = st.checkbox(
-                            flabel, value=True, key=f"_add_cc_{fkey}", help=fhelp
-                        )
-                    else:
-                        val = st.text_input(flabel, key=f"_add_cc_{fkey}", help=fhelp)
-                        if val:
-                            connector_config_values[fkey] = val
+            existing_val = existing.get(fkey, "")
+            if isinstance(existing_val, list):
+                existing_val = ", ".join(str(v) for v in existing_val)
+            val = st.text_input(flabel, value=str(existing_val), key=f"{prefix}_{fkey}", help=fhelp)
+            if val:
+                values[fkey] = val
+    return values
 
-        if st.button("追加", key="_add_view_btn"):
-            if not view_name:
-                st.warning("ビュー名を入力してください。")
-            else:
-                filters: dict[str, Any] = {}
-                if f_type:
-                    filters["type"] = f_type
-                if f_status:
-                    filters["analysis_status"] = f_status
-                if f_active:
-                    filters["active"] = True
 
-                local_filters: dict[str, Any] = {}
-                for lf_k, lf_v in lf_pairs:
-                    local_filters[lf_k] = lf_v
-
-                # connector_config: compare_materialsはカンマ区切りをリストに変換
-                final_cc = dict(connector_config_values)
-                if "compare_materials" in final_cc and isinstance(final_cc["compare_materials"], str):
-                    final_cc["compare_materials"] = [
-                        m.strip() for m in final_cc["compare_materials"].split(",") if m.strip()
-                    ]
-
-                new_view: dict[str, Any] = {
-                    "name": view_name,
-                    "type": view_type,
-                    "filters": filters,
-                    "local_filters": local_filters,
-                    "plot": type_specific_config.get("plot", {}),
-                    "array_plot": type_specific_config.get("array_plot", {}),
-                    "gallery": type_specific_config.get("gallery", {}),
-                    "connector_config": final_cc,
-                }
-                st.session_state["_dynamic_views"].append(new_view)
-                if project_root is not None:
-                    _save_persistent_views(project_root, st.session_state["_dynamic_views"])
-                # フィルタカウントをリセット
-                st.session_state["_add_lf_count"] = 1
-                st.rerun()
+def _normalize_connector_config(cc: dict[str, Any]) -> dict[str, Any]:
+    """connector_config正規化: compare_materialsはカンマ区切り→list変換"""
+    out = dict(cc)
+    if "compare_materials" in out and isinstance(out["compare_materials"], str):
+        out["compare_materials"] = [m.strip() for m in out["compare_materials"].split(",") if m.strip()]
+    return out
 
 
 def _render_view_edit_form(
     provider: DashboardDataProvider,
-    project_root: Path | None,
-    dyn_idx: int,
-    view_data: dict[str, Any],
+    project_root: Path,
+    idx: int,
+    view: SavedViewConfig,
+    enabled: list[SavedViewConfig],
 ) -> None:
-    """動的ビューの編集フォーム"""
-    with st.container():
-        view_name = st.text_input(
-            "ビュー名",
-            value=view_data.get("name", ""),
-            key=f"_edit_name_{dyn_idx}",
-        )
+    """enabled_pages[idx]のビューを編集し、保存時にconfig.yamlへ書き戻す
 
-        # タイプ選択（コネクタータイプも含む）
-        base_types = ["table", "plot", "array_plot", "gallery", "card", "status"]
+    基本フィールド（name, type, filters, local_filters, connector_config）と
+    view_type が ``plot`` の場合のプロット詳細のみを編集可能。
+    array_plot/gallery 等の複雑な設定は config.yaml を直接編集する前提。
+    """
+    prefix = f"_edit_{idx}"
+    with st.container():
+        view_name = st.text_input("ビュー名", value=view.name, key=f"{prefix}_name")
+
+        base_types = get_view_type_options()
         connector_types = get_connector_view_type_options(provider)
         all_types = base_types + connector_types
-        current_type = view_data.get("type", "table")
-        type_index = all_types.index(current_type) if current_type in all_types else 0
-        view_type = st.selectbox(
-            "タイプ",
-            all_types,
-            index=type_index,
-            key=f"_edit_type_{dyn_idx}",
-        )
+        type_index = all_types.index(view.view_type) if view.view_type in all_types else 0
+        view_type = st.selectbox("タイプ", all_types, index=type_index, key=f"{prefix}_type")
 
-        # フィルタ設定
-        st.markdown("**フィルタ**")
-        existing_filters = view_data.get("filters", {})
-        fc1, fc2, fc3 = st.columns(3)
-        with fc1:
-            f_type = st.text_input(
-                "type",
-                value=existing_filters.get("type", ""),
-                key=f"_edit_f_type_{dyn_idx}",
-            )
-        with fc2:
-            f_status = st.text_input(
-                "analysis_status",
-                value=existing_filters.get("analysis_status", ""),
-                key=f"_edit_f_status_{dyn_idx}",
-            )
-        with fc3:
-            f_active = st.checkbox(
-                "active",
-                value=existing_filters.get("active", False),
-                key=f"_edit_f_active_{dyn_idx}",
-            )
+        filters = _render_global_filter_inputs(prefix, view.filters)
+        local_filters = _render_local_filter_inputs(prefix, f"{prefix}_lf_count", view.local_filters)
 
-        # ローカルフィルタ設定（複数ペア対応）
-        st.markdown("**ローカルフィルタ**")
-        existing_local_filters = view_data.get("local_filters", {})
-        lf_count_key = f"_edit_lf_count_{dyn_idx}"
-        if lf_count_key not in st.session_state:
-            st.session_state[lf_count_key] = max(1, len(existing_local_filters))
-        edit_lf_count: int = st.session_state[lf_count_key]
-        existing_lf_items = list(existing_local_filters.items())
-        edit_lf_pairs: list[tuple[str, str]] = []
-        for lfi in range(edit_lf_count):
-            default_key = existing_lf_items[lfi][0] if lfi < len(existing_lf_items) else ""
-            default_val = str(existing_lf_items[lfi][1]) if lfi < len(existing_lf_items) else ""
-            lfc1, lfc2 = st.columns(2)
-            with lfc1:
-                elk = st.text_input(
-                    "プロパティキー",
-                    value=default_key,
-                    key=f"_edit_lf_key_{dyn_idx}_{lfi}",
-                )
-            with lfc2:
-                elv = st.text_input(
-                    "値",
-                    value=default_val,
-                    key=f"_edit_lf_val_{dyn_idx}_{lfi}",
-                )
-            if elk and elv:
-                edit_lf_pairs.append((elk, elv))
-        elf_btn1, elf_btn2 = st.columns(2)
-        with elf_btn1:
-            if st.button("フィルタ追加", key=f"_edit_lf_more_{dyn_idx}"):
-                st.session_state[lf_count_key] = edit_lf_count + 1
-                st.rerun()
-        with elf_btn2:
-            if edit_lf_count > 1 and st.button("フィルタ削除", key=f"_edit_lf_remove_{dyn_idx}"):
-                st.session_state[lf_count_key] = max(1, edit_lf_count - 1)
-                st.rerun()
+        edit_plot_config = _render_plot_edit_inputs(provider, prefix, view.plot) if view_type == "plot" else None
 
-        # プロット設定の編集UI
-        edit_plot_config: dict[str, Any] = {}
-        if view_type == "plot":
-            st.markdown("**プロット設定**")
-            existing_plot = view_data.get("plot", {})
-            keys = provider.get_property_keys()
-            vn_key = provider._verbose_name_key
-
-            epc1, epc2, epc3, epc4 = st.columns(4)
-            with epc1:
-                ex_x = existing_plot.get("x", "")
-                x_idx = keys.index(ex_x) if ex_x in keys else 0
-                ep_x = st.selectbox("X軸", keys, index=x_idx, key=f"_edit_px_{dyn_idx}") if keys else ""
-            with epc2:
-                ex_y = existing_plot.get("y", "")
-                y_idx = keys.index(ex_y) if ex_y in keys else min(1, len(keys) - 1)
-                ep_y = st.selectbox("Y軸", keys, index=y_idx, key=f"_edit_py_{dyn_idx}") if keys else ""
-            with epc3:
-                color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
-                ex_color = existing_plot.get("color") or "なし"
-                c_idx = color_options.index(ex_color) if ex_color in color_options else 0
-                ep_color = st.selectbox("色分け", color_options, index=c_idx, key=f"_edit_pcolor_{dyn_idx}")
-            with epc4:
-                chart_options = ["散布図", "棒グラフ", "線図", "コンター", "等高線"]
-                ex_chart = existing_plot.get("chart_type", "散布図")
-                ct_idx = chart_options.index(ex_chart) if ex_chart in chart_options else 0
-                ep_chart = st.selectbox("チャート", chart_options, index=ct_idx, key=f"_edit_pchart_{dyn_idx}")
-
-            edit_plot_config = {
-                "x": ep_x,
-                "y": ep_y,
-                "color": ep_color if ep_color != "なし" else None,
-                "chart_type": ep_chart,
-            }
-
-            # コンター/等高線用: Z軸・カラーバー範囲
-            if ep_chart in ("コンター", "等高線"):
-                z_options = [k for k in keys if k != ep_x and k != ep_y]
-                if z_options:
-                    ezc1, ezc2, ezc3 = st.columns(3)
-                    with ezc1:
-                        ex_z = existing_plot.get("z", "")
-                        z_idx = z_options.index(ex_z) if ex_z in z_options else 0
-                        ep_z = st.selectbox("Z軸（色）", z_options, index=z_idx, key=f"_edit_pz_{dyn_idx}")
-                    ex_cr = existing_plot.get("color_range", {})
-                    with ezc2:
-                        ep_vmin = st.number_input(
-                            "vmin",
-                            value=ex_cr.get("vmin"),
-                            key=f"_edit_pvmin_{dyn_idx}",
-                            format="%g",
-                        )
-                    with ezc3:
-                        ep_vmax = st.number_input(
-                            "vmax",
-                            value=ex_cr.get("vmax"),
-                            key=f"_edit_pvmax_{dyn_idx}",
-                            format="%g",
-                        )
-                    if ep_z:
-                        edit_plot_config["z"] = ep_z
-                    ep_cr: dict[str, float] = {}
-                    if ep_vmin is not None:
-                        ep_cr["vmin"] = float(ep_vmin)
-                    if ep_vmax is not None:
-                        ep_cr["vmax"] = float(ep_vmax)
-                    if ep_cr:
-                        edit_plot_config["color_range"] = ep_cr
-
-            # スタイル設定
-            with st.expander("スタイル設定", expanded=False):
-                ex_style = existing_plot.get("plot_style", {})
-                esc1, esc2, esc3 = st.columns(3)
-                with esc1:
-                    ep_marker = st.number_input(
-                        "マーカーサイズ",
-                        value=ex_style.get("marker_size"),
-                        min_value=1,
-                        max_value=50,
-                        key=f"_edit_p_marker_{dyn_idx}",
-                    )
-                with esc2:
-                    ep_lw = st.number_input(
-                        "線幅",
-                        value=ex_style.get("line_width"),
-                        min_value=1,
-                        max_value=20,
-                        key=f"_edit_p_lw_{dyn_idx}",
-                    )
-                with esc3:
-                    ep_fs = st.number_input(
-                        "フォントサイズ",
-                        value=ex_style.get("font_size"),
-                        min_value=6,
-                        max_value=48,
-                        key=f"_edit_p_fs_{dyn_idx}",
-                    )
-                from services.dashboard.widgets import build_style_config
-
-                ep_plot_style = build_style_config(ep_marker, ep_lw, ep_fs)
-                if ep_plot_style:
-                    edit_plot_config["plot_style"] = ep_plot_style
-
-            # 軸範囲設定
-            with st.expander("軸範囲設定", expanded=False):
-                ex_range = existing_plot.get("axis_range", {})
-                erc1, erc2, erc3, erc4 = st.columns(4)
-                with erc1:
-                    ep_xmin = st.number_input(
-                        "X最小", value=ex_range.get("x_min"), key=f"_edit_p_xmin_{dyn_idx}", format="%g"
-                    )
-                with erc2:
-                    ep_xmax = st.number_input(
-                        "X最大", value=ex_range.get("x_max"), key=f"_edit_p_xmax_{dyn_idx}", format="%g"
-                    )
-                with erc3:
-                    ep_ymin = st.number_input(
-                        "Y最小", value=ex_range.get("y_min"), key=f"_edit_p_ymin_{dyn_idx}", format="%g"
-                    )
-                with erc4:
-                    ep_ymax = st.number_input(
-                        "Y最大", value=ex_range.get("y_max"), key=f"_edit_p_ymax_{dyn_idx}", format="%g"
-                    )
-                ep_axis_range: dict[str, float] = {}
-                if ep_xmin is not None:
-                    ep_axis_range["x_min"] = float(ep_xmin)
-                if ep_xmax is not None:
-                    ep_axis_range["x_max"] = float(ep_xmax)
-                if ep_ymin is not None:
-                    ep_axis_range["y_min"] = float(ep_ymin)
-                if ep_ymax is not None:
-                    ep_axis_range["y_max"] = float(ep_ymax)
-                if ep_axis_range:
-                    edit_plot_config["axis_range"] = ep_axis_range
-
-        # コネクター設定の編集UI
         edit_cc_values: dict[str, Any] = {}
-        is_connector_edit = view_type.startswith("connector:")
-        if is_connector_edit:
+        if view_type.startswith("connector:"):
             page_label = view_type[len("connector:") :]
-            schema = get_connector_config_schema(page_label)
-            if schema:
-                st.markdown("**コネクター設定**")
-                existing_cc = view_data.get("connector_config", {})
-                for field in schema:
-                    fkey = field["key"]
-                    flabel = field.get("label", fkey)
-                    fhelp = field.get("help", "")
-                    if field.get("type") == "checkbox":
-                        edit_cc_values[fkey] = st.checkbox(
-                            flabel,
-                            value=existing_cc.get(fkey, True),
-                            key=f"_edit_cc_{fkey}_{dyn_idx}",
-                            help=fhelp,
-                        )
-                    else:
-                        # compare_materialsなどリスト値はカンマ区切りで表示
-                        existing_val = existing_cc.get(fkey, "")
-                        if isinstance(existing_val, list):
-                            existing_val = ", ".join(str(v) for v in existing_val)
-                        val = st.text_input(
-                            flabel,
-                            value=str(existing_val),
-                            key=f"_edit_cc_{fkey}_{dyn_idx}",
-                            help=fhelp,
-                        )
-                        if val:
-                            edit_cc_values[fkey] = val
+            edit_cc_values = _render_connector_config_inputs(page_label, f"{prefix}_cc", view.connector_config)
 
         ec1, ec2 = st.columns(2)
         with ec1:
-            if st.button("保存", key=f"_edit_save_{dyn_idx}"):
-                filters: dict[str, Any] = {}
-                if f_type:
-                    filters["type"] = f_type
-                if f_status:
-                    filters["analysis_status"] = f_status
-                if f_active:
-                    filters["active"] = True
+            if st.button("保存", key=f"{prefix}_save"):
+                final_cc = _normalize_connector_config(edit_cc_values)
+                from config import SavedViewConfig
 
-                local_filters: dict[str, Any] = {}
-                for lf_k, lf_v in edit_lf_pairs:
-                    local_filters[lf_k] = lf_v
-
-                # connector_config: compare_materialsはカンマ区切りをリストに変換
-                final_edit_cc = dict(edit_cc_values)
-                if "compare_materials" in final_edit_cc and isinstance(final_edit_cc["compare_materials"], str):
-                    final_edit_cc["compare_materials"] = [
-                        m.strip() for m in final_edit_cc["compare_materials"].split(",") if m.strip()
-                    ]
-
-                view_data["name"] = view_name
-                view_data["type"] = view_type
-                view_data["filters"] = filters
-                view_data["local_filters"] = local_filters
-                if edit_plot_config:
-                    view_data["plot"] = edit_plot_config
-                view_data["connector_config"] = final_edit_cc
-                st.session_state["_dynamic_views"][dyn_idx] = view_data
-                if project_root is not None:
-                    _save_persistent_views(project_root, st.session_state["_dynamic_views"])
-                st.session_state[f"_editing_dv_{dyn_idx}"] = False
+                plot_payload = edit_plot_config if edit_plot_config is not None else dict(view.plot)
+                new_view = SavedViewConfig.from_dict(
+                    {
+                        "name": view_name,
+                        "type": view_type,
+                        "filters": filters,
+                        "local_filters": local_filters,
+                        "plot": plot_payload,
+                        "gallery": dict(view.gallery),
+                        "array_plot": dict(view.array_plot),
+                        "connector_config": final_cc,
+                    }
+                )
+                enabled[idx] = new_view
+                _persist_enabled_pages(project_root, enabled)
+                st.session_state[f"_editing_view_{idx}"] = False
                 st.rerun()
         with ec2:
-            if st.button("キャンセル", key=f"_edit_cancel_{dyn_idx}"):
-                st.session_state[f"_editing_dv_{dyn_idx}"] = False
+            if st.button("キャンセル", key=f"{prefix}_cancel"):
+                st.session_state[f"_editing_view_{idx}"] = False
                 st.rerun()
+
+
+def _render_plot_edit_inputs(
+    provider: DashboardDataProvider,
+    prefix: str,
+    existing_plot: dict[str, Any],
+) -> dict[str, Any]:
+    """プロット編集UI（x/y/color/chart_type + コンター設定 + スタイル + 軸範囲）"""
+    st.markdown("**プロット設定**")
+    keys = provider.get_property_keys()
+    vn_key = provider._verbose_name_key
+
+    epc1, epc2, epc3, epc4 = st.columns(4)
+    with epc1:
+        ex_x = existing_plot.get("x", "")
+        x_idx = keys.index(ex_x) if ex_x in keys else 0
+        ep_x = st.selectbox("X軸", keys, index=x_idx, key=f"{prefix}_px") if keys else ""
+    with epc2:
+        ex_y = existing_plot.get("y", "")
+        y_idx = keys.index(ex_y) if ex_y in keys else min(1, len(keys) - 1)
+        ep_y = st.selectbox("Y軸", keys, index=y_idx, key=f"{prefix}_py") if keys else ""
+    with epc3:
+        color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
+        ex_color = existing_plot.get("color") or "なし"
+        c_idx = color_options.index(ex_color) if ex_color in color_options else 0
+        ep_color = st.selectbox("色分け", color_options, index=c_idx, key=f"{prefix}_pcolor")
+    with epc4:
+        chart_options = ["散布図", "棒グラフ", "線図", "コンター", "等高線"]
+        ex_chart = existing_plot.get("chart_type", "散布図")
+        ct_idx = chart_options.index(ex_chart) if ex_chart in chart_options else 0
+        ep_chart = st.selectbox("チャート", chart_options, index=ct_idx, key=f"{prefix}_pchart")
+
+    plot_config: dict[str, Any] = {
+        "x": ep_x,
+        "y": ep_y,
+        "color": ep_color if ep_color != "なし" else None,
+        "chart_type": ep_chart,
+    }
+
+    if ep_chart in ("コンター", "等高線"):
+        z_options = [k for k in keys if k != ep_x and k != ep_y]
+        if z_options:
+            ezc1, ezc2, ezc3 = st.columns(3)
+            with ezc1:
+                ex_z = existing_plot.get("z", "")
+                z_idx = z_options.index(ex_z) if ex_z in z_options else 0
+                ep_z = st.selectbox("Z軸（色）", z_options, index=z_idx, key=f"{prefix}_pz")
+            ex_cr = existing_plot.get("color_range", {})
+            with ezc2:
+                ep_vmin = st.number_input("vmin", value=ex_cr.get("vmin"), key=f"{prefix}_pvmin", format="%g")
+            with ezc3:
+                ep_vmax = st.number_input("vmax", value=ex_cr.get("vmax"), key=f"{prefix}_pvmax", format="%g")
+            if ep_z:
+                plot_config["z"] = ep_z
+            cr: dict[str, float] = {}
+            if ep_vmin is not None:
+                cr["vmin"] = float(ep_vmin)
+            if ep_vmax is not None:
+                cr["vmax"] = float(ep_vmax)
+            if cr:
+                plot_config["color_range"] = cr
+
+    with st.expander("スタイル設定", expanded=False):
+        ex_style = existing_plot.get("plot_style", {})
+        esc1, esc2, esc3 = st.columns(3)
+        with esc1:
+            ep_marker = st.number_input(
+                "マーカーサイズ",
+                value=ex_style.get("marker_size"),
+                min_value=1,
+                max_value=50,
+                key=f"{prefix}_p_marker",
+            )
+        with esc2:
+            ep_lw = st.number_input(
+                "線幅",
+                value=ex_style.get("line_width"),
+                min_value=1,
+                max_value=20,
+                key=f"{prefix}_p_lw",
+            )
+        with esc3:
+            ep_fs = st.number_input(
+                "フォントサイズ",
+                value=ex_style.get("font_size"),
+                min_value=6,
+                max_value=48,
+                key=f"{prefix}_p_fs",
+            )
+        from services.dashboard.widgets import build_style_config
+
+        ep_plot_style = build_style_config(ep_marker, ep_lw, ep_fs)
+        if ep_plot_style:
+            plot_config["plot_style"] = ep_plot_style
+
+    with st.expander("軸範囲設定", expanded=False):
+        ex_range = existing_plot.get("axis_range", {})
+        erc1, erc2, erc3, erc4 = st.columns(4)
+        with erc1:
+            ep_xmin = st.number_input("X最小", value=ex_range.get("x_min"), key=f"{prefix}_p_xmin", format="%g")
+        with erc2:
+            ep_xmax = st.number_input("X最大", value=ex_range.get("x_max"), key=f"{prefix}_p_xmax", format="%g")
+        with erc3:
+            ep_ymin = st.number_input("Y最小", value=ex_range.get("y_min"), key=f"{prefix}_p_ymin", format="%g")
+        with erc4:
+            ep_ymax = st.number_input("Y最大", value=ex_range.get("y_max"), key=f"{prefix}_p_ymax", format="%g")
+        axis_range: dict[str, float] = {}
+        if ep_xmin is not None:
+            axis_range["x_min"] = float(ep_xmin)
+        if ep_xmax is not None:
+            axis_range["x_max"] = float(ep_xmax)
+        if ep_ymin is not None:
+            axis_range["y_min"] = float(ep_ymin)
+        if ep_ymax is not None:
+            axis_range["y_max"] = float(ep_ymax)
+        if axis_range:
+            plot_config["axis_range"] = axis_range
+
+    return plot_config
 
 
 def _render_save_defaults_button(project_root: Path) -> None:
-    """サイドバーにデフォルト設定保存ボタンを表示"""
-    st.sidebar.markdown("---")
-    with st.sidebar.expander("デフォルト設定を保存"):
-        save_gallery = st.checkbox("ギャラリー設定", value=True, key="_save_def_gallery")
-        save_page = st.checkbox("デフォルトページ", value=False, key="_save_def_page")
+    """サイドバーにデフォルト設定保存ボタンを表示
 
-        if st.button("デフォルトとして保存", key="_save_defaults_btn"):
+    シングルページ構成ではページ選択はconfig.dashboard.enabled-pagesで直接制御
+    するため、ここではギャラリー設定（columns/rows）の書き戻しのみ扱う。
+    """
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("ギャラリー設定を保存"):
+        if st.button("現在のギャラリー設定を保存", key="_save_defaults_btn"):
             from services.dashboard.config_writer import (
                 collect_current_dashboard_state,
                 save_dashboard_defaults,
             )
 
-            items: dict[str, Any] = {}
-
-            if save_gallery:
-                items.update(collect_current_dashboard_state())
-
-            if save_page:
-                # 現在のページキーを取得
-                current_page_label = st.session_state.get("ページ")
-                if current_page_label:
-                    comp = get_page_component_by_label(current_page_label)
-                    if comp is not None:
-                        items["default-page"] = comp.page_key
-
+            items = collect_current_dashboard_state()
             if items:
                 config_path = save_dashboard_defaults(project_root, items)
                 st.success(f"設定を保存しました: {config_path.name}")
             else:
-                st.warning("保存する項目を選択してください。")
+                st.warning("保存対象の設定が見つかりません。")
 
 
 if __name__ == "__main__":

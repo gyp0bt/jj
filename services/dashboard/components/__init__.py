@@ -99,33 +99,21 @@ class PageComponent(Generic[VC]):
         """
         return get_view_config(self.page_key)  # type: ignore[return-value]
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        """スタンドアロンページとして描画
-
-        Args:
-            provider: DashboardDataProvider
-            dashboard_config: DashboardConfig
-            **kwargs: 追加パラメータ（vocab, project_root等）
-        """
-        raise NotImplementedError
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        """保存済みビューとして描画
+        """ビューを描画する唯一のエントリポイント
+
+        すべての表示状態は SavedViewConfig 経由で受け取り、内部で対話ウィジェット
+        によって状態を収集しない（= 保存がconfigと1:1対応する）。
 
         Args:
             provider: DashboardDataProvider
-            view: SavedViewConfig
+            view: SavedViewConfig（表示オプションの単一の真実）
             dashboard_config: DashboardConfig
             **kwargs: 追加パラメータ（vocab, project_root等）
         """

@@ -36,17 +36,20 @@ class RunComparisonPage(PageComponent[RunComparisonViewConfig]):
     page_key = "run_comparison"
     page_label = "Run比較"
 
-    def render_page(
+    def render(
         self,
         provider: DashboardDataProvider,
+        view: SavedViewConfig,
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """Run比較は探索用なので、Run Aとの比較対象選択など一部はUI内で行う
+
+        保存される状態は ``view.local_filters['run_type']`` のみ。
+        """
         import streamlit as st
 
         from services.run.query import RunQueryService
-
-        st.header("Run比較ダッシュボード")
 
         graph = provider.graph
         query_svc = RunQueryService(graph)
@@ -56,46 +59,37 @@ class RunComparisonPage(PageComponent[RunComparisonViewConfig]):
             st.info("Runノードが見つかりません。")
             return
 
-        # フィルタ: run_type
-        run_types = sorted({r.properties.get("run_type", "") for r in all_runs})
-        selected_type = st.selectbox(
-            "Run タイプ",
-            ["(すべて)", *run_types],
-            key="_run_cmp_type",
-        )
-        if selected_type != "(すべて)":
-            all_runs = [r for r in all_runs if r.properties.get("run_type") == selected_type]
+        # run_type フィルタは config から読む
+        run_type_filter = (view.local_filters or {}).get("run_type")
+        if run_type_filter:
+            all_runs = [r for r in all_runs if r.properties.get("run_type") == run_type_filter]
 
-        # Run一覧テーブル
         st.subheader(f"Run一覧 ({len(all_runs)}件)")
         _render_run_table(all_runs)
 
-        # Run選択（比較用）
+        # 比較対象の選択は ephemeral UI（保存対象ではない）
         run_names = [f"{r.name} (id={r.id})" for r in all_runs]
+        prefix = f"_run_cmp_{view.name}"
         if len(all_runs) >= 2:
             st.subheader("Run比較")
             col1, col2 = st.columns(2)
             with col1:
-                sel_a = st.selectbox("Run A", run_names, key="_run_cmp_a")
+                sel_a = st.selectbox("Run A", run_names, key=f"{prefix}_a")
             with col2:
-                sel_b = st.selectbox("Run B", run_names, index=min(1, len(run_names) - 1), key="_run_cmp_b")
-
+                sel_b = st.selectbox("Run B", run_names, index=min(1, len(run_names) - 1), key=f"{prefix}_b")
             idx_a = run_names.index(sel_a)
             idx_b = run_names.index(sel_b)
-
             if idx_a != idx_b:
                 _render_run_diff(query_svc, all_runs[idx_a], all_runs[idx_b])
             else:
                 st.warning("異なるRunを選択してください。")
 
-        # Run DAG可視化
         st.subheader("Run DAG")
         _render_run_dag(all_runs, query_svc)
 
-        # 選択Runの比較グループ
         if all_runs:
             st.subheader("比較グループ探索")
-            sel_run_name = st.selectbox("基準Run", run_names, key="_run_cmp_base")
+            sel_run_name = st.selectbox("基準Run", run_names, key=f"{prefix}_base")
             base_run = all_runs[run_names.index(sel_run_name)]
             groups = query_svc.find_comparable_runs(base_run)
             if groups:
@@ -104,15 +98,6 @@ class RunComparisonPage(PageComponent[RunComparisonViewConfig]):
                     st.caption(f"共通: {g.common_aspects}, 差異: {g.varying_aspects}")
             else:
                 st.caption("比較可能なRunが見つかりません。")
-
-    def render_saved_view(
-        self,
-        provider: DashboardDataProvider,
-        view: SavedViewConfig,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        self.render_page(provider, dashboard_config, **kwargs)
 
     def generate_html(
         self,

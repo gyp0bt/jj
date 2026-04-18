@@ -549,26 +549,16 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
         """abaqus_materialノードが1つ以上存在するか判定"""
         return any(n.type == "abaqus_material" for n in provider.graph.nodes)
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> None:
-        """物性一覧ページをレンダリング"""
-        _render_material_page(provider, dashboard_config)
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: Any,
         dashboard_config: Any,
     ) -> None:
-        """保存済みビュー: connector_configに基づいて物性カーブを表示
+        """物性一覧ページをレンダリング
 
-        connector_config:
-          material_name: 特定物性のカーブを表示
-          property_key: 表示するプロパティキー
-          compare_materials: 比較する物性名リスト
+        connector_config が設定されていれば保存済みビューの挙動、
+        空ならデフォルト（全物性一覧）を表示する。
         """
         cc = view.connector_config if hasattr(view, "connector_config") else {}
         mat_name = cc.get("material_name", "")
@@ -576,10 +566,8 @@ class AbaqusMaterialPageConnector(DashboardPageConnector):
         compare_mats = cc.get("compare_materials", [])
 
         if not mat_name and not compare_mats:
-            # connector_config未設定: デフォルトのrender_pageに委譲
-            self.render_page(provider, dashboard_config)
+            _render_material_page(provider, dashboard_config)
             return
-
         _render_material_saved_view(provider, dashboard_config, mat_name, prop_key, compare_mats)
 
     def generate_html(
@@ -640,29 +628,20 @@ class AbaqusMeshQualityPageConnector(DashboardPageConnector):
         # elsetノードの品質データも確認
         return any(n.type == "abaqus_elset" and "quality" in n.properties for n in provider.graph.nodes)
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> None:
-        """メッシュ品質ページをレンダリング"""
-        _render_mesh_quality_page(provider)
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: Any,
         dashboard_config: Any,
     ) -> None:
-        """保存済みビュー: connector_configに基づいてメッシュ品質を表示"""
+        """メッシュ品質ページをレンダリング"""
         cc = view.connector_config if hasattr(view, "connector_config") else {}
         go_name = cc.get("go_name", "")
         show_elset = cc.get("show_elset", True)
 
         if not go_name and show_elset:
-            self.render_page(provider, dashboard_config)
+            _render_mesh_quality_page(provider)
             return
-
         _render_mesh_quality_saved_view(provider, go_name, show_elset)
 
     def generate_html(
@@ -710,29 +689,20 @@ class AbaqusJobSummaryPageConnector(DashboardPageConnector):
                 return True
         return False
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> None:
-        """ジョブサマリーページをレンダリング"""
-        _render_job_summary_page(provider)
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: Any,
         dashboard_config: Any,
     ) -> None:
-        """保存済みビュー: connector_configに基づいてジョブサマリーを表示"""
+        """ジョブサマリーページをレンダリング"""
         cc = view.connector_config if hasattr(view, "connector_config") else {}
         status_filter = cc.get("status_filter", "")
         go_name = cc.get("go_name", "")
 
         if not status_filter and not go_name:
-            self.render_page(provider, dashboard_config)
+            _render_job_summary_page(provider)
             return
-
         _render_job_summary_saved_view(provider, status_filter, go_name)
 
     def generate_html(

@@ -30,12 +30,14 @@ class JobMonitorPageConnector(DashboardPageConnector):
         jobs_dir = project_root / ".j2" / "storage" / "jobs"
         return jobs_dir.exists() and any(jobs_dir.glob("job-*.yaml"))
 
-    def render_page(
+    def render(
         self,
         provider: DashboardDataProvider,
+        view: Any,
         dashboard_config: Any,
     ) -> None:
         """ジョブモニターページを描画"""
+        _ = view  # ジョブ一覧はリアルタイム、view configを参照しない
         import streamlit as st
 
         from services.job.models import JobStatus

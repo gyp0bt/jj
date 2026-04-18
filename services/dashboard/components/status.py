@@ -34,28 +34,16 @@ class StatusPage(PageComponent[StatusViewConfig]):
     page_key = "status"
     page_label = "ステータス"
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        from services.dashboard.widgets import get_active_filters, render_shared_filters
-
-        rows = provider.get_go_table()
-        render_shared_filters(rows)
-        active_filters = get_active_filters()
-
-        self._render_status(provider, active_filters=active_filters)
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        self._render_status(provider)
+        # view.filters があればgo_tableをそれで絞った名前でステータスをフィルタ
+        active_filters = dict(view.filters) if view.filters else None
+        self._render_status(provider, active_filters=active_filters)
 
     def _render_status(
         self,

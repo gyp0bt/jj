@@ -36,72 +36,7 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
     page_key = "overview"
     page_label = "概要"
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        import streamlit as st
-
-        from services.dashboard.query import apply_filters, sort_rows_by_index
-        from services.dashboard.widgets import get_active_filters, render_shared_filters
-
-        vocab = kwargs.get("vocab") or {}
-        project_root = kwargs.get("project_root")
-
-        rows = provider.get_go_table()
-        if not rows:
-            st.info("go_ ファイルが見つかりません。")
-            return
-
-        # 共有フィルタ（サイドバー描画 + 適用）
-        render_shared_filters(rows)
-
-        filtered = apply_filters(
-            rows,
-            type_filter=st.session_state.get("_filter_type", "すべて"),
-            status_filter=st.session_state.get("_filter_status", "すべて"),
-            active_only=st.session_state.get("_filter_active", False),
-            vocab=vocab,
-        )
-
-        idx_key = provider._index_key
-        ver_key = provider._version_key
-        filtered = sort_rows_by_index(filtered, idx_key, ver_key)
-
-        # --- テーブルセクション ---
-        st.subheader("テーブル")
-        from services.dashboard.components.table import render_table_section
-
-        render_table_section(
-            provider,
-            dashboard_config,
-            filtered,
-            len(rows),
-            vocab=vocab,
-            grid_key="overview_table",
-            download_key="overview_table",
-        )
-
-        st.divider()
-
-        # --- ギャラリーセクション ---
-        if project_root is not None:
-            st.subheader("ギャラリー")
-            from services.dashboard.components.gallery import render_gallery_section
-
-            active_filters = get_active_filters()
-            render_gallery_section(
-                provider,
-                dashboard_config,
-                Path(project_root),
-                active_filters=active_filters,
-                show_header=False,
-                key_prefix="overview",
-            )
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
@@ -110,7 +45,9 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
     ) -> None:
         import streamlit as st
 
-        from services.dashboard.query import apply_saved_view_filters
+        from services.dashboard.components.gallery import render_gallery_section
+        from services.dashboard.components.table import render_table_section
+        from services.dashboard.query import apply_saved_view_filters, sort_rows_by_index
 
         vocab = kwargs.get("vocab") or {}
         project_root = kwargs.get("project_root")
@@ -120,33 +57,28 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
             st.info("go_ ファイルが見つかりません。")
             return
 
-        filtered = apply_saved_view_filters(rows, view.filters)
+        filtered = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+        filtered = sort_rows_by_index(filtered, provider._index_key, provider._version_key)
 
-        # テーブルセクション
         st.subheader("テーブル")
-        from services.dashboard.components.table import render_table_section
-
         render_table_section(
             provider,
             dashboard_config,
             filtered,
             len(rows),
             vocab=vocab,
-            grid_key=f"saved_view_{view.name}_table",
-            download_key=f"saved_view_{view.name}",
+            grid_key=f"view_{view.name}_table",
+            download_key=f"view_{view.name}",
         )
 
         st.divider()
 
-        # ギャラリーセクション
         if project_root is not None:
             st.subheader("ギャラリー")
-            from services.dashboard.components.gallery import render_gallery_section
-
             render_gallery_section(
                 provider,
                 dashboard_config,
                 Path(project_root),
                 show_header=False,
-                key_prefix=f"sv_{view.name}",
+                key_prefix=f"view_{view.name}",
             )
