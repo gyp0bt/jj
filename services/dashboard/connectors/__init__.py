@@ -7,9 +7,12 @@
 自動的にレジストリに登録される。`is_available()` で利用可能性を判定し、
 `render_page()` でページ描画を行う。
 
-`render_saved_view()` と `generate_html()` によりビュー保存およびHTMLエクスポートに
-対応する。SavedViewConfigのview_typeに "connector:{page_label}" を指定することで
-保存済みビューとして利用できる。
+`render(view, provider, dashboard_config)` が唯一の描画エントリポイント。
+すべての表示状態は SavedViewConfig 経由で受け取り、内部で対話ウィジェットに
+依存しない（= configとビューが1:1対応する）。
+
+SavedViewConfigのview_typeに "connector:{page_label}" を指定することで
+enabled-pages の1エントリとして利用できる。
 
 [READMEへ戻る](../../../../README.md)
 """
@@ -74,36 +77,22 @@ class DashboardPageConnector:
             return get_fn(self.connector_key)
         return {}
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: Any,
-    ) -> None:
-        """ページをレンダリング
-
-        Args:
-            provider: DashboardDataProvider
-            dashboard_config: DashboardConfig
-        """
-        raise NotImplementedError
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
         dashboard_config: Any,
     ) -> None:
-        """保存済みビューとしてレンダリング
+        """ページをレンダリング
 
-        デフォルト実装はrender_page()に委譲する。
-        サブクラスでオーバーライドしてビュー固有の表示を行える。
+        すべての表示状態は view (SavedViewConfig) 経由で受け取る。
 
         Args:
             provider: DashboardDataProvider
             view: SavedViewConfig（local_filters, connector_config等を参照可能）
             dashboard_config: DashboardConfig
         """
-        self.render_page(provider, dashboard_config)
+        raise NotImplementedError
 
     def get_page_data(
         self,
@@ -202,45 +191,22 @@ def get_connector_pages(
     return pages
 
 
-def render_connector_page(
-    page_label: str,
-    provider: DashboardDataProvider,
-    dashboard_config: Any,
-) -> bool:
-    """コネクターページをレンダリング
-
-    Args:
-        page_label: ページラベル
-        provider: DashboardDataProvider
-        dashboard_config: DashboardConfig
-
-    Returns:
-        レンダリング成功時True、コネクター未登録時False
-    """
-    cls = DashboardPageConnector._registry.get(page_label)
-    if cls is None:
-        return False
-    connector = cls()
-    connector.render_page(provider, dashboard_config)
-    return True
-
-
-def render_connector_saved_view(
+def render_connector(
     page_label: str,
     provider: DashboardDataProvider,
     view: SavedViewConfig,
     dashboard_config: Any,
 ) -> bool:
-    """コネクターの保存済みビューをレンダリング
+    """コネクターページをレンダリング（単一エントリポイント）
 
     Args:
         page_label: ページラベル
         provider: DashboardDataProvider
-        view: SavedViewConfig
+        view: SavedViewConfig（connector_config, local_filters等を含む）
         dashboard_config: DashboardConfig
 
     Returns:
-        レンダリング成功時True、コネクター未登録時False
+        レンダリング成功時True、未登録/利用不可時False
     """
     cls = DashboardPageConnector._registry.get(page_label)
     if cls is None:
@@ -248,7 +214,7 @@ def render_connector_saved_view(
     connector = cls()
     if not connector.is_available(provider):
         return False
-    connector.render_saved_view(provider, view, dashboard_config)
+    connector.render(provider, view, dashboard_config)
     return True
 
 

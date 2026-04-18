@@ -8,7 +8,8 @@ __init_subclass__により、このモジュールをインポートするだけ
 - page_label: サイドバーに表示されるページ名
 - connector_key: DashboardConfigのconnectors設定で参照されるキー
 - is_available(): グラフデータにこのページが必要なデータがあるか判定
-- render_page(): Streamlitで描画（streamlit依存）
+- render(provider, view, dashboard_config): Streamlitで描画（streamlit依存）。
+  すべての表示状態は view (SavedViewConfig) 経由で受け取る。
 - generate_html(): HTMLエクスポート（streamlit非依存）
 """
 
@@ -36,12 +37,14 @@ class ExampleSolverPageConnector(DashboardPageConnector):
         """exampleパース済みノードが存在するか判定"""
         return any(n.properties.get("example_parsed") for n in provider.graph.nodes)
 
-    def render_page(
+    def render(
         self,
         provider: DashboardDataProvider,
+        view: Any,
         dashboard_config: Any,
     ) -> None:
         """Exampleサマリーページをレンダリング"""
+        _ = view  # この例ではviewの設定は使わない
         import streamlit as st
 
         st.header("Exampleサマリー")

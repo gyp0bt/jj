@@ -59,11 +59,11 @@ from services.dashboard.connectors import (  # noqa: E402
     get_connector_config_schema,
     get_connector_pages,
     get_connector_view_type_options,
-    render_connector_saved_view,
+    render_connector,
 )
 from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
 from services.dashboard.html_export import generate_saved_views_html  # noqa: E402
-from services.dashboard.query import get_graph_mtime, is_truthy  # noqa: E402
+from services.dashboard.query import get_graph_mtime  # noqa: E402
 from services.graph import GraphService  # noqa: E402
 
 
@@ -140,26 +140,6 @@ def _estimate_column_width(col_name: str) -> int:
     from services.dashboard.widgets import estimate_column_width
 
     return estimate_column_width(col_name)
-
-
-# ====================================================================
-# 共有フィルタ初期化
-# ====================================================================
-
-
-def _init_shared_filters(default_filters: dict[str, Any]) -> None:
-    """共有フィルタの初期化（初回のみ）
-
-    Args:
-        default_filters: config.dashboard.default-filters
-    """
-    if "_filters_initialized" not in st.session_state:
-        st.session_state["_filters_initialized"] = True
-        # active値はYAML由来のboolまたは文字列"true"の両方に対応
-        raw_active = default_filters.get("active", False)
-        st.session_state.setdefault("_filter_active", is_truthy(raw_active))
-        st.session_state.setdefault("_filter_type", "すべて")
-        st.session_state.setdefault("_filter_status", "すべて")
 
 
 # ====================================================================
@@ -282,9 +262,6 @@ def main() -> None:
         project_root=project_root,
     )
 
-    # 共有フィルタ初期化
-    _init_shared_filters(dashboard_config.default_filters)
-
     # 利用可能なコネクターページを取得（enabled_pages解決に必要）
     connector_pages = get_connector_pages(provider)
 
@@ -304,11 +281,7 @@ def main() -> None:
         "project_root": project_root,
     }
 
-    # 共有フィルタのレンダリング済みフラグを実行ごとにリセット
-    # （複数ページが同一実行中にrender_shared_filtersを呼んでも一度だけ描画する）
-    st.session_state["_shared_filters_rendered"] = False
-
-    # シングルページレンダリング: enabled_pagesで指定された各ページを順次描画
+    # シングルページレンダリング: enabled_pagesで指定された各ビューを順次描画
     _render_single_page(
         provider,
         project_root,
@@ -329,9 +302,9 @@ def _render_single_page(
 ) -> None:
     """enabled_pagesに含まれる各ビューをシングルページ上に順次描画
 
-    各ビューは ``SavedViewConfig`` として設定を持ち、``render_saved_view`` 経由で
-    統一的に描画される。configに表示オプションがない場合は各コンポーネントの
-    placeholder（警告メッセージまたはデフォルト設定）が表示される。
+    各ビューは ``SavedViewConfig`` として設定を持ち、``PageComponent.render`` /
+    ``DashboardPageConnector.render`` の単一エントリポイント経由で描画される。
+    configに表示オプションがない場合は各コンポーネントの placeholder が表示される。
     """
     enabled: list[SavedViewConfig] = list(getattr(dashboard_config, "enabled_pages", []) or [])
 
@@ -370,8 +343,8 @@ def _render_enabled_view(
 ) -> None:
     """enabled_pagesの1エントリをSavedViewConfigとして描画
 
-    ヘッダーに編集・削除ボタンを配置し、通常は ``render_saved_view`` を呼ぶ。
-    編集中の場合は編集フォームを表示する。
+    ヘッダーに編集・削除ボタンを配置し、通常は ``component.render(view, ...)``
+    を呼ぶ。編集中の場合は編集フォームを表示する。
     """
     editing_key = f"_editing_view_{idx}"
     editing = st.session_state.get(editing_key, False)
@@ -394,11 +367,11 @@ def _render_enabled_view(
         _render_view_edit_form(provider, project_root, idx, view, enabled)
         return
 
-    # 描画: connector or PageComponent.render_saved_view
+    # 描画: connector or PageComponent.render（単一エントリポイント）
     if view.is_connector_view:
         label = view.connector_page_label
         if label in connector_pages:
-            render_connector_saved_view(label, provider, view, dashboard_config)
+            render_connector(label, provider, view, dashboard_config)
         else:
             st.caption(f"コネクターページ '{label}' は利用できません。")
         return
@@ -408,7 +381,7 @@ def _render_enabled_view(
         st.caption(f"ビュー '{view.view_type}' は未登録です。")
         return
 
-    component.render_saved_view(provider, view, dashboard_config, **render_kwargs)
+    component.render(provider, view, dashboard_config, **render_kwargs)
 
 
 # ====================================================================

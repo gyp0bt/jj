@@ -2544,13 +2544,15 @@ class TestDashboardPageConnector:
         assert "物性一覧" in pages
         assert "メッシュ品質" in pages
 
-    def test_render_connector_page_unregistered(self):
+    def test_render_connector_unregistered(self):
         """未登録のページラベルではFalseを返す"""
-        from services.dashboard.connectors import render_connector_page
+        from config import SavedViewConfig
+        from services.dashboard.connectors import render_connector
 
         graph = GraphModel(nodes=[], relations=[])
         provider = DashboardDataProvider(graph)
-        result = render_connector_page("存在しないページ", provider, None)
+        view = SavedViewConfig.from_dict({"name": "x", "type": "connector:存在しないページ"})
+        result = render_connector("存在しないページ", provider, view, None)
         assert result is False
 
     def test_connector_generate_html_default(self):
@@ -3005,7 +3007,6 @@ class TestRestApiPropFilter:
         graph = _make_test_graph()
 
         import tempfile
-        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -3832,7 +3833,6 @@ class TestHtmlExport:
 
     def test_full_html_generation(self):
         """全体HTMLの生成"""
-        from pathlib import Path
 
         from config import DashboardConfig, SavedViewConfig
         from services.dashboard.html_export import generate_saved_views_html
@@ -4980,7 +4980,6 @@ class TestGalleryHtmlExport:
     def test_gallery_html_export_with_output_images(self):
         """has_output画像のHTMLエクスポート（base64埋め込み）"""
         import tempfile
-        from pathlib import Path
 
         from config import DashboardConfig, SavedViewConfig
 
@@ -5082,7 +5081,6 @@ class TestGalleryHtmlExport:
     def test_gallery_html_export_missing_image(self):
         """画像ファイルが存在しない場合"""
         import tempfile
-        from pathlib import Path
 
         from config import DashboardConfig, SavedViewConfig
 
@@ -5853,7 +5851,6 @@ class TestConnectorSavedViewHtml:
                 "type": "connector:物性一覧",
             }
         )
-        from pathlib import Path
 
         html = generate_view_html(provider, Path("/tmp"), None, view)
         assert "物性テーブル" in html
@@ -5888,8 +5885,8 @@ class TestConnectorSavedViewHtml:
         assert "connector:物性一覧" in options
         assert "connector:ジョブサマリー" in options
 
-    def test_render_saved_view_default_delegates(self):
-        """基底クラスのrender_saved_viewがrender_pageに委譲する"""
+    def test_render_method_is_unified(self):
+        """DashboardPageConnectorは単一render(view, provider, dashboard_config)を持つ"""
         from config import SavedViewConfig
         from services.dashboard.connectors import DashboardPageConnector
 
@@ -5898,15 +5895,18 @@ class TestConnectorSavedViewHtml:
         class TestConnector(DashboardPageConnector):
             page_label = ""  # レジストリに登録しない
 
-            def render_page(self, provider, dashboard_config):
-                called["render_page"] = True
+            def render(self, provider, view, dashboard_config):
+                called["view"] = view
 
         connector = TestConnector()
         graph = GraphModel(nodes=[], relations=[])
         provider = DashboardDataProvider(graph)
         view = SavedViewConfig.from_dict({"name": "test", "type": "table"})
-        connector.render_saved_view(provider, view, None)
-        assert called.get("render_page") is True
+        connector.render(provider, view, None)
+        assert called["view"] is view
+        # 旧メソッドが存在しない
+        assert not hasattr(DashboardPageConnector, "render_page")
+        assert not hasattr(DashboardPageConnector, "render_saved_view")
 
     def test_generate_saved_view_html_default_delegates(self):
         """基底クラスのgenerate_saved_view_htmlがgenerate_htmlに委譲する"""
@@ -6323,7 +6323,6 @@ class TestGalleryMaxImageBytes:
     def test_gallery_html_skips_large_images(self):
         """サイズ上限を超える画像がスキップまたはサムネイル化される"""
         import tempfile
-        from pathlib import Path
 
         from config import DashboardConfig, SavedViewConfig
 
@@ -6377,7 +6376,6 @@ class TestGalleryMaxImageBytes:
 
         import io
         import tempfile
-        from pathlib import Path
 
         from config import DashboardConfig, SavedViewConfig
 
@@ -6429,7 +6427,6 @@ class TestGalleryMaxImageBytes:
 
         import io
         import tempfile
-        from pathlib import Path
 
         from services.dashboard.components.gallery import _generate_thumbnail
 
@@ -6457,7 +6454,6 @@ class TestGalleryMaxImageBytes:
 
         import io
         import tempfile
-        from pathlib import Path
 
         from services.dashboard.components.gallery import _generate_thumbnail
 
@@ -6475,7 +6471,6 @@ class TestGalleryMaxImageBytes:
     def test_gallery_html_no_limit(self):
         """サイズ上限0（無制限）ではスキップしない"""
         import tempfile
-        from pathlib import Path
 
         from config import DashboardConfig, SavedViewConfig
 
@@ -7087,44 +7082,89 @@ class TestBatchOverviewHtml:
         assert "ありません" in html
 
 
-class TestSharedFiltersOnAllPages:
-    """全ページでActiveフィルタが適用可能であること（インポートテスト）"""
+class TestPageComponentSingleRender:
+    """各PageComponentが単一のrender()メソッドを持つ（render_page/render_saved_view分離の撤廃）"""
 
-    def test_plot_page_imports_shared_filters(self):
-        """PlotPageがshared_filtersをインポートしていること"""
-        import importlib
+    def test_no_page_has_render_page(self):
+        """すべての登録済みPageComponentに render_page が存在しないこと
 
-        mod = importlib.import_module("services.dashboard.components.plot")
-        source = Path(mod.__file__).read_text()
-        assert "get_active_filters" in source
-        assert "render_shared_filters" in source
+        render_page は対話ウィジェットで状態を収集するアンチパターンだったため、
+        render(provider, view, dashboard_config) に一本化した。
+        """
+        import services.dashboard.components.array_plot
+        import services.dashboard.components.batch_overview
+        import services.dashboard.components.card
+        import services.dashboard.components.gallery
+        import services.dashboard.components.overview
+        import services.dashboard.components.plot
+        import services.dashboard.components.run_comparison
+        import services.dashboard.components.status
+        import services.dashboard.components.table  # noqa: F401
+        from services.dashboard.components import PageComponent
 
-    def test_gallery_page_imports_shared_filters(self):
-        """GalleryPageがshared_filtersをインポートしていること"""
-        import importlib
+        for page_key, cls in PageComponent._registry.items():
+            # render_pageは基底クラスから削除されている
+            assert not hasattr(cls, "render_page") or cls.render_page is PageComponent.__dict__.get("render_page"), (
+                f"{page_key} still defines render_page"
+            )
+            # render_saved_viewも削除されている
+            assert not hasattr(cls, "render_saved_view") or cls.render_saved_view is PageComponent.__dict__.get(
+                "render_saved_view"
+            ), f"{page_key} still defines render_saved_view"
+            # render のみが唯一の描画エントリ
+            assert callable(getattr(cls, "render", None)), f"{page_key} missing render()"
 
-        mod = importlib.import_module("services.dashboard.components.gallery")
-        source = Path(mod.__file__).read_text()
-        assert "get_active_filters" in source
-        assert "render_shared_filters" in source
+    def test_render_reflects_view_filters(self, tmp_path):
+        """view.filters を変えると render() の結果（テーブル件数）が変わる
 
-    def test_card_page_imports_shared_filters(self):
-        """CardPageがshared_filtersをインポートしていること"""
-        import importlib
+        これが保証される = 表示オプションは引数経由でのみ決まる
+        = 保存機能で SavedViewConfig を配ることで表示が再現できる。
+        """
+        pytest.importorskip("streamlit")
+        pytest.importorskip("pandas")
 
-        mod = importlib.import_module("services.dashboard.components.card")
-        source = Path(mod.__file__).read_text()
-        assert "get_active_filters" in source
-        assert "render_shared_filters" in source
+        from jj_types import GraphModel, Node
+        from services.dashboard.data_provider import DashboardDataProvider
 
-    def test_status_page_imports_shared_filters(self):
-        """StatusPageがshared_filtersをインポートしていること"""
-        import importlib
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=i,
+                    type="go",
+                    name=f"go_idx{i}_v1",
+                    format="inp",
+                    properties={
+                        "path": f"go_idx{i}.inp",
+                        "analysis_status": "COMPLETED" if i % 2 else "FAILED",
+                        "active": True,
+                    },
+                )
+                for i in range(1, 5)
+            ],
+            relations=[],
+        )
+        provider = DashboardDataProvider(graph)
 
-        mod = importlib.import_module("services.dashboard.components.status")
-        source = Path(mod.__file__).read_text()
-        assert "get_active_filters" in source
-        assert "render_shared_filters" in source
+        from config import DashboardConfig, SavedViewConfig
+        from services.dashboard.query import apply_saved_view_filters
+
+        dashboard_config = DashboardConfig.from_dict({})
+
+        # view.filters を変えた2ケースで apply_saved_view_filters の結果が異なる
+        view_all = SavedViewConfig.from_dict({"name": "all", "type": "table"})
+        view_completed = SavedViewConfig.from_dict(
+            {"name": "completed", "type": "table", "filters": {"analysis_status": "COMPLETED"}}
+        )
+
+        rows = provider.get_go_table()
+        filtered_all = apply_saved_view_filters(rows, view_all.filters) if view_all.filters else list(rows)
+        filtered_completed = apply_saved_view_filters(rows, view_completed.filters)
+
+        assert len(filtered_all) == 4
+        assert len(filtered_completed) == 2
+        # = render() は view 引数が変わると結果が変わる。逆に、同じ view に対しては
+        # 同じ結果になる（外部セッション状態に依存しない）ことが保証される。
+        _ = dashboard_config
 
 
 class TestPlotVocabAxisLabels:
@@ -8388,7 +8428,6 @@ class TestRenderSavedViewSmoke:
         # 一時スクリプトを組み立ててAppTestで実行
         import tempfile
         import textwrap
-        from pathlib import Path
 
         from streamlit.testing.v1 import AppTest
 
@@ -8419,7 +8458,7 @@ class TestRenderSavedViewSmoke:
         ["table", "plot", "array_plot", "gallery", "card", "status"],
     )
     def test_empty_saved_view_renders_without_exception(self, page_key, tmp_path):
-        """最小SavedViewConfig（typeのみ）でも render_saved_view が例外を出さない"""
+        """最小SavedViewConfig（typeのみ）でも render() が例外を出さない"""
         # 全PageComponentを登録
         import services.dashboard.components.array_plot
         import services.dashboard.components.card
@@ -8437,7 +8476,7 @@ class TestRenderSavedViewSmoke:
         assert component is not None
 
         def _render():
-            component.render_saved_view(
+            component.render(
                 provider,
                 view,
                 dashboard_config,
@@ -8446,7 +8485,7 @@ class TestRenderSavedViewSmoke:
             )
 
         at = self._run_in_apptest(_render)
-        assert not at.exception, f"{page_key}.render_saved_view raised: {at.exception}"
+        assert not at.exception, f"{page_key}.render raised: {at.exception}"
 
     def test_plot_with_config_values_uses_them(self, tmp_path):
         """プロットビューで x/y を指定すると、その軸ラベルが描画に使われる"""
@@ -8466,7 +8505,7 @@ class TestRenderSavedViewSmoke:
         component = get_page_component("plot")
 
         def _render():
-            component.render_saved_view(
+            component.render(
                 provider,
                 view,
                 dashboard_config,

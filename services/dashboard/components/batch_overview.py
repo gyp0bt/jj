@@ -37,32 +37,7 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
     page_key = "batch_overview"
     page_label = "バッチ俯瞰"
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        import streamlit as st
-
-        from services.dashboard.widgets import get_active_filters, render_shared_filters
-
-        st.header("バッチラン俯瞰")
-
-        rows = provider.get_go_table()
-        render_shared_filters(rows)
-        active_filters = get_active_filters()
-
-        if active_filters:
-            rows = provider.get_go_table(filters=active_filters)
-
-        if not rows:
-            st.info("go_ ファイルが見つかりません。")
-            return
-
-        self._render_batch_overview(provider, rows, kwargs.get("vocab") or {})
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
@@ -76,11 +51,9 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         rows = provider.get_go_table()
         if view.filters:
             rows = apply_saved_view_filters(rows, view.filters)
-
         if not rows:
             st.info("条件に一致するデータがありません。")
             return
-
         self._render_batch_overview(provider, rows, kwargs.get("vocab") or {})
 
     def generate_html(

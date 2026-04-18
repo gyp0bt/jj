@@ -140,35 +140,7 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
     page_key = "gallery"
     page_label = "ギャラリー"
 
-    def render_page(
-        self,
-        provider: DashboardDataProvider,
-        dashboard_config: DashboardConfig,
-        **kwargs: Any,
-    ) -> None:
-        import streamlit as st
-
-        project_root = kwargs.get("project_root")
-        if project_root is None:
-            st.error("project_rootが指定されていません。")
-            return
-        project_root = Path(project_root)
-
-        # 共有フィルタ
-        from services.dashboard.widgets import get_active_filters, render_shared_filters
-
-        rows = provider.get_go_table()
-        render_shared_filters(rows)
-
-        active_filters = get_active_filters()
-        render_gallery_section(
-            provider,
-            dashboard_config,
-            project_root,
-            active_filters=active_filters,
-        )
-
-    def render_saved_view(
+    def render(
         self,
         provider: DashboardDataProvider,
         view: SavedViewConfig,
@@ -179,6 +151,7 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
 
         project_root = kwargs.get("project_root")
         if project_root is None:
+            st.error("project_rootが指定されていません。")
             return
         project_root = Path(project_root)
 
@@ -196,6 +169,14 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
 
         if format_filter:
             images = [img for img in images if img["image_format"] == format_filter]
+
+        # 保存済みフィルタ（go_table側のフィルタ）を画像のgo_node_nameに反映
+        if view.filters:
+            from services.dashboard.query import apply_saved_view_filters
+
+            filtered_rows = apply_saved_view_filters(provider.get_go_table(), view.filters)
+            filtered_names = {r["name"] for r in filtered_rows}
+            images = [img for img in images if img.get("go_node_name") in filtered_names]
 
         if not images:
             st.info("条件に一致する画像がありません。")
