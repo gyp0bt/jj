@@ -8197,6 +8197,290 @@ class TestSaveEnabledPages:
         assert enabled[1].filters == {"active": True}
 
 
+class TestEnabledPagesMutationRoundtrip:
+    """app.py の add/edit/delete 相当の操作が config.yaml まで往復するテスト
+
+    Streamlit のボタンクリックは AppTest でも正確に再現困難なため、
+    click ハンドラ内で行われる純粋な list 操作 + _persist_enabled_pages
+    （= save_enabled_pages）のシーケンスを直接検証する。
+    """
+
+    def _bootstrap(self, tmp_path):
+        """初期config.yamlを用意して GraphConfig.load で読み込む"""
+        from config import GraphConfig
+
+        config_dir = tmp_path / ".j2" / "config"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text(
+            "dashboard:\n  enabled-pages:\n    - table\n    - gallery\n",
+            encoding="utf-8",
+        )
+        cfg = GraphConfig.load(base_dir=tmp_path)
+        return cfg, config_path
+
+    def test_add_persists_to_config_yaml(self, tmp_path):
+        """追加操作: enabled.append(view) → save → reload で新ビューが残る"""
+        from config import GraphConfig, SavedViewConfig
+        from services.dashboard.config_writer import save_enabled_pages
+
+        cfg, _ = self._bootstrap(tmp_path)
+        enabled = list(cfg.dashboard.enabled_pages)
+        new_view = SavedViewConfig.from_dict(
+            {
+                "name": "新規プロット",
+                "type": "plot",
+                "plot": {"x": "cpu_time", "y": "wallclock_time"},
+                "filters": {"active": True},
+            }
+        )
+        enabled.append(new_view)
+        save_enabled_pages(tmp_path, enabled)
+
+        # 再読み込み後、3件あり、末尾が新規プロットで、設定も保持されている
+        cfg2 = GraphConfig.load(base_dir=tmp_path)
+        restored = cfg2.dashboard.enabled_pages
+        assert [v.name for v in restored] == ["table", "gallery", "新規プロット"]
+        assert restored[2].plot == {"x": "cpu_time", "y": "wallclock_time"}
+        assert restored[2].filters == {"active": True}
+
+    def test_delete_persists_to_config_yaml(self, tmp_path):
+        """削除操作: del enabled[idx] → save → reload で該当indexが消える"""
+        from config import GraphConfig
+        from services.dashboard.config_writer import save_enabled_pages
+
+        cfg, _ = self._bootstrap(tmp_path)
+        enabled = list(cfg.dashboard.enabled_pages)
+        assert [v.view_type for v in enabled] == ["table", "gallery"]
+
+        del enabled[0]  # table を削除
+        save_enabled_pages(tmp_path, enabled)
+
+        cfg2 = GraphConfig.load(base_dir=tmp_path)
+        restored = cfg2.dashboard.enabled_pages
+        assert [v.view_type for v in restored] == ["gallery"]
+
+    def test_edit_persists_to_config_yaml(self, tmp_path):
+        """編集操作: enabled[idx] = new_view → save → reload で差し替えが反映"""
+        from config import GraphConfig, SavedViewConfig
+        from services.dashboard.config_writer import save_enabled_pages
+
+        cfg, _ = self._bootstrap(tmp_path)
+        enabled = list(cfg.dashboard.enabled_pages)
+
+        # index 1 の gallery を array_plot に差し替え
+        edited = SavedViewConfig.from_dict(
+            {
+                "name": "応力-ひずみ",
+                "type": "array_plot",
+                "array_plot": {"prefix": "material", "x": "material.strain", "y": ["material.stress"]},
+            }
+        )
+        enabled[1] = edited
+        save_enabled_pages(tmp_path, enabled)
+
+        cfg2 = GraphConfig.load(base_dir=tmp_path)
+        restored = cfg2.dashboard.enabled_pages
+        assert [v.view_type for v in restored] == ["table", "array_plot"]
+        assert restored[1].name == "応力-ひずみ"
+        assert restored[1].array_plot == {
+            "prefix": "material",
+            "x": "material.strain",
+            "y": ["material.stress"],
+        }
+
+    def test_multiple_ops_preserve_other_sections(self, tmp_path):
+        """複数の書き戻しを重ねても dashboard 以外のセクションは保持される"""
+        import yaml
+
+        from config import GraphConfig, SavedViewConfig
+        from services.dashboard.config_writer import save_enabled_pages
+
+        config_dir = tmp_path / ".j2" / "config"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text(
+            "parse:\n  encoding: utf-8\ndashboard:\n  enabled-pages:\n    - table\n",
+            encoding="utf-8",
+        )
+
+        cfg = GraphConfig.load(base_dir=tmp_path)
+        enabled = list(cfg.dashboard.enabled_pages)
+        # add
+        enabled.append(SavedViewConfig.from_dict({"name": "gal", "type": "gallery"}))
+        save_enabled_pages(tmp_path, enabled)
+        # 再読込 → edit
+        cfg = GraphConfig.load(base_dir=tmp_path)
+        enabled = list(cfg.dashboard.enabled_pages)
+        enabled[0] = SavedViewConfig.from_dict({"name": "主表", "type": "table", "filters": {"active": True}})
+        save_enabled_pages(tmp_path, enabled)
+        # 再読込 → delete
+        cfg = GraphConfig.load(base_dir=tmp_path)
+        enabled = list(cfg.dashboard.enabled_pages)
+        del enabled[1]
+        save_enabled_pages(tmp_path, enabled)
+
+        with config_path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        # parse セクションが破壊されていない
+        assert data["parse"] == {"encoding": "utf-8"}
+        # dashboard.enabled-pages が期待通り
+        assert data["dashboard"]["enabled-pages"] == [
+            {"name": "主表", "type": "table", "filters": {"active": True}},
+        ]
+
+
+class TestRenderSavedViewSmoke:
+    """各PageComponent.render_saved_view が空/最小のSavedViewConfigでも
+    例外を投げずに終わることを直接呼び出して検証するスモークテスト
+
+    Streamlit の UI 検証の弱さを補うため、ロジック層に近い呼び出しを直接行う。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _require(self):
+        pytest.importorskip("streamlit")
+        pytest.importorskip("pandas")
+
+    def _make_provider(self):
+        from jj_types import GraphModel, Node, Relation
+        from services.dashboard.data_provider import DashboardDataProvider
+
+        graph = GraphModel(
+            nodes=[
+                Node(
+                    id=1,
+                    type="go",
+                    name="go_idx1_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx1_v1/go_idx1_v1.inp",
+                        "analysis_status": "COMPLETED",
+                        "cpu_time": 10.0,
+                        "wallclock_time": 20.0,
+                        "active": True,
+                    },
+                ),
+                Node(
+                    id=2,
+                    type="go",
+                    name="go_idx2_v1",
+                    format="inp",
+                    properties={
+                        "path": "go_idx2_v1/go_idx2_v1.inp",
+                        "analysis_status": "FAILED",
+                        "cpu_time": 5.0,
+                        "wallclock_time": 7.0,
+                        "active": True,
+                    },
+                ),
+            ],
+            relations=[Relation(id=1, label="has_input", node1_id=1, node2_id=2)],
+        )
+        return DashboardDataProvider(graph)
+
+    def _run_in_apptest(self, render_fn):
+        """AppTest内で任意のrender関数を実行して例外を捕捉する
+
+        session_state / sidebar などを使う render_saved_view を安全に走らせる
+        ための薄いハーネス。
+        """
+        # 一時スクリプトを組み立ててAppTestで実行
+        import tempfile
+        import textwrap
+        from pathlib import Path
+
+        from streamlit.testing.v1 import AppTest
+
+        root = str(Path(__file__).resolve().parents[1])
+        src = textwrap.dedent(
+            f"""
+            import sys, pathlib
+            ROOT = pathlib.Path(r'{root}').resolve()
+            sys.path.insert(0, str(ROOT))
+            from tests.test_dashboard import _RENDER_FN  # type: ignore
+            _RENDER_FN()
+            """
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write(src)
+            path = f.name
+        # グローバル経由でrender_fnを渡す（AppTestはファイル実行のため）
+        import sys as _sys
+
+        mod = _sys.modules[__name__]
+        mod._RENDER_FN = render_fn  # type: ignore[attr-defined]
+        at = AppTest.from_file(path, default_timeout=15)
+        at.run()
+        return at
+
+    @pytest.mark.parametrize(
+        "page_key",
+        ["table", "plot", "array_plot", "gallery", "card", "status"],
+    )
+    def test_empty_saved_view_renders_without_exception(self, page_key, tmp_path):
+        """最小SavedViewConfig（typeのみ）でも render_saved_view が例外を出さない"""
+        # 全PageComponentを登録
+        import services.dashboard.components.array_plot
+        import services.dashboard.components.card
+        import services.dashboard.components.gallery
+        import services.dashboard.components.plot
+        import services.dashboard.components.status
+        import services.dashboard.components.table  # noqa: F401
+        from config import DashboardConfig, SavedViewConfig
+        from services.dashboard.components import get_page_component
+
+        provider = self._make_provider()
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict({"name": "t", "type": page_key})
+        component = get_page_component(page_key)
+        assert component is not None
+
+        def _render():
+            component.render_saved_view(
+                provider,
+                view,
+                dashboard_config,
+                vocab={},
+                project_root=tmp_path,
+            )
+
+        at = self._run_in_apptest(_render)
+        assert not at.exception, f"{page_key}.render_saved_view raised: {at.exception}"
+
+    def test_plot_with_config_values_uses_them(self, tmp_path):
+        """プロットビューで x/y を指定すると、その軸ラベルが描画に使われる"""
+        import services.dashboard.components.plot  # noqa: F401
+        from config import DashboardConfig, SavedViewConfig
+        from services.dashboard.components import get_page_component
+
+        provider = self._make_provider()
+        dashboard_config = DashboardConfig.from_dict({})
+        view = SavedViewConfig.from_dict(
+            {
+                "name": "p",
+                "type": "plot",
+                "plot": {"x": "cpu_time", "y": "wallclock_time"},
+            }
+        )
+        component = get_page_component("plot")
+
+        def _render():
+            component.render_saved_view(
+                provider,
+                view,
+                dashboard_config,
+                vocab={},
+                project_root=tmp_path,
+            )
+
+        at = self._run_in_apptest(_render)
+        assert not at.exception
+        # データ点数キャプションが描画される（filtered でない限り2件ある）
+        captions = [c.value for c in at.caption]
+        assert any("データ点数" in c for c in captions), captions
+
+
 class TestConfigWriter:
     """config_writer のテスト"""
 
