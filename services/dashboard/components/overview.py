@@ -43,11 +43,17 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """概要ページを対話UIで描画する（旧 render_page 相当）"""
         import streamlit as st
 
         from services.dashboard.components.gallery import render_gallery_section
         from services.dashboard.components.table import render_table_section
-        from services.dashboard.query import apply_saved_view_filters, sort_rows_by_index
+        from services.dashboard.query import (
+            apply_filters,
+            apply_saved_view_filters,
+            sort_rows_by_index,
+        )
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
 
         vocab = kwargs.get("vocab") or {}
         project_root = kwargs.get("project_root")
@@ -57,7 +63,20 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
             st.info("go_ ファイルが見つかりません。")
             return
 
-        filtered = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+        # 共有フィルタ（サイドバー描画）
+        render_shared_filters(rows)
+
+        # 1) view.filters（保存済み）を先に適用
+        base_rows = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+
+        # 2) サイドバーの共有フィルタをさらに重ねる
+        filtered = apply_filters(
+            base_rows,
+            type_filter=st.session_state.get("_filter_type", "すべて"),
+            status_filter=st.session_state.get("_filter_status", "すべて"),
+            active_only=st.session_state.get("_filter_active", False),
+            vocab=vocab,
+        )
         filtered = sort_rows_by_index(filtered, provider._index_key, provider._version_key)
 
         st.subheader("テーブル")
@@ -75,10 +94,12 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
 
         if project_root is not None:
             st.subheader("ギャラリー")
+            active_filters = get_active_filters()
             render_gallery_section(
                 provider,
                 dashboard_config,
                 Path(project_root),
+                active_filters=active_filters,
                 show_header=False,
                 key_prefix=f"view_{view.name}",
             )

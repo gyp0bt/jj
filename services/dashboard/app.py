@@ -63,8 +63,23 @@ from services.dashboard.connectors import (  # noqa: E402
 )
 from services.dashboard.data_provider import DashboardDataProvider  # noqa: E402
 from services.dashboard.html_export import generate_saved_views_html  # noqa: E402
-from services.dashboard.query import get_graph_mtime  # noqa: E402
+from services.dashboard.query import get_graph_mtime, is_truthy  # noqa: E402
 from services.graph import GraphService  # noqa: E402
+
+
+def _init_shared_filters(default_filters: dict[str, Any]) -> None:
+    """共有フィルタの初期化（初回のみ）
+
+    Args:
+        default_filters: config.dashboard.default-filters
+    """
+    if "_filters_initialized" not in st.session_state:
+        st.session_state["_filters_initialized"] = True
+        # active値はYAML由来のboolまたは文字列"true"の両方に対応
+        raw_active = default_filters.get("active", False)
+        st.session_state.setdefault("_filter_active", is_truthy(raw_active))
+        st.session_state.setdefault("_filter_type", "すべて")
+        st.session_state.setdefault("_filter_status", "すべて")
 
 
 def _check_graph_changed(project_root: Path) -> bool:
@@ -262,6 +277,9 @@ def main() -> None:
         project_root=project_root,
     )
 
+    # 共有フィルタ初期化
+    _init_shared_filters(dashboard_config.default_filters)
+
     # 利用可能なコネクターページを取得（enabled_pages解決に必要）
     connector_pages = get_connector_pages(provider)
 
@@ -280,6 +298,10 @@ def main() -> None:
         "vocab": vocab,
         "project_root": project_root,
     }
+
+    # 共有フィルタのレンダリング済みフラグを実行ごとにリセット
+    # （複数ビューが同一実行中にrender_shared_filtersを呼んでも一度だけ描画する）
+    st.session_state["_shared_filters_rendered"] = False
 
     # シングルページレンダリング: enabled_pagesで指定された各ビューを順次描画
     _render_single_page(

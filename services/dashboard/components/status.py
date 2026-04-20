@@ -41,9 +41,19 @@ class StatusPage(PageComponent[StatusViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
-        # view.filters があればgo_tableをそれで絞った名前でステータスをフィルタ
-        active_filters = dict(view.filters) if view.filters else None
-        self._render_status(provider, active_filters=active_filters)
+        """ステータスページを対話UIで描画する（旧 render_page 相当）"""
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
+
+        rows = provider.get_go_table()
+        render_shared_filters(rows)
+        active_filters = get_active_filters() or {}
+        # view.filters（保存済み）を共有フィルタに重ねる
+        if view.filters:
+            merged = dict(view.filters)
+            merged.update(active_filters)
+            active_filters = merged
+
+        self._render_status(provider, active_filters=active_filters or None)
 
     def _render_status(
         self,

@@ -136,18 +136,36 @@ class TablePage(PageComponent[TableViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """テーブルページを対話UIで描画する（旧 render_page 相当）"""
         import streamlit as st
 
-        from services.dashboard.query import apply_saved_view_filters, sort_rows_by_index
+        from services.dashboard.query import apply_filters, apply_saved_view_filters, sort_rows_by_index
+        from services.dashboard.widgets import render_shared_filters
 
         vocab = kwargs.get("vocab") or {}
+
+        st.header("テーブルビュー")
 
         rows = provider.get_go_table()
         if not rows:
             st.info("go_ ファイルが見つかりません。")
             return
 
-        filtered = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+        # 共有フィルタ（サイドバー描画 + 適用）
+        render_shared_filters(rows)
+
+        # 1) view.filters（保存済みフィルタ）を先に適用
+        base_rows = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+
+        # 2) サイドバーの共有フィルタをさらに重ねる
+        filtered = apply_filters(
+            base_rows,
+            type_filter=st.session_state.get("_filter_type", "すべて"),
+            status_filter=st.session_state.get("_filter_status", "すべて"),
+            active_only=st.session_state.get("_filter_active", False),
+            vocab=vocab,
+        )
+
         idx_key = provider._index_key
         ver_key = provider._version_key
         filtered = sort_rows_by_index(filtered, idx_key, ver_key)

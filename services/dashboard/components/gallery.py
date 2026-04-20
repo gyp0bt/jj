@@ -72,6 +72,7 @@ def render_gallery_section(
     show_grid_settings: bool = True,
     show_source_selector: bool = True,
     key_prefix: str = "",
+    initial_source: str | None = None,
 ) -> None:
     """ギャラリーセクションの描画（OverviewPage等から再利用可能）
 
@@ -84,6 +85,8 @@ def render_gallery_section(
         show_grid_settings: グリッド設定UIを表示するか
         show_source_selector: ソース選択UIを表示するか
         key_prefix: session_stateキーの接頭辞（同一ページで複数描画する場合の衝突防止）
+        initial_source: 初期画像ソース（"has_output" / "property"）。show_source_selector
+            が False の場合はここで指定した値を固定で使用する。
     """
     import streamlit as st
 
@@ -116,7 +119,10 @@ def render_gallery_section(
 
     if show_source_selector:
         source_options = ["has_output関係", "プロパティ画像パス"]
-        persisted_source_idx = st.session_state.get(f"{key_prefix}_gallery_source_idx", 0)
+        default_idx = 0
+        if initial_source == "property":
+            default_idx = 1
+        persisted_source_idx = st.session_state.get(f"{key_prefix}_gallery_source_idx", default_idx)
         image_source = st.radio(
             "画像ソース",
             source_options,
@@ -125,6 +131,8 @@ def render_gallery_section(
             key=f"{key_prefix}_gallery_source_radio",
         )
         st.session_state[f"{key_prefix}_gallery_source_idx"] = source_options.index(image_source)
+    elif initial_source == "property":
+        image_source = "プロパティ画像パス"
     else:
         image_source = "has_output関係"
 
@@ -147,7 +155,14 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """ギャラリーページを対話UIで描画する
+
+        ``view.gallery.source`` が指定されている場合は該当ギャラリーに固定し、
+        未指定時は旧 render_page 相当のソース選択UIを出す。
+        """
         import streamlit as st
+
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
 
         project_root = kwargs.get("project_root")
         if project_root is None:
@@ -155,43 +170,25 @@ class GalleryPage(PageComponent[GalleryViewConfig]):
             return
         project_root = Path(project_root)
 
-        gallery_config = view.gallery
-        source = gallery_config.get("source", "has_output")
-        property_key = gallery_config.get("property_key")
-        format_filter = gallery_config.get("format")
+        # 共有フィルタ（サイドバーに描画）
+        rows = provider.get_go_table()
+        render_shared_filters(rows)
+        active_filters = get_active_filters()
 
-        if source == "property":
-            images = provider.get_property_images()
-            if property_key:
-                images = [img for img in images if img["property_key"] == property_key]
-        else:
-            images = provider.get_output_images()
+        # configで "property" が指定されていれば source selector を隠し、
+        # "has_output" 指定や未指定では対話的にソースを切替できるようにする
+        gallery_config = getattr(view, "gallery", {}) or {}
+        cfg_source = gallery_config.get("source")
+        show_source_selector = cfg_source != "property" and cfg_source != "has_output"
 
-        if format_filter:
-            images = [img for img in images if img["image_format"] == format_filter]
-
-        # 保存済みフィルタ（go_table側のフィルタ）を画像のgo_node_nameに反映
-        if view.filters:
-            from services.dashboard.query import apply_saved_view_filters
-
-            filtered_rows = apply_saved_view_filters(provider.get_go_table(), view.filters)
-            filtered_names = {r["name"] for r in filtered_rows}
-            images = [img for img in images if img.get("go_node_name") in filtered_names]
-
-        if not images:
-            st.info("条件に一致する画像がありません。")
-            return
-
-        cols_per_row, rows_per_page, _max_bytes = _get_gallery_settings(dashboard_config)
-        max_display = cols_per_row * rows_per_page
-        images = images[:max_display]
-
-        st.caption(f"{len(images)} 件")
-        _render_image_grid(
-            images,
-            cols_per_row,
+        render_gallery_section(
+            provider,
+            dashboard_config,
             project_root,
-            source="property" if source == "property" else "output",
+            active_filters=active_filters,
+            show_source_selector=show_source_selector,
+            key_prefix=f"gallery_{view.name}",
+            initial_source=cfg_source,
         )
 
     def generate_html(
