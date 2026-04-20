@@ -64,91 +64,157 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """配列プロットページを対話UIで描画する
+
+        ``view`` は enabled-pages 上の識別子兼ウィジェットキー分離用として用い、
+        軸・モード・スタイル等は対話ウィジェットで選択する（旧 render_page 相当）。
+        """
         import streamlit as st
 
-        from services.dashboard.html_export import _add_ng_regions_to_fig
-        from services.dashboard.query import (
-            apply_saved_view_filters,
-            saved_view_filters_to_provider_filters,
+        from services.dashboard.widgets import (
+            build_axis_range,
+            build_style_config,
+            get_active_filters,
+            render_shared_filters,
         )
 
-        ap_config = getattr(view, "array_plot", {})
-        prefix = ap_config.get("prefix", "")
-        x_key = ap_config.get("x", "")
-        y_keys = ap_config.get("y", [])
-        mode = ap_config.get("mode", "overlay")
+        st.header("配列プロットビュー")
 
-        if not x_key:
-            # 接頭辞から自動決定
-            array_keys = provider.get_array_property_keys()
-            if prefix:
-                prefix_keys = [k for k in array_keys if k.startswith(prefix + ".")]
-            else:
-                prefix_keys = array_keys
-            if not prefix_keys:
-                st.info("配列プロパティが見つかりません。")
-                return
-            x_key = prefix_keys[0]
-            if not y_keys:
-                y_keys = [k for k in prefix_keys if k != x_key]
-
-        if isinstance(y_keys, str):
-            y_keys = [y_keys]
-
-        if not y_keys:
-            st.info("Y軸の配列キーが指定されていません。")
+        array_keys = provider.get_array_property_keys()
+        if not array_keys:
+            st.info(
+                "配列プロパティが見つかりません。CSVファイルがhas_output関係でGOファイルに紐付いている必要があります。"
+            )
             return
 
-        # フィルタ適用
-        filters = getattr(view, "filters", {}) or {}
-        filter_dict = saved_view_filters_to_provider_filters(filters) if filters else None
+        # 共有フィルタ（サイドバー描画 + 適用）
+        rows = provider.get_go_table()
+        render_shared_filters(rows)
+
+        # ウィジェットキー接頭辞（同一ページ種別を複数enabled_pagesに入れても衝突しない）
+        wkey = f"_ap_{view.name}"
+
+        # configデフォルト（ビュー編集フォーム等で設定された値を初期表示に反映）
+        ap_config = getattr(view, "array_plot", {}) or {}
+        cfg_prefix = ap_config.get("prefix", "")
+        cfg_x = ap_config.get("x", "")
+        cfg_y = ap_config.get("y", [])
+        cfg_mode = ap_config.get("mode", "overlay")
+        if isinstance(cfg_y, str):
+            cfg_y = [cfg_y]
+
+        # 接頭辞グループの抽出（例: RF, stress）
+        prefixes = sorted({k.split(".")[0] for k in array_keys})
+        prefix_default_idx = prefixes.index(cfg_prefix) if cfg_prefix in prefixes else 0
+
+        # UI: 接頭辞選択 → X/Y軸選択
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            selected_prefix = st.selectbox(
+                "データグループ",
+                prefixes,
+                index=prefix_default_idx,
+                key=f"{wkey}_prefix",
+            )
+
+        # 選択された接頭辞のキーのみ
+        prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
+
+        with col2:
+            x_default_idx = prefix_keys.index(cfg_x) if cfg_x in prefix_keys else min(1, len(prefix_keys) - 1)
+            x_default_idx = max(0, x_default_idx)
+            x_key = st.selectbox("X軸", prefix_keys, index=x_default_idx, key=f"{wkey}_x") if prefix_keys else ""
+        with col3:
+            y_options = [k for k in prefix_keys if k != x_key]
+            if not y_options:
+                st.warning("Y軸に使用できるキーがありません。")
+                return
+            y_defaults = [k for k in cfg_y if k in y_options]
+            if not y_defaults:
+                y_defaults = [y_options[min(len(y_options) - 1, 0)]]
+            y_keys = st.multiselect("Y軸", y_options, default=y_defaults, key=f"{wkey}_y")
+
+        if not y_keys:
+            st.info("Y軸を選択してください。")
+            return
+
+        # 表示モード: 全条件比較 or 個別ノード
+        mode_options = ["全条件比較", "個別ノード"]
+        mode_default_idx = 1 if cfg_mode == "single" else 0
+        view_mode = st.radio(
+            "表示モード",
+            mode_options,
+            index=mode_default_idx,
+            horizontal=True,
+            key=f"{wkey}_mode",
+        )
+
+        # 軸範囲設定（number_input）
+        with st.expander("軸範囲設定", expanded=False):
+            rc1, rc2, rc3, rc4 = st.columns(4)
+            with rc1:
+                ax_x_min = st.number_input("X最小", value=None, key=f"{wkey}_x_min", format="%g")
+            with rc2:
+                ax_x_max = st.number_input("X最大", value=None, key=f"{wkey}_x_max", format="%g")
+            with rc3:
+                ax_y_min = st.number_input("Y最小", value=0.0, key=f"{wkey}_y_min", format="%g")
+            with rc4:
+                ax_y_max = st.number_input("Y最大", value=100, key=f"{wkey}_y_max", format="%g")
+
+        # スタイル設定
+        with st.expander("スタイル設定", expanded=False):
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                ap_marker_size = st.number_input(
+                    "マーカーサイズ",
+                    value=None,
+                    min_value=1,
+                    max_value=50,
+                    key=f"{wkey}_marker_size",
+                )
+            with sc2:
+                ap_line_width = st.number_input("線幅", value=None, min_value=1, max_value=20, key=f"{wkey}_line_width")
+            with sc3:
+                ap_font_size = st.number_input(
+                    "フォントサイズ",
+                    value=None,
+                    min_value=6,
+                    max_value=48,
+                    key=f"{wkey}_font_size",
+                )
+
+        ap_x_range = build_axis_range(ax_x_min, ax_x_max)
+        ap_y_range = build_axis_range(ax_y_min, ax_y_max)
+        ap_style = build_style_config(ap_marker_size, ap_line_width, ap_font_size)
+
+        # 共有フィルタをprovider用のフィルタ辞書に変換
+        active_filters = get_active_filters()
 
         # NG領域設定
-        ng_regions = getattr(dashboard_config, "ng_regions", []) if dashboard_config else []
+        ng_regions = getattr(dashboard_config, "ng_regions", [])
 
-        if mode == "single":
-            # 個別ノード重ね書き（先頭ノードを表示）
-            rows = provider.get_go_table()
-            if filters:
-                rows = apply_saved_view_filters(rows, filters)
-            if rows:
-                node_id = rows[0]["id"]
-                plot_data = provider.get_array_plot_data(node_id, x_key, y_keys)
-                if plot_data:
-                    try:
-                        import plotly.graph_objects as go
-
-                        fig = go.Figure()
-                        for s in plot_data["series"]:
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=plot_data["x_values"],
-                                    y=s["values"],
-                                    mode="lines+markers",
-                                    name=s["key"].split(".")[-1],
-                                )
-                            )
-                        # NG領域塗りつぶし
-                        if ng_regions:
-                            _add_ng_regions_to_fig(fig, ng_regions)
-                        fig.update_layout(
-                            title=plot_data["name"],
-                            xaxis_title=x_key.split(".")[-1],
-                            yaxis_title="値",
-                            height=500,
-                            template=get_plotly_template(),
-                        )
-                        st.plotly_chart(fig, width="stretch")
-                    except ImportError:
-                        st.warning("plotlyが必要です。")
-        else:
-            # overlay（後方互換: gridモードもoverlay扱い）
+        if view_mode == "全条件比較":
             _render_array_overlay(
                 provider,
                 x_key,
                 y_keys,
-                filters=filter_dict,
+                filters=active_filters,
                 ng_regions=ng_regions,
+                x_range=ap_x_range,
+                y_range=ap_y_range,
+                style=ap_style,
+            )
+        else:
+            _render_array_single(
+                provider,
+                x_key,
+                y_keys,
+                filters=active_filters,
+                ng_regions=ng_regions,
+                x_range=ap_x_range,
+                y_range=ap_y_range,
+                style=ap_style,
+                widget_key_prefix=wkey,
             )
 
     def generate_html(
@@ -257,6 +323,7 @@ def _render_array_single(
     x_range: list[float] | None = None,
     y_range: list[float] | None = None,
     style: dict[str, int] | None = None,
+    widget_key_prefix: str = "_ap",
 ) -> None:
     """配列データの個別ノード表示（複数Y軸重ね書き）"""
     import streamlit as st
@@ -294,7 +361,7 @@ def _render_array_single(
         return
 
     display_names = [item["display_name"] for item in items_with_array]
-    selected = st.selectbox("ノード選択", display_names)
+    selected = st.selectbox("ノード選択", display_names, key=f"{widget_key_prefix}_node_select")
     if not selected:
         return
 
@@ -361,3 +428,37 @@ def _render_array_single(
         st.plotly_chart(fig, width="stretch")
     except ImportError:
         st.warning("plotlyが必要です: pip install plotly")
+
+
+# ====================================================================
+# ヘルパー関数
+# ====================================================================
+
+
+def _get_array_plot_defaults(dashboard_config: DashboardConfig | None) -> dict[str, Any]:
+    """DashboardConfigからarray_plotデフォルト設定を取得"""
+    if not dashboard_config:
+        return {}
+    ap_config = getattr(dashboard_config, "array_plot_defaults", None)
+    if not ap_config or not isinstance(ap_config, dict):
+        return {}
+    return ap_config
+
+
+def _find_key_index(keys: list[str], target: str | None) -> int:
+    """キーリスト内でtargetのインデックスを返す。見つからなければ0"""
+    if not target or not keys:
+        return 0
+    try:
+        return keys.index(target)
+    except ValueError:
+        return 0
+
+
+def _get_default_y_keys(y_options: list[str], config_y: str | list[str] | None) -> list[str]:
+    """configからデフォルトY軸キーを取得"""
+    if not config_y:
+        return []
+    if isinstance(config_y, str):
+        config_y = [config_y]
+    return [k for k in config_y if k in y_options]

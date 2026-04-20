@@ -41,33 +41,51 @@ class CardPage(PageComponent[CardViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """カードページを対話UIで描画する（旧 render_page 相当）"""
         import streamlit as st
 
         from services.dashboard.query import apply_saved_view_filters
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
 
-        rows = provider.get_go_table()
-        if not rows:
+        st.header("カードビュー")
+
+        all_rows = provider.get_go_table()
+        if not all_rows:
             st.info("go_ ファイルが見つかりません。")
             return
 
+        # 共有フィルタ（サイドバー描画）
+        render_shared_filters(all_rows)
+        active_filters = get_active_filters()
+
+        # 1) サイドバーフィルタはprovider側で効かせる
+        rows = provider.get_go_table(filters=active_filters) if active_filters else all_rows
+        # 2) view.filters（保存済み）をさらに重ねる
         filtered = apply_saved_view_filters(rows, view.filters) if view.filters else list(rows)
+
         if not filtered:
             st.info("条件に一致するデータがありません。")
             return
 
-        # view.plot or local_filters に "node" 指定があればそれを採用、無ければ先頭
         vn_key = provider._verbose_name_key
-        target_name = view.local_filters.get("node") if view.local_filters else None
-        target_row = None
-        if target_name:
-            target_row = next(
-                (r for r in filtered if r.get(vn_key, r["name"]) == target_name or r["name"] == target_name),
-                None,
-            )
-        if target_row is None:
-            target_row = filtered[0]
+        display_names = [r.get(vn_key, r["name"]) for r in filtered]
 
-        node_id = target_row.get("id")
+        # view.local_filters["node"] を初期値に採用
+        default_node = view.local_filters.get("node") if view.local_filters else None
+        default_idx = 0
+        if default_node and default_node in display_names:
+            default_idx = display_names.index(default_node)
+
+        selected = st.selectbox(
+            "ノード選択",
+            display_names,
+            index=default_idx,
+            key=f"_card_node_{view.name}",
+        )
+        if not selected:
+            return
+
+        node_id = next((r["id"] for r in filtered if r.get(vn_key, r["name"]) == selected), None)
         if node_id is None:
             return
 
@@ -90,6 +108,8 @@ class CardPage(PageComponent[CardViewConfig]):
             if "active" in card["properties"]:
                 st.markdown(f"**active**: {card['properties']['active']}")
 
+        st.markdown("---")
+        st.subheader("プロパティ")
         props = {k: v for k, v in card["properties"].items() if k != "path"}
         if props:
             import pandas as pd
@@ -98,13 +118,18 @@ class CardPage(PageComponent[CardViewConfig]):
             df = pd.DataFrame([props_flat]).T
             df.columns = ["値"]
             st.dataframe(df, width="stretch")
+        else:
+            st.info("プロパティがありません。")
 
+        st.markdown("---")
+        st.subheader("リレーション")
         relations = card.get("relations", [])
         if relations:
-            st.markdown("**リレーション**")
             for rel in relations:
                 direction = "→" if rel["direction"] == "outgoing" else "←"
                 st.markdown(f"- {direction} **{rel['label']}** → {rel['node_name']} ({rel['node_type']})")
+        else:
+            st.info("リレーションがありません。")
 
     def generate_html(
         self,

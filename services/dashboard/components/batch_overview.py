@@ -44,17 +44,29 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> None:
+        """バッチ俯瞰ページを対話UIで描画する（旧 render_page 相当）"""
         import streamlit as st
 
         from services.dashboard.query import apply_saved_view_filters
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
 
-        rows = provider.get_go_table()
+        st.header("バッチラン俯瞰")
+
+        all_rows = provider.get_go_table()
+        if not all_rows:
+            st.info("go_ ファイルが見つかりません。")
+            return
+
+        render_shared_filters(all_rows)
+        active_filters = get_active_filters()
+
+        rows = provider.get_go_table(filters=active_filters) if active_filters else all_rows
         if view.filters:
             rows = apply_saved_view_filters(rows, view.filters)
         if not rows:
             st.info("条件に一致するデータがありません。")
             return
-        self._render_batch_overview(provider, rows, kwargs.get("vocab") or {})
+        self._render_batch_overview(provider, rows, kwargs.get("vocab") or {}, view_name=view.name)
 
     def generate_html(
         self,
@@ -79,6 +91,7 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         provider: DashboardDataProvider,
         rows: list[dict[str, Any]],
         vocab: dict[str, str],
+        view_name: str = "default",
     ) -> None:
         """バッチ俯瞰のメイン描画"""
         import streamlit as st
@@ -99,7 +112,7 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
             "表示モード",
             ["グリッド俯瞰", "詳細ブロック図", "グラフビュー"],
             horizontal=True,
-            key="_batch_view_mode",
+            key=f"_batch_view_mode_{view_name}",
         )
 
         # index選択フィルタ
@@ -107,7 +120,7 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         selected_indices = st.multiselect(
             "index選択（空=全表示）",
             all_indices,
-            key="_batch_index_filter",
+            key=f"_batch_index_filter_{view_name}",
         )
         if selected_indices:
             groups = OrderedDict((k, v) for k, v in groups.items() if k in selected_indices)
