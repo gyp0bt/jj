@@ -34,6 +34,7 @@
 - [x] D-6: シングルページ化（enabled-pages config制御）
 - [x] D-7: ビュー保存/表示機能の統一化（SavedViewConfig駆動・config.yaml一本化）
 - [x] D-8: PageComponent/Connector描画インタフェースを単一render()に集約
+- [x] D-9: シングルページ上でページビュー（対話UI）を復元（widget key を view.name スコープ化）
 
 ### T3 改善候補
 
@@ -85,6 +86,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [087](status-087.md) | 04-20 | ダッシュボード ページビュー（対話UI）復元 | claude/fix-dashboard-view-logic-sQTxz |
 | [086](status-086.md) | 04-18 | PageComponent/Connector描画インタフェースを単一render()に集約 | claude/dashboard-single-page-YMTol |
 | [085](status-085.md) | 04-18 | ビュー保存/表示機能の統一化（SavedViewConfig駆動・config.yaml一本化） | claude/dashboard-single-page-YMTol |
 | [084](status-084.md) | 04-18 | ダッシュボードのシングルページ化（enabled-pages config制御） | claude/dashboard-single-page-YMTol |
