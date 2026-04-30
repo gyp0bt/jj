@@ -53,18 +53,18 @@ def register() -> PluginManifest | None:
     # パーサーのインポート（自動登録が発動）
     # Phase 2-3: 基本MLパーサー (55-60)
     # Phase 4: 最適化・データフロー・サロゲートモデル (62-70)
-    import services.parse.connectors.ml.checkpoint_parser
-    import services.parse.connectors.ml.config_parser
-    import services.parse.connectors.ml.dataflow_parser
-    import services.parse.connectors.ml.dataset_parser
-    import services.parse.connectors.ml.experiment_parser
-    import services.parse.connectors.ml.model_parser
-    import services.parse.connectors.ml.optimization_parser
-    import services.parse.connectors.ml.script_parser
-    import services.parse.connectors.ml.surrogate_detector
+    # import services.parse.connectors.ml.checkpoint_parser
+    # import services.parse.connectors.ml.config_parser
+    # import services.parse.connectors.ml.dataflow_parser
+    # import services.parse.connectors.ml.dataset_parser
+    # import services.parse.connectors.ml.experiment_parser
+    # import services.parse.connectors.ml.model_parser
+    # import services.parse.connectors.ml.optimization_parser
+    # import services.parse.connectors.ml.script_parser
+    # import services.parse.connectors.ml.surrogate_detector
 
     # importの副作用（__init_subclass__）でパーサーが登録される
-    del services
+    # del services
 
     logger.debug("MLプラグインを登録完了")
 
@@ -73,15 +73,15 @@ def register() -> PluginManifest | None:
         version="0.2.0",
         description="機械学習プロジェクトのデータフローグラフ化",
         parsers=[
-            "services.parse.connectors.ml.dataset_parser",
-            "services.parse.connectors.ml.config_parser",
-            "services.parse.connectors.ml.script_parser",
-            "services.parse.connectors.ml.checkpoint_parser",
-            "services.parse.connectors.ml.model_parser",
-            "services.parse.connectors.ml.experiment_parser",
-            "services.parse.connectors.ml.optimization_parser",
-            "services.parse.connectors.ml.dataflow_parser",
-            "services.parse.connectors.ml.surrogate_detector",
+            # "services.parse.connectors.ml.dataset_parser",
+            # "services.parse.connectors.ml.config_parser",
+            # "services.parse.connectors.ml.script_parser",
+            # "services.parse.connectors.ml.checkpoint_parser",
+            # "services.parse.connectors.ml.model_parser",
+            # "services.parse.connectors.ml.experiment_parser",
+            # "services.parse.connectors.ml.optimization_parser",
+            # "services.parse.connectors.ml.dataflow_parser",
+            # "services.parse.connectors.ml.surrogate_detector",
         ],
     )
 

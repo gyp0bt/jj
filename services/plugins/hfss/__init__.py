@@ -38,9 +38,9 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.hfss.aedt_parser  # noqa: F401
+    # import services.parse.connectors.hfss.aedt_parser  # noqa: F401
 
-    logger.debug("HFSSプラグインを登録完了")
+    # logger.debug("HFSSプラグインを登録完了")
 
 
 # モジュールインポート時に自動登録

@@ -60,10 +60,12 @@ def register() -> PluginManifest | None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.abaqus.diff_parser
-    import services.parse.connectors.abaqus.inp_parser
-    import services.parse.connectors.abaqus.mesh_inherit_parser
-    import services.parse.connectors.abaqus.mesh_parser
+    # import services.parse.connectors.abaqus.diff_parser
+    import services.parse.connectors.abaqus.inp_parser_base
+
+    # import services.parse.connectors.abaqus.inp_parser
+    # import services.parse.connectors.abaqus.mesh_inherit_parser
+    # import services.parse.connectors.abaqus.mesh_parser
     import services.parse.connectors.abaqus.parameter_parser
     import services.parse.connectors.abaqus.result_parser
 
@@ -84,11 +86,12 @@ def register() -> PluginManifest | None:
         description="Abaqus INP解析・結果ファイル解析・メッシュ統計・差分比較・ジョブ投入",
         parsers=[
             "services.parse.connectors.abaqus.parameter_parser",
-            "services.parse.connectors.abaqus.inp_parser",
+            "services.parse.connectors.abaqus.inp_parser_base",
             "services.parse.connectors.abaqus.result_parser",
-            "services.parse.connectors.abaqus.mesh_parser",
-            "services.parse.connectors.abaqus.mesh_inherit_parser",
-            "services.parse.connectors.abaqus.diff_parser",
+            # "services.parse.connectors.abaqus.inp_parser",
+            # "services.parse.connectors.abaqus.mesh_parser",
+            # "services.parse.connectors.abaqus.mesh_inherit_parser",
+            # "services.parse.connectors.abaqus.diff_parser",
         ],
         dashboard_pages=dashboard_pages,
         optional_dependencies={

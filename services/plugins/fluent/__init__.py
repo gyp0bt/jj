@@ -39,9 +39,9 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.fluent.journal_parser  # noqa: F401
+    # import services.parse.connectors.fluent.journal_parser  # noqa: F401
 
-    logger.debug("Fluentプラグインを登録完了")
+    # logger.debug("Fluentプラグインを登録完了")
 
 
 # モジュールインポート時に自動登録

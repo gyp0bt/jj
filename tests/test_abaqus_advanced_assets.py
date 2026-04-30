@@ -36,7 +36,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_hyperelastic_neo_hooke(self):
         """HYPERELASTIC, NEO HOOKE が正しく解析される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         mat_by_name = {m["name"]: m for m in materials}
@@ -50,7 +50,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_hyperelastic_mooney_rivlin(self):
         """HYPERELASTIC, MOONEY-RIVLIN が正しく解析される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         mat_by_name = {m["name"]: m for m in materials}
@@ -62,7 +62,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_orthotropic_elastic(self):
         """ELASTIC, TYPE=ORTHOTROPIC が正しく解析される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         mat_by_name = {m["name"]: m for m in materials}
@@ -75,7 +75,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_kinematic_hardening(self):
         """PLASTIC, HARDENING=KINEMATIC が正しく解析される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         mat_by_name = {m["name"]: m for m in materials}
@@ -89,7 +89,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_viscoelastic_prony(self):
         """VISCOELASTIC, TIME=PRONY が正しく解析される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         mat_by_name = {m["name"]: m for m in materials}
@@ -103,7 +103,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_case_sensitive_materials(self):
         """Steel と STEEL が別材料として認識される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         mat_names = [m["name"] for m in materials]
@@ -114,7 +114,7 @@ class TestParseMaterialBlocksAdvanced:
 
     def test_total_material_count(self):
         """material_advanced.inp の全材料が解析される（7個）"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "material_advanced.inp")
         assert len(materials) == 7
@@ -130,7 +130,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_shell_section_keyword(self):
         """SHELL SECTIONキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx1.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -138,7 +138,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_frequency_step_keyword(self):
         """FREQUENCYキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx1.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -146,7 +146,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_cload_keyword(self):
         """CLOADキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx1.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -154,7 +154,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_dload_keyword(self):
         """DLOADキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx1.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -162,7 +162,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_general_contact_keyword(self):
         """CONTACT（General Contact）キーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx2.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -170,7 +170,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_coupled_temp_displacement_keyword(self):
         """COUPLED TEMPERATURE-DISPLACEMENTキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx2.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -178,7 +178,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_pressure_keyword(self):
         """PRESSUREキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx2.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -186,7 +186,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_buckle_keyword(self):
         """BUCKLEキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx3.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -194,7 +194,7 @@ class TestParseKeywordBlocksAdvanced:
 
     def test_beam_section_keyword(self):
         """BEAM SECTIONキーワードが検出される"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "go_idx3.v1.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -352,7 +352,7 @@ class TestMaterialParsingViaInclude:
 
     def test_go_idx1_includes_material_advanced(self):
         """go_idx1.v1.inp が material_advanced.inp をINCLUDEしている"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         # go_idx1.v1.inp はincludeで material_advanced.inp を参照
         # ただし parse_material_blocks はincludeを辿らない（単体ファイル解析）
@@ -362,7 +362,7 @@ class TestMaterialParsingViaInclude:
 
     def test_go_idx3_inline_material(self):
         """go_idx3.v1.inp のインライン材料定義"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         materials = parse_material_blocks(ADVANCED_ASSET_DIR / "go_idx3.v1.inp")
         assert len(materials) == 1
@@ -380,7 +380,7 @@ class TestNestedInclude:
 
     def test_nested_main_has_include(self):
         """main.inp が sub/assembly.inp をINCLUDE"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "nested_include" / "main.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]
@@ -388,7 +388,7 @@ class TestNestedInclude:
 
     def test_nested_sub_has_include(self):
         """sub/assembly.inp が ../material_advanced.inp をINCLUDE"""
-        from services.parse.connectors.abaqus.inp_parser import parse_keyword_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_keyword_blocks
 
         keywords = parse_keyword_blocks(ADVANCED_ASSET_DIR / "nested_include" / "sub" / "assembly.inp")
         kw_names = [kw["keyword"].upper() for kw in keywords]

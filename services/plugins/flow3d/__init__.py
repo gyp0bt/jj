@@ -37,9 +37,9 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.flow3d.prepin_parser  # noqa: F401
+    # import services.parse.connectors.flow3d.prepin_parser  # noqa: F401
 
-    logger.debug("Flow-3Dプラグインを登録完了")
+    # logger.debug("Flow-3Dプラグインを登録完了")
 
 
 # モジュールインポート時に自動登録

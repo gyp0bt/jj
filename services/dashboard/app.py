@@ -186,12 +186,12 @@ def main() -> None:
         st.sidebar.success("graph.yaml が更新されました。データを再読み込みしました。")
 
     # 手動再読み込みボタン
-    if st.sidebar.button("再読み込み"):
+    if st.sidebar.button("reload"):
         st.session_state["_graph_mtime"] = get_graph_mtime(project_root)
         st.rerun()
 
     # Re-parseボタン: プロジェクトを再解析してグラフを更新
-    if st.sidebar.button("Re-parse"):
+    if st.sidebar.button("reparse"):
         with st.spinner("Parsing..."):
             try:
                 from services.graph import GraphService
@@ -347,10 +347,10 @@ def _render_single_page(
             )
 
     # ビュー追加フォームとHTMLエクスポート
-    st.markdown("---")
-    with st.expander("ビューを追加", expanded=False):
-        _render_view_add_form(provider, project_root, enabled)
-    _render_html_export_button(provider, project_root, dashboard_config, vocab)
+    # st.markdown("---")
+    # with st.expander("ビューを追加", expanded=False):
+    # _render_view_add_form(provider, project_root, enabled)
+    # _render_html_export_button(provider, project_root, dashboard_config, vocab)
 
 
 def _render_enabled_view(
@@ -375,15 +375,15 @@ def _render_enabled_view(
     with hcol1:
         header_suffix = f"（{view.view_type}）" if view.name != view.view_type else ""
         st.header(f"{view.name}{header_suffix}")
-    with hcol2:
-        if st.button("編集" if not editing else "キャンセル", key=f"_toggle_edit_{idx}"):
-            st.session_state[editing_key] = not editing
-            st.rerun()
-    with hcol3:
-        if st.button("削除", key=f"_delete_view_{idx}"):
-            del enabled[idx]
-            _persist_enabled_pages(project_root, enabled)
-            st.rerun()
+    # with hcol2:
+    # if st.button("編集" if not editing else "キャンセル", key=f"_toggle_edit_{idx}"):
+    # st.session_state[editing_key] = not editing
+    # st.rerun()
+    # with hcol3:
+    # if st.button("削除", key=f"_delete_view_{idx}"):
+    # del enabled[idx]
+    # _persist_enabled_pages(project_root, enabled)
+    # st.rerun()
 
     if editing:
         _render_view_edit_form(provider, project_root, idx, view, enabled)

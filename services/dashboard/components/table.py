@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from services.dashboard.components import PageComponent, ViewConfig
 from services.dashboard.data_provider import format_float_value
 
@@ -91,6 +93,12 @@ def render_table_section(
     if vn_key in df.columns:
         df["name"] = df[vn_key]
         df = df.drop(vn_key, axis=1)
+
+    remain_cols = []
+    for c in df.columns:
+        if np.unique(df[c].to_numpy()).shape[0] > 1:
+            remain_cols.append(c)
+    df = df[remain_cols]
 
     # config駆動カラム選択（vocab順ソート対応）
     table_columns = getattr(dashboard_config, "table_columns", None)

@@ -29,8 +29,9 @@ def register() -> None:
 
         provider = create_provider_from_config(ai_config)
         if provider is not None:
-            set_provider(provider)
-            logger.debug("OllamaProvider registered: %s", provider._base_url)
+            # set_provider(provider)
+            # logger.debug("OllamaProvider registered: %s", provider._base_url)
+            pass
     except Exception:
         # プラグイン登録失敗は警告のみ（他の機能に影響させない）
         logger.debug("Ollamaプラグイン登録スキップ", exc_info=True)

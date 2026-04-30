@@ -29,9 +29,9 @@ def register() -> None:
         return
     _registered = True
 
-    import services.parse.connectors.experiment.data_parser  # noqa: F401
+    # import services.parse.connectors.experiment.data_parser  # noqa: F401
 
-    logger.debug("物理実験プラグインを登録完了")
+    # logger.debug("物理実験プラグインを登録完了")
 
 
 # モジュールインポート時に自動登録

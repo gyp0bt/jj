@@ -36,9 +36,9 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.lsdyna.keyword_parser  # noqa: F401
+    # import services.parse.connectors.lsdyna.keyword_parser  # noqa: F401
 
-    logger.debug("LS-DYNAプラグインを登録完了")
+    # logger.debug("LS-DYNAプラグインを登録完了")
 
 
 # モジュールインポート時に自動登録

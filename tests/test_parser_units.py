@@ -1089,7 +1089,7 @@ class TestAbaqusElsetParser:
 
     def test_creates_elset_nodes_from_mesh_elset_summary(self, config: GraphConfig):
         """mesh_elset_summaryからabaqus_elsetノードが生成される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1114,7 +1114,7 @@ class TestAbaqusElsetParser:
 
     def test_elset_has_element_count(self, config: GraphConfig):
         """elsetノードにelement_countプロパティが付与される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1138,7 +1138,7 @@ class TestAbaqusElsetParser:
 
     def test_elset_has_material_assignment(self, config: GraphConfig):
         """material_elsetsから各elsetに材料割り当てが付与される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1162,7 +1162,7 @@ class TestAbaqusElsetParser:
 
     def test_elset_from_include_child(self, config: GraphConfig):
         """include先のmesh_elset_summaryからもelset名とelement_countが取得される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
@@ -1190,7 +1190,7 @@ class TestAbaqusElsetParser:
 
     def test_has_elset_relation_created(self, config: GraphConfig):
         """go_*.inpとelsetの間にhas_elsetリレーションが生成される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1214,7 +1214,7 @@ class TestAbaqusElsetParser:
 
     def test_go_node_gets_elsets_property(self, config: GraphConfig):
         """go_*.inpノードにelsetsプロパティが設定される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1238,7 +1238,7 @@ class TestAbaqusElsetParser:
 
     def test_material_only_elset_no_element_count(self, config: GraphConfig):
         """material_elsetsのみにあるelsetはelement_countなし"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1712,7 +1712,7 @@ class TestElementQualityStats:
 
     def test_elset_node_created_without_quality(self, config: GraphConfig):
         """elsetノードが作成される（qualityは要素タイプ別のため個別elsetにはない）"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1746,7 +1746,7 @@ class TestElementQualityStats:
 
     def test_elset_from_include_child(self, config: GraphConfig):
         """include先のelsetもノード化される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusElsetParser
 
         nodes = [
             Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),

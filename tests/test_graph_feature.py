@@ -1013,7 +1013,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_material_from_file(self):
         """material.inpファイルのパース"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         inp_path = FIXTURE_DIR / "material.inp"
         if not inp_path.exists():
@@ -1036,7 +1036,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_empty_file(self, tmp_path):
         """空ファイルのパース"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         empty_file = tmp_path / "empty.inp"
         empty_file.write_text("")
@@ -1045,7 +1045,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_file_without_material(self, tmp_path):
         """*MATERIALブロックがないファイル"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         inp_file = tmp_path / "no_material.inp"
         inp_file.write_text("*STEP\n*STATIC\n1., 1.\n*END STEP\n")
@@ -2034,7 +2034,7 @@ class TestMaterialSourceFiltering:
 
     def test_is_material_source_node_static(self):
         """_is_material_source_nodeの静的テスト"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusInpParser
+        from services.parse.connectors.abaqus.inp_parser_base import AbaqusInpParser
 
         # go系.inp → True
         go_node = Node(id=1, type="go", name="go_idx1", format="inp", properties={})
@@ -3135,7 +3135,7 @@ class TestMaterialAssignmentProps:
         from config import GraphConfig
         from jj_types import Relation
         from services.graph.project_graph import ProjectGraph
-        from services.parse.connectors.abaqus.inp_parser import (
+        from services.parse.connectors.abaqus.inp_parser_base import (
             AbaqusMaterialAssignmentParser,
         )
 
@@ -3604,7 +3604,7 @@ class TestMaterialNameCasePreservation:
 
     def test_parse_material_blocks_preserves_case(self, tmp_path):
         """parse_material_blocksが元の大文字小文字を保持する"""
-        from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 
         inp_file = tmp_path / "material.inp"
         inp_file.write_text(

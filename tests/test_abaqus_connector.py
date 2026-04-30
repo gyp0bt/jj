@@ -37,7 +37,7 @@ from services.parse.connectors.abaqus import (
     generate_diff_props,
     read_inp,
 )
-from services.parse.connectors.abaqus.inp_parser import parse_material_blocks
+from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
 from services.parse.connectors.abaqus.result_parser import parse_sta_file
 
 # ==========================

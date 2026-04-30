@@ -52,37 +52,41 @@ def register() -> PluginManifest | None:
 
     # PPTX パーサー（python-pptx がなくても基本メタデータは抽出可能）
     try:
-        import services.parse.connectors.office.pptx_parser
+        # import services.parse.connectors.office.pptx_parser
 
-        parsers.append("services.parse.connectors.office.pptx_parser")
-        logger.debug("PPTX パーサーを登録")
+        # parsers.append("services.parse.connectors.office.pptx_parser")
+        # logger.debug("PPTX パーサーを登録")
+        pass
     except ImportError:
         logger.debug("PPTX パーサーのロードをスキップ（python-pptx 不足）")
 
     # XLSX パーサー（openpyxl がなくても基本メタデータは抽出可能）
     try:
-        import services.parse.connectors.office.xlsx_parser
+        # import services.parse.connectors.office.xlsx_parser
 
-        parsers.append("services.parse.connectors.office.xlsx_parser")
-        logger.debug("XLSX パーサーを登録")
+        # parsers.append("services.parse.connectors.office.xlsx_parser")
+        # logger.debug("XLSX パーサーを登録")
+        pass
     except ImportError:
         logger.debug("XLSX パーサーのロードをスキップ（openpyxl 不足）")
 
     # Excel エクスポーター
     try:
-        import services.export.connectors.excel_export
+        # import services.export.connectors.excel_export
 
-        exporters.append("services.export.connectors.excel_export")
-        logger.debug("Excel エクスポーターを登録")
+        # exporters.append("services.export.connectors.excel_export")
+        # logger.debug("Excel エクスポーターを登録")
+        pass
     except ImportError:
         logger.debug("Excel エクスポーターのロードをスキップ（openpyxl 不足）")
 
     # PPTX エクスポーター
     try:
-        import services.export.connectors.pptx_export  # noqa: F401
+        # import services.export.connectors.pptx_export  # noqa: F401
 
-        exporters.append("services.export.connectors.pptx_export")
-        logger.debug("PPTX エクスポーターを登録")
+        # exporters.append("services.export.connectors.pptx_export")
+        # logger.debug("PPTX エクスポーターを登録")
+        pass
     except ImportError:
         logger.debug("PPTX エクスポーターのロードをスキップ（python-pptx 不足）")
 

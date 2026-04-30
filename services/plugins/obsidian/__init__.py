@@ -48,14 +48,15 @@ def register() -> PluginManifest | None:
     _registered = True
 
     # パーサーのインポート（自動登録が発動）
-    import services.parse.connectors.obsidian.daily_parser
+    # import services.parse.connectors.obsidian.daily_parser
 
     # エクスポーターのインポート（自動登録が発動）
     exporters: list[str] = []
     try:
-        import services.export.connectors.obsidian  # noqa: F401
+        # import services.export.connectors.obsidian  # noqa: F401
 
-        exporters.append("services.export.connectors.obsidian")
+        # exporters.append("services.export.connectors.obsidian")
+        pass
     except ImportError:
         logger.debug("Obsidianエクスポーターのロードをスキップ（依存パッケージ不足）")
 
@@ -66,7 +67,7 @@ def register() -> PluginManifest | None:
         version="0.2.0",
         description="Obsidian Daily Note解析・Obsidianエクスポート",
         parsers=[
-            "services.parse.connectors.obsidian.daily_parser",
+            # "services.parse.connectors.obsidian.daily_parser",
         ],
         exporters=exporters,
     )
