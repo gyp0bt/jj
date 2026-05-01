@@ -15,11 +15,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from services.dashboard.query import (
+from services.dashboard.widgets import build_axis_range, get_plotly_template
+from services.graph.query import (
     apply_saved_view_filters,
     select_table_columns,
 )
-from services.dashboard.widgets import build_axis_range, get_plotly_template
 
 if TYPE_CHECKING:
     from services.dashboard.data_provider import DashboardDataProvider
@@ -287,7 +287,7 @@ def generate_array_plot_html(
 ) -> str:
     """配列プロットビューのHTML断片"""
     from modules.vocab_display import translate_key
-    from services.dashboard.query import saved_view_filters_to_provider_filters
+    from services.graph.query.filters import saved_view_filters_to_provider_filters
 
     v = vocab or {}
 

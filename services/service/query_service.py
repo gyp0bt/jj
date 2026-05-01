@@ -1,6 +1,6 @@
 """クエリサービス
 
-services/query の汎用フィルタ/ソートロジックを利用し、
+services/graph/query の汎用フィルタ/ソートロジックを利用し、
 GraphModelに対するノードフィルタリングを提供する。
 API層（services/api）はこのサービスを経由してクエリ操作を行う。
 
@@ -10,7 +10,7 @@ API層（services/api）はこのサービスを経由してクエリ操作を�
 from __future__ import annotations
 
 from jj_types import Node
-from services.query.filters import (
+from services.graph.query.filters import (
     apply_prop_filters,
     node_prop_getter,
     parse_prop_filters,
@@ -70,7 +70,7 @@ class QueryService:
     ) -> list[tuple[str, str, float]]:
         """クエリパラメータからprops条件式フィルタを抽出する
 
-        services.query.parse_prop_filters への委譲。
+        services.graph.query.parse_prop_filters への委譲。
 
         Args:
             query_params: リクエストのクエリパラメータ辞書

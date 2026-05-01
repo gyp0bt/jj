@@ -261,7 +261,7 @@ def _render_gallery_output_images(
     """has_output関係の画像ギャラリー（NxMグリッド・グループ表示対応）"""
     import streamlit as st
 
-    from services.dashboard.query import collect_group_keys, filter_images_by_keys
+    from services.dashboard.images import collect_group_keys, filter_images_by_keys
 
     images = provider.get_output_images()
 
@@ -291,7 +291,7 @@ def _render_gallery_output_images(
         images = [img for img in images if img["image_format"] == selected_format]
 
     # フィルタ: キー名リスト指定（result_keyベース）
-    from services.dashboard.query import _extract_result_key_from_path
+    from services.dashboard.images import _extract_result_key_from_path
 
     available_result_keys = sorted({_extract_result_key_from_path(img.get("image_path", "")) for img in images} - {""})
     if available_result_keys:
@@ -372,7 +372,7 @@ def _render_gallery_property_images(
     """プロパティ画像パスのギャラリー（キー別一覧・NxMグリッド・グループ表示対応）"""
     import streamlit as st
 
-    from services.dashboard.query import (
+    from services.dashboard.images import (
         collect_group_keys,
         filter_images_by_keys,
         normalize_group_key,
@@ -505,11 +505,11 @@ def _render_gallery_grouped(
 
     import streamlit as st
 
-    from services.dashboard.query import normalize_group_key
+    from services.dashboard.images import normalize_group_key
 
     if group_key == "result_key":
         # 画像パスからresult_key+propsの複合キーでグルーピング
-        from services.dashboard.query import group_images_by_composite_key
+        from services.dashboard.images import group_images_by_composite_key
 
         groups = group_images_by_composite_key(images)
 

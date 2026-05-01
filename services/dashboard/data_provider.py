@@ -1,10 +1,12 @@
-"""ダッシュボード向けデータ供給クラス（汎用）
+"""ダッシュボード向けデータ供給クラス（薄い表示ラッパ）
 
 GraphModelを受け取り、テーブル/カード/プロット/ステータスの
-各ビュー向けデータ構造に変換する。
+各ビュー向けデータ構造に変換する。汎用なクエリ・行整形・外部化
+プロパティ解決は services.graph.query.GraphQuery に委譲し、
+本クラスは vocab/units/verbose_name の表示変換を担う。
+
 ソフトウェア固有のデータ供給（例: Abaqus物性テーブル）は
-services/dashboard/connectors/ のコネクターに移動済み。
-float値は桁数が大きい場合に指数表示（小数2桁）でフォーマットする。
+plugins/{solver}/dashboard.py のコネクターに移動済み。
 
 [READMEへ戻る](../../../README.md)
 """
@@ -18,96 +20,52 @@ from pathlib import Path
 from typing import Any
 
 from jj_types import RUN_INPUT, RUN_MEDIA, RUN_OUTPUT, GraphModel, Node, NodeCategory, Relation
+from services.graph.query.graph_query import (
+    EXT_KEYS_FIELD,
+    GraphQuery,
+    format_float_value,  # noqa: F401  公開名互換のため再エクスポート
+)
 
-_EXT_KEYS_FIELD = "_ext_keys"
-
-
-def format_float_value(value: float) -> str | float:
-    """float値を表示用にフォーマット
-
-    絶対値が1e4以上または1e-2未満（0を除く）の場合、
-    指数表示で小数2桁にフォーマットする。
-    それ以外はそのまま返す。
-
-    Args:
-        value: フォーマット対象のfloat値
-
-    Returns:
-        フォーマット済み文字列 or 元の値
-    """
-    if not isinstance(value, (int, float)):
-        return value
-    if isinstance(value, bool):
-        return value
-    fval = float(value)
-    if math.isnan(fval) or math.isinf(fval):
-        return value
-    abs_val = abs(fval)
-    if abs_val == 0:
-        return value
-    if abs_val >= 1e4 or abs_val < 1e-2:
-        return f"{fval:.2e}"
-    return value
+# 後方互換: 旧シンボル
+_EXT_KEYS_FIELD = EXT_KEYS_FIELD
 
 
 def _compute_histogram_bins(values: list[float]) -> int:
-    """データ分布に応じたヒストグラムビン数を動的に決定する
-
-    Sturges則をベースに、データ数やレンジに応じて調整する。
-    - n <= 5: ビン数 = n（各値に1ビン）
-    - n > 5: Sturges則 ceil(log2(n) + 1) を基本に、最小10・最大50で制限
-
-    Args:
-        values: 数値リスト
-
-    Returns:
-        推奨ビン数
-    """
+    """データ分布に応じたヒストグラムビン数を動的に決定する (Sturges則)"""
     n = len(values)
     if n <= 1:
         return 1
     if n <= 5:
         return n
-
-    # Sturges則: k = ceil(log2(n) + 1)
     sturges = math.ceil(math.log2(n) + 1)
-    # 最小10、最大50に制限
     return max(10, min(50, sturges))
 
 
 def _percentile(sorted_values: list[float], pct: float) -> float:
-    """ソート済みリストからパーセンタイル値を線形補間で計算
-
-    Args:
-        sorted_values: 昇順ソート済み数値リスト
-        pct: パーセンタイル（0-100）
-
-    Returns:
-        パーセンタイル値
-    """
+    """ソート済みリストからパーセンタイル値を線形補間で計算"""
     n = len(sorted_values)
     if n == 0:
         return 0.0
     if n == 1:
         return sorted_values[0]
-
     k = (pct / 100.0) * (n - 1)
     f = math.floor(k)
     c = math.ceil(k)
-
     if f == c:
         return sorted_values[int(k)]
-
     return sorted_values[f] + (k - f) * (sorted_values[c] - sorted_values[f])
 
 
+def _is_go_node(node: Node) -> bool:
+    name_lower = node.name.lower()
+    return name_lower.startswith("go_") or name_lower == "go"
+
+
 class DashboardDataProvider:
-    """ダッシュボード向けデータ供給
+    """ダッシュボード向けデータ供給（表示変換層）
 
-    GraphModelを受け取り、各ビューに最適化したデータ構造を返す。
-
-    表示名（verbose_name）はparse時にDisplayNameParserが生成・格納済みのため、
-    ダッシュボード側ではverbose_nameプロパティを参照するだけでよい。
+    GraphQuery (汎用クエリ層) の結果に vocab/units/verbose_name を載せて
+    各ビューへ供給する。
 
     Args:
         graph: 対象のGraphModel
@@ -132,67 +90,54 @@ class DashboardDataProvider:
         self._verbose_name_format = verbose_name_format  # 後方互換のため保持
         self._global_columns = global_columns
         self._project_root = project_root
-        self._storage: Any | None = None
+
+        storage: Any | None = None
         if project_root is not None:
             from services.graph.storage import GraphStorage
 
-            self._storage = GraphStorage()
-        self._node_by_id: dict[int, Node] = {n.id: n for n in graph.nodes}
-        self._relations_by_node: dict[int, list[Relation]] = {}
-        for r in graph.relations:
-            self._relations_by_node.setdefault(r.node1_id, []).append(r)
-            self._relations_by_node.setdefault(r.node2_id, []).append(r)
+            storage = GraphStorage()
+        self._storage = storage
+
+        self._gq = GraphQuery(graph, storage=storage, project_root=project_root)
 
         # 生キーで統一（vocab変換は表示時のみ）
         self._verbose_name_key = "verbose_name"
         self._index_key = "index"
         self._version_key = "version"
 
+    # ------------------------------------------------------------------
+    # 後方互換: GraphQuery 内部インデックスへの read-only プロキシ
+    # ------------------------------------------------------------------
+
+    @property
+    def _node_by_id(self) -> dict[int, Node]:
+        return self._gq._node_by_id
+
+    @property
+    def _relations_by_node(self) -> dict[int, list[Relation]]:
+        return self._gq._relations_by_node
+
+    # ------------------------------------------------------------------
+    # 公開 API
+    # ------------------------------------------------------------------
+
     def get_go_table(
         self,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """go_ファイルのテーブルデータ（プロパティ展開済み）
-
-        Args:
-            filters: フィルタ条件 {"type": "go", "active": True, ...}
-
-        Returns:
-            行データのリスト。各行は展開済みプロパティを含むdict。
-        """
+        """go_ファイルのテーブルデータ（プロパティ展開済み）"""
         rows: list[dict[str, Any]] = []
-
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
-
             row = self._node_to_row(node)
-
             if filters and not self._matches_filters(row, filters):
                 continue
-
             rows.append(row)
-
         return rows
 
     def get_run_nodes(self) -> list[dict[str, Any]]:
-        """Runノード一覧を返す
-
-        Returns:
-            Runノード情報のリスト。各要素:
-            {
-                "id": int,
-                "name": str,
-                "run_type": str,
-                "run_status": str,
-                "discovery": str,
-                "properties": dict,
-                "input_ids": list[int],
-                "output_ids": list[int],
-                "media_ids": list[int],
-            }
-        """
+        """Runノード一覧を返す"""
         results: list[dict[str, Any]] = []
         for node in self.graph.nodes:
             if node.category != NodeCategory.RUN:
@@ -200,9 +145,7 @@ class DashboardDataProvider:
             inputs: list[int] = []
             outputs: list[int] = []
             media: list[int] = []
-            for rel in self._relations_by_node.get(node.id, []):
-                if rel.node1_id != node.id:
-                    continue
+            for rel in self._gq.query_relations(node.id, direction="outgoing"):
                 if rel.label == RUN_INPUT:
                     inputs.append(rel.node2_id)
                 elif rel.label == RUN_OUTPUT:
@@ -229,22 +172,8 @@ class DashboardDataProvider:
         return results
 
     def get_run_for_node(self, node_id: int) -> dict[str, Any] | None:
-        """指定ノードを出力に持つRunノードを返す
-
-        run_outputリレーション経由で逆引きし、最初に見つかったRunを返す。
-
-        Args:
-            node_id: 対象ノードID
-
-        Returns:
-            Run情報の辞書。見つからない場合はNone。
-        """
-        for rel in self._relations_by_node.get(node_id, []):
-            if rel.label != RUN_OUTPUT:
-                continue
-            # run_outputはRun→出力ノード方向なので、node1_idがRunノード
-            if rel.node2_id != node_id:
-                continue
+        """指定ノードを出力に持つRunノードを返す（run_output逆引き）"""
+        for rel in self._gq.query_relations(node_id, label=RUN_OUTPUT, direction="incoming"):
             run_node = self._node_by_id.get(rel.node1_id)
             if run_node is not None and run_node.category == NodeCategory.RUN:
                 return {
@@ -264,14 +193,7 @@ class DashboardDataProvider:
         return None
 
     def get_node_card(self, node_id: int) -> dict[str, Any] | None:
-        """ノード詳細カード（関連ノード含む）
-
-        Args:
-            node_id: 対象ノードのID
-
-        Returns:
-            ノード詳細の辞書。ノードが見つからない場合はNone。
-        """
+        """ノード詳細カード（関連ノード含む）"""
         node = self._node_by_id.get(node_id)
         if node is None:
             return None
@@ -284,8 +206,7 @@ class DashboardDataProvider:
             "properties": dict(node.properties),
             "relations": [],
         }
-
-        for rel in self._relations_by_node.get(node_id, []):
+        for rel in self._gq.query_relations(node_id):
             other_id = rel.node2_id if rel.node1_id == node_id else rel.node1_id
             other_node = self._node_by_id.get(other_id)
             card["relations"].append(
@@ -297,7 +218,6 @@ class DashboardDataProvider:
                     "node_type": other_node.type if other_node else "unknown",
                 }
             )
-
         return card
 
     def get_plot_data(
@@ -307,36 +227,20 @@ class DashboardDataProvider:
         color_key: str | None = None,
         extra_keys: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """プロット用データ（数値プロパティのみ）
-
-        Args:
-            x_key: X軸プロパティキー
-            y_key: Y軸プロパティキー
-            color_key: 色分けプロパティキー
-            extra_keys: 追加で含めるプロパティキー（グループ結線キー等）
-
-        Returns:
-            プロット用データポイントのリスト
-        """
+        """プロット用データ（数値プロパティのみ）"""
         points: list[dict[str, Any]] = []
-
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
-
             x_val = node.properties.get(x_key)
             y_val = node.properties.get(y_key)
-
             if x_val is None or y_val is None:
                 continue
-
             try:
                 x_num = float(x_val)
                 y_num = float(y_val)
             except (ValueError, TypeError):
                 continue
-
             point: dict[str, Any] = {
                 "name": node.name,
                 self._verbose_name_key: self._get_display_name(node),
@@ -344,66 +248,33 @@ class DashboardDataProvider:
                 x_key: x_num,
                 y_key: y_num,
             }
-
             if color_key:
                 point[color_key] = node.properties.get(color_key, "")
-
-            # 追加キー（グループ結線キー等）をデータに含める
             if extra_keys:
                 for ek in extra_keys:
                     if ek not in point:
                         point[ek] = node.properties.get(ek, "")
-
             points.append(point)
-
         return points
 
     def get_property_keys(self) -> list[str]:
-        """利用可能なプロパティキー一覧（vocab順）
-
-        go_ノードのプロパティキーを集約して返す。
-        vocab辞書の値の定義順序で優先的にソートし、
-        vocabに含まれないキーは文字列昇順で後に配置する。
-
-        Returns:
-            vocab順→文字列昇順のキーリスト
-        """
+        """利用可能なプロパティキー一覧（vocab順）"""
         keys: set[str] = set()
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
             keys.update(node.properties.keys())
-
-        # 内部キー（path等）は除外
-        internal_keys = {"path"}
-        keys -= internal_keys
-
+        keys -= {"path"}
         return self._sort_by_vocab(keys)
 
     def _sort_by_vocab(self, keys: set[str] | list[str]) -> list[str]:
-        """vocab順でキーをソート
+        """vocab順でキーをソート（接頭辞エスケープキー対応）"""
+        from services.graph.query.sort import get_base_key
 
-        vocab辞書の値（日本語表記）の出現順を優先し、
-        vocabに含まれないキーは文字列昇順で後に配置する。
-
-        接頭辞エスケープキー（child_name:key）はベースキー（key部分）で
-        vocab照合を試み、ベースキーの直後にソートされる。
-
-        Args:
-            keys: ソート対象のキー集合
-
-        Returns:
-            vocab順→文字列昇順のリスト
-        """
-        from services.query.sort import get_base_key
-
-        # vocabの値（翻訳後キー名）の順序マップを構築
         vocab_order: dict[str, int] = {}
         for idx, v in enumerate(self.vocab.values()):
             if v not in vocab_order:
                 vocab_order[v] = idx
-        # vocabのキー（翻訳前）も順序に含める
         for idx, k in enumerate(self.vocab.keys()):
             if k not in vocab_order:
                 vocab_order[k] = len(self.vocab) + idx
@@ -421,18 +292,7 @@ class DashboardDataProvider:
         return sorted(keys, key=_sort_key)
 
     def get_status_summary(self) -> dict[str, Any]:
-        """実行ステータスサマリー
-
-        Returns:
-            {
-                "total": int,
-                "completed": int,
-                "failed": int,
-                "running": int,
-                "unknown": int,
-                "items": [{"name": str, "status": str, ...}, ...]
-            }
-        """
+        """実行ステータスサマリー（go_ノード集計 + CPU/警告統計）"""
         total = 0
         completed = 0
         failed = 0
@@ -440,13 +300,10 @@ class DashboardDataProvider:
         items: list[dict[str, Any]] = []
 
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
-
             total += 1
             status = node.properties.get("analysis_status", "unknown")
-
             if status == "completed":
                 completed += 1
             elif status == "failed":
@@ -474,7 +331,6 @@ class DashboardDataProvider:
                 item["warnings"] = warnings
             items.append(item)
 
-        # CPU時間統計
         cpu_times = [i["cpu_time"] for i in items if "cpu_time" in i and i["cpu_time"] is not None]
         cpu_stats: dict[str, Any] = {}
         if cpu_times:
@@ -488,7 +344,6 @@ class DashboardDataProvider:
                     "values": numeric_cpu,
                     "nbins": _compute_histogram_bins(numeric_cpu),
                 }
-                # 四分位数・標準偏差（2値以上の場合）
                 if len(numeric_cpu) >= 2:
                     sorted_vals = sorted(numeric_cpu)
                     n = len(sorted_vals)
@@ -498,7 +353,6 @@ class DashboardDataProvider:
                     mean = cpu_stats["mean"]
                     cpu_stats["std"] = (sum((v - mean) ** 2 for v in sorted_vals) / n) ** 0.5
 
-        # 警告件数統計
         warning_counts = [i["warnings"] for i in items if "warnings" in i and isinstance(i["warnings"], (int, float))]
         warning_stats: dict[str, Any] = {}
         if warning_counts:
@@ -528,26 +382,13 @@ class DashboardDataProvider:
         node_id: int,
         label: str | None = None,
     ) -> list[dict[str, Any]]:
-        """関連ファイル一覧
-
-        Args:
-            node_id: 対象ノードのID
-            label: リレーションラベルでフィルタ（省略時は全件）
-
-        Returns:
-            関連ノード情報のリスト
-        """
+        """関連ファイル一覧（リレーションラベルで絞り込み可）"""
         related: list[dict[str, Any]] = []
-
-        for rel in self._relations_by_node.get(node_id, []):
-            if label and rel.label != label:
-                continue
-
+        for rel in self._gq.query_relations(node_id, label=label):
             other_id = rel.node2_id if rel.node1_id == node_id else rel.node1_id
             other_node = self._node_by_id.get(other_id)
             if other_node is None:
                 continue
-
             related.append(
                 {
                     "id": other_node.id,
@@ -558,23 +399,12 @@ class DashboardDataProvider:
                     "direction": "outgoing" if rel.node1_id == node_id else "incoming",
                 }
             )
-
         return related
 
     def to_dashboard_json(self, project_name: str = "") -> dict[str, Any]:
-        """dashboard-json形式のエクスポートデータを生成
-
-        テーブルビューに最適化したフラットなJSON構造を返す。
-
-        Args:
-            project_name: プロジェクト名
-
-        Returns:
-            dashboard-json形式の辞書
-        """
+        """dashboard-json形式のエクスポートデータを生成"""
         rows = self.get_go_table()
         columns = self._collect_columns(rows)
-
         return {
             "metadata": {
                 "project": project_name,
@@ -594,26 +424,7 @@ class DashboardDataProvider:
         self,
         node_id: int | None = None,
     ) -> list[dict[str, Any]]:
-        """画像出力ファイル一覧（has_output関係から取得）
-
-        has_output関係で結ばれたノードのうち、画像フォーマット
-        （png, gif, jpg, jpeg, bmp, svg, tiff）のものを返す。
-
-        Args:
-            node_id: 対象go_ノードID（省略時は全go_ノード）
-
-        Returns:
-            画像情報のリスト。各要素:
-            {
-                "go_node_id": int,
-                "go_node_name": str,
-                "image_node_id": int,
-                "image_name": str,
-                "image_path": str,
-                "image_format": str,
-                "go_properties": dict,
-            }
-        """
+        """画像出力ファイル一覧（has_output関係から取得）"""
         image_formats = {"png", "gif", "jpg", "jpeg", "bmp", "svg", "tiff"}
         results: list[dict[str, Any]] = []
 
@@ -623,30 +434,18 @@ class DashboardDataProvider:
             if node is not None:
                 target_nodes = [node]
         else:
-            for n in self.graph.nodes:
-                name_lower = n.name.lower()
-                if name_lower.startswith("go_") or name_lower == "go":
-                    target_nodes.append(n)
+            target_nodes = [n for n in self.graph.nodes if _is_go_node(n)]
 
         for go_node in target_nodes:
-            for rel in self._relations_by_node.get(go_node.id, []):
-                if rel.label != "has_output":
-                    continue
-                if rel.node1_id != go_node.id:
-                    continue
-
+            for rel in self._gq.query_relations(go_node.id, label="has_output", direction="outgoing"):
                 output_node = self._node_by_id.get(rel.node2_id)
                 if output_node is None:
                     continue
-
-                # フォーマットまたはパス拡張子で画像判定
                 fmt = output_node.format.lower() if output_node.format else ""
                 path_str = output_node.properties.get("path", "")
                 ext = path_str.rsplit(".", 1)[-1].lower() if "." in path_str else ""
-
                 if fmt not in image_formats and ext not in image_formats:
                     continue
-
                 results.append(
                     {
                         "go_node_id": go_node.id,
@@ -659,51 +458,27 @@ class DashboardDataProvider:
                         "go_properties": {k: v for k, v in go_node.properties.items() if k != "path"},
                     }
                 )
-
         return results
 
     def get_property_images(
         self,
         daily_notes_dir: str = "notes/daily",
     ) -> list[dict[str, Any]]:
-        """プロパティに画像ファイルパスを持つノードの画像情報を取得
-
-        Obsidianのdaily note経由でプロパティに画像ファイルパスが
-        割り当てられたノードを検出し、画像情報を返す。
-        daily_notes dict内の画像パスはdaily_notes_dir基準の相対パスとして
-        解釈し、プロジェクトルート基準のパスに変換して返す。
-
-        Args:
-            daily_notes_dir: daily noteディレクトリ（プロジェクトルート基準）
-
-        Returns:
-            画像情報のリスト。各要素:
-            {
-                "go_node_id": int,
-                "go_node_name": str,
-                "property_key": str,
-                "image_path": str,
-                "image_format": str,
-                "go_properties": dict,
-            }
-        """
+        """プロパティに画像ファイルパスを持つノードの画像情報を取得"""
         image_extensions = {"png", "gif", "jpg", "jpeg", "bmp", "svg", "tiff"}
         results: list[dict[str, Any]] = []
 
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
-
             go_props = {k: v for k, v in node.properties.items() if k != "path"}
             display_name = self._get_display_name(node)
 
             for key, value in node.properties.items():
                 if key == "path":
                     continue
-                # daily_notes dict内の画像パスを探索
                 if key == "daily_notes" and isinstance(value, dict):
-                    self._extract_daily_note_images(
+                    GraphQuery.extract_daily_note_images(
                         results,
                         node,
                         display_name,
@@ -713,112 +488,30 @@ class DashboardDataProvider:
                         daily_notes_dir,
                     )
                     continue
-                self._extract_image_paths(results, node, display_name, key, value, go_props, image_extensions)
-
+                GraphQuery.extract_image_paths(
+                    results,
+                    node,
+                    display_name,
+                    key,
+                    value,
+                    go_props,
+                    image_extensions,
+                )
         return results
 
-    @staticmethod
-    def _extract_daily_note_images(
-        results: list[dict[str, Any]],
-        node: Node,
-        display_name: str,
-        daily_notes: dict[str, Any],
-        go_props: dict[str, Any],
-        image_extensions: set[str],
-        daily_notes_dir: str,
-    ) -> None:
-        """daily_notes dict内から画像パスを抽出
-
-        daily_notes構造: {date: {key: value, ...}, ...}
-        画像パスはdaily note基準の相対パスとして扱い、
-        daily_notes_dirを付加してプロジェクトルート基準に変換する。
-        """
-        import posixpath
-
-        for date_key, props in daily_notes.items():
-            if not isinstance(props, dict):
-                continue
-            for key, value in props.items():
-                candidates: list[str] = []
-                if isinstance(value, str):
-                    candidates = [value]
-                elif isinstance(value, list):
-                    candidates = [v for v in value if isinstance(v, str)]
-
-                for candidate in candidates:
-                    if "." not in candidate:
-                        continue
-                    ext = candidate.rsplit(".", 1)[-1].lower()
-                    if ext in image_extensions:
-                        # daily note基準の相対パスをプロジェクトルート基準に変換
-                        resolved = posixpath.normpath(posixpath.join(daily_notes_dir, candidate))
-                        results.append(
-                            {
-                                "go_node_id": node.id,
-                                "go_node_name": node.name,
-                                "display_name": display_name,
-                                "property_key": f"daily:{date_key}:{key}",
-                                "image_path": resolved,
-                                "image_format": ext,
-                                "go_properties": go_props,
-                            }
-                        )
-
-    @staticmethod
-    def _extract_image_paths(
-        results: list[dict[str, Any]],
-        node: Node,
-        display_name: str,
-        key: str,
-        value: Any,
-        go_props: dict[str, Any],
-        image_extensions: set[str],
-    ) -> None:
-        """値から画像パスを抽出してresultsに追加"""
-        candidates: list[str] = []
-        if isinstance(value, str):
-            candidates = [value]
-        elif isinstance(value, list):
-            candidates = [v for v in value if isinstance(v, str)]
-
-        for candidate in candidates:
-            if "." not in candidate:
-                continue
-            ext = candidate.rsplit(".", 1)[-1].lower()
-            if ext in image_extensions:
-                results.append(
-                    {
-                        "go_node_id": node.id,
-                        "go_node_name": node.name,
-                        "display_name": display_name,
-                        "property_key": key,
-                        "image_path": candidate,
-                        "image_format": ext,
-                        "go_properties": go_props,
-                    }
-                )
-
     def get_array_property_keys(self) -> list[str]:
-        """go_ノードの配列型プロパティキーを返す
+        """go_ノードの配列型プロパティキー（PREFIX.列名形式）を返す。
 
-        「PREFIX.列名」形式（例: RF.time, RF.RF3）のプロパティキーを
-        抽出してソート済みリストで返す。
-        外部化プロパティ（_ext_keysマーカー）も考慮する。
-
-        Returns:
-            ソート済みの配列プロパティキーリスト
+        外部化プロパティ (_ext_keys マーカー) も考慮する。
         """
         keys: set[str] = set()
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
-            # インライン配列プロパティ
             for key, value in node.properties.items():
                 if "." in key and isinstance(value, list):
                     keys.add(key)
-            # 外部化プロパティのキーも追加
-            ext_keys = node.properties.get(_EXT_KEYS_FIELD)
+            ext_keys = node.properties.get(EXT_KEYS_FIELD)
             if isinstance(ext_keys, list):
                 for key in ext_keys:
                     if "." in key:
@@ -831,37 +524,17 @@ class DashboardDataProvider:
         x_key: str,
         y_keys: list[str] | None = None,
     ) -> dict[str, Any] | None:
-        """特定ノードの配列プロパティをプロット用データに変換
-
-        外部化プロパティがある場合はオンデマンドでロードする。
-
-        Args:
-            node_id: GOノードID
-            x_key: X軸の配列プロパティキー（例: "RF.time"）
-            y_keys: Y軸の配列プロパティキー群（例: ["RF.RF1", "RF.RF3"]）
-                    省略時はx_keyと同じ接頭辞の全列を使用
-
-        Returns:
-            {
-                "name": str,
-                "x_key": str,
-                "x_values": list[float],
-                "series": [{"key": str, "values": list[float]}, ...],
-            }
-            ノードが見つからない場合はNone
-        """
+        """特定ノードの配列プロパティをプロット用データに変換"""
         node = self._node_by_id.get(node_id)
         if node is None:
             return None
 
-        # 外部化プロパティを解決
-        props = self._resolve_node_properties(node)
+        props = self._gq._resolve_node_properties(node)
 
         x_values = props.get(x_key)
         if not isinstance(x_values, list):
             return None
 
-        # y_keysが未指定の場合、x_keyと同じ接頭辞の全キーを使用
         if y_keys is None:
             prefix = x_key.split(".")[0] + "."
             y_keys = sorted(k for k in props if k.startswith(prefix) and k != x_key and isinstance(props[k], list))
@@ -882,58 +555,24 @@ class DashboardDataProvider:
             "series": series,
         }
 
-    def _get_vocab_mapped_filters(self, filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
-        """filtersのキーを生キーに正規化する"""
-        if filters is None:
-            return filters
-        # 表示キー→生キーへの逆変換
-        from modules.vocab_display import reverse_vocab
-
-        rev = reverse_vocab(self.vocab)
-        filters = {rev.get(k, k): v for k, v in filters.items()}
-        return filters
-
     def get_array_grid_data(
         self,
         x_key: str,
         y_key: str,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """全GOノードの配列プロパティをグリッドプロット用に返す
-
-        indexごとに配列データを収集し、グリッド配置で並べるためのリストを返す。
-        外部化プロパティがある場合はオンデマンドでロードする。
-
-        Args:
-            x_key: X軸配列キー
-            y_key: Y軸配列キー
-            filters: フィルタ条件
-
-        Returns:
-            [{
-                "node_id": int,
-                "name": str,
-                "index": str,
-                "x_values": list[float],
-                "y_values": list[float],
-                "properties": dict,
-            }, ...]
-        """
+        """全GOノードの配列プロパティをグリッドプロット用に返す"""
         results: list[dict[str, Any]] = []
 
         for node in self.graph.nodes:
-            name_lower = node.name.lower()
-            if not (name_lower.startswith("go_") or name_lower == "go"):
+            if not _is_go_node(node):
                 continue
-
-            # 配列キーを持つ可能性があるノードのみ解決
-            ext_keys = node.properties.get(_EXT_KEYS_FIELD)
+            ext_keys = node.properties.get(EXT_KEYS_FIELD)
             has_inline = isinstance(node.properties.get(x_key), list)
             if not has_inline and not (isinstance(ext_keys, list) and x_key in ext_keys):
                 continue
 
-            # 外部化プロパティを解決
-            props = self._resolve_node_properties(node)
+            props = self._gq._resolve_node_properties(node)
 
             x_vals = props.get(x_key)
             y_vals = props.get(y_key)
@@ -964,71 +603,8 @@ class DashboardDataProvider:
 
         return results
 
-    # ---- private ----
-
-    def _resolve_node_properties(self, node: Node) -> dict[str, Any]:
-        """外部化プロパティをオンデマンドで解決してノードのプロパティを返す
-
-        _ext_keysマーカーが存在し、storageが利用可能な場合、
-        外部化プロパティをロードしてノードのpropertiesにマージする。
-        一度解決済みのノードは再ロードしない。
-
-        Returns:
-            配列データを含むプロパティのdict
-        """
-        ext_keys = node.properties.get(_EXT_KEYS_FIELD)
-        if not ext_keys:
-            return node.properties
-
-        # storageが利用不可の場合はそのまま返す
-        if self._storage is None or self._project_root is None:
-            return node.properties
-
-        # 外部プロパティをロードしてノードにマージ
-        ext_props = self._storage.load_node_properties(self._project_root, node.id)
-        if ext_props:
-            node.properties.update(ext_props)
-            node.properties.pop(_EXT_KEYS_FIELD, None)
-
-        return node.properties
-
-    def _has_ext_keys(self, node: Node) -> bool:
-        """ノードが外部化配列プロパティを持つかどうかを判定"""
-        return bool(node.properties.get(_EXT_KEYS_FIELD))
-
-    def _get_display_name(self, node: Node) -> str:
-        """ノードの表示名を取得
-
-        parse時にDisplayNameParserが生成したverbose_nameプロパティを参照する。
-        優先順位:
-        1. verbose_nameプロパティ（vocab変換後キー → 変換前キー）
-        2. node.name
-
-        Args:
-            node: 対象ノード
-
-        Returns:
-            表示用の名前文字列
-        """
-        # vocab変換後のキー（例: "表示名"）で検索
-        display = node.properties.get(self._verbose_name_key)
-        if display:
-            return str(display)
-        # 変換前のキーでフォールバック
-        display = node.properties.get("verbose_name")
-        if display:
-            return str(display)
-        return node.name
-
     def get_filtered_property_keys(self) -> list[str]:
-        """グローバルカラム設定でフィルタされたプロパティキー一覧
-
-        global_columnsが設定されている場合はglobパターンでフィルタした結果を返す。
-        未設定の場合はget_property_keys()と同じ結果を返す。
-
-        Returns:
-            フィルタ済みキーリスト
-        """
+        """グローバルカラム設定でフィルタされたプロパティキー一覧"""
         all_keys = self.get_property_keys()
         if not self._global_columns:
             return all_keys
@@ -1041,79 +617,58 @@ class DashboardDataProvider:
                     seen.add(k)
         return filtered
 
+    # ------------------------------------------------------------------
+    # Provider 内部ヘルパー（vocab/units/verbose_name 関連）
+    # ------------------------------------------------------------------
+
     def _node_to_row(self, node: Node) -> dict[str, Any]:
-        """ノードをテーブル行に変換（プロパティ展開、float指数表示対応）"""
-        row: dict[str, Any] = {
-            "id": node.id,
-            "name": node.name,
-            self._verbose_name_key: self._get_display_name(node),
-            "type": node.type,
-            "format": node.format,
-        }
+        """Node を行 dict に変換し、verbose_name を付与する。
 
-        for key, value in node.properties.items():
-            if key == "path":
-                continue
-            row[key] = format_float_value(value) if isinstance(value, float) else value
-
-        # 関連ファイル情報を追加
-        related = []
-        for rel in self._relations_by_node.get(node.id, []):
-            if rel.node1_id != node.id:
-                continue
-            other = self._node_by_id.get(rel.node2_id)
-            if other:
-                related.append(
-                    {
-                        "name": other.name,
-                        "relation": rel.label,
-                    }
-                )
-        if related:
-            row["related_files"] = related
-
+        汎用的な行整形は GraphQuery.nodes_to_rows に委譲し、ここでは
+        vocab依存の verbose_name のみを後付けする。
+        """
+        row = self._gq.nodes_to_rows([node])[0]
+        row[self._verbose_name_key] = self._get_display_name(node)
         return row
 
-    # @staticmethod
     def _matches_filters(self, row: dict[str, Any], filters: dict[str, Any]) -> bool:
-        """行がフィルタ条件に一致するか判定
+        """行がフィルタ条件に一致するか判定（vocab マッピング込み）。
 
         bool値はYAML由来(True/False)と文字列("true"/"false")の両方に対応。
-        self.vocabでキーをmappingする処理を追加
+        self.vocab でキーをmappingしてから判定する。
         """
-        filters = self._get_vocab_mapped_filters(filters)
-        for key, value in filters.items():
-            row_value = row.get(key)
-            if row_value is None:
-                return False
-            if isinstance(value, list):
-                if row_value not in value:
-                    return False
-            elif isinstance(value, bool) or (isinstance(value, str) and value.strip().lower() in ("true", "false")):
-                # bool/bool文字列の比較は正規化して行う
-                def _to_bool(v: Any) -> bool:
-                    if isinstance(v, bool):
-                        return v
-                    if isinstance(v, str):
-                        return v.strip().lower() == "true"
-                    return bool(v)
+        mapped = self._get_vocab_mapped_filters(filters)
+        if mapped is None:
+            return True
+        return self._gq._match_row(row, mapped)
 
-                if _to_bool(row_value) != _to_bool(value):
-                    return False
-            elif row_value != value:
-                return False
-        return True
+    def _get_vocab_mapped_filters(self, filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """filtersのキーを生キーに正規化する"""
+        if filters is None:
+            return filters
+        from modules.vocab_display import reverse_vocab
+
+        rev = reverse_vocab(self.vocab)
+        return {rev.get(k, k): v for k, v in filters.items()}
+
+    def _get_display_name(self, node: Node) -> str:
+        """ノードの表示名を取得（verbose_nameプロパティ参照、なければnode.name）"""
+        display = node.properties.get(self._verbose_name_key)
+        if display:
+            return str(display)
+        display = node.properties.get("verbose_name")
+        if display:
+            return str(display)
+        return node.name
 
     def _collect_columns(self, rows: list[dict[str, Any]]) -> list[str]:
         """行データからカラムリストを収集（vocab順）"""
         fixed = ["id", "name", "type", "format"]
         dynamic: set[str] = set()
         seen: set[str] = set(fixed)
-
         for row in rows:
             for key in row:
                 if key not in seen:
                     seen.add(key)
                     dynamic.add(key)
-
         return fixed + self._sort_by_vocab(dynamic)

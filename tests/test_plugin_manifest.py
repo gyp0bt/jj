@@ -36,7 +36,7 @@ class TestPluginManifest:
             description="Abaqus CAE解析ファイルの解析・可視化",
             parsers=["services.parse.connectors.abaqus.inp_parser"],
             exporters=["services.export.connectors.abaqus_exporter"],
-            dashboard_pages=["services.dashboard.connectors.abaqus"],
+            dashboard_pages=["plugins.abaqus.dashboard"],
             cli_commands=["services.plugins.abaqus.cli"],
             api_routes=["services.plugins.abaqus.api"],
             depends_on=[],

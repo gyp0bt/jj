@@ -130,7 +130,7 @@ def init_shared_filters(default_filters: dict[str, Any]) -> None:
     """
     import streamlit as st
 
-    from services.dashboard.query import is_truthy
+    from services.graph.query.filters import is_truthy
 
     if "_filters_initialized" not in st.session_state:
         st.session_state["_filters_initialized"] = True

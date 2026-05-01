@@ -1,77 +1,12 @@
-"""Obsidianプラグイン: Daily Note解析・Obsidianエクスポート
+"""Obsidianプラグイン（後方互換）
 
-Obsidian固有のパーサー・エクスポーターを集約するプラグインパッケージ。
-このモジュールをインポートすると、以下のコンポーネントが自動登録される:
-
-## 登録されるパーサー（AbstractFileParserサブクラス）
-
-| パーサー | priority | 説明 |
-|----------|----------|------|
-| DailyNoteParser | 95 | Obsidian Daily Noteからのファイル参照・プロパティ・タグ抽出 |
-
-## 登録されるエクスポーター（AbstractExporterサブクラス）
-
-| エクスポーター | format | 説明 |
-|---------------|--------|------|
-| ObsidianExporter | obsidian | Obsidianマークダウン・Canvas・Vault設定出力 |
-
-## コアモジュール
-
-- services.parse.connectors.obsidian.daily_parser: DailyNoteParser
-- services.parse.connectors.obsidian.daily: daily note解析ユーティリティ
-- services.export.connectors.obsidian: ObsidianConnector, ObsidianExporter
+このモジュールはplugins.obsidianからre-exportしています。
+新規コードでは plugins.obsidian を直接importしてください。
 
 [READMEへ戻る](../../../../README.md)
 """
 
-from __future__ import annotations
+# 後方互換のためのre-export
+from plugins.obsidian import register
 
-import logging
-
-from services.sdk.plugin_manifest import PluginManifest
-
-logger = logging.getLogger(__name__)
-
-_registered = False
-
-
-def register() -> PluginManifest | None:
-    """Obsidianプラグインの全コンポーネントを登録する
-
-    __init_subclass__パターンにより、モジュールをimportするだけで
-    各パーサー・エクスポーターがレジストリに自動登録される。
-    PluginManifest を返すことで PluginManager がメタデータを管理する。
-    """
-    global _registered
-    if _registered:
-        return None
-    _registered = True
-
-    # パーサーのインポート（自動登録が発動）
-    # import services.parse.connectors.obsidian.daily_parser
-
-    # エクスポーターのインポート（自動登録が発動）
-    exporters: list[str] = []
-    try:
-        # import services.export.connectors.obsidian  # noqa: F401
-
-        # exporters.append("services.export.connectors.obsidian")
-        pass
-    except ImportError:
-        logger.debug("Obsidianエクスポーターのロードをスキップ（依存パッケージ不足）")
-
-    logger.debug("Obsidianプラグインを登録完了")
-
-    return PluginManifest(
-        name="obsidian",
-        version="0.2.0",
-        description="Obsidian Daily Note解析・Obsidianエクスポート",
-        parsers=[
-            # "services.parse.connectors.obsidian.daily_parser",
-        ],
-        exporters=exporters,
-    )
-
-
-# モジュールインポート時に自動登録
-register()
+__all__ = ["register"]

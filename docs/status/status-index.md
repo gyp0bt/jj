@@ -8,43 +8,30 @@
 
 > 最新statusファイルから引き継がれた未完了TODO。作業開始時はここを確認する。
 
-### ワークトラック（進行中）
+### ミニマル化機能回帰修正 (status-090)
 
-- [x] **T5**: リモートジョブ実行基盤 — Phase 5-1〜5-9完了（Prefect統合含む）
-- [ ] **T7**: Ollama AI連携 — Phase 7-1〜7-6完了（AIProvider・summarize・diff・RAG・Tips・ダッシュボード）
-- [ ] **T8**: 汎用データ管理 — Phase 8-1〜8-2完了（Run Discovery標準化・物理実験プラグイン）
-- [ ] **T9**: 共有フォルダ同期 — Phase 9-1〜9-6完了（SharedFolder・GitLab・CLI・API）、Windows実環境テスト待ち
-- [ ] **W**: Office連携 — W-1〜W-5実装完了（パーサー・エクスポーター・ダッシュボード）、Windows実環境テスト待ち
-- [ ] **T10**: プラグインコア設計 — P-1〜P-8実装完了（PluginManifest・JJApp・マニフェスト対応・EventBus・CapabilityRegistry・CLICommand・APIRoute・get_page_data）、CLI/API統合で段階的移行予定
+- [x] **R-1**: パーサー自動登録の復元（21パーサー稼働、リレーション数 0→55）— status-090
+- [x] **R-2**: 後方互換re-exportの修復・MeshInheritParserバグ修正 — status-090
+- [x] **R-3**: 削除済みプラグイン参照テストの整理 — status-090
+- [x] **R-4**: 全テスト復旧（152失敗 → 0失敗）— status-090
+
+### プラグイン構造統合 (v0.2.1)
+
+- [x] **P-1**: プラグイン構造統合 — status-089で実施
+
+### 軽量化 (v0.2.0)
+
+- [x] **L-1**: コードベース軽量化 — status-088で実施
 
 ### プロパティキー正規化
 
 - [x] K-1: `get_file_base_name()` 関数 + テスト
 - [x] K-2: MeshInheritParserプレフィックス正規化
 - [x] K-3: 既存テスト更新
-- [ ] K-4: （オプション）config property-key-aliases
 
 ### ダッシュボード改善
 
-- [x] D-1: AgGridフィルタ強化（saved_viewでもAgGrid使用）
-- [x] D-2: テーブル/ギャラリーロジック関数抽出
-- [x] D-3: OverviewPage実装
-- [x] D-4: デフォルト保存ボタン + config書き戻し
-- [x] D-5: default-page config対応
-- [x] D-6: シングルページ化（enabled-pages config制御）
-- [x] D-7: ビュー保存/表示機能の統一化（SavedViewConfig駆動・config.yaml一本化）
-- [x] D-8: PageComponent/Connector描画インタフェースを単一render()に集約
-- [x] D-9: シングルページ上でページビュー（対話UI）を復元（widget key を view.name スコープ化）
-
-### T3 改善候補
-
-- [ ] モデルレジストリ詳細ページ（チェックポイント選択・比較UI）
-- [ ] Optuna試行詳細表示（パラメータ重要度、パレートフロント）
-- [ ] TensorBoard/MLflow連携パーサー
-
-### M2: マルチソルバー検証（検証環境確保後）
-
-- [ ] Fluent/LS-DYNA/Flow-3D/OpenFOAM/CalculiX プラグイン本実装
+- [x] D-1〜D-9: 完了
 
 ---
 
@@ -54,14 +41,9 @@
 |---------|------|-----------|
 | T1: コードベースTODO解消 | **完了** | [053](status-053.md)-[057](status-057.md) |
 | T2: Config二層分離 | **完了** | [054](status-054.md)-[055](status-055.md) |
-| T3: MLダッシュボード Phase 5 | **完了** | [062](status-062.md)-[063](status-063.md) |
-| T4: Deprecation Warning修正 | **完了** | [053](status-053.md) |
-| T5: リモートジョブ実行基盤 | **完了** | [065](status-065.md)-[068](status-068.md) |
-| T6: ダッシュボード高度化 | **完了** | [053](status-053.md)-[061](status-061.md) |
-| T7: Ollama AI連携 | **進行中** | [069](status-069.md)〜[071](status-071.md) |
-| T8: 汎用データ管理 | **進行中** | [071](status-071.md) |
-| T9: 共有フォルダ同期 | **進行中** | [076](status-076.md) |
-| T10: プラグインコア設計 | **実装中** | [079](status-079.md)〜[082](status-082.md) |
+| T3〜T10: 各種機能 | **削除** | [088](status-088.md)で軽量化のため削除 |
+| L-1: コードベース軽量化 | **完了** | [088](status-088.md) |
+| P-1: プラグイン構造統合 | **完了** | [089](status-089.md) |
 
 ---
 
@@ -86,6 +68,9 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [090](status-090.md) | 05-01 | ミニマル化の機能回帰修正・テスト復旧（1751+ passed, 0 failed） | master |
+| [089](status-089.md) | 04-30 | プラグイン構造統合（v0.2.1） | master |
+| [088](status-088.md) | 04-30 | コードベース軽量化（v0.2.0） | master |
 | [087](status-087.md) | 04-20 | ダッシュボード ページビュー（対話UI）復元 | claude/fix-dashboard-view-logic-sQTxz |
 | [086](status-086.md) | 04-18 | PageComponent/Connector描画インタフェースを単一render()に集約 | claude/dashboard-single-page-YMTol |
 | [085](status-085.md) | 04-18 | ビュー保存/表示機能の統一化（SavedViewConfig駆動・config.yaml一本化） | claude/dashboard-single-page-YMTol |

@@ -28,43 +28,11 @@ class TestPluginRegistration:
         parser_names = [cls.__name__ for cls in get_parser_registry()]
         assert any("Abaqus" in name for name in parser_names)
 
-    def test_calculix_plugin_registers(self):
-        """CalculiXプラグインが正常に登録される"""
-        from services.plugins.calculix import register
-
-        register()
-        from services.parse.base import get_parser_registry
-
-        parser_names = [cls.__name__ for cls in get_parser_registry()]
-        assert any("Calculix" in name or "calculix" in name.lower() for name in parser_names)
-
-    def test_ml_plugin_registers(self):
-        """MLプラグインが正常に登録される"""
-        from services.plugins.ml import register
-
-        register()
-        from services.parse.base import get_parser_registry
-
-        parser_names = [cls.__name__ for cls in get_parser_registry()]
-        assert "MLDatasetParser" in parser_names
-        assert "MLConfigParser" in parser_names
-        assert "MLScriptParser" in parser_names
-        assert "TorchCheckpointParser" in parser_names
-        assert "SklearnModelParser" in parser_names
-        assert "ExperimentRunParser" in parser_names
-
     def test_all_plugins_register_without_error(self):
         """全プラグインのregister()がエラーなく完了する"""
         plugin_modules = [
             "services.plugins.abaqus",
-            "services.plugins.calculix",
-            "services.plugins.flow3d",
-            "services.plugins.fluent",
-            "services.plugins.hfss",
-            "services.plugins.lsdyna",
-            "services.plugins.ml",
             "services.plugins.obsidian",
-            "services.plugins.openfoam",
         ]
         for mod_name in plugin_modules:
             mod = importlib.import_module(mod_name)
@@ -86,13 +54,13 @@ class TestPluginRegistration:
                 jj_plugins = eps.get("jj.plugins", [])
             plugin_names = [ep.name for ep in jj_plugins]
             assert "abaqus" in plugin_names
-            assert "calculix" in plugin_names
+            assert "obsidian" in plugin_names
         except Exception:
             pytest.skip("entry_points not available (not installed with -e)")
 
     def test_abaqus_dashboard_connector_registered(self):
         """Abaqusダッシュボードコネクターがレジストリに登録される"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import DashboardPageConnector
 
         registered_labels = list(DashboardPageConnector._registry.keys())

@@ -22,17 +22,17 @@ class TestIsTruthy:
     """is_truthy のテスト"""
 
     def test_bool_true(self):
-        from services.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(True) is True
 
     def test_bool_false(self):
-        from services.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(False) is False
 
     def test_string_true(self):
-        from services.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy("true") is True
         assert is_truthy("True") is True
@@ -40,18 +40,18 @@ class TestIsTruthy:
         assert is_truthy("  true  ") is True
 
     def test_string_false(self):
-        from services.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy("false") is False
         assert is_truthy("False") is False
 
     def test_none(self):
-        from services.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(None) is False
 
     def test_int(self):
-        from services.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(1) is True
         assert is_truthy(0) is False
@@ -69,14 +69,14 @@ class TestApplyFilters:
         ]
 
     def test_no_filter(self):
-        from services.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = self._make_rows()
         result = apply_filters(rows)
         assert len(result) == 4
 
     def test_type_filter(self):
-        from services.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = self._make_rows()
         result = apply_filters(rows, type_filter="go")
@@ -84,14 +84,14 @@ class TestApplyFilters:
         assert all(r["type"] == "go" for r in result)
 
     def test_status_filter(self):
-        from services.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = self._make_rows()
         result = apply_filters(rows, status_filter="completed")
         assert len(result) == 2
 
     def test_active_only(self):
-        from services.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = self._make_rows()
         result = apply_filters(rows, active_only=True)
@@ -99,7 +99,7 @@ class TestApplyFilters:
         assert {r["name"] for r in result} == {"a", "c"}
 
     def test_combined(self):
-        from services.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = self._make_rows()
         result = apply_filters(rows, type_filter="go", active_only=True)
@@ -107,7 +107,7 @@ class TestApplyFilters:
 
     def test_subete_skip(self):
         """'すべて'フィルタは無効化される"""
-        from services.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = self._make_rows()
         result = apply_filters(rows, type_filter="すべて")
@@ -125,28 +125,28 @@ class TestApplySavedViewFilters:
         ]
 
     def test_empty_filters(self):
-        from services.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = self._make_rows()
         result = apply_saved_view_filters(rows, {})
         assert len(result) == 3
 
     def test_active_true(self):
-        from services.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = self._make_rows()
         result = apply_saved_view_filters(rows, {"active": True})
         assert len(result) == 2
 
     def test_type_filter(self):
-        from services.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = self._make_rows()
         result = apply_saved_view_filters(rows, {"type": "go"})
         assert len(result) == 2
 
     def test_custom_key(self):
-        from services.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = self._make_rows()
         result = apply_saved_view_filters(rows, {"name": "a"})
@@ -157,7 +157,7 @@ class TestSavedViewFiltersToProviderFilters:
     """saved_view_filters_to_provider_filters のテスト"""
 
     def test_passthrough(self):
-        from services.query import saved_view_filters_to_provider_filters
+        from services.graph.query import saved_view_filters_to_provider_filters
 
         filters = {"type": "go", "active": True}
         result = saved_view_filters_to_provider_filters(filters)
@@ -173,7 +173,7 @@ class TestParsePropFilters:
     """parse_prop_filters のテスト"""
 
     def test_basic(self):
-        from services.query import parse_prop_filters
+        from services.graph.query import parse_prop_filters
 
         params = {
             "type": "go",
@@ -187,7 +187,7 @@ class TestParsePropFilters:
         assert ("temperature", "le", 400.0) in filters
 
     def test_all_operators(self):
-        from services.query import parse_prop_filters
+        from services.graph.query import parse_prop_filters
 
         params = {
             "props.a.eq": "1",
@@ -201,20 +201,20 @@ class TestParsePropFilters:
         assert len(filters) == 6
 
     def test_invalid_value_skipped(self):
-        from services.query import parse_prop_filters
+        from services.graph.query import parse_prop_filters
 
         params = {"props.RF3.gt": "abc"}
         filters = parse_prop_filters(params)
         assert len(filters) == 0
 
     def test_empty_params(self):
-        from services.query import parse_prop_filters
+        from services.graph.query import parse_prop_filters
 
         filters = parse_prop_filters({})
         assert len(filters) == 0
 
     def test_non_matching_keys_ignored(self):
-        from services.query import parse_prop_filters
+        from services.graph.query import parse_prop_filters
 
         params = {"type": "go", "name": "test", "limit": "10"}
         filters = parse_prop_filters(params)
@@ -226,7 +226,7 @@ class TestApplyPropFilters:
 
     def test_dict_rows(self):
         """dict行データに対するフィルタ"""
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [
             {"name": "a", "RF3": 3.0, "temperature": 300},
@@ -239,7 +239,7 @@ class TestApplyPropFilters:
         assert result[0]["name"] == "b"
 
     def test_dict_rows_ge(self):
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [
             {"name": "a", "RF3": 3.0},
@@ -253,7 +253,7 @@ class TestApplyPropFilters:
         assert names == {"b", "c"}
 
     def test_dict_rows_combined(self):
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [
             {"name": "a", "RF3": 3.0, "temperature": 300},
@@ -273,7 +273,7 @@ class TestApplyPropFilters:
 
     def test_node_objects(self):
         """Nodeオブジェクトに対するフィルタ（node_prop_getter使用）"""
-        from services.query import apply_prop_filters, node_prop_getter
+        from services.graph.query import apply_prop_filters, node_prop_getter
 
         nodes = [
             Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
@@ -286,7 +286,7 @@ class TestApplyPropFilters:
         assert result[0].name == "b"
 
     def test_node_objects_combined(self):
-        from services.query import apply_prop_filters, node_prop_getter
+        from services.graph.query import apply_prop_filters, node_prop_getter
 
         nodes = [
             Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
@@ -304,7 +304,7 @@ class TestApplyPropFilters:
 
     def test_missing_property(self):
         """プロパティが存在しないアイテムは除外される"""
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [
             {"name": "a", "RF3": 3.0},
@@ -317,7 +317,7 @@ class TestApplyPropFilters:
 
     def test_non_numeric_property(self):
         """数値変換できないプロパティは除外される"""
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [
             {"name": "a", "RF3": "abc"},
@@ -330,7 +330,7 @@ class TestApplyPropFilters:
 
     def test_empty_filters(self):
         """フィルタが空の場合は全件返す"""
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [{"name": "a"}, {"name": "b"}]
         result = apply_prop_filters(rows, [])
@@ -338,7 +338,7 @@ class TestApplyPropFilters:
 
     def test_all_operators(self):
         """全オペレータのテスト"""
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         rows = [{"val": 5.0}]
 
@@ -357,7 +357,7 @@ class TestApplyPropFilters:
 
     def test_custom_prop_getter(self):
         """カスタムprop_getterのテスト"""
-        from services.query import apply_prop_filters
+        from services.graph.query import apply_prop_filters
 
         items = [
             {"data": {"x": 10}},
@@ -381,14 +381,14 @@ class TestSortRowsByIndex:
     """sort_rows_by_index のテスト"""
 
     def test_sort_by_idx(self):
-        from services.query import sort_rows_by_index
+        from services.graph.query import sort_rows_by_index
 
         rows = [{"idx": "3"}, {"idx": "1"}, {"idx": "2"}]
         result = sort_rows_by_index(rows, "idx", "ver")
         assert [r["idx"] for r in result] == ["1", "2", "3"]
 
     def test_sort_by_idx_and_ver(self):
-        from services.query import sort_rows_by_index
+        from services.graph.query import sort_rows_by_index
 
         rows = [
             {"idx": "2", "ver": "1"},
@@ -403,20 +403,20 @@ class TestSortRowsByIndex:
         ]
 
     def test_no_sortable_values(self):
-        from services.query import sort_rows_by_index
+        from services.graph.query import sort_rows_by_index
 
         rows = [{"name": "c"}, {"name": "a"}, {"name": "b"}]
         result = sort_rows_by_index(rows, "idx", "ver")
         assert result is rows  # 元のリストがそのまま返る
 
     def test_empty_list(self):
-        from services.query import sort_rows_by_index
+        from services.graph.query import sort_rows_by_index
 
         result = sort_rows_by_index([], "idx", "ver")
         assert result == []
 
     def test_bool_values_ignored(self):
-        from services.query import sort_rows_by_index
+        from services.graph.query import sort_rows_by_index
 
         rows = [{"idx": True, "ver": "1"}, {"idx": "2", "ver": "1"}]
         result = sort_rows_by_index(rows, "idx", "ver")
@@ -424,7 +424,7 @@ class TestSortRowsByIndex:
         assert len(result) == 2
 
     def test_mixed_sortable(self):
-        from services.query import sort_rows_by_index
+        from services.graph.query import sort_rows_by_index
 
         rows = [{"idx": "3"}, {"idx": "abc"}, {"idx": "1"}]
         result = sort_rows_by_index(rows, "idx", "ver")
@@ -438,7 +438,7 @@ class TestSortColumnsByVocab:
     """sort_columns_by_vocab のテスト"""
 
     def test_vocab_order(self):
-        from services.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         vocab = {"a_key": "A表示", "b_key": "B表示", "c_key": "C表示"}
         columns = ["c_key", "a_key", "z_col", "b_key"]
@@ -447,20 +447,20 @@ class TestSortColumnsByVocab:
         assert result[3] == "z_col"
 
     def test_empty_columns(self):
-        from services.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         result = sort_columns_by_vocab([], {"a": "A"})
         assert result == []
 
     def test_no_vocab(self):
-        from services.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         result = sort_columns_by_vocab(["c", "a", "b"], {})
         assert result == ["a", "b", "c"]
 
     def test_prefixed_key_sorted_after_base(self):
         """接頭辞エスケープキーがベースキーの直後にソートされる"""
-        from services.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         vocab = {"mesh_node_count": "ノード数", "mesh_element_count": "要素数"}
         columns = ["mesh_t50:mesh_node_count", "mesh_node_count", "mesh_element_count", "z_col"]
@@ -472,7 +472,7 @@ class TestSortColumnsByVocab:
 
     def test_multiple_prefixed_keys_grouped(self):
         """同じベースキーの接頭辞キーが近接してソートされる"""
-        from services.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         vocab = {"mesh_node_count": "ノード数"}
         columns = ["mesh_t50:mesh_node_count", "mesh_t30:mesh_node_count", "mesh_node_count", "z_col"]
@@ -489,7 +489,7 @@ class TestSelectTableColumns:
     """select_table_columns のテスト"""
 
     def test_none_table_columns(self):
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "RF3", "temperature"]
         result = select_table_columns(all_cols, None)
@@ -498,7 +498,7 @@ class TestSelectTableColumns:
         assert result[2] == "format"
 
     def test_pattern_match(self):
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "RF1", "RF2", "RF3", "temperature"]
         result = select_table_columns(all_cols, ["RF*"])
@@ -508,7 +508,7 @@ class TestSelectTableColumns:
         assert "temperature" not in result
 
     def test_glob_pattern(self):
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "a_prop", "b_prop", "c_other"]
         result = select_table_columns(all_cols, ["*_prop"])
@@ -517,14 +517,14 @@ class TestSelectTableColumns:
         assert "c_other" not in result
 
     def test_no_match(self):
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "RF3"]
         result = select_table_columns(all_cols, ["nonexistent"])
         assert result == ["name", "type", "format"]
 
     def test_with_vocab(self):
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "c_col", "a_col", "b_col"]
         vocab = {"a_col": "A列", "b_col": "B列"}
@@ -533,7 +533,7 @@ class TestSelectTableColumns:
 
     def test_prefixed_key_matches_base_pattern(self):
         """接頭辞キーがベースキーのglobパターンにマッチする"""
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "mesh_node_count", "mesh_t50:mesh_node_count", "other"]
         result = select_table_columns(all_cols, ["mesh_*"])
@@ -543,7 +543,7 @@ class TestSelectTableColumns:
 
     def test_prefixed_key_exact_match(self):
         """接頭辞キーがベースキーの完全一致でマッチする"""
-        from services.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "mesh_t50:mesh_node_count"]
         result = select_table_columns(all_cols, ["mesh_node_count"])
@@ -554,46 +554,46 @@ class TestGetFileBaseName:
     """get_file_base_name のテスト"""
 
     def test_version_suffix(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         assert get_file_base_name("mesh_v2") == "mesh"
         assert get_file_base_name("mesh_v3") == "mesh"
         assert get_file_base_name("mesh_v10") == "mesh"
 
     def test_index_suffix(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         assert get_file_base_name("mesh_idx1") == "mesh"
         assert get_file_base_name("mesh_idx2") == "mesh"
         assert get_file_base_name("mesh_idx100") == "mesh"
 
     def test_non_version_suffix_unchanged(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         assert get_file_base_name("mesh_fine") == "mesh_fine"
         assert get_file_base_name("mesh_coarse") == "mesh_coarse"
         assert get_file_base_name("material_steel") == "material_steel"
 
     def test_no_suffix(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         assert get_file_base_name("mesh") == "mesh"
         assert get_file_base_name("go") == "go"
 
     def test_multiple_parts_only_last_removed(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         assert get_file_base_name("step_v10_idx3") == "step_v10"
         assert get_file_base_name("mesh_fine_v2") == "mesh_fine"
 
     def test_middle_version_not_removed(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         # _v2 が末尾でない場合は除去しない
         assert get_file_base_name("mesh_v2_fine") == "mesh_v2_fine"
 
     def test_empty_string(self):
-        from services.query.sort import get_file_base_name
+        from services.graph.query.sort import get_file_base_name
 
         assert get_file_base_name("") == ""
 
@@ -602,22 +602,22 @@ class TestGetBaseKey:
     """get_base_key のテスト"""
 
     def test_plain_key(self):
-        from services.query.sort import get_base_key
+        from services.graph.query.sort import get_base_key
 
         assert get_base_key("mesh_node_count") == "mesh_node_count"
 
     def test_prefixed_key(self):
-        from services.query.sort import get_base_key
+        from services.graph.query.sort import get_base_key
 
         assert get_base_key("mesh_t50:mesh_node_count") == "mesh_node_count"
 
     def test_multiple_colons(self):
-        from services.query.sort import get_base_key
+        from services.graph.query.sort import get_base_key
 
         assert get_base_key("a:b:c") == "b:c"
 
     def test_empty_prefix(self):
-        from services.query.sort import get_base_key
+        from services.graph.query.sort import get_base_key
 
         assert get_base_key(":key") == "key"
 
@@ -736,39 +736,39 @@ class TestBackwardCompatibility:
     """services/dashboard/query.py からの再エクスポート互換テスト"""
 
     def test_is_truthy(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(True) is True
         assert is_truthy("false") is False
 
     def test_apply_filters(self):
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [{"type": "go"}, {"type": "material"}]
         result = apply_filters(rows, type_filter="go")
         assert len(result) == 1
 
     def test_sort_columns_by_vocab(self):
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         result = sort_columns_by_vocab(["b", "a"], {})
         assert result == ["a", "b"]
 
     def test_select_table_columns(self):
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         result = select_table_columns(["name", "type", "format", "x"], None)
         assert "name" in result
 
     def test_apply_saved_view_filters(self):
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = [{"type": "go"}, {"type": "material"}]
         result = apply_saved_view_filters(rows, {"type": "go"})
         assert len(result) == 1
 
     def test_saved_view_filters_to_provider_filters(self):
-        from services.dashboard.query import saved_view_filters_to_provider_filters
+        from services.graph.query import saved_view_filters_to_provider_filters
 
         result = saved_view_filters_to_provider_filters({"type": "go"})
         assert result == {"type": "go"}
@@ -783,54 +783,54 @@ class TestSummarizeListValue:
     """summarize_list_value のテスト"""
 
     def test_none_returns_none(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value(None) is None
 
     def test_nan_returns_none(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value(float("nan")) is None
 
     def test_empty_list_returns_none(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value([]) is None
 
     def test_list_returns_first_element(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value(["error1", "error2"]) == "error1"
 
     def test_single_element_list(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value(["only"]) == "only"
 
     def test_dict_returns_as_is(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         d = {"key": "value"}
         assert summarize_list_value(d) == d
 
     def test_string_list_format(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value("['error1','error2']") == "error1"
 
     def test_string_empty_list_format(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         result = summarize_list_value("[]")
         assert result is None
 
     def test_plain_string(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value("hello") == "ell"  # [1:-1] → "ell", split(",")[0] → "ell"
 
     def test_integer_returns_as_is(self):
-        from services.query.transform import summarize_list_value
+        from services.graph.query.transform import summarize_list_value
 
         assert summarize_list_value(42) == 42
 
@@ -840,7 +840,7 @@ class TestSummarizeListColumns:
 
     def test_basic_columns(self):
         pd = pytest.importorskip("pandas")
-        from services.query.transform import summarize_list_columns
+        from services.graph.query.transform import summarize_list_columns
 
         df = pd.DataFrame(
             {
@@ -857,7 +857,7 @@ class TestSummarizeListColumns:
 
     def test_nonexistent_column_ignored(self):
         pd = pytest.importorskip("pandas")
-        from services.query.transform import summarize_list_columns
+        from services.graph.query.transform import summarize_list_columns
 
         df = pd.DataFrame({"name": ["a"]})
         result = summarize_list_columns(df, ["nonexistent"])
@@ -865,7 +865,7 @@ class TestSummarizeListColumns:
 
     def test_original_df_unchanged(self):
         pd = pytest.importorskip("pandas")
-        from services.query.transform import summarize_list_columns
+        from services.graph.query.transform import summarize_list_columns
 
         df = pd.DataFrame({"msg_errors": [["err1", "err2"]]})
         summarize_list_columns(df, ["msg_errors"])
@@ -873,7 +873,7 @@ class TestSummarizeListColumns:
 
     def test_empty_columns_list(self):
         pd = pytest.importorskip("pandas")
-        from services.query.transform import summarize_list_columns
+        from services.graph.query.transform import summarize_list_columns
 
         df = pd.DataFrame({"msg_errors": [["err1"]]})
         result = summarize_list_columns(df, [])

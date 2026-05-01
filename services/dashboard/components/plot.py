@@ -136,7 +136,6 @@ class PlotPage(PageComponent[PlotViewConfig]):
             _add_ng_regions_to_fig,
             _create_plot_figure,
         )
-        from services.dashboard.query import apply_saved_view_filters
         from services.dashboard.widgets import (
             apply_style_to_fig,
             build_axis_range,
@@ -144,6 +143,7 @@ class PlotPage(PageComponent[PlotViewConfig]):
             get_active_filters,
             render_shared_filters,
         )
+        from services.graph.query import apply_saved_view_filters
 
         vocab = kwargs.get("vocab")
 

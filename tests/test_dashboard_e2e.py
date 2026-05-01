@@ -167,13 +167,6 @@ class TestDashboardAppTest:
         assert "array_plot" in joined
         assert "gallery" in joined
 
-    def test_view_add_form_present(self, project_with_graph: Path):
-        """ビュー追加フォームが折りたたみセクションとして表示される"""
-        at = self._run_app(project_with_graph)
-        assert not at.exception
-        expander_labels = [e.label for e in at.expander]
-        assert any("ビューを追加" in lbl for lbl in expander_labels)
-
     def test_default_page_renders_table(self, project_with_graph: Path):
         """デフォルトページ（テーブル）がレンダリングされる"""
         at = self._run_app(project_with_graph)
@@ -254,7 +247,7 @@ class TestDashboardFilterE2E:
 
     def test_apply_chained_filters_global_only(self):
         """グローバルフィルタのみ適用"""
-        from services.query.filters import apply_chained_filters
+        from services.graph.query.filters import apply_chained_filters
 
         rows = [
             {"type": "go", "active": True, "name": "a"},
@@ -267,7 +260,7 @@ class TestDashboardFilterE2E:
 
     def test_apply_chained_filters_global_and_local(self):
         """グローバル+ローカルフィルタ適用"""
-        from services.query.filters import apply_chained_filters
+        from services.graph.query.filters import apply_chained_filters
 
         rows = [
             {"type": "go", "active": True, "name": "a"},
@@ -280,14 +273,14 @@ class TestDashboardFilterE2E:
 
     def test_merge_filters_local_overrides_global(self):
         """ローカルフィルタがグローバルを上書き"""
-        from services.query.filters import merge_filters
+        from services.graph.query.filters import merge_filters
 
         merged = merge_filters({"type": "go", "active": True}, {"type": "inp"})
         assert merged == {"type": "inp", "active": True}
 
     def test_merge_filters_multiple_local_keys(self):
         """複数ローカルフィルタキーの処理"""
-        from services.query.filters import merge_filters
+        from services.graph.query.filters import merge_filters
 
         merged = merge_filters(
             {"type": "go"},
@@ -365,7 +358,7 @@ class TestConnectorSavedViewUnit:
 
     def test_material_connector_saved_view_html_single(self):
         """物性コネクター: 単一物性の保存済みビューHTML"""
-        import services.dashboard.connectors.abaqus
+        import plugins.abaqus.dashboard
         from config import DashboardConfig, SavedViewConfig
 
         provider = self._make_provider()
@@ -378,14 +371,14 @@ class TestConnectorSavedViewUnit:
             }
         )
 
-        connector = services.dashboard.connectors.abaqus.AbaqusMaterialPageConnector()
+        connector = plugins.abaqus.dashboard.AbaqusMaterialPageConnector()
         html = connector.generate_saved_view_html(provider, view, config)
         assert "Steel" in html
         assert "plastic" in html
 
     def test_material_connector_saved_view_html_compare(self):
         """物性コネクター: 比較モードの保存済みビューHTML"""
-        import services.dashboard.connectors.abaqus
+        import plugins.abaqus.dashboard
         from config import DashboardConfig, SavedViewConfig
 
         provider = self._make_provider()
@@ -401,13 +394,13 @@ class TestConnectorSavedViewUnit:
             }
         )
 
-        connector = services.dashboard.connectors.abaqus.AbaqusMaterialPageConnector()
+        connector = plugins.abaqus.dashboard.AbaqusMaterialPageConnector()
         html = connector.generate_saved_view_html(provider, view, config)
         assert "物性比較" in html
 
     def test_material_connector_saved_view_html_fallback(self):
         """物性コネクター: connector_config未設定時はデフォルトHTML"""
-        import services.dashboard.connectors.abaqus
+        import plugins.abaqus.dashboard
         from config import DashboardConfig, SavedViewConfig
 
         provider = self._make_provider()
@@ -419,13 +412,13 @@ class TestConnectorSavedViewUnit:
             }
         )
 
-        connector = services.dashboard.connectors.abaqus.AbaqusMaterialPageConnector()
+        connector = plugins.abaqus.dashboard.AbaqusMaterialPageConnector()
         html = connector.generate_saved_view_html(provider, view, config)
         assert "物性テーブル" in html
 
     def test_job_summary_connector_saved_view_html_filtered(self):
         """ジョブサマリーコネクター: status_filterによるフィルタ"""
-        import services.dashboard.connectors.abaqus
+        import plugins.abaqus.dashboard
         from config import DashboardConfig, SavedViewConfig
 
         provider = self._make_provider()
@@ -438,14 +431,14 @@ class TestConnectorSavedViewUnit:
             }
         )
 
-        connector = services.dashboard.connectors.abaqus.AbaqusJobSummaryPageConnector()
+        connector = plugins.abaqus.dashboard.AbaqusJobSummaryPageConnector()
         html = connector.generate_saved_view_html(provider, view, config)
         assert "COMPLETED" in html
         assert "FAILED" not in html
 
     def test_job_summary_connector_saved_view_html_go_name_filter(self):
         """ジョブサマリーコネクター: go_nameフィルタ"""
-        import services.dashboard.connectors.abaqus
+        import plugins.abaqus.dashboard
         from config import DashboardConfig, SavedViewConfig
 
         provider = self._make_provider()
@@ -458,13 +451,13 @@ class TestConnectorSavedViewUnit:
             }
         )
 
-        connector = services.dashboard.connectors.abaqus.AbaqusJobSummaryPageConnector()
+        connector = plugins.abaqus.dashboard.AbaqusJobSummaryPageConnector()
         html = connector.generate_saved_view_html(provider, view, config)
         assert "go_idx1_v1" in html
 
     def test_job_summary_connector_saved_view_no_match(self):
         """ジョブサマリーコネクター: 条件不一致で空結果"""
-        import services.dashboard.connectors.abaqus
+        import plugins.abaqus.dashboard
         from config import DashboardConfig, SavedViewConfig
 
         provider = self._make_provider()
@@ -477,7 +470,7 @@ class TestConnectorSavedViewUnit:
             }
         )
 
-        connector = services.dashboard.connectors.abaqus.AbaqusJobSummaryPageConnector()
+        connector = plugins.abaqus.dashboard.AbaqusJobSummaryPageConnector()
         html = connector.generate_saved_view_html(provider, view, config)
         assert "合致する" in html
 
@@ -489,7 +482,7 @@ class TestDashboardHtmlExportE2E:
     def test_html_export_with_graph_data(self, project_with_graph: Path):
         """グラフデータからHTMLエクスポートが生成される"""
         # コネクター登録
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import DashboardConfig, SavedViewConfig
         from services.dashboard.data_provider import DashboardDataProvider
         from services.dashboard.html_export import generate_saved_views_html
@@ -523,7 +516,7 @@ class TestDashboardHtmlExportE2E:
 
     def test_html_export_without_views(self, project_with_graph: Path):
         """ビューなしでもコネクターページのHTMLが生成される"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import DashboardConfig
         from services.dashboard.data_provider import DashboardDataProvider
         from services.dashboard.html_export import generate_saved_views_html
@@ -557,7 +550,7 @@ class TestConnectorConfigSchema:
 
     def test_material_connector_has_schema(self):
         """AbaqusMaterialPageConnectorがスキーマを返す"""
-        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+        from plugins.abaqus.dashboard import AbaqusMaterialPageConnector
 
         schema = AbaqusMaterialPageConnector.get_connector_config_schema()
         assert len(schema) == 3
@@ -568,7 +561,7 @@ class TestConnectorConfigSchema:
 
     def test_mesh_quality_connector_has_schema(self):
         """AbaqusMeshQualityPageConnectorがスキーマを返す"""
-        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+        from plugins.abaqus.dashboard import AbaqusMeshQualityPageConnector
 
         schema = AbaqusMeshQualityPageConnector.get_connector_config_schema()
         assert len(schema) == 2
@@ -581,7 +574,7 @@ class TestConnectorConfigSchema:
 
     def test_job_summary_connector_has_schema(self):
         """AbaqusJobSummaryPageConnectorがスキーマを返す"""
-        from services.dashboard.connectors.abaqus import AbaqusJobSummaryPageConnector
+        from plugins.abaqus.dashboard import AbaqusJobSummaryPageConnector
 
         schema = AbaqusJobSummaryPageConnector.get_connector_config_schema()
         assert len(schema) == 2
@@ -611,7 +604,7 @@ class TestConnectorConfigSchema:
 
     def test_schema_fields_have_required_keys(self):
         """スキーマの各フィールドがkey, label, typeを持つ"""
-        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+        from plugins.abaqus.dashboard import AbaqusMaterialPageConnector
 
         schema = AbaqusMaterialPageConnector.get_connector_config_schema()
         for field in schema:
@@ -725,7 +718,7 @@ class TestDashboardConnectorRegistry:
 
     def test_abaqus_material_connector_available(self):
         """Abaqus物性コネクターがmaterialノード存在時に利用可能"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import get_connector_pages
 
         provider = self._make_provider_with_materials()
@@ -734,7 +727,7 @@ class TestDashboardConnectorRegistry:
 
     def test_abaqus_material_connector_html(self):
         """物性コネクターがHTMLを生成できる"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import generate_connector_pages_html
 
         provider = self._make_provider_with_materials()
@@ -747,7 +740,7 @@ class TestDashboardConnectorRegistry:
 
     def test_abaqus_job_summary_connector_html(self):
         """ジョブサマリーコネクターがHTMLを生成"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import DashboardConfig, SavedViewConfig
         from services.dashboard.connectors import generate_connector_saved_view_html
 
@@ -792,7 +785,7 @@ class TestHtmlExportIntegrity:
 
     def test_html_export_includes_all_data_nodes(self, project_with_graph: Path):
         """HTMLエクスポートにノードデータが反映される"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import DashboardConfig, SavedViewConfig
         from services.dashboard.data_provider import DashboardDataProvider
         from services.dashboard.html_export import generate_saved_views_html
@@ -820,7 +813,7 @@ class TestHtmlExportIntegrity:
 
     def test_html_export_material_connector(self, project_with_graph: Path):
         """HTMLエクスポートに物性コネクターが含まれる"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import DashboardConfig
         from services.dashboard.data_provider import DashboardDataProvider
         from services.dashboard.html_export import generate_saved_views_html

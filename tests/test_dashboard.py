@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from pathlib import Path
 
 import pytest
@@ -743,7 +742,7 @@ class TestGraphChangeDetection:
 
     def test_find_graph_path_yaml(self, tmp_path):
         """graph.yamlが存在する場合にパスを返す"""
-        from services.dashboard.query import find_graph_path
+        from services.dashboard.state import find_graph_path
 
         storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
@@ -756,7 +755,7 @@ class TestGraphChangeDetection:
 
     def test_find_graph_path_json(self, tmp_path):
         """graph.jsonが存在する場合にパスを返す"""
-        from services.dashboard.query import find_graph_path
+        from services.dashboard.state import find_graph_path
 
         storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
@@ -768,14 +767,14 @@ class TestGraphChangeDetection:
 
     def test_find_graph_path_none(self, tmp_path):
         """グラフファイルが存在しない場合にNoneを返す"""
-        from services.dashboard.query import find_graph_path
+        from services.dashboard.state import find_graph_path
 
         result = find_graph_path(tmp_path)
         assert result is None
 
     def test_get_graph_mtime_returns_float(self, tmp_path):
         """mtimeがfloatで返される"""
-        from services.dashboard.query import get_graph_mtime
+        from services.dashboard.state import get_graph_mtime
 
         storage_dir = tmp_path / ".j2" / "storage"
         storage_dir.mkdir(parents=True)
@@ -787,7 +786,7 @@ class TestGraphChangeDetection:
 
     def test_get_graph_mtime_no_file(self, tmp_path):
         """ファイルがない場合は0.0"""
-        from services.dashboard.query import get_graph_mtime
+        from services.dashboard.state import get_graph_mtime
 
         mtime = get_graph_mtime(tmp_path)
         assert mtime == 0.0
@@ -796,30 +795,6 @@ class TestGraphChangeDetection:
 # ====================================================================
 # AgGridヘルパー テスト
 # ====================================================================
-
-
-class TestAgGridHelper:
-    """AgGridヘルパー関数のテスト"""
-
-    def test_try_render_aggrid_import_fallback(self):
-        """st_aggridがない場合はFalseを返す"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-
-        import pandas as pd
-
-        from services.dashboard.app import _try_render_aggrid
-
-        df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
-        # st_aggridがインストールされていない場合はFalse、
-        # インストール済みでも描画コンテキストがないのでエラーになり得る。
-        # ここではインポート可否のロジックのみ確認。
-        with contextlib.suppress(Exception):
-            _try_render_aggrid(df)
-            # インストール済みの場合: Streamlitコンテキスト外でエラーか成功
-            # Streamlitコンテキスト外で動かした場合のエラーは許容
 
 
 # ====================================================================
@@ -1127,14 +1102,14 @@ class TestSelectTableColumns:
 
     def test_none_returns_all(self):
         """table_columnsがNoneの場合は全カラム返却"""
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         cols = ["name", "type", "format", "index", "RF3"]
         assert select_table_columns(cols, None) == cols
 
     def test_filters_and_orders(self):
         """指定パターンに基づくフィルタと順序付け"""
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "index", "RF3", "temperature", "active"]
         table_columns = ["RF3", "index"]
@@ -1144,7 +1119,7 @@ class TestSelectTableColumns:
 
     def test_glob_pattern(self):
         """globパターンによるカラムマッチ"""
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
         table_columns = ["stress*", "RF3"]
@@ -1153,7 +1128,7 @@ class TestSelectTableColumns:
 
     def test_no_match(self):
         """マッチしないパターンの場合は固定カラムのみ"""
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "index"]
         table_columns = ["nonexistent"]
@@ -1171,19 +1146,19 @@ class TestIsTruthy:
 
     def test_bool_true(self):
         """Python bool Trueを正しく判定"""
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(True) is True
 
     def test_bool_false(self):
         """Python bool Falseを正しく判定"""
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(False) is False
 
     def test_string_true(self):
         """文字列 'true' を正しく判定"""
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy("true") is True
         assert is_truthy("True") is True
@@ -1191,14 +1166,14 @@ class TestIsTruthy:
 
     def test_string_false(self):
         """文字列 'false' を正しく判定"""
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy("false") is False
         assert is_truthy("False") is False
 
     def test_none(self):
         """Noneはfalse"""
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(None) is False
 
@@ -1534,19 +1509,19 @@ class TestNormalizeGroupKey:
 
     def test_daily_key_normalized(self):
         """daily:日付:キー → キーに正規化"""
-        from services.dashboard.query import normalize_group_key
+        from services.dashboard.images import normalize_group_key
 
         assert normalize_group_key("daily:2026-01-15:screenshot") == "screenshot"
 
     def test_non_daily_key_unchanged(self):
         """dailyでないキーはそのまま"""
-        from services.dashboard.query import normalize_group_key
+        from services.dashboard.images import normalize_group_key
 
         assert normalize_group_key("screenshot") == "screenshot"
 
     def test_daily_two_parts(self):
         """daily:xxのみ（2パート）はそのまま"""
-        from services.dashboard.query import normalize_group_key
+        from services.dashboard.images import normalize_group_key
 
         assert normalize_group_key("daily:only") == "daily:only"
 
@@ -1554,56 +1529,6 @@ class TestNormalizeGroupKey:
 # ====================================================================
 # _estimate_column_width テスト
 # ====================================================================
-
-
-class TestEstimateColumnWidth:
-    """_estimate_column_width のテスト"""
-
-    def test_ascii_columns(self):
-        """英数字のみの列名"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _estimate_column_width
-
-        width = _estimate_column_width("RF3")
-        assert width == max(80, 3 * 10 + 30)
-
-    def test_japanese_columns(self):
-        """日本語列名は2文字分"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _estimate_column_width
-
-        width = _estimate_column_width("条件")
-        # 2文字 x 2(全角) = 4文字分、4*10+30 = 70 → min 80
-        assert width == 80
-
-    def test_minimum_width(self):
-        """最小幅は80px"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _estimate_column_width
-
-        width = _estimate_column_width("a")
-        assert width == 80
-
-    def test_long_name(self):
-        """長い名前は適切に計算"""
-        try:
-            import streamlit  # noqa: F401
-        except ImportError:
-            pytest.skip("streamlit not installed")
-        from services.dashboard.app import _estimate_column_width
-
-        width = _estimate_column_width("analysis_status")
-        # 15文字 x 1 = 15文字分、15*10+30 = 180
-        assert width == 180
 
 
 # ====================================================================
@@ -1616,7 +1541,7 @@ class TestSortColumnsByVocab:
 
     def test_vocab_order_first(self):
         """vocab定義順が優先される"""
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         vocab = {"idx": "条件", "ver": "バージョン"}
         cols = ["RF3", "バージョン", "条件", "temperature"]
@@ -1626,7 +1551,7 @@ class TestSortColumnsByVocab:
 
     def test_no_vocab_alphabetical(self):
         """vocabが空の場合は文字列昇順"""
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         cols = ["RF3", "temperature", "active"]
         result = sort_columns_by_vocab(cols, {})
@@ -1634,7 +1559,7 @@ class TestSortColumnsByVocab:
 
     def test_mixed_vocab_non_vocab(self):
         """vocabに含まれるものと含まれないものの混合"""
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         vocab = {"idx": "条件"}
         cols = ["RF3", "条件", "active"]
@@ -1997,7 +1922,7 @@ class TestGetMaterialTable:
 
     def test_returns_material_rows(self):
         """abaqus_materialノードのテーブル行を返す"""
-        from services.dashboard.connectors.abaqus import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         provider = DashboardDataProvider(self._make_material_graph())
         rows = get_material_table(provider)
@@ -2008,7 +1933,7 @@ class TestGetMaterialTable:
 
     def test_table_data_summarized(self):
         """テーブル型データはフォーマット表示"""
-        from services.dashboard.connectors.abaqus import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         provider = DashboardDataProvider(self._make_material_graph())
         rows = get_material_table(provider)
@@ -2022,7 +1947,7 @@ class TestGetMaterialTable:
 
     def test_excludes_go_nodes(self):
         """go_ノードは含まれない"""
-        from services.dashboard.connectors.abaqus import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         provider = DashboardDataProvider(self._make_material_graph())
         rows = get_material_table(provider)
@@ -2040,7 +1965,7 @@ class TestGetMaterialTableData:
 
     def test_returns_table_data(self):
         """テーブル型プロパティデータを返す"""
-        from services.dashboard.connectors.abaqus import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         graph = GraphModel(
             nodes=[
@@ -2067,14 +1992,14 @@ class TestGetMaterialTableData:
 
     def test_returns_none_for_nonexistent(self):
         """存在しないノードIDはNone"""
-        from services.dashboard.connectors.abaqus import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         provider = DashboardDataProvider(GraphModel(nodes=[], relations=[]))
         assert get_material_table_data(provider, 999, "plastic") is None
 
     def test_returns_none_for_non_table(self):
         """テーブル型でないプロパティはNone"""
-        from services.dashboard.connectors.abaqus import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         graph = GraphModel(
             nodes=[
@@ -2102,7 +2027,7 @@ class TestGetMaterialTableKeys:
 
     def test_returns_table_keys(self):
         """テーブル型キーのみ返す"""
-        from services.dashboard.connectors.abaqus import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         graph = GraphModel(
             nodes=[
@@ -2131,7 +2056,7 @@ class TestGetMaterialTableKeys:
 
     def test_empty_for_go_node(self):
         """go_ノードは空リスト"""
-        from services.dashboard.connectors.abaqus import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         graph = GraphModel(
             nodes=[
@@ -2153,7 +2078,7 @@ class TestGuessTableColumnNames:
 
     def test_plastic_columns_from_config(self):
         """configからplasticの列名を取得"""
-        from services.dashboard.connectors.abaqus import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {
             "plastic": {"columns": ["stress", "strain"]},
@@ -2163,7 +2088,7 @@ class TestGuessTableColumnNames:
 
     def test_elastic_columns_from_config(self):
         """configからelasticの列名を取得"""
-        from services.dashboard.connectors.abaqus import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {
             "elastic": {"columns": ["E", "nu"]},
@@ -2173,21 +2098,21 @@ class TestGuessTableColumnNames:
 
     def test_unknown_columns_no_config(self):
         """configにマッチしないキーはcol_Nで補完"""
-        from services.dashboard.connectors.abaqus import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         names = guess_table_column_names("unknown_prop", 3, {})
         assert names == ["col_0", "col_1", "col_2"]
 
     def test_none_config_fallback(self):
         """config=Noneの場合もcol_Nで補完"""
-        from services.dashboard.connectors.abaqus import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         names = guess_table_column_names("plastic", 2, None)
         assert names == ["col_0", "col_1"]
 
     def test_config_columns_fewer_than_num_cols(self):
         """configの列数がnum_colsより少ない場合はcol_Nで補完"""
-        from services.dashboard.connectors.abaqus import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {
             "plastic": {"columns": ["stress"]},
@@ -2197,7 +2122,7 @@ class TestGuessTableColumnNames:
 
     def test_config_columns_more_than_num_cols(self):
         """configの列数がnum_colsより多い場合は切り詰め"""
-        from services.dashboard.connectors.abaqus import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {
             "creep": {"columns": ["A", "n", "m"]},
@@ -2216,7 +2141,7 @@ class TestGetCurvePlotAxes:
 
     def test_default_axes(self):
         """configなしの場合はx=0, y=1"""
-        from services.dashboard.connectors.abaqus import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         x, y = get_curve_plot_axes("elastic", 2, None)
         assert x == 0
@@ -2224,7 +2149,7 @@ class TestGetCurvePlotAxes:
 
     def test_config_axes(self):
         """configでx/yインデックスを指定"""
-        from services.dashboard.connectors.abaqus import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         mcc = {
             "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
@@ -2235,7 +2160,7 @@ class TestGetCurvePlotAxes:
 
     def test_config_no_axes(self):
         """configにcolumnsはあるがx/y未指定の場合はデフォルト"""
-        from services.dashboard.connectors.abaqus import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         mcc = {
             "elastic": {"columns": ["E", "nu"]},
@@ -2246,7 +2171,7 @@ class TestGetCurvePlotAxes:
 
     def test_config_axes_clamped(self):
         """x/yインデックスがnum_colsを超えた場合はクランプ"""
-        from services.dashboard.connectors.abaqus import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         mcc = {
             "test": {"columns": ["a"], "x": 5, "y": 10},
@@ -2257,7 +2182,7 @@ class TestGetCurvePlotAxes:
 
     def test_unknown_key_default(self):
         """configにないキーはデフォルト"""
-        from services.dashboard.connectors.abaqus import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         mcc = {"plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0}}
         x, y = get_curve_plot_axes("unknown", 3, mcc)
@@ -2372,21 +2297,21 @@ class TestDashboardPageConnector:
 
     def test_abaqus_connector_registered(self):
         """AbaqusMaterialPageConnectorがレジストリに登録されている"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import DashboardPageConnector
 
         assert "物性一覧" in DashboardPageConnector._registry
 
     def test_abaqus_connector_key(self):
         """AbaqusMaterialPageConnectorのconnector_keyが設定されている"""
-        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+        from plugins.abaqus.dashboard import AbaqusMaterialPageConnector
 
         assert AbaqusMaterialPageConnector.connector_key == "abaqus"
 
     def test_get_connector_config(self):
         """connector_keyでDashboardConfigからコネクタ固有設定を取得"""
         from config import DashboardConfig
-        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+        from plugins.abaqus.dashboard import AbaqusMaterialPageConnector
 
         cfg = DashboardConfig.from_dict(
             {
@@ -2401,7 +2326,7 @@ class TestDashboardPageConnector:
 
     def test_get_connector_pages_with_material(self):
         """abaqus_materialノードがある場合にコネクターページが返される"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import get_connector_pages
 
         graph = GraphModel(
@@ -2416,7 +2341,7 @@ class TestDashboardPageConnector:
 
     def test_get_connector_pages_without_material(self):
         """abaqus_materialノードがない場合はコネクターページが返されない"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import get_connector_pages
 
         graph = GraphModel(
@@ -2431,20 +2356,20 @@ class TestDashboardPageConnector:
 
     def test_mesh_quality_connector_registered(self):
         """AbaqusMeshQualityPageConnectorがレジストリに登録されている"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import DashboardPageConnector
 
         assert "メッシュ品質" in DashboardPageConnector._registry
 
     def test_mesh_quality_connector_key(self):
         """AbaqusMeshQualityPageConnectorのconnector_keyが設定されている"""
-        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+        from plugins.abaqus.dashboard import AbaqusMeshQualityPageConnector
 
         assert AbaqusMeshQualityPageConnector.connector_key == "abaqus"
 
     def test_mesh_quality_available_with_mesh_data(self):
         """メッシュデータがあるgo_ノードがある場合にメッシュ品質ページが利用可能"""
-        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+        from plugins.abaqus.dashboard import AbaqusMeshQualityPageConnector
 
         graph = GraphModel(
             nodes=[
@@ -2464,7 +2389,7 @@ class TestDashboardPageConnector:
 
     def test_mesh_quality_available_with_elset_quality(self):
         """elset品質データがある場合にメッシュ品質ページが利用可能"""
-        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+        from plugins.abaqus.dashboard import AbaqusMeshQualityPageConnector
 
         graph = GraphModel(
             nodes=[
@@ -2484,7 +2409,7 @@ class TestDashboardPageConnector:
 
     def test_mesh_quality_not_available_without_data(self):
         """メッシュ関連データがない場合はメッシュ品質ページが利用不可"""
-        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+        from plugins.abaqus.dashboard import AbaqusMeshQualityPageConnector
 
         graph = GraphModel(
             nodes=[
@@ -2498,7 +2423,7 @@ class TestDashboardPageConnector:
 
     def test_mesh_quality_page_in_connector_pages(self):
         """メッシュデータがある場合にget_connector_pagesで返される"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import get_connector_pages
 
         graph = GraphModel(
@@ -2522,7 +2447,7 @@ class TestDashboardPageConnector:
 
         メッシュ品質は独立ページに分離されたため、物性一覧には含まれない。
         """
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import get_connector_pages
 
         graph = GraphModel(
@@ -2568,7 +2493,7 @@ class TestDashboardPageConnector:
     def test_material_connector_generate_html(self):
         """物性一覧コネクターがHTMLを生成できる"""
         pytest.importorskip("pandas")
-        from services.dashboard.connectors.abaqus import AbaqusMaterialPageConnector
+        from plugins.abaqus.dashboard import AbaqusMaterialPageConnector
 
         graph = GraphModel(
             nodes=[
@@ -2591,7 +2516,7 @@ class TestDashboardPageConnector:
     def test_mesh_quality_connector_generate_html(self):
         """メッシュ品質コネクターがHTMLを生成できる"""
         pytest.importorskip("pandas")
-        from services.dashboard.connectors.abaqus import AbaqusMeshQualityPageConnector
+        from plugins.abaqus.dashboard import AbaqusMeshQualityPageConnector
 
         graph = GraphModel(
             nodes=[
@@ -2621,7 +2546,7 @@ class TestDashboardPageConnector:
     def test_job_summary_connector_generate_html(self):
         """ジョブサマリーコネクターがHTMLを生成できる"""
         pytest.importorskip("pandas")
-        from services.dashboard.connectors.abaqus import AbaqusJobSummaryPageConnector
+        from plugins.abaqus.dashboard import AbaqusJobSummaryPageConnector
 
         graph = GraphModel(
             nodes=[
@@ -2648,7 +2573,7 @@ class TestDashboardPageConnector:
     def test_generate_connector_pages_html(self):
         """generate_connector_pages_htmlが利用可能なコネクターのHTMLを返す"""
         pytest.importorskip("pandas")
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import generate_connector_pages_html
 
         graph = GraphModel(
@@ -2690,7 +2615,7 @@ class TestParseMaterialCurveColumns:
 
     def test_dict_format(self):
         """辞書形式の正規化"""
-        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns as _parse_material_curve_columns
 
         raw = {
             "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
@@ -2705,7 +2630,7 @@ class TestParseMaterialCurveColumns:
 
     def test_list_shorthand(self):
         """簡略形式（リスト）の正規化"""
-        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns as _parse_material_curve_columns
 
         raw = {"density": ["density"]}
         result = _parse_material_curve_columns(raw)
@@ -2713,13 +2638,13 @@ class TestParseMaterialCurveColumns:
 
     def test_empty_dict(self):
         """空辞書"""
-        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns as _parse_material_curve_columns
 
         assert _parse_material_curve_columns({}) == {}
 
     def test_non_dict_input(self):
         """辞書でない入力は空辞書"""
-        from services.dashboard.connectors.abaqus import parse_material_curve_columns as _parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns as _parse_material_curve_columns
 
         assert _parse_material_curve_columns("invalid") == {}
         assert _parse_material_curve_columns(None) == {}
@@ -2936,7 +2861,7 @@ class TestRestApiPropFilter:
 
     def test_parse_prop_filters(self):
         """プロパティフィルターのパース"""
-        from services.query import parse_prop_filters
+        from services.graph.query import parse_prop_filters
 
         params = {
             "type": "go",
@@ -2952,7 +2877,7 @@ class TestRestApiPropFilter:
     def test_apply_prop_filters(self):
         """プロパティフィルターの適用"""
         from jj_types import Node
-        from services.query import apply_prop_filters, node_prop_getter
+        from services.graph.query import apply_prop_filters, node_prop_getter
 
         nodes = [
             Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
@@ -2975,7 +2900,7 @@ class TestRestApiPropFilter:
     def test_apply_prop_filters_combined(self):
         """複合プロパティフィルター"""
         from jj_types import Node
-        from services.query import apply_prop_filters, node_prop_getter
+        from services.graph.query import apply_prop_filters, node_prop_getter
 
         nodes = [
             Node(id=1, type="go", name="a", format="inp", properties={"RF3": 3.0, "temperature": 300}),
@@ -3275,7 +3200,7 @@ class TestMaterialComparison:
 
     def test_get_material_table_keys(self):
         """テーブル型プロパティキーの取得"""
-        from services.dashboard.connectors.abaqus import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         graph = _make_material_graph()
         provider = DashboardDataProvider(graph)
@@ -3287,7 +3212,7 @@ class TestMaterialComparison:
 
     def test_get_material_table_data(self):
         """テーブル型プロパティデータの取得"""
-        from services.dashboard.connectors.abaqus import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         graph = _make_material_graph()
         provider = DashboardDataProvider(graph)
@@ -3299,7 +3224,7 @@ class TestMaterialComparison:
 
     def test_get_material_table_multiple(self):
         """複数materialのテーブルデータが取得できる"""
-        from services.dashboard.connectors.abaqus import (
+        from plugins.abaqus.dashboard import (
             get_material_table,
             get_material_table_data,
         )
@@ -3323,7 +3248,7 @@ class TestMaterialUsage:
 
     def test_get_material_usage(self):
         """物性使用関係の取得"""
-        from services.dashboard.connectors.abaqus import get_material_usage
+        from plugins.abaqus.dashboard import get_material_usage
 
         graph = _make_material_graph()
         provider = DashboardDataProvider(graph)
@@ -3343,7 +3268,7 @@ class TestMaterialUsage:
 
     def test_get_material_usage_empty(self):
         """uses_material関係なしの場合"""
-        from services.dashboard.connectors.abaqus import get_material_usage
+        from plugins.abaqus.dashboard import get_material_usage
 
         graph = GraphModel(
             nodes=[
@@ -3652,7 +3577,7 @@ class TestMaterialComparisonCsv:
 
     def test_comparison_data_collection(self):
         """比較データがmaterial別に正しく収集される"""
-        from services.dashboard.connectors.abaqus import (
+        from plugins.abaqus.dashboard import (
             get_material_table,
             get_material_table_data,
             guess_table_column_names,
@@ -3955,17 +3880,17 @@ class TestQueryModule:
     # ---- is_truthy ----
 
     def test_is_truthy_bool_true(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(True) is True
 
     def test_is_truthy_bool_false(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(False) is False
 
     def test_is_truthy_string_true(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy("true") is True
         assert is_truthy("True") is True
@@ -3973,19 +3898,19 @@ class TestQueryModule:
         assert is_truthy(" true ") is True
 
     def test_is_truthy_string_false(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy("false") is False
         assert is_truthy("False") is False
         assert is_truthy("") is False
 
     def test_is_truthy_none(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(None) is False
 
     def test_is_truthy_int(self):
-        from services.dashboard.query import is_truthy
+        from services.graph.query import is_truthy
 
         assert is_truthy(1) is True
         assert is_truthy(0) is False
@@ -3993,7 +3918,7 @@ class TestQueryModule:
     # ---- sort_columns_by_vocab ----
 
     def test_sort_columns_by_vocab_basic(self):
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         vocab = {"条件": "condition", "RF3": "RF3", "温度": "temperature"}
         columns = ["温度", "RF3", "条件", "extra"]
@@ -4011,12 +3936,12 @@ class TestQueryModule:
         assert "温度" in result
 
     def test_sort_columns_by_vocab_empty(self):
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         assert sort_columns_by_vocab([], {}) == []
 
     def test_sort_columns_by_vocab_no_vocab(self):
-        from services.dashboard.query import sort_columns_by_vocab
+        from services.graph.query import sort_columns_by_vocab
 
         columns = ["b", "a", "c"]
         result = sort_columns_by_vocab(columns, {})
@@ -4025,35 +3950,35 @@ class TestQueryModule:
     # ---- select_table_columns ----
 
     def test_select_table_columns_none(self):
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         cols = ["name", "type", "format", "index", "RF3"]
         result = select_table_columns(cols, None)
         assert result == cols
 
     def test_select_table_columns_with_patterns(self):
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "index", "RF3", "temperature", "active"]
         result = select_table_columns(all_cols, ["RF3", "index"])
         assert result == ["name", "type", "format", "RF3", "index"]
 
     def test_select_table_columns_glob(self):
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
         result = select_table_columns(all_cols, ["stress*", "RF3"])
         assert result == ["name", "type", "format", "stress_center", "stress_edge", "RF3"]
 
     def test_select_table_columns_no_match(self):
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "index"]
         result = select_table_columns(all_cols, ["nonexistent"])
         assert result == ["name", "type", "format"]
 
     def test_select_table_columns_with_vocab(self):
-        from services.dashboard.query import select_table_columns
+        from services.graph.query import select_table_columns
 
         all_cols = ["name", "type", "format", "RF3", "温度"]
         vocab = {"RF3": "RF3", "温度": "temperature"}
@@ -4065,7 +3990,7 @@ class TestQueryModule:
     # ---- apply_filters ----
 
     def test_apply_filters_no_filter(self):
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [
             {"type": "go", "analysis_status": "completed", "active": True},
@@ -4074,7 +3999,7 @@ class TestQueryModule:
         assert len(apply_filters(rows)) == 2
 
     def test_apply_filters_type(self):
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [
             {"type": "go", "analysis_status": "completed"},
@@ -4085,7 +4010,7 @@ class TestQueryModule:
         assert result[0]["type"] == "go"
 
     def test_apply_filters_status(self):
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [
             {"type": "go", "analysis_status": "completed"},
@@ -4096,7 +4021,7 @@ class TestQueryModule:
         assert result[0]["analysis_status"] == "completed"
 
     def test_apply_filters_active_only(self):
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [
             {"active": True, "type": "go"},
@@ -4107,7 +4032,7 @@ class TestQueryModule:
         assert len(result) == 2
 
     def test_apply_filters_all_combined(self):
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [
             {"type": "go", "analysis_status": "completed", "active": True},
@@ -4123,7 +4048,7 @@ class TestQueryModule:
 
     def test_apply_filters_type_all(self):
         """'すべて'はフィルタ無効"""
-        from services.dashboard.query import apply_filters
+        from services.graph.query import apply_filters
 
         rows = [{"type": "go"}, {"type": "material"}]
         assert len(apply_filters(rows, type_filter="すべて")) == 2
@@ -4131,13 +4056,13 @@ class TestQueryModule:
     # ---- apply_saved_view_filters ----
 
     def test_apply_saved_view_filters_empty(self):
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = [{"name": "a"}, {"name": "b"}]
         assert len(apply_saved_view_filters(rows, {})) == 2
 
     def test_apply_saved_view_filters_active_true(self):
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = [
             {"name": "a", "active": True},
@@ -4148,7 +4073,7 @@ class TestQueryModule:
         assert result[0]["name"] == "a"
 
     def test_apply_saved_view_filters_active_false(self):
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = [
             {"name": "a", "active": True},
@@ -4159,7 +4084,7 @@ class TestQueryModule:
         assert result[0]["name"] == "b"
 
     def test_apply_saved_view_filters_type(self):
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = [
             {"name": "a", "type": "go"},
@@ -4169,7 +4094,7 @@ class TestQueryModule:
         assert len(result) == 1
 
     def test_apply_saved_view_filters_custom_key(self):
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = [
             {"name": "a", "index": "1"},
@@ -4182,7 +4107,7 @@ class TestQueryModule:
     # ---- saved_view_filters_to_provider_filters ----
 
     def test_saved_view_filters_to_provider_filters(self):
-        from services.dashboard.query import saved_view_filters_to_provider_filters
+        from services.graph.query import saved_view_filters_to_provider_filters
 
         filters = {"active": True, "type": "go"}
         result = saved_view_filters_to_provider_filters(filters)
@@ -4191,24 +4116,24 @@ class TestQueryModule:
     # ---- normalize_group_key ----
 
     def test_normalize_group_key_daily(self):
-        from services.dashboard.query import normalize_group_key
+        from services.dashboard.images import normalize_group_key
 
         assert normalize_group_key("daily:2026-01-15:screenshot") == "screenshot"
 
     def test_normalize_group_key_plain(self):
-        from services.dashboard.query import normalize_group_key
+        from services.dashboard.images import normalize_group_key
 
         assert normalize_group_key("index") == "index"
 
     def test_normalize_group_key_daily_short(self):
-        from services.dashboard.query import normalize_group_key
+        from services.dashboard.images import normalize_group_key
 
         assert normalize_group_key("daily:2026-01-15") == "daily:2026-01-15"
 
     # ---- collect_group_keys ----
 
     def test_collect_group_keys_output(self):
-        from services.dashboard.query import collect_group_keys
+        from services.dashboard.images import collect_group_keys
 
         images = [
             {"go_properties": {"index": "1", "version": "1"}},
@@ -4221,7 +4146,7 @@ class TestQueryModule:
         assert result == sorted(result)
 
     def test_collect_group_keys_property(self):
-        from services.dashboard.query import collect_group_keys
+        from services.dashboard.images import collect_group_keys
 
         images = [
             {"go_properties": {"index": "1"}},
@@ -4231,7 +4156,7 @@ class TestQueryModule:
         assert "index" in result
 
     def test_collect_group_keys_excludes_internal(self):
-        from services.dashboard.query import collect_group_keys
+        from services.dashboard.images import collect_group_keys
 
         images = [
             {"go_properties": {"path": "a.inp", "index": "1"}},
@@ -4241,14 +4166,14 @@ class TestQueryModule:
         assert "index" in result
 
     def test_collect_group_keys_empty(self):
-        from services.dashboard.query import collect_group_keys
+        from services.dashboard.images import collect_group_keys
 
         assert collect_group_keys([], "output") == []
 
     # ---- find_graph_path / get_graph_mtime ----
 
     def test_find_graph_path_yaml(self, tmp_path):
-        from services.dashboard.query import find_graph_path
+        from services.dashboard.state import find_graph_path
 
         storage = tmp_path / ".j2" / "storage"
         storage.mkdir(parents=True)
@@ -4258,7 +4183,7 @@ class TestQueryModule:
         assert result.name == "graph.yaml"
 
     def test_find_graph_path_json(self, tmp_path):
-        from services.dashboard.query import find_graph_path
+        from services.dashboard.state import find_graph_path
 
         storage = tmp_path / ".j2" / "storage"
         storage.mkdir(parents=True)
@@ -4268,12 +4193,12 @@ class TestQueryModule:
         assert result.name == "graph.json"
 
     def test_find_graph_path_none(self, tmp_path):
-        from services.dashboard.query import find_graph_path
+        from services.dashboard.state import find_graph_path
 
         assert find_graph_path(tmp_path) is None
 
     def test_get_graph_mtime(self, tmp_path):
-        from services.dashboard.query import get_graph_mtime
+        from services.dashboard.state import get_graph_mtime
 
         storage = tmp_path / ".j2" / "storage"
         storage.mkdir(parents=True)
@@ -4283,7 +4208,7 @@ class TestQueryModule:
         assert mtime > 0
 
     def test_get_graph_mtime_no_file(self, tmp_path):
-        from services.dashboard.query import get_graph_mtime
+        from services.dashboard.state import get_graph_mtime
 
         assert get_graph_mtime(tmp_path) == 0.0
 
@@ -4355,7 +4280,7 @@ class TestAbaqusQueryModule:
     # ---- get_material_table ----
 
     def test_get_material_table(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         rows = get_material_table(material_provider)
         assert len(rows) == 2
@@ -4364,7 +4289,7 @@ class TestAbaqusQueryModule:
         assert "Aluminum" in names
 
     def test_get_material_table_excludes_internal(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         rows = get_material_table(material_provider)
         for row in rows:
@@ -4372,7 +4297,7 @@ class TestAbaqusQueryModule:
             assert "path" not in row
 
     def test_get_material_table_table_data_summary(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         rows = get_material_table(material_provider)
         steel = next(r for r in rows if r["name"] == "Steel")
@@ -4385,7 +4310,7 @@ class TestAbaqusQueryModule:
 
     def test_get_material_table_verbose_name_with_vocab(self):
         """生キー(verbose_name)でverbose_nameを取得できる"""
-        from services.dashboard.connectors.abaqus_query import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         graph = GraphModel(
             nodes=[
@@ -4410,7 +4335,7 @@ class TestAbaqusQueryModule:
 
     def test_get_material_table_verbose_name_fallback(self):
         """vocab未設定時は元のverbose_nameキーで取得"""
-        from services.dashboard.connectors.abaqus_query import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         graph = GraphModel(
             nodes=[
@@ -4434,7 +4359,7 @@ class TestAbaqusQueryModule:
 
     def test_get_material_table_excludes_vocab_verbose_name_key(self):
         """生キー(verbose_name)でverbose_nameが取得され、重複しない"""
-        from services.dashboard.connectors.abaqus_query import get_material_table
+        from plugins.abaqus.dashboard import get_material_table
 
         graph = GraphModel(
             nodes=[
@@ -4462,7 +4387,7 @@ class TestAbaqusQueryModule:
     # ---- get_material_table_data ----
 
     def test_get_material_table_data(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         result = get_material_table_data(material_provider, 2, "plastic")
         assert result is not None
@@ -4473,31 +4398,31 @@ class TestAbaqusQueryModule:
         assert "elastic" in result["keywords"]
 
     def test_get_material_table_data_not_table(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         # density はスカラ値なので None
         assert get_material_table_data(material_provider, 2, "density") is None
 
     def test_get_material_table_data_missing_key(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         assert get_material_table_data(material_provider, 2, "nonexistent") is None
 
     def test_get_material_table_data_wrong_node(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         # go_ノードはabaqus_materialではない
         assert get_material_table_data(material_provider, 1, "plastic") is None
 
     def test_get_material_table_data_missing_node(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_data
+        from plugins.abaqus.dashboard import get_material_table_data
 
         assert get_material_table_data(material_provider, 999, "plastic") is None
 
     # ---- get_material_table_keys ----
 
     def test_get_material_table_keys(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         keys = get_material_table_keys(material_provider, 2)
         # elastic は1行のみなので配列プロット対象外
@@ -4507,7 +4432,7 @@ class TestAbaqusQueryModule:
         assert keys == sorted(keys)
 
     def test_get_material_table_keys_aluminum(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         keys = get_material_table_keys(material_provider, 3)
         # Aluminum: elastic 1行のみ → 配列プロット対象外
@@ -4515,46 +4440,46 @@ class TestAbaqusQueryModule:
         assert "plastic" not in keys
 
     def test_get_material_table_keys_wrong_node(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         assert get_material_table_keys(material_provider, 1) == []
 
     def test_get_material_table_keys_missing_node(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_table_keys
+        from plugins.abaqus.dashboard import get_material_table_keys
 
         assert get_material_table_keys(material_provider, 999) == []
 
     # ---- guess_table_column_names ----
 
     def test_guess_table_column_names_with_config(self):
-        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {"plastic": {"columns": ["stress", "strain"]}}
         result = guess_table_column_names("plastic", 2, mcc)
         assert result == ["stress", "strain"]
 
     def test_guess_table_column_names_more_cols(self):
-        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {"plastic": {"columns": ["stress", "strain"]}}
         result = guess_table_column_names("plastic", 4, mcc)
         assert result == ["stress", "strain", "col_2", "col_3"]
 
     def test_guess_table_column_names_no_config(self):
-        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         result = guess_table_column_names("plastic", 3, None)
         assert result == ["col_0", "col_1", "col_2"]
 
     def test_guess_table_column_names_unknown_key(self):
-        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {"elastic": {"columns": ["E", "nu"]}}
         result = guess_table_column_names("plastic", 2, mcc)
         assert result == ["col_0", "col_1"]
 
     def test_guess_table_column_names_fewer_cols(self):
-        from services.dashboard.connectors.abaqus_query import guess_table_column_names
+        from plugins.abaqus.dashboard import guess_table_column_names
 
         mcc = {"plastic": {"columns": ["stress", "strain", "temp"]}}
         result = guess_table_column_names("plastic", 2, mcc)
@@ -4563,14 +4488,14 @@ class TestAbaqusQueryModule:
     # ---- get_curve_plot_axes ----
 
     def test_get_curve_plot_axes_default(self):
-        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         x, y = get_curve_plot_axes("plastic", 3, None)
         assert x == 0
         assert y == 1
 
     def test_get_curve_plot_axes_from_config(self):
-        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         mcc = {"plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0}}
         x, y = get_curve_plot_axes("plastic", 2, mcc)
@@ -4578,7 +4503,7 @@ class TestAbaqusQueryModule:
         assert y == 0
 
     def test_get_curve_plot_axes_clamped(self):
-        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         mcc = {"plastic": {"columns": ["a", "b"], "x": 10, "y": 10}}
         x, y = get_curve_plot_axes("plastic", 2, mcc)
@@ -4586,7 +4511,7 @@ class TestAbaqusQueryModule:
         assert y == 1
 
     def test_get_curve_plot_axes_single_col(self):
-        from services.dashboard.connectors.abaqus_query import get_curve_plot_axes
+        from plugins.abaqus.dashboard import get_curve_plot_axes
 
         x, y = get_curve_plot_axes("plastic", 1, None)
         assert x == 0
@@ -4595,7 +4520,7 @@ class TestAbaqusQueryModule:
     # ---- parse_material_curve_columns ----
 
     def test_parse_material_curve_columns_dict_format(self):
-        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns
 
         raw = {
             "plastic": {"columns": ["stress", "strain"], "x": 1, "y": 0},
@@ -4609,26 +4534,26 @@ class TestAbaqusQueryModule:
         assert "x" not in result["elastic"]
 
     def test_parse_material_curve_columns_list_format(self):
-        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns
 
         raw = {"plastic": ["stress", "strain"]}
         result = parse_material_curve_columns(raw)
         assert result["plastic"]["columns"] == ["stress", "strain"]
 
     def test_parse_material_curve_columns_empty(self):
-        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns
 
         assert parse_material_curve_columns({}) == {}
 
     def test_parse_material_curve_columns_invalid(self):
-        from services.dashboard.connectors.abaqus_query import parse_material_curve_columns
+        from plugins.abaqus.dashboard import parse_material_curve_columns
 
         assert parse_material_curve_columns("invalid") == {}
 
     # ---- get_material_usage ----
 
     def test_get_material_usage(self, material_provider):
-        from services.dashboard.connectors.abaqus_query import get_material_usage
+        from plugins.abaqus.dashboard import get_material_usage
 
         usage = get_material_usage(material_provider)
         assert len(usage) == 2
@@ -4638,7 +4563,7 @@ class TestAbaqusQueryModule:
         assert steel_usage["go_nodes"][0]["name"] == "go_idx1_v1"
 
     def test_get_material_usage_no_relations(self):
-        from services.dashboard.connectors.abaqus_query import get_material_usage
+        from plugins.abaqus.dashboard import get_material_usage
 
         graph = GraphModel(
             nodes=[
@@ -5558,7 +5483,7 @@ class TestFilterImagesByKeys:
 
     def test_no_filter_returns_all(self):
         """allowed_keys=NoneまたはNone時は全件返す"""
-        from services.dashboard.query import filter_images_by_keys
+        from services.dashboard.images import filter_images_by_keys
 
         images = [
             {"image_path": "results/S-S13/step0/img.png"},
@@ -5569,7 +5494,7 @@ class TestFilterImagesByKeys:
 
     def test_empty_filter_returns_all(self):
         """allowed_keys=[]の場合は全件返す"""
-        from services.dashboard.query import filter_images_by_keys
+        from services.dashboard.images import filter_images_by_keys
 
         images = [
             {"image_path": "results/S-S13/step0/img.png"},
@@ -5579,7 +5504,7 @@ class TestFilterImagesByKeys:
 
     def test_filter_output_by_result_key(self):
         """outputソースでresult_keyによるフィルタが機能する"""
-        from services.dashboard.query import filter_images_by_keys
+        from services.dashboard.images import filter_images_by_keys
 
         # _extract_result_key_from_pathはファイル名トークンからresult_keyを抽出
         images = [
@@ -5593,7 +5518,7 @@ class TestFilterImagesByKeys:
 
     def test_filter_output_multiple_keys(self):
         """複数キーのフィルタが機能する"""
-        from services.dashboard.query import filter_images_by_keys
+        from services.dashboard.images import filter_images_by_keys
 
         images = [
             {"image_path": "results/go_idx1_S-S13.png"},
@@ -5605,7 +5530,7 @@ class TestFilterImagesByKeys:
 
     def test_filter_property_by_key(self):
         """propertyソースでproperty_keyによるフィルタが機能する"""
-        from services.dashboard.query import filter_images_by_keys
+        from services.dashboard.images import filter_images_by_keys
 
         images = [
             {"property_key": "screenshot", "image_path": "a.png"},
@@ -5700,14 +5625,14 @@ class TestLocalFilterChain:
 
     def test_merge_filters_global_only(self):
         """ローカルフィルタがない場合はグローバルのみ"""
-        from services.query.filters import merge_filters
+        from services.graph.query.filters import merge_filters
 
         result = merge_filters({"type": "go"})
         assert result == {"type": "go"}
 
     def test_merge_filters_local_overrides(self):
         """ローカルフィルタがグローバルを上書き"""
-        from services.query.filters import merge_filters
+        from services.graph.query.filters import merge_filters
 
         result = merge_filters(
             {"type": "go", "active": True},
@@ -5717,14 +5642,14 @@ class TestLocalFilterChain:
 
     def test_merge_filters_empty_local(self):
         """空のローカルフィルタはグローバルのみ"""
-        from services.query.filters import merge_filters
+        from services.graph.query.filters import merge_filters
 
         result = merge_filters({"type": "go"}, {})
         assert result == {"type": "go"}
 
     def test_apply_chained_filters_global_only(self):
         """グローバルフィルタのみ適用"""
-        from services.query.filters import apply_chained_filters
+        from services.graph.query.filters import apply_chained_filters
 
         rows = [
             {"type": "go", "name": "go_1", "analysis_status": "COMPLETED"},
@@ -5737,7 +5662,7 @@ class TestLocalFilterChain:
 
     def test_apply_chained_filters_with_local(self):
         """グローバル→ローカルの順で適用"""
-        from services.query.filters import apply_chained_filters
+        from services.graph.query.filters import apply_chained_filters
 
         rows = [
             {"type": "go", "name": "go_1", "analysis_status": "COMPLETED"},
@@ -5764,7 +5689,7 @@ class TestConnectorSavedViewHtml:
     def test_connector_saved_view_html_generation(self):
         """コネクター保存ビューのHTML断片が生成される"""
         pytest.importorskip("pandas")
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import SavedViewConfig
         from services.dashboard.connectors import generate_connector_saved_view_html
 
@@ -5809,7 +5734,7 @@ class TestConnectorSavedViewHtml:
 
     def test_connector_saved_view_html_unavailable(self):
         """利用不可のコネクターでは空文字列を返す"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import SavedViewConfig
         from services.dashboard.connectors import generate_connector_saved_view_html
 
@@ -5828,7 +5753,7 @@ class TestConnectorSavedViewHtml:
     def test_generate_view_html_dispatches_connector(self):
         """generate_view_htmlがコネクタービューを正しくディスパッチする"""
         pytest.importorskip("pandas")
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from config import SavedViewConfig
         from services.dashboard.html_export import generate_view_html
 
@@ -5858,7 +5783,7 @@ class TestConnectorSavedViewHtml:
 
     def test_get_connector_view_type_options(self):
         """get_connector_view_type_optionsが利用可能なコネクタータイプを返す"""
-        import services.dashboard.connectors.abaqus  # noqa: F401
+        import plugins.abaqus.dashboard  # noqa: F401
         from services.dashboard.connectors import get_connector_view_type_options
 
         graph = GraphModel(
@@ -7146,7 +7071,7 @@ class TestPageComponentSingleRender:
         provider = DashboardDataProvider(graph)
 
         from config import DashboardConfig, SavedViewConfig
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         dashboard_config = DashboardConfig.from_dict({})
 

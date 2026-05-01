@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
-
 from services.dashboard.components import PageComponent, ViewConfig
 from services.dashboard.data_provider import format_float_value
 
@@ -56,8 +54,8 @@ def render_table_section(
     """
     import streamlit as st
 
-    from services.dashboard.query import select_table_columns
     from services.dashboard.widgets import render_excel_download, try_render_aggrid
+    from services.graph.query import select_table_columns
 
     st.caption(f"{len(filtered)} / {total_rows} 件")
 
@@ -96,7 +94,8 @@ def render_table_section(
 
     remain_cols = []
     for c in df.columns:
-        if np.unique(df[c].to_numpy()).shape[0] > 1:
+        n_unique = df[c].nunique(dropna=False)
+        if n_unique > 1:
             remain_cols.append(c)
     df = df[remain_cols]
 
@@ -106,13 +105,16 @@ def render_table_section(
     if not table_columns and provider._global_columns:
         table_columns = provider._global_columns
     selected_cols = select_table_columns(
-        list(df.columns), table_columns, exclude_table_columns=exclude_table_columns, vocab=vocab or {}
+        list(df.columns),
+        table_columns,
+        exclude_table_columns=exclude_table_columns,
+        vocab=vocab or {},
     )
     if selected_cols:
         df = df[[c for c in selected_cols if c in df.columns]]
 
     # list[str]型カラムの先頭要素のみ表示（config.list_summary_columnsで制御）
-    from services.query.transform import summarize_list_columns
+    from services.graph.query.transform import summarize_list_columns
 
     list_summary_cols = getattr(dashboard_config, "list_summary_columns", ["msg_errors", "dat_errors"])
     df = summarize_list_columns(df, list_summary_cols)
@@ -147,8 +149,12 @@ class TablePage(PageComponent[TableViewConfig]):
         """テーブルページを対話UIで描画する（旧 render_page 相当）"""
         import streamlit as st
 
-        from services.dashboard.query import apply_filters, apply_saved_view_filters, sort_rows_by_index
         from services.dashboard.widgets import render_shared_filters
+        from services.graph.query import (
+            apply_filters,
+            apply_saved_view_filters,
+            sort_rows_by_index,
+        )
 
         vocab = kwargs.get("vocab") or {}
 
@@ -168,7 +174,8 @@ class TablePage(PageComponent[TableViewConfig]):
         # 2) サイドバーの共有フィルタをさらに重ねる
         filtered = apply_filters(
             base_rows,
-            type_filter=st.session_state.get("_filter_type", "すべて"),
+            # type_filter=st.session_state.get("_filter_type", "すべて"),
+            type_filter=st.session_state.get("_filter_type", "ABQ inp"),
             status_filter=st.session_state.get("_filter_status", "すべて"),
             active_only=st.session_state.get("_filter_active", False),
             vocab=vocab,

@@ -34,10 +34,8 @@ from services.parse.file_parse import (
 from services.parse.file_parse import _parse_prop_token as _parse_prop_token_static
 from services.sdk.cache import CacheProvider
 
-# プラグインの動的発見を実行（Abaqus/Obsidian等のコネクタを登録）
+# プラグインの動的発見はGraphService初期化時に遅延実行する（循環import回避）
 from services.sdk.plugin_registry import load_all_plugins as _load_all_plugins
-
-_load_all_plugins()
 
 
 class GraphService:
@@ -62,6 +60,7 @@ class GraphService:
         storage: CacheProvider | GraphStorage | None = None,
         config: GraphConfig | None = None,
     ) -> None:
+        _load_all_plugins()
         self.project_root = Path(project_root or Path.cwd()).resolve()
         self.storage: CacheProvider = storage or GraphStorage()
         self.config = config or GraphConfig.load(self.project_root)

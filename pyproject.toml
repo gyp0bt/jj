@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jj"
-version = "0.1.0"
-description = "CAEプロジェクトグラフデータ構築ツール"
+version = "0.2.1"
+description = "CAEプロジェクトグラフデータ構築ツール（軽量版）"
 readme = "docs/README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -42,72 +42,14 @@ dashboard = [
     "streamlit-aggrid>=1.0.0",
     "plotly>=5.0.0",
 ]
-# REST API（jj serve）
-api = [
-    "fastapi>=0.100.0",
-    "uvicorn>=0.25.0",
-]
-# Neo4jコネクター（Docker: neo4j:5-community）
-neo4j = [
-    "neo4j>=5.0.0,<7.0.0",
-]
-# LS-DYNAプラグイン依存（将来: d3plot解析等）
-# lsdyna = []
-# Flow-3Dプラグイン依存（将来: 結果ファイル解析等）
-# flow3d = []
-# OpenFOAMプラグイン依存（将来: メッシュ解析等）
-# openfoam = []
-# CalculiXプラグイン依存（将来: .frd解析等）
-# calculix = []
-# Fluentプラグイン依存（HDF5ファイル解析用）
-fluent = [
-    "h5py>=3.0.0",
-]
-# HFSSプラグイン依存（現時点で追加依存なし）
-# hfss = []
-# ML（PyTorch深層学習）
-ml = [
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
-]
-# scikit-learn（古典ML）
-sklearn = [
-    "scikit-learn>=1.3.0",
-    "joblib>=1.3.0",
-]
-# Optuna（ハイパーパラメータ最適化）
-optuna = [
-    "optuna>=3.0.0",
-]
-# ML全依存
-ml-all = [
-    "jj[ml,sklearn,optuna]",
-]
-# SSH操作
-ssh = [
-    "paramiko>=3.0.0",
-]
-# Prefect（ワークフロー管理）
-prefect = [
-    "prefect>=3.0.0",
-]
-# Office連携（PPTX/XLSX）
-office = [
-    "python-pptx>=0.6.21",
-    "openpyxl>=3.0.0",
-    "Pillow>=9.0.0",
-]
-# Ollama AI連携
-ollama = []  # urllibのみ使用（追加依存なし）
 # 開発・テスト
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "httpx>=0.25.0",
 ]
 # 全依存（便宜上）
 all = [
-    "jj[pymesh,abaqus,obsidian,fluent,dashboard,api,neo4j,ssh,prefect,ollama,office,ml-all,dev]",
+    "jj[pymesh,abaqus,obsidian,dashboard,dev]",
 ]
 
 # --------------------------------------------------
@@ -116,30 +58,8 @@ all = [
 # jj.plugins グループ: プラグインパッケージ全体のエントリ
 # 各entry_pointの値はregister()関数を公開するモジュール
 [project.entry-points."jj.plugins"]
-abaqus = "services.plugins.abaqus:register"
-obsidian = "services.plugins.obsidian:register"
-lsdyna = "services.plugins.lsdyna:register"
-flow3d = "services.plugins.flow3d:register"
-openfoam = "services.plugins.openfoam:register"
-calculix = "services.plugins.calculix:register"
-fluent = "services.plugins.fluent:register"
-hfss = "services.plugins.hfss:register"
-ml = "services.plugins.ml:register"
-ollama = "services.plugins.ollama:register"
-office = "services.plugins.office:register"
-
-# jj.parsers グループ: 個別パーサーの登録（外部プラグイン用の拡張点）
-# 内蔵プラグインはjj.plugins経由でまとめて登録されるため、ここは空でもよい
-# [project.entry-points."jj.parsers"]
-
-# jj.exporters グループ: 個別エクスポーターの登録
-# [project.entry-points."jj.exporters"]
-
-# jj.dashboard_pages グループ: PageComponent/ViewConfigの登録（外部プラグイン用）
-# [project.entry-points."jj.dashboard_pages"]
-
-# jj.dashboard_connectors グループ: 個別ダッシュボードコネクターの登録
-# [project.entry-points."jj.dashboard_connectors"]
+abaqus = "plugins.abaqus:register"
+obsidian = "plugins.obsidian:register"
 
 [project.scripts]
 jj = "services.cli:main"
@@ -147,6 +67,7 @@ jj = "services.cli:main"
 [tool.setuptools.packages.find]
 include = [
     "jj",
+    "plugins*",
     "services*",
     "jj_types*",
     "config*",
@@ -158,6 +79,7 @@ include = [
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+extend-exclude = ["examples"]
 
 [tool.ruff.lint]
 select = [
@@ -180,7 +102,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["services", "jj_types", "config", "modules", "shared"]
+known-first-party = ["plugins", "services", "jj_types", "config", "modules", "shared"]
 
 [tool.ruff.format]
 quote-style = "double"

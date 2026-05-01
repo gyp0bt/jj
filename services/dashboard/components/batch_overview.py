@@ -47,8 +47,8 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         """バッチ俯瞰ページを対話UIで描画する（旧 render_page 相当）"""
         import streamlit as st
 
-        from services.dashboard.query import apply_saved_view_filters
         from services.dashboard.widgets import get_active_filters, render_shared_filters
+        from services.graph.query import apply_saved_view_filters
 
         st.header("バッチラン俯瞰")
 
@@ -75,7 +75,7 @@ class BatchOverviewPage(PageComponent[BatchOverviewViewConfig]):
         dashboard_config: DashboardConfig,
         **kwargs: Any,
     ) -> str:
-        from services.dashboard.query import apply_saved_view_filters
+        from services.graph.query import apply_saved_view_filters
 
         rows = provider.get_go_table()
         if view.filters:

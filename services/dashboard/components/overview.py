@@ -48,12 +48,12 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
 
         from services.dashboard.components.gallery import render_gallery_section
         from services.dashboard.components.table import render_table_section
-        from services.dashboard.query import (
+        from services.dashboard.widgets import get_active_filters, render_shared_filters
+        from services.graph.query import (
             apply_filters,
             apply_saved_view_filters,
             sort_rows_by_index,
         )
-        from services.dashboard.widgets import get_active_filters, render_shared_filters
 
         vocab = kwargs.get("vocab") or {}
         project_root = kwargs.get("project_root")

@@ -3135,7 +3135,7 @@ class TestMaterialAssignmentProps:
         from config import GraphConfig
         from jj_types import Relation
         from services.graph.project_graph import ProjectGraph
-        from services.parse.connectors.abaqus.inp_parser_base import (
+        from services.parse.connectors.abaqus.inp_parser import (
             AbaqusMaterialAssignmentParser,
         )
 

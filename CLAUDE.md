@@ -27,35 +27,53 @@
 
 ## アーキテクチャの要所
 
-### ディレクトリ構成
+### ディレクトリ構成（v0.2.1）
 
 ```
 jj/                            # プロジェクトルート
 ├── config/                    # 設定管理
 ├── jj_types/                  # データモデル（Node, Relation, GraphModel）
-├── modules/                   # 共通モジュール
+├── modules/                   # 共通モジュール（pymesh等）
+├── plugins/                   # プラグインパッケージ（v0.2.1 新構造）
+│   ├── base/                  # 基底クラス群
+│   │   ├── parser.py          # AbstractFileParser
+│   │   ├── dashboard.py       # DashboardPageConnector
+│   │   └── exporter.py        # AbstractExporter
+│   ├── abaqus/                # Abaqusプラグイン
+│   │   ├── parse/             # パーサー群
+│   │   ├── dashboard.py       # ダッシュボードコネクター
+│   │   └── submit.py          # ジョブ投入サービス
+│   └── obsidian/              # Obsidianプラグイン
+│       ├── parse/             # パーサー群
+│       └── export.py          # エクスポーター
 ├── services/                  # メインロジック
-│   ├── cli.py                 # CLIエントリポイント
+│   ├── cli/                   # CLIエントリポイント
 │   ├── graph/                 # グラフサービス
-│   ├── parse/                 # パーサー群
-│   │   ├── base.py            # AbstractFileParser
-│   │   ├── parsers/           # 組み込みパーサー
-│   │   └── connectors/        # ソルバー別コネクター
-│   ├── export/                # エクスポーター群
+│   ├── parse/                 # パーサー共通（後方互換re-exportあり）
+│   │   └── parsers/           # 組み込みパーサー
+│   ├── export/                # エクスポーター共通
 │   ├── dashboard/             # Streamlitダッシュボード
-│   ├── run/                   # Runサービス
-│   └── plugins/               # プラグイン（abaqus, ml, etc.）
-├── shared/                    # 共有パッケージ（Neo4jスキーマ、テストアセット）
+│   └── run/                   # Runサービス
+├── shared/                    # 共有パッケージ（テストアセット）
 ├── tests/                     # テストスイート
 ├── docs/                      # ドキュメント
-│   ├── roadmap.md             # v0.3.0 ロードマップ
-│   ├── guides/                # ユーザー向けガイド・マニュアル
-│   ├── specs/                 # 仕様書・設計文書（01〜11 + 個別設計）
-│   ├── status/                # 実装状況（v0.3.0 status-053〜）
-│   └── archive/               # 旧バージョン文書
 ├── pyproject.toml             # パッケージ設定
 └── CLAUDE.md                  # 本ファイル
 ```
+
+### アクティブなCLIコマンド
+
+| コマンド | 用途 |
+|---------|------|
+| `jj init` | 設定ファイル初期化 |
+| `jj parse` | グラフ生成 |
+| `jj show` | グラフ表示 |
+| `jj export` | エクスポート |
+| `jj info` | ファイル詳細 |
+| `jj diff` | INP差分比較 |
+| `jj run` (jj r) | コマンド実行+ログ |
+| `jj dashboard` | Streamlit起動 |
+| `jj config migrate` | 設定移行 |
 
 ### AbstractFileParser パターン（最重要設計）
 
@@ -64,21 +82,39 @@ AbstractFileParser
   ├── __init_subclass__() で自動登録
   ├── priority: int で実行順序制御
   ├── apply(project_graph) を各サブクラスが実装
-  └── 16+ サブクラスが services/parse/ 配下に分散
+  └── plugins/{solver}/parse/ 配下に分散
 ```
 
 同パターンを AbstractExporter / DashboardPageConnector にも適用。
 
-### プラグイン拡張パターン
+### プラグイン拡張パターン（v0.2.1）
 
 | 拡張種別 | 配置先 | 基底クラス | 登録方式 |
 |---------|--------|-----------|---------|
-| パーサー | `services/parse/connectors/{solver}/` | `AbstractFileParser` | `__init_subclass__` |
-| エクスポーター | `services/export/connectors/` | `AbstractExporter` | `__init_subclass__` |
-| ダッシュボードページ | `services/dashboard/connectors/{solver}.py` | `DashboardPageConnector` | `__init_subclass__` |
-| プラグインパッケージ | `services/plugins/{solver}/` | — | `pyproject.toml` entry_points |
+| パーサー | `plugins/{solver}/parse/` | `AbstractFileParser` | `__init_subclass__` |
+| エクスポーター | `plugins/{solver}/export.py` | `AbstractExporter` | `__init_subclass__` |
+| ダッシュボードページ | `plugins/{solver}/dashboard.py` | `DashboardPageConnector` | `__init_subclass__` |
+| プラグインパッケージ | `plugins/{solver}/` | — | `pyproject.toml` entry_points |
+
+現在有効なプラグイン: **abaqus**, **obsidian**
 
 プラグイン追加時: `pyproject.toml` の `[project.entry-points]` と `[project.optional-dependencies]` を更新。コア層からのハードコードimportは禁止（entry_points経由のみ）。
+
+### 後方互換パス
+
+v0.2.1で旧パスからのimportも引き続きサポート（re-export）:
+
+| 旧パス | 新パス |
+|--------|--------|
+| `services.parse.base` | `plugins.base.parser` |
+| `services.dashboard.connectors` | `plugins.base.dashboard` |
+| `services.export` | `plugins.base.exporter` |
+| `services.plugins.abaqus` | `plugins.abaqus` |
+| `services.parse.connectors.abaqus` | `plugins.abaqus.parse` |
+| `services.dashboard.connectors.abaqus` | `plugins.abaqus.dashboard` |
+| `services.plugins.obsidian` | `plugins.obsidian` |
+| `services.parse.connectors.obsidian` | `plugins.obsidian.parse` |
+| `services.export.connectors.obsidian` | `plugins.obsidian.export` |
 
 ### CacheProvider プロトコル
 
@@ -95,31 +131,16 @@ AbstractFileParser
 
 ---
 
-## ドキュメント構成
+## optional-dependencies（v0.2.1）
 
-```
-docs/                          # 全ドキュメント
-├── README.md                  # ナビゲーション（最初に読む）
-├── roadmap.md                 # v0.3.0 統合ロードマップ
-├── guides/                    # ユーザー向けガイド・マニュアル
-│   ├── README-jj.md           # jjコマンドリファレンス
-│   ├── abaqus-usage-guide.md  # Abaqus向けガイド
-│   ├── ml-usage-guide.md      # ML向けガイド
-│   ├── migration-guide.md     # バージョン移行ガイド
-│   └── prefect-integration-guide.md
-├── specs/                     # 仕様書・設計文書
-│   ├── 01〜11-*.md            # ドメイン仕様書
-│   ├── midterm-plan-v0.3.md   # 中期計画
-│   └── *.md                   # 個別設計文書
-├── status/                    # 実装ログ
-│   ├── status-index.md        # v0.3.0 statusインデックス
-│   ├── status-053〜*.md       # v0.3.0 アクティブstatus
-│   ├── archive-v0.2.0/        # v0.2.0 status（001-052）
-│   └── archive-v0.1.0/        # v0.1.0 status
-└── archive/                   # 旧バージョン文書
-    ├── roadmap-v0.1.0.md
-    ├── detail.md
-    └── review/
+```toml
+[project.optional-dependencies]
+pymesh = ["pandas", "chardet", "ftfy", "scipy", "plotly"]
+abaqus = ["jj[pymesh]", "scipy"]
+obsidian = ["pyyaml"]
+dashboard = ["streamlit", "streamlit-aggrid", "plotly"]
+dev = ["pytest", "pytest-cov"]
+all = ["jj[pymesh,abaqus,obsidian,dashboard,dev]"]
 ```
 
 ---
