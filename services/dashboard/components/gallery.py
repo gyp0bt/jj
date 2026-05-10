@@ -93,12 +93,16 @@ def render_gallery_section(
     if show_header:
         st.header("画像ギャラリー")
 
-    if show_grid_settings:
-        default_cols, default_rows, _ = _get_gallery_settings(dashboard_config)
-        persisted_cols = st.session_state.get(f"{key_prefix}_gallery_user_cols", default_cols)
-        persisted_rows = st.session_state.get(f"{key_prefix}_gallery_user_rows", default_rows)
-        gc1, gc2 = st.columns(2)
-        with gc1:
+    # ビュー設定フォームはサイドバーに固定する（save-on-edit）
+    with st.sidebar:
+        if show_grid_settings or show_source_selector:
+            st.subheader(f"⚙ {key_prefix or 'gallery'}")
+
+        if show_grid_settings:
+            default_cols, _default_rows, _ = _get_gallery_settings(dashboard_config)
+            # 列数のみ指定可（行数は廃止：マッチした全画像をスクロールで表示）。
+            # 全ビュー共通の単一キーで永続化し、複数ギャラリーで同じ値を共有する。
+            persisted_cols = int(st.session_state.get("_gallery_cols", default_cols))
             cols_per_row = st.number_input(
                 "列数",
                 min_value=1,
@@ -106,35 +110,63 @@ def render_gallery_section(
                 value=persisted_cols,
                 key=f"{key_prefix}_gallery_cols",
             )
-        with gc2:
-            rows_per_page = st.number_input(
-                "行数",
-                min_value=1,
-                max_value=20,
-                value=persisted_rows,
-                key=f"{key_prefix}_gallery_rows",
+            compose_mode = st.checkbox(
+                "1枚に合成（PNG）",
+                value=st.session_state.get("_gallery_compose_mode", False),
+                key=f"{key_prefix}_gallery_compose",
+                help="ONにすると画像をPILで1枚のPNGに合成して表示。スクリーンショット用途に向きます",
             )
-        st.session_state[f"{key_prefix}_gallery_user_cols"] = cols_per_row
-        st.session_state[f"{key_prefix}_gallery_user_rows"] = rows_per_page
+            st.session_state["_gallery_cols"] = int(cols_per_row)
+            st.session_state["_gallery_compose_mode"] = compose_mode
 
-    if show_source_selector:
-        source_options = ["has_output関係", "プロパティ画像パス"]
-        default_idx = 0
-        if initial_source == "property":
-            default_idx = 1
-        persisted_source_idx = st.session_state.get(f"{key_prefix}_gallery_source_idx", default_idx)
-        image_source = st.radio(
-            "画像ソース",
-            source_options,
-            index=persisted_source_idx,
-            horizontal=True,
-            key=f"{key_prefix}_gallery_source_radio",
-        )
-        st.session_state[f"{key_prefix}_gallery_source_idx"] = source_options.index(image_source)
-    elif initial_source == "property":
-        image_source = "プロパティ画像パス"
-    else:
-        image_source = "has_output関係"
+            if compose_mode:
+                with st.expander("合成画像オプション", expanded=False):
+                    wspace = st.number_input(
+                        "列間隔(px)",
+                        min_value=0,
+                        max_value=64,
+                        value=int(st.session_state.get("_gallery_compose_wspace", 8)),
+                        key=f"{key_prefix}_gallery_wspace",
+                    )
+                    hspace = st.number_input(
+                        "行間隔(px)",
+                        min_value=0,
+                        max_value=64,
+                        value=int(st.session_state.get("_gallery_compose_hspace", 8)),
+                        key=f"{key_prefix}_gallery_hspace",
+                    )
+                    cell_max = st.number_input(
+                        "セル最大幅(px)",
+                        min_value=128,
+                        max_value=2048,
+                        step=64,
+                        value=int(st.session_state.get("_gallery_compose_cell_max", 512)),
+                        key=f"{key_prefix}_gallery_cell_max",
+                    )
+                    st.session_state["_gallery_compose_wspace"] = wspace
+                    st.session_state["_gallery_compose_hspace"] = hspace
+                    st.session_state["_gallery_compose_cell_max"] = cell_max
+
+        if show_source_selector:
+            source_options = ["has_output関係", "プロパティ画像パス"]
+            default_idx = 0
+            if initial_source == "property":
+                default_idx = 1
+            persisted_source_idx = st.session_state.get(f"{key_prefix}_gallery_source_idx", default_idx)
+            image_source = st.radio(
+                "画像ソース",
+                source_options,
+                index=persisted_source_idx,
+                horizontal=True,
+                key=f"{key_prefix}_gallery_source_radio",
+            )
+            st.session_state[f"{key_prefix}_gallery_source_idx"] = source_options.index(image_source)
+        elif initial_source == "property":
+            image_source = "プロパティ画像パス"
+        else:
+            image_source = "has_output関係"
+
+        st.divider()
 
     if image_source == "has_output関係":
         _render_gallery_output_images(provider, project_root, dashboard_config, active_filters=active_filters)
@@ -262,11 +294,15 @@ def _render_gallery_output_images(
     import streamlit as st
 
     from services.dashboard.images import collect_group_keys, filter_images_by_keys
+    from services.dashboard.widgets import get_active_filtered_names
 
     images = provider.get_output_images()
 
-    # 共有フィルタ適用
-    if active_filters:
+    # 共有フィルタ + 最新versionフィルタ適用
+    shared_names = get_active_filtered_names(provider)
+    if shared_names is not None:
+        images = [img for img in images if img.get("go_node_name") in shared_names]
+    elif active_filters:
         filtered_rows = provider.get_go_table(filters=active_filters)
         filtered_names = {r["name"] for r in filtered_rows}
         images = [img for img in images if img.get("go_node_name") in filtered_names]
@@ -325,10 +361,9 @@ def _render_gallery_output_images(
     )
     st.session_state["_gallery_output_group_val"] = group_by
 
-    # NxMグリッド設定（ユーザー指定があればそちらを優先）
-    default_cols, default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
-    cols_per_row = st.session_state.get("_gallery_user_cols", default_cols)
-    rows_per_page = st.session_state.get("_gallery_user_rows", default_rows)
+    # 列数設定（render_gallery_section の widget が書き込んだ session_state を参照）
+    default_cols, _default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
+    cols_per_row = int(st.session_state.get("_gallery_cols", default_cols))
 
     # idxキーがあれば整数変換してソート
     images = _sort_by_idx(images)
@@ -338,29 +373,14 @@ def _render_gallery_output_images(
         _render_gallery_grouped(images, cols_per_row, project_root, source="output", group_key=group_by)
         return
 
-    max_display = cols_per_row * rows_per_page
+    st.caption(f"{len(images)} 件（{cols_per_row}列）")
 
-    # ページネーション（ページ遷移時の復元対応）
-    total_images = len(images)
-    total_pages = max(1, (total_images + max_display - 1) // max_display)
-    persisted_page = st.session_state.get("_gallery_output_page", 1)
-    persisted_page = min(persisted_page, total_pages)
-    page_num = st.sidebar.number_input("ページ", min_value=1, max_value=total_pages, value=persisted_page)
-    st.session_state["_gallery_output_page"] = page_num
-    start_idx = (page_num - 1) * max_display
-    page_images = images[start_idx : start_idx + max_display]
-
-    st.caption(
-        f"{len(page_images)} / {total_images} 件 "
-        f"（{cols_per_row}列 x {rows_per_page}行、ページ {page_num}/{total_pages}）"
-    )
-
-    if not page_images:
+    if not images:
         st.info("条件に一致する画像がありません。")
         return
 
-    # NxMグリッドで表示
-    _render_image_grid(page_images, cols_per_row, project_root, source="output")
+    # 全件表示（ページネーション廃止：列数のみで制御）
+    _render_image_grid(images, cols_per_row, project_root, source="output")
 
 
 def _render_gallery_property_images(
@@ -377,11 +397,15 @@ def _render_gallery_property_images(
         filter_images_by_keys,
         normalize_group_key,
     )
+    from services.dashboard.widgets import get_active_filtered_names
 
     images = provider.get_property_images()
 
-    # 共有フィルタ適用
-    if active_filters:
+    # 共有フィルタ + 最新versionフィルタ適用
+    shared_names = get_active_filtered_names(provider)
+    if shared_names is not None:
+        images = [img for img in images if img.get("go_node_name") in shared_names]
+    elif active_filters:
         filtered_rows = provider.get_go_table(filters=active_filters)
         filtered_names = {r["name"] for r in filtered_rows}
         images = [img for img in images if img.get("go_node_name") in filtered_names]
@@ -443,9 +467,8 @@ def _render_gallery_property_images(
     st.session_state["_gallery_prop_group_val"] = group_by
 
     # NxMグリッド設定（ユーザー指定があればそちらを優先）
-    default_cols, default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
-    cols_per_row = st.session_state.get("_gallery_user_cols", default_cols)
-    rows_per_page = st.session_state.get("_gallery_user_rows", default_rows)
+    default_cols, _default_rows, _max_bytes = _get_gallery_settings(dashboard_config)
+    cols_per_row = int(st.session_state.get("_gallery_cols", default_cols))
 
     # idxキーがあれば整数変換してソート
     images = _sort_by_idx(images)
@@ -455,34 +478,14 @@ def _render_gallery_property_images(
         _render_gallery_grouped(images, cols_per_row, project_root, source="property", group_key=group_by)
         return
 
-    max_display = cols_per_row * rows_per_page
+    st.caption(f"{len(images)} 件（{cols_per_row}列）")
 
-    # ページネーション（復元対応）
-    total_images = len(images)
-    total_pages = max(1, (total_images + max_display - 1) // max_display)
-    persisted_prop_page = st.session_state.get("_gallery_prop_page", 1)
-    persisted_prop_page = min(persisted_prop_page, total_pages)
-    page_num = st.sidebar.number_input(
-        "ページ（プロパティ画像）",
-        min_value=1,
-        max_value=total_pages,
-        value=persisted_prop_page,
-    )
-    st.session_state["_gallery_prop_page"] = page_num
-    start_idx = (page_num - 1) * max_display
-    page_images = images[start_idx : start_idx + max_display]
-
-    st.caption(
-        f"{len(page_images)} / {total_images} 件 "
-        f"（{cols_per_row}列 x {rows_per_page}行、ページ {page_num}/{total_pages}）"
-    )
-
-    if not page_images:
+    if not images:
         st.info("条件に一致する画像がありません。")
         return
 
-    # NxMグリッドで表示
-    _render_image_grid(page_images, cols_per_row, project_root, source="property")
+    # 全件表示（ページネーション廃止：列数のみで制御）
+    _render_image_grid(images, cols_per_row, project_root, source="property")
 
 
 def _render_gallery_grouped(
@@ -538,6 +541,98 @@ def _render_gallery_grouped(
         _render_image_grid(group_images, cols_per_row, project_root, source=source)
 
 
+def _resolve_image_path(image_path_str: str, project_root: Path) -> Path | None:
+    """画像パスを解決（プロジェクトルート基準 → notes/daily 基準フォールバック）"""
+    image_path = project_root / image_path_str
+    if image_path.exists():
+        return image_path
+    fallback = project_root / "notes" / "daily" / image_path_str
+    if fallback.exists():
+        return fallback
+    return None
+
+
+def _compose_grid_image(
+    paths_with_labels: list[tuple[Path, str]],
+    cols_per_row: int,
+    *,
+    cell_max: int = 512,
+    hspace: int = 8,
+    wspace: int = 8,
+    bg_color: tuple[int, int, int] = (255, 255, 255),
+    label_color: tuple[int, int, int] = (40, 40, 40),
+    font_size: int = 14,
+) -> bytes | None:
+    """画像のグリッドを1枚のPNG画像に合成（PIL使用）
+
+    cell_max を最大辺としてアスペクト比を保ったまま縮小する。
+    各セルの上にラベル領域を確保し、ラベルを描画する。
+    """
+    try:
+        from io import BytesIO
+
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return None
+
+    if not paths_with_labels:
+        return None
+
+    loaded: list[tuple[Image.Image, str]] = []
+    for p, label in paths_with_labels:
+        try:
+            img = Image.open(p)
+            img.load()
+            loaded.append((img, label))
+        except (OSError, ValueError):
+            continue
+
+    if not loaded:
+        return None
+
+    # 各画像を cell_max 内に収まるサイズに事前サムネイル
+    thumbs: list[tuple[Image.Image, str]] = []
+    for img, label in loaded:
+        thumb = img.copy()
+        thumb.thumbnail((cell_max, cell_max), Image.LANCZOS)
+        if thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+        thumbs.append((thumb, label))
+
+    cell_w = max(t.size[0] for t, _ in thumbs)
+    cell_h = max(t.size[1] for t, _ in thumbs)
+    has_labels = any(label for _, label in thumbs)
+    label_h = font_size + 8 if has_labels else 0
+
+    n = len(thumbs)
+    rows = (n + cols_per_row - 1) // cols_per_row
+
+    canvas_w = cols_per_row * cell_w + max(0, cols_per_row - 1) * wspace
+    canvas_h = rows * (cell_h + label_h) + max(0, rows - 1) * hspace
+
+    canvas = Image.new("RGB", (canvas_w, canvas_h), bg_color)
+    draw = ImageDraw.Draw(canvas) if has_labels else None
+    font: ImageFont.ImageFont | None = None
+    if has_labels:
+        with contextlib.suppress(OSError):
+            font = ImageFont.load_default()
+
+    for i, (thumb, label) in enumerate(thumbs):
+        r, c = divmod(i, cols_per_row)
+        cell_x = c * (cell_w + wspace)
+        cell_y = r * (cell_h + label_h + hspace)
+        if draw and label:
+            draw.text((cell_x + 4, cell_y + 2), label, fill=label_color, font=font)
+        # 画像はセル内で中央配置
+        ix = cell_x + (cell_w - thumb.size[0]) // 2
+        iy = cell_y + label_h + (cell_h - thumb.size[1]) // 2
+        canvas.paste(thumb, (ix, iy))
+
+    buf = BytesIO()
+    canvas.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
 def _render_image_grid(
     images: list[dict[str, Any]],
     cols_per_row: int,
@@ -553,6 +648,10 @@ def _render_image_grid(
         source: "output"（has_output）または "property"（プロパティ画像パス）
     """
     import streamlit as st
+
+    if st.session_state.get("_gallery_compose_mode", False):
+        _render_image_grid_composite(images, cols_per_row, project_root, source)
+        return
 
     for row_start in range(0, len(images), cols_per_row):
         cols = st.columns(cols_per_row, gap="large")
@@ -570,14 +669,8 @@ def _render_image_grid(
                     image_path_str = img_info["image_path"]
                     caption = f"{img_info['property_key']}: {Path(image_path_str).name}"
 
-                # 画像表示（プロジェクトルート基準、フォールバック: notes/daily基準）
-                image_path = project_root / image_path_str
-                if not image_path.exists():
-                    # notes/daily基準のパスとして再試行
-                    fallback = project_root / "notes" / "daily" / image_path_str
-                    if fallback.exists():
-                        image_path = fallback
-                if image_path.exists():
+                image_path = _resolve_image_path(image_path_str, project_root)
+                if image_path is not None:
                     st.image(
                         str(image_path),
                         caption=caption,
@@ -585,6 +678,60 @@ def _render_image_grid(
                     )
                 else:
                     st.warning(f"画像が見つかりません: {image_path_str}")
+
+
+def _render_image_grid_composite(
+    images: list[dict[str, Any]],
+    cols_per_row: int,
+    project_root: Path,
+    source: str,
+) -> None:
+    """1枚のPNGに合成して表示する（compose_mode用、ラベルは描画しない）"""
+    import streamlit as st
+
+    paths_with_labels: list[tuple[Path, str]] = []
+    missing: list[str] = []
+    for img_info in images:
+        image_path_str = img_info["image_path"]
+        path = _resolve_image_path(image_path_str, project_root)
+        if path is None:
+            missing.append(image_path_str)
+            continue
+        # ラベルは合成画像内では描画せず、画像のみグリッド配置する
+        paths_with_labels.append((path, ""))
+
+    if not paths_with_labels:
+        st.warning("表示できる画像がありません。")
+        return
+
+    cell_max = int(st.session_state.get("_gallery_compose_cell_max", 512))
+    hspace = int(st.session_state.get("_gallery_compose_hspace", 8))
+    wspace = int(st.session_state.get("_gallery_compose_wspace", 8))
+
+    image_bytes = _compose_grid_image(
+        paths_with_labels,
+        cols_per_row,
+        cell_max=cell_max,
+        hspace=hspace,
+        wspace=wspace,
+    )
+    if image_bytes is None:
+        st.warning("画像合成に失敗しました（PIL未インストールまたは読込エラー）。個別表示に切り替えてください。")
+        return
+
+    st.image(image_bytes, caption=f"{len(paths_with_labels)} 件を合成", output_format="PNG")
+    st.download_button(
+        label="合成PNGをダウンロード",
+        data=image_bytes,
+        file_name=f"gallery_{source}.png",
+        mime="image/png",
+        key=f"_gallery_dl_{source}_{id(images)}",
+    )
+
+    if missing:
+        with st.expander(f"見つからなかった画像 ({len(missing)} 件)"):
+            for m in missing:
+                st.caption(f"- {m}")
 
 
 def _generate_gallery_html_grid(

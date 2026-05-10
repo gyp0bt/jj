@@ -156,6 +156,36 @@ def sort_rows_by_index(
     return sorted(rows, key=_sort_key)
 
 
+# 内部マーカー: graph.yamlの内部用フィールド（テーブル表示には不要）
+_INTERNAL_EXCLUDES: frozenset[str] = frozenset({"id", "_ext_keys", "related_files"})
+
+# 正規化キー → ファイル名トークンキーの対応（重複検出用）
+# 両方が存在する場合、トークン側を優先してnormalizedを除外する
+_NORMALIZED_TO_TOKEN: dict[str, str] = {
+    "index": "idx",
+    "version": "v",
+}
+
+
+def _auto_dedup_excludes(all_columns: list[str], explicit_exclude: set[str]) -> set[str]:
+    """正規化キーと同義のトークンキーが両方存在する場合、正規化側を自動除外
+
+    例: `idx` と `index` が両方ある場合、`index` を除外（`idx` の vocab表示を優先）。
+    ユーザーが exclude-table-columns で明示的にどちらかを除外指定している場合は
+    自動除外を発動しない（ユーザー意図を尊重）。
+    """
+    auto: set[str] = set()
+    cols = set(all_columns)
+    for normalized, token in _NORMALIZED_TO_TOKEN.items():
+        if normalized not in cols or token not in cols:
+            continue
+        # ユーザーが片方を明示除外している場合はそちらに任せる
+        if normalized in explicit_exclude or token in explicit_exclude:
+            continue
+        auto.add(normalized)
+    return auto
+
+
 def select_table_columns(
     all_columns: list[str],
     table_columns: list[str] | None,
@@ -166,6 +196,10 @@ def select_table_columns(
 
     table_columnsが指定されていない場合はvocab順でソートして返す。
     globパターンは接頭辞エスケープキーのベースキー部分にもマッチする。
+
+    内部マーカー（``_ext_keys`` 等）は常に除外される。
+    また、正規化キー（``index``/``version``）とそのトークン形（``idx``/``v``）が
+    両方存在する場合は、トークン形を優先して正規化キーを自動除外する。
 
     Args:
         all_columns: DataFrameの全カラム名
@@ -178,7 +212,9 @@ def select_table_columns(
     """
     # 固定カラム（常に先頭に表示）
     fixed = ["name", "type", "format"]
-    exclude_set: set[str] = set(exclude_table_columns or [])
+    explicit_exclude: set[str] = set(exclude_table_columns or [])
+    auto_exclude = _auto_dedup_excludes(all_columns, explicit_exclude)
+    exclude_set: set[str] = explicit_exclude | _INTERNAL_EXCLUDES | auto_exclude
 
     if table_columns is None:
         # table-columns未指定の場合: 固定カラム + vocab順でソート

@@ -69,14 +69,21 @@ def render_table_section(
     idx_key = provider._index_key
     ver_key = provider._version_key
 
-    # related_filesはネストしているので除外。float値は指数表記フォーマット。
+    # related_filesはネストしているので除外。
+    # 配列型プロパティ（list/dict 値）はテーブル表示に向かない（→ array_plot/gallery で扱う）
+    # ためそもそもカラムから外す。float値は指数表記フォーマット。
+    array_keys: set[str] = set()
+    for r in filtered:
+        for k, v in r.items():
+            if isinstance(v, (dict, list)):
+                array_keys.add(k)
+    array_keys.add("related_files")
+
     display_rows = []
     for r in filtered:
-        row = {k: v for k, v in r.items() if k != "related_files"}
+        row = {k: v for k, v in r.items() if k not in array_keys}
         for k, v in row.items():
-            if isinstance(v, (dict, list)):
-                row[k] = str(v)
-            elif isinstance(v, float) and not isinstance(v, bool):
+            if isinstance(v, float) and not isinstance(v, bool):
                 row[k] = format_float_value(v)
         display_rows.append(row)
 
@@ -86,6 +93,19 @@ def render_table_section(
     for int_key in (idx_key, ver_key):
         if int_key in df.columns:
             df[int_key] = pd.to_numeric(df[int_key], errors="coerce").astype("Int64")
+
+    # ファイル名トークン由来の数値プロパティ（idx, v 等）を数値型に変換
+    # AgGridの数値フィルタ・ソートを正しく機能させるため
+    skip_numeric = {"name", "type", "format", "path", idx_key, ver_key}
+    for col in df.columns:
+        if col in skip_numeric:
+            continue
+        if df[col].dtype != object:
+            continue
+        converted = pd.to_numeric(df[col], errors="coerce")
+        # 全て数値（NaN含む）に変換できた場合のみ置換
+        if converted.notna().all() or (df[col].notna() == converted.notna()).all():
+            df[col] = converted
 
     # nameカラムを表示名で置き換え（verbose_nameキーが存在する場合）
     if vn_key in df.columns:
@@ -126,7 +146,8 @@ def render_table_section(
         df = df.rename(columns={c: translate_key(c, vocab) for c in df.columns})
 
     # AgGridを試行、失敗時はst.dataframeにフォールバック
-    if not try_render_aggrid(df, grid_key=grid_key):
+    # raw_rows=filtered を渡して、AgGridのフィルタ後のname集合を共有
+    if not try_render_aggrid(df, grid_key=grid_key, raw_rows=filtered):
         st.dataframe(df, width="stretch", hide_index=True)
 
     # Excelダウンロードボタン
@@ -178,6 +199,7 @@ class TablePage(PageComponent[TableViewConfig]):
             type_filter=st.session_state.get("_filter_type", "ABQ inp"),
             status_filter=st.session_state.get("_filter_status", "すべて"),
             active_only=st.session_state.get("_filter_active", False),
+            latest_version_only=st.session_state.get("_filter_latest_version", True),
             vocab=vocab,
         )
 

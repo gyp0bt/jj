@@ -1618,10 +1618,9 @@ class TestInitGraphConfigWithComments:
 
         config_path = init_graph_config(base_dir=tmp_path)
         content = config_path.read_text(encoding="utf-8")
-        # コメント行が含まれていること
+        # コメント行が含まれていること（小市民版では各セクションに ----- 区切り）
         assert "# jj デフォルト設定ファイル" in content
-        assert "# 使用例:" in content
-        assert "# ========" in content
+        assert "# -----" in content
 
     def test_sections_present(self, tmp_path):
         """主要セクションが含まれる"""
@@ -1638,14 +1637,6 @@ class TestInitGraphConfigWithComments:
         assert "dashboard:" in content
         assert "obsidian:" in content
 
-    def test_cache_settings_documented(self, tmp_path):
-        """キャッシュ設定がドキュメント化されている"""
-        from config import init_graph_config
-
-        config_path = init_graph_config(base_dir=tmp_path)
-        content = config_path.read_text(encoding="utf-8")
-        assert "cache-max-age-days" in content
-        assert "cache-max-count" in content
 
 
 # ====================================================================

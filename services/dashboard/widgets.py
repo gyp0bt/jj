@@ -36,31 +36,42 @@ def estimate_column_width(col_name: str) -> int:
     return max(80, char_width * 10 + 30)
 
 
-def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
+def try_render_aggrid(
+    df: pd.DataFrame,
+    *,
+    grid_key: str | None = None,
+    raw_rows: list[dict[str, Any]] | None = None,
+) -> bool:
     """AgGridでDataFrameを表示。失敗時はFalseを返す。
 
     列幅は列名の文字数に基づいて初期設定する。
     日本語は2文字分、英数字は1文字分として計算し、
     最低限列名が見える幅を確保する。
 
-    フィルタ共有がONの場合、AgGridのフィルタ変更イベントをキャプチャして
-    session_stateの共有フィルタに格納し、他ビューにも反映する。
+    フィルタは常に他コンポーネントと共有される。AgGridのフィルタ変更イベントを
+    キャプチャして session_state に格納し、``raw_rows`` が与えられた場合は
+    フィルタ後のレコード名集合も保持する（plot/array_plot/gallery で利用）。
 
     Args:
-        df: 表示するDataFrame
+        df: 表示するDataFrame（AgGridに渡す表示用df）
         grid_key: AgGridのStreamlitキー（複数AgGrid描画時の衝突回避用）
+        raw_rows: ``df`` の元になった raw 行リスト。``df`` のindexと位置で対応する。
+            指定された場合、AgGridのフィルタ通過行の ``name`` 集合を
+            ``_table_filtered_names`` に保存し、他ビューに反映する。
 
     Returns:
         True: AgGridで描画成功、False: インポート不可
     """
     try:
-        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+        from st_aggrid import AgGrid, DataReturnMode, GridOptionsBuilder, GridUpdateMode
     except ImportError:
         return False
 
     import streamlit as st
 
     gb = GridOptionsBuilder.from_dataframe(df)
+    # editable=False: editable=True だと response.data が「編集後の全行」になり
+    # data_return_mode=FILTERED_AND_SORTED が効かなくなるため。
     gb.configure_default_column(
         filterable=True,
         sortable=True,
@@ -69,7 +80,7 @@ def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
         value=True,
         enableRowGroup=True,
         aggFunc="sum",
-        editable=True,
+        editable=False,
     )
     # 各列の幅と適切なフィルタータイプを設定
     for col_name in df.columns:
@@ -90,29 +101,46 @@ def try_render_aggrid(df: pd.DataFrame, *, grid_key: str | None = None) -> bool:
 
     grid_options = gb.build()
 
-    # フィルタ共有ON時はフィルタ変更も検知する
-    sharing_enabled = st.session_state.get("_filter_sharing_enabled", False)
-    update_mode = GridUpdateMode.MODEL_CHANGED if sharing_enabled else GridUpdateMode.SELECTION_CHANGED
-
-    # 共有フィルタがある場合、AgGridにプリセットフィルタを適用
-    aggrid_filters = st.session_state.get("_aggrid_shared_filters")
-    if sharing_enabled and aggrid_filters:
-        grid_options["filterModel"] = aggrid_filters
+    # 既存のグリッド状態（フィルタ/ソート/列）をinitialStateで復元
+    saved_state = st.session_state.get("_aggrid_grid_state")
+    if saved_state:
+        grid_options["initialState"] = saved_state
 
     response = AgGrid(
         df,
         gridOptions=grid_options,
-        update_mode=update_mode,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         fit_columns_on_grid_load=False,
         theme="streamlit",
         key=grid_key,
     )
 
-    # フィルタ共有ON時: AgGridのフィルタ状態をsession_stateに保存
-    if sharing_enabled and hasattr(response, "grid_options_state"):
-        filter_model = (response.grid_options_state or {}).get("filterModel")
-        if filter_model is not None:
-            st.session_state["_aggrid_shared_filters"] = filter_model
+    # グリッド状態（フィルタ含む）を session_state に保存
+    grid_state = getattr(response, "grid_state", None)
+    if grid_state:
+        st.session_state["_aggrid_grid_state"] = grid_state
+        filter_state = grid_state.get("filter") if isinstance(grid_state, dict) else None
+        st.session_state["_aggrid_shared_filters"] = filter_state
+
+    # フィルタ後の行ID（=df位置index）から name 集合を抽出して他ビューに共有
+    if raw_rows is not None:
+        row_ids = getattr(response, "rows_id_after_filter", None)
+        if row_ids is None or len(row_ids) >= len(raw_rows):
+            # フィルタなし（or全件通過）→ 共有フィルタ未設定扱い
+            st.session_state["_table_filtered_names"] = None
+        else:
+            names: set[str] = set()
+            for rid in row_ids:
+                try:
+                    i = int(rid)
+                except (ValueError, TypeError):
+                    continue
+                if 0 <= i < len(raw_rows):
+                    n = raw_rows[i].get("name")
+                    if n:
+                        names.add(n)
+            st.session_state["_table_filtered_names"] = names
 
     return True
 
@@ -138,8 +166,13 @@ def init_shared_filters(default_filters: dict[str, Any]) -> None:
         st.session_state.setdefault("_filter_active", is_truthy(raw_active))
         st.session_state.setdefault("_filter_type", "すべて")
         st.session_state.setdefault("_filter_status", "すべて")
-        st.session_state.setdefault("_filter_sharing_enabled", False)
+        # 最新versionのみフィルタ（同一indexの最新versionだけ残す、デフォルトON）
+        raw_latest = default_filters.get("latest_version_only", True)
+        st.session_state.setdefault("_filter_latest_version", is_truthy(raw_latest))
+        # AgGridフィルタ状態（テーブル → 他ビューへ常時共有）
+        st.session_state.setdefault("_aggrid_grid_state", None)
         st.session_state.setdefault("_aggrid_shared_filters", None)
+        st.session_state.setdefault("_table_filtered_names", None)
 
 
 def render_shared_filters(rows: list[dict[str, Any]]) -> None:
@@ -189,23 +222,23 @@ def render_shared_filters(rows: list[dict[str, Any]]) -> None:
     )
     st.session_state["_filter_active"] = active_only
 
-    # AgGridフィルタ共有トグル
-    st.sidebar.markdown("---")
-    sharing = st.sidebar.checkbox(
-        "AgGridフィルタ共有",
-        value=st.session_state.get("_filter_sharing_enabled", False),
-        key="_sb_filter_sharing",
-        help="ONにすると、テーブルのフィルタ変更が他のビューにも反映されます",
+    # 同一indexの最新versionのみフィルタ
+    latest_version_only = st.sidebar.checkbox(
+        "同一indexの最新versionのみ",
+        value=st.session_state.get("_filter_latest_version", True),
+        key="_sb_filter_latest_version",
+        help="indexごとに最新versionの行のみ残す（idxが無い行は常に残る）",
     )
-    st.session_state["_filter_sharing_enabled"] = sharing
+    st.session_state["_filter_latest_version"] = latest_version_only
 
-    # 共有フィルタのクリアボタン
-    if (
-        sharing
-        and st.session_state.get("_aggrid_shared_filters")
-        and st.sidebar.button("共有フィルタをクリア", key="_sb_clear_aggrid_filters")
-    ):
-        st.session_state["_aggrid_shared_filters"] = None
+    # AgGridフィルタ（テーブル）の共有クリアボタン
+    # ※ AgGridフィルタは常時 他コンポーネントと共有される
+    if st.session_state.get("_aggrid_shared_filters") or st.session_state.get("_table_filtered_names"):
+        st.sidebar.markdown("---")
+        if st.sidebar.button("テーブルフィルタをクリア", key="_sb_clear_aggrid_filters"):
+            st.session_state["_aggrid_grid_state"] = None
+            st.session_state["_aggrid_shared_filters"] = None
+            st.session_state["_table_filtered_names"] = None
 
 
 def get_active_filters() -> dict[str, Any] | None:
@@ -227,8 +260,87 @@ def get_active_filters() -> dict[str, Any] | None:
         filters["analysis_status"] = selected_status
     if active_only:
         filters["active"] = True
+    # 最新versionフィルタは provider 用辞書には載せない（apply_filters 経由で別途処理）
+    # ※ provider.get_go_table の filter は単純な等値マッチのみ対応のため
 
     return filters if filters else None
+
+
+def persist_view_changes(
+    new_view: Any,
+    dashboard_config: Any,
+    project_root: Any,
+) -> None:
+    """SavedViewConfig の変更を config.yaml に保存（save-on-edit）
+
+    ``dashboard_config.enabled_pages`` から (name, view_type) で該当エントリを探し、
+    ``new_view`` で置き換えて ``save_enabled_pages`` で書き戻す。
+    現在値が同じなら no-op。
+    呼び出し元は変更検出を済ませてから呼ぶ想定（dictシリアライズ比較推奨）。
+    """
+    if project_root is None:
+        return
+    from pathlib import Path
+
+    from services.dashboard.config_writer import save_enabled_pages
+
+    enabled = list(getattr(dashboard_config, "enabled_pages", []) or [])
+    updated: list[Any] = []
+    found = False
+    for v in enabled:
+        if v.name == new_view.name and v.view_type == new_view.view_type:
+            updated.append(new_view)
+            found = True
+        else:
+            updated.append(v)
+    if not found:
+        return
+    save_enabled_pages(Path(project_root), updated)
+
+
+def maybe_persist_view(
+    new_view: Any,
+    old_view: Any,
+    dashboard_config: Any,
+    project_root: Any,
+) -> bool:
+    """save-on-edit ヘルパ：dictシリアライズ比較で変更があれば保存する"""
+    from config import saved_view_to_dict
+
+    try:
+        if saved_view_to_dict(new_view) == saved_view_to_dict(old_view):
+            return False
+    except Exception:
+        return False
+    persist_view_changes(new_view, dashboard_config, project_root)
+    return True
+
+
+def get_active_filtered_names(provider: Any) -> set[str] | None:
+    """共有フィルタ + 最新versionフィルタ + テーブルAgGridフィルタ適用後の名前集合
+
+    plot/array_plot/gallery など、テーブル以外のビュー向けに、テーブルで
+    実行された AgGrid フィルタの結果を反映した name 集合を返す。
+    フィルタが何も効いていない場合は None（= 全件OK扱い）。
+    """
+    import streamlit as st
+
+    from services.graph.query import filter_latest_version
+
+    filters = get_active_filters()
+    latest_only = st.session_state.get("_filter_latest_version", True)
+    table_names = st.session_state.get("_table_filtered_names")
+
+    if not filters and not latest_only and table_names is None:
+        return None
+
+    rows = provider.get_go_table(filters=filters)
+    if latest_only:
+        rows = filter_latest_version(rows)
+    names = {r["name"] for r in rows}
+    if table_names is not None:
+        names &= table_names
+    return names
 
 
 # ====================================================================

@@ -129,6 +129,8 @@ class PlotPage(PageComponent[PlotViewConfig]):
         軸・色分け・チャート・軸範囲・スタイルをユーザが選択して即時反映する。
         ``view.plot`` で設定された値は選択UIの初期値として尊重する。
         """
+        import dataclasses
+
         import streamlit as st
 
         from services.dashboard.html_export import (
@@ -140,19 +142,19 @@ class PlotPage(PageComponent[PlotViewConfig]):
             apply_style_to_fig,
             build_axis_range,
             build_style_config,
-            get_active_filters,
+            maybe_persist_view,
             render_shared_filters,
         )
         from services.graph.query import apply_saved_view_filters
 
         vocab = kwargs.get("vocab")
+        project_root = kwargs.get("project_root")
 
         st.header("プロットビュー")
 
         # 共有フィルタ
         rows = provider.get_go_table()
         render_shared_filters(rows)
-        active_filters = get_active_filters()
 
         # グローバルカラム設定がある場合はフィルタ済みキーを使用
         all_keys = provider.get_property_keys()
@@ -167,8 +169,8 @@ class PlotPage(PageComponent[PlotViewConfig]):
         view_plot = view.plot or {}
         wkey = f"_plot_{view.name}"
 
-        x_default = view_plot.get("x") or st.session_state.get(f"{wkey}_persist_x") or plot_x
-        y_default = view_plot.get("y") or st.session_state.get(f"{wkey}_persist_y") or plot_y
+        x_default = view_plot.get("x") or plot_x
+        y_default = view_plot.get("y") or plot_y
 
         x_default_idx = 0
         if x_default and x_default in keys:
@@ -181,97 +183,79 @@ class PlotPage(PageComponent[PlotViewConfig]):
         vn_key = provider._verbose_name_key
 
         color_options = ["なし", vn_key, *[k for k in keys if k != vn_key]]
-        color_default = view_plot.get("color") or st.session_state.get(f"{wkey}_persist_color")
+        color_default = view_plot.get("color")
         color_default_idx = 1
         if color_default and color_default in color_options:
             color_default_idx = color_options.index(color_default)
 
         chart_options = ["散布図", "棒グラフ", "線図", "コンター", "等高線"]
-        chart_default = view_plot.get("chart_type") or st.session_state.get(f"{wkey}_persist_chart")
+        chart_default = view_plot.get("chart_type")
         chart_default_idx = 0
         if chart_default and chart_default in chart_options:
             chart_default_idx = chart_options.index(chart_default)
 
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
+        # ビュー設定フォームはサイドバーに固定する（save-on-edit）
+        with st.sidebar:
+            st.subheader(f"⚙ {view.name}")
             x_key = st.selectbox("X軸", keys, index=x_default_idx, key=f"{wkey}_x")
-        with col2:
             y_key = st.selectbox("Y軸", keys, index=y_default_idx, key=f"{wkey}_y")
-        with col3:
             color_key = st.selectbox("色分け", color_options, index=color_default_idx, key=f"{wkey}_color")
-        with col4:
-            chart_type = st.selectbox("チャートタイプ", chart_options, index=chart_default_idx, key=f"{wkey}_chart")
+            chart_type = st.selectbox(
+                "チャートタイプ", chart_options, index=chart_default_idx, key=f"{wkey}_chart"
+            )
 
-        st.session_state[f"{wkey}_persist_x"] = x_key
-        st.session_state[f"{wkey}_persist_y"] = y_key
-        st.session_state[f"{wkey}_persist_color"] = color_key
-        st.session_state[f"{wkey}_persist_chart"] = chart_type
-
-        if not x_key or not y_key:
-            return
-
-        # コンター/等高線用
-        z_key: str | None = None
-        color_range: dict[str, float] = {}
-        if chart_type in ("コンター", "等高線"):
-            z_options = [k for k in keys if k != x_key and k != y_key]
-            if z_options:
-                cc1, cc2, cc3 = st.columns(3)
-                z_cfg = view_plot.get("z")
-                z_default_idx = z_options.index(z_cfg) if z_cfg in z_options else 0
-                with cc1:
+            # コンター/等高線用
+            z_key: str | None = None
+            color_range: dict[str, float] = {}
+            if chart_type in ("コンター", "等高線"):
+                z_options = [k for k in keys if k != x_key and k != y_key]
+                if z_options:
+                    z_cfg = view_plot.get("z")
+                    z_default_idx = z_options.index(z_cfg) if z_cfg in z_options else 0
                     z_key = st.selectbox("Z軸（色）", z_options, index=z_default_idx, key=f"{wkey}_z")
-                cfg_cr = view_plot.get("color_range", {}) or {}
-                with cc2:
+                    cfg_cr = view_plot.get("color_range", {}) or {}
                     vmin = st.number_input(
                         "カラー最小（vmin）",
                         value=cfg_cr.get("vmin"),
                         key=f"{wkey}_vmin",
                         format="%g",
                     )
-                with cc3:
                     vmax = st.number_input(
                         "カラー最大（vmax）",
                         value=cfg_cr.get("vmax"),
                         key=f"{wkey}_vmax",
                         format="%g",
                     )
-                if vmin is not None:
-                    color_range["vmin"] = float(vmin)
-                if vmax is not None:
-                    color_range["vmax"] = float(vmax)
+                    if vmin is not None:
+                        color_range["vmin"] = float(vmin)
+                    if vmax is not None:
+                        color_range["vmax"] = float(vmax)
 
-        # グループ結線設定
-        group_line_key = getattr(dashboard_config, "group_line_key", None)
-        group_line_options = ["なし"] + [k for k in all_keys if k != x_key and k != y_key]
-        gl_default = 0
-        if group_line_key and group_line_key in group_line_options:
-            gl_default = group_line_options.index(group_line_key)
-        col_gl1, _col_gl2 = st.columns(2)
-        with col_gl1:
+            # グループ結線設定
+            group_line_key = getattr(dashboard_config, "group_line_key", None)
+            group_line_options = ["なし"] + [k for k in all_keys if k != x_key and k != y_key]
+            gl_default = 0
+            if group_line_key and group_line_key in group_line_options:
+                gl_default = group_line_options.index(group_line_key)
             selected_group_line = st.selectbox(
                 "グループ結線キー", group_line_options, index=gl_default, key=f"{wkey}_gl"
             )
 
-        # 軸範囲設定
-        cfg_axis = view_plot.get("axis_range", {}) or {}
-        with st.expander("軸範囲設定", expanded=False):
-            rc1, rc2, rc3, rc4 = st.columns(4)
-            with rc1:
-                x_min = st.number_input("X最小", value=cfg_axis.get("x_min"), key=f"{wkey}_x_min", format="%g")
-            with rc2:
-                x_max = st.number_input("X最大", value=cfg_axis.get("x_max"), key=f"{wkey}_x_max", format="%g")
-            with rc3:
-                y_min = st.number_input("Y最小", value=cfg_axis.get("y_min"), key=f"{wkey}_y_min", format="%g")
-            with rc4:
-                y_max = st.number_input("Y最大", value=cfg_axis.get("y_max"), key=f"{wkey}_y_max", format="%g")
+            # 軸範囲設定
+            cfg_axis = view_plot.get("axis_range", {}) or {}
+            with st.expander("軸範囲", expanded=False):
+                rc1, rc2 = st.columns(2)
+                with rc1:
+                    x_min = st.number_input("X最小", value=cfg_axis.get("x_min"), key=f"{wkey}_x_min", format="%g")
+                    y_min = st.number_input("Y最小", value=cfg_axis.get("y_min"), key=f"{wkey}_y_min", format="%g")
+                with rc2:
+                    x_max = st.number_input("X最大", value=cfg_axis.get("x_max"), key=f"{wkey}_x_max", format="%g")
+                    y_max = st.number_input("Y最大", value=cfg_axis.get("y_max"), key=f"{wkey}_y_max", format="%g")
 
-        # スタイル設定
-        cfg_style = view_plot.get("plot_style", {}) or {}
-        with st.expander("スタイル設定", expanded=False):
-            sc1, sc2, sc3 = st.columns(3)
-            psd = dashboard_config.plot_style_defaults
-            with sc1:
+            # スタイル設定
+            cfg_style = view_plot.get("plot_style", {}) or {}
+            with st.expander("スタイル", expanded=False):
+                psd = dashboard_config.plot_style_defaults
                 plot_marker_size = st.number_input(
                     "マーカーサイズ",
                     value=cfg_style.get("marker_size"),
@@ -279,7 +263,6 @@ class PlotPage(PageComponent[PlotViewConfig]):
                     max_value=psd.marker_size_max,
                     key=f"{wkey}_marker_size",
                 )
-            with sc2:
                 plot_line_width = st.number_input(
                     "線幅",
                     value=cfg_style.get("line_width"),
@@ -287,7 +270,6 @@ class PlotPage(PageComponent[PlotViewConfig]):
                     max_value=psd.line_width_max,
                     key=f"{wkey}_line_width",
                 )
-            with sc3:
                 plot_font_size = st.number_input(
                     "フォントサイズ",
                     value=cfg_style.get("font_size"),
@@ -295,10 +277,37 @@ class PlotPage(PageComponent[PlotViewConfig]):
                     max_value=psd.font_size_max,
                     key=f"{wkey}_font_size",
                 )
+            st.divider()
+
+        if not x_key or not y_key:
+            return
 
         plot_style = build_style_config(plot_marker_size, plot_line_width, plot_font_size)
-
         color = color_key if color_key != "なし" else None
+
+        # save-on-edit: 現在の widget 値を view.plot に詰めて保存（変更があれば）
+        new_plot: dict[str, Any] = {"x": x_key, "y": y_key, "chart_type": chart_type}
+        if color is not None:
+            new_plot["color"] = color
+        if z_key:
+            new_plot["z"] = z_key
+        if color_range:
+            new_plot["color_range"] = color_range
+        if plot_style:
+            new_plot["plot_style"] = plot_style
+        axis_range: dict[str, float] = {}
+        if x_min is not None:
+            axis_range["x_min"] = float(x_min)
+        if x_max is not None:
+            axis_range["x_max"] = float(x_max)
+        if y_min is not None:
+            axis_range["y_min"] = float(y_min)
+        if y_max is not None:
+            axis_range["y_max"] = float(y_max)
+        if axis_range:
+            new_plot["axis_range"] = axis_range
+        new_view = dataclasses.replace(view, plot=new_plot)
+        maybe_persist_view(new_view, view, dashboard_config, project_root)
 
         gl_key = selected_group_line if selected_group_line != "なし" else None
         extra_keys: list[str] = []
@@ -315,10 +324,12 @@ class PlotPage(PageComponent[PlotViewConfig]):
             filtered_rows = apply_saved_view_filters(all_rows, view.filters)
             filtered_names = {r["name"] for r in filtered_rows}
             data = [d for d in data if d.get("name") in filtered_names]
-        if active_filters:
-            filtered_rows = provider.get_go_table(filters=active_filters)
-            filtered_names = {r["name"] for r in filtered_rows}
-            data = [d for d in data if d.get("name") in filtered_names]
+        # 共有フィルタ（type/status/active）+ 最新versionフィルタを適用
+        from services.dashboard.widgets import get_active_filtered_names
+
+        shared_names = get_active_filtered_names(provider)
+        if shared_names is not None:
+            data = [d for d in data if d.get("name") in shared_names]
 
         if not data:
             st.warning(f"'{x_key}' と '{y_key}' の両方が数値であるデータが見つかりません。")

@@ -1,46 +1,15 @@
-# jj デフォルト設定ファイル
-# このファイルは `jj init` で .j2/config/config.yaml にコピーされます。
-# プロジェクト固有の設定は .j2/config/config.yaml を編集してください。
+# jj デフォルト設定ファイル（小市民版）
+# このファイルは jj の出荷時デフォルト。プロジェクト固有の上書きは
+# .j2/config/config.yaml に記述する（同じキーを書けば上書きされる）。
+#
+# 詳細リファレンス・上級者向け設定（neo4j, sync, solver-profiles, AIなど）は
+# docs/config-reference.md を参照。
 #
 # [READMEへ戻る](../README.md)
 
-# ========================================================================
-# プロジェクト基本設定
-# ========================================================================
-
-# プロジェクト名（root directoryノードの名前に使用）
-# 未設定の場合はプロジェクトルートのフォルダ名を使用
-# 使用例:
-#   project-name: my-project
-# project-name:
-
-# ディレクトリ階層の最大深さ
-# 未設定の場合は最終階層まで全ディレクトリをNode化（デフォルト）
-# 1 = ルート直下のみ、2 = 直下+子ディレクトリまで
-# CLI: --max-depth で上書き可能
-# 使用例:
-#   directory-max-depth: 3
-# directory-max-depth:
-
-# *INCLUDE探索の最大階層数
-# Abaqus INPファイルの*INCLUDEディレクティブで参照されるファイルを
-# cwdから再帰的に探索する際の最大階層数（デフォルト: 5）
-# 使用例:
-#   include-search-depth: 10
-# include-search-depth: 5
-
-# ========================================================================
-# 語彙マッピング（vocab）
-# ========================================================================
-# ファイル名パース時にキー名を日本語表記に変換します。
-# ダッシュボードのテーブル列やプロット軸の表示順にも影響します。
-# vocab定義順 → 未定義キーは文字列昇順の順で表示されます。
-# 使用例:
-#   vocab:
-#     idx: 条件
-#     ver: バージョン
-#     v: バージョン
-#     temp: 温度
+# ----- ファイル名キー → 表示名（vocab） ----------------------------------
+# ファイル名トークンや属性キーをダッシュボードで日本語表示する。
+# 列順・プロット軸の並びにも影響（vocab定義順 → 文字列昇順）。
 vocab:
   idx: 条件
   v: v
@@ -49,47 +18,11 @@ vocab:
   cpu_time: 計算時間(CPU時間)
   analysis_status: 成否
 
-
-
-# ========================================================================
-# トークン→キーマッピング（token-key-map）
-# ========================================================================
-# ファイル名のトークンを指定したキーのプロパティとして扱います。
-# 通常のトークン分割(文字列+数値)より優先されます。
-# 使用例:
-#   mesh_hogehoge24_v1_idx1.inp で 形状: [hogehoge24] と定義すると
-#   形状: hogehoge24 となり、さらにvocabに hogehoge24: ほげほげ24 があれば
-#   形状: ほげほげ24 と最終変換されます。
-# token-key-map:
-#   形状:
-#     - hogehoge24
-#   解析タイプ:
-#     - static
-#     - dynamic
-
-# ========================================================================
-# 表示名フォーマット（verbose-name-format）
-# ========================================================================
-# ノードの表示名（verbose_name）をフォーマットテンプレートで指定します。
-# {キー名} でプロパティ値を埋め込みます。キー名はvocab変換後の名前を使用します。
-# 未設定の場合は従来のアンダースコア結合方式（タイプ_プロパティ_タグ）を使用。
-# 使用例:
-#   verbose-name-format: "{条件}({高さ},{荷重})"
-#   → 条件=1, 高さ=5, 荷重=20 の場合 → "1(5,20)"
-#   verbose-name-format: "条件{条件}(高さ{高さ},荷重{荷重})"
-#   → "条件1(高さ5,荷重20)"
+# ノード表示名のテンプレート（vocab変換後のキー名で参照）
 verbose-name-format: "条件{条件}(v{v})"
 
-# ========================================================================
-# デフォルト拡張子リスト（default-extensions）
-# ========================================================================
-# 【非推奨】extensions.yaml / prefixes.yaml は非推奨です。
-# 代わりに本ファイル（config.yaml）の default-extensions セクションと
-# path-type-map セクションを使用してください。
-# 既存プロジェクトは `jj config migrate` で自動移行できます。
-# ファイル名から拡張子をマッチングする際の候補リスト。
-# 複合拡張子（.cas.h5等）は先にマッチされる。
-# GraphConfig.default_extensions 経由で参照される。
+# ----- ファイル拡張子の認識候補 ------------------------------------------
+# 複合拡張子（.cas.h5等）は先頭にあるほど優先される。
 default-extensions:
   - ".cas.h5"
   - ".dat.h5"
@@ -112,15 +45,8 @@ default-extensions:
   - ".png"
   - ".gif"
 
-# ========================================================================
-# パスパターンによるファイルタイプ指定（path-type-map）
-# ========================================================================
-# 上から順に評価し、最初にマッチしたルールを適用します。
-# パターンはglobスタイルで、"|" で複数パターンを指定可能。
-# 使用例:
-#   "**go_* | **go":
-#     "*.inp": Abaqusインプット
-#     "*": 計算結果
+# ----- パス → ファイルタイプ（path-type-map） ----------------------------
+# 上から順に評価し、最初にマッチしたルールを採用する。
 path-type-map:
   "**go_* | **go":
     "*.inp": ABQ inp
@@ -147,16 +73,9 @@ path-type-map:
   "./docs/":
     "*": 受領ファイル
 
-# ========================================================================
-# パスパターンによるプロパティ指定（path-property-map）
-# ========================================================================
-# マッチしたファイルに自動的にプロパティを付与します。
-# 使用例:
-#   "**old/*":
-#     active: false
-#   "**archive/*":
-#     active: false
-#     archived: true
+# ----- パス → プロパティ自動付与（path-property-map） ---------------------
+# 例: archive配下のファイルは active=false にしてダッシュボードのデフォルト
+# フィルタから外す。
 path-property-map:
   "**old/*":
     active: false
@@ -164,97 +83,8 @@ path-property-map:
     active: false
     archived: true
 
-# ========================================================================
-# パスパターンによるタグ指定（path-tag-map）
-# ========================================================================
-# マッチしたファイルにタグを付与します。
-# 使用例:
-#   path-tag-map:
-#     "**": projectA
-#     "**/analysis/*": analysis-related
-# path-tag-map:
-
-# ========================================================================
-# ソルバープロファイル（solver-profiles）
-# ========================================================================
-# ソルバー別のファイル解釈ルール。各CAEソルバーの入力/結果ファイルの拡張子、
-# 命名パターン、ソース単位（ファイル/ディレクトリ）を定義する。
-# 未設定の場合はAbaqus互換のデフォルトプロファイルが使用される。
-# 参照: docs/specs/multi-solver.md
-# 使用例:
-#   solver-profiles:
-#     default:
-#       source-unit: file
-#       filename-pattern: standard
-#       input-extensions: [".inp"]
-#       result-extensions: [".odb", ".sta", ".msg", ".dat"]
-#     lsdyna:
-#       source-unit: directory
-#       filename-pattern: standard
-#       input-extensions: [".k", ".key", ".dat"]
-#       result-filenames: ["d3plot", "d3hsp", "glstat", "matsum", "messag"]
-#     flow3d:
-#       source-unit: directory
-#       filename-pattern: reversed
-#       input-prefixes: ["prepin"]
-#       result-prefixes: ["flsgrf", "flsprt", "prpgrf", "report", "hdtout"]
-#     openfoam:
-#       source-unit: directory
-#       filename-pattern: none
-#       input-directories: ["system", "constant", "0"]
-#       result-directory-pattern: "^\\d+$"
-#     calculix:
-#       source-unit: file
-#       filename-pattern: standard
-#       input-extensions: [".inp"]
-#       result-extensions: [".frd", ".sta", ".dat", ".cvg"]
-#     fluent:
-#       source-unit: file
-#       filename-pattern: standard
-#       input-extensions: [".cas.h5"]
-#       result-extensions: [".dat.h5", ".out", ".xy"]
-#     hfss:
-#       source-unit: file
-#       filename-pattern: standard
-#       input-extensions: [".aedt"]
-#       result-extensions: [".csv", ".s2p"]
-#     ml-pytorch:
-#       source-unit: directory
-#       filename-pattern: none
-#       input-extensions: [".py", ".yaml", ".json"]
-#       result-extensions: [".pt", ".pth", ".ckpt", ".csv", ".json"]
-#     ml-sklearn:
-#       source-unit: directory
-#       filename-pattern: none
-#       input-extensions: [".py", ".yaml", ".json"]
-#       result-extensions: [".pkl", ".joblib", ".csv", ".json"]
-# solver-profiles:
-
-# ========================================================================
-# ソルバー自動検出（solver-detection）
-# ========================================================================
-# パスパターンからソルバープロファイルを自動選択する。
-# パスがパターンにマッチした場合、対応するソルバープロファイルが適用される。
-# 使用例:
-#   solver-detection:
-#     "**/*.k | **/*.key": lsdyna
-#     "**/prepin.*": flow3d
-#     "**/system/controlDict": openfoam
-#     "**/*.cas.h5": fluent
-#     "**/*.aedt": hfss
-#     "**/*.pt | **/*.pth | **/*.ckpt": ml-pytorch
-#     "**/*.pkl | **/*.joblib": ml-sklearn
-# solver-detection:
-
-# ========================================================================
-# 除外パターン（ignore）
-# ========================================================================
-# マッチしたパスはパース対象から除外されます（.gitignore相当）。
-# 使用例:
-#   ignore:
-#     - ".git"
-#     - "*.tmp"
-#     - "build/**"
+# ----- 除外パターン ------------------------------------------------------
+# .gitignore相当。マッチしたパスはパース対象から外れる。
 ignore:
   - ".git"
   - ".git/**"
@@ -277,270 +107,55 @@ ignore:
   - ".obsidian"
   - ".obsidian/**"
 
-# ========================================================================
-# ファイル関係設定（file-relations）
-# ========================================================================
-# 入力ファイルと結果ファイルの拡張子マッピング。
-# 同一basenameで関連付けを行います。
-# 使用例:
-#   file-relations:
-#     input-extensions:
-#       - ".inp"
-#     result-extensions:
-#       - ".odb"
-#     asset-extensions:
-#       - ".stl"
+# ----- 入力/結果ファイル関係（同じbasenameで自動関連付け） -----------------
 file-relations:
-  # 入力ファイルとして認識する拡張子
-  input-extensions:
-    - ".inp"      # Abaqus
-    - ".cas.h5"   # Fluent
-    - ".k"        # LS-DYNA
-    - ".key"      # LS-DYNA
-    - ".dat"      # 汎用入力
-  # 結果ファイルとして認識する拡張子（入力ファイルと同じbasenameで関連付け）
-  result-extensions:
-    - ".odb"      # Abaqus ODB
-    - ".sta"      # Abaqus status
-    - ".msg"      # Abaqus message
-    - ".csv"      # 抽出データ
-    - ".json"     # 処理済みデータ
-  # アセットファイルの拡張子（同じbasenameで derived_from 関係を構築）
-  asset-extensions:
-    - ".modfem"   # 修正済みメッシュ
-    - ".stl"      # STLメッシュ
-    - ".cdb"      # ANSYS CDB
-    - ".msh"      # Fluent メッシュ
+  input-extensions: [".inp", ".cas.h5", ".k", ".key", ".dat"]
+  result-extensions: [".odb", ".sta", ".msg", ".csv", ".json"]
+  asset-extensions: [".modfem", ".stl", ".cdb", ".msh"]
 
-# ========================================================================
-# キャッシュ設定
-# ========================================================================
-# ABQDataキャッシュの保持期間と最大保持数。
-# parse実行後に古いキャッシュを自動クリーンアップします。
-# 使用例:
-#   cache-max-age-days: 60
-#   cache-max-count: 200
-
-# キャッシュ保持期間（日数、デフォルト: 30）
-# cache-max-age-days: 30
-
-# キャッシュ最大保持数（デフォルト: 100）
-# cache-max-count: 100
-
-# ========================================================================
-# エクスポート設定（export）
-# ========================================================================
+# ----- エクスポート設定 ---------------------------------------------------
 export:
-  # CSVエクスポート時の出力カラム（指定時はこれらのカラムのみ出力）
-  # 未指定の場合は全カラムを出力。name/type/formatは常に含まれます。
-  # globパターン対応（例: "stress*" で stress.center, stress.edge 等にマッチ）
-  # 使用例:
-  #   csv-columns:
-  #     - 条件
-  #     - バージョン
-  #     - stress*
-  # csv-columns:
-
-  # 単位マッピング（カラム名 → 単位）
-  # CSV出力時にカラム名に単位情報を付加します。
-  # globパターン対応（例: "stress*": MPa で stress.center, stress.edge 等に適用）
-  # 完全一致が優先されます。
-  # 使用例:
-  #   units:
-  #     stress*: MPa
-  #     荷重: N
-  #     変位: mm
-  #     質量: kg
-  # units:
-
-  # CSV単位表示形式
-  # "header": {column}[{unit}] 形式（デフォルト）
-  # "row": 1行目カラム名、2行目単位行
+  # CSV単位の表示形式: header → 列名に [unit] を付加 / row → 1列目に単位行
   csv-unit-format: header
 
-# ========================================================================
-# ダッシュボード設定（dashboard）
-# ========================================================================
+# ----- ダッシュボード設定 -------------------------------------------------
 dashboard:
-  # テーブルビューで表示するカラム（指定時はこれらのカラムのみ、優先順位順に表示）
-  # 未指定の場合はvocab順で全カラムを表示。name/type/formatは常に先頭に含まれます。
-  # globパターン対応（例: "stress*" で stress.center, stress.edge 等にマッチ）
-  # 使用例:
-  #   table-columns:
-  #     - 条件
-  #     - バージョン
-  #     - analysis_status
-  #     - active
-  #     - stress*
+  # テーブルから隠す列。内部メタ・重複表示の整理用。
   exclude-table-columns:
     - type
     - format
+    - path
     - daily_notes
     - daily_sections
     - verbose_name
     - dat_warnings
     - msg_warnings
     - cpu_time
+    - result_key
 
-
-  # デフォルトフィルタ（ダッシュボード起動時に適用）
-  # ビュー間で共有され、session中保持されます。
-  # 使用例:
-  #   default-filters:
-  #     active: true
-  #     type: Abaqusインプット
+  # 起動時に適用するフィルタ
   default-filters:
     active: true
 
-  # プロットビューのデフォルト軸設定
-  # 未指定の場合はプロパティキーリストの先頭から自動選択。
-  # 使用例:
-  #   plot:
-  #     x: 条件
-  #     y: RF3
-  # plot:
-
-  # list[str]型カラムの先頭要素のみ表示するカラム名リスト
-  # デフォルト: ["msg_errors", "dat_errors"]
-  # 使用例:
-  #   list-summary-columns:
-  #     - msg_errors
-  #     - dat_errors
-  #     - sta_errors
-
-  # ギャラリーのグリッド列数（デフォルト: 5）
-  # 使用例:
-  #   gallery-columns: 3
-  # gallery-columns: 5
-
-  # ギャラリーのグリッド行数（1ページあたりの行数、デフォルト: 4）
-  # 使用例:
-  #   gallery-rows: 6
-  # gallery-rows: 4
-
-  # NG領域定義（プロットビューに赤い塗りつぶし領域を追加）
-  # 矩形タイプ: x_min/x_max/y_minで/y_maxで範囲を指定
-  # カーブタイプ: points（[x,y]の配列）で境界線を定義し、fill（above/below）で塗りつぶし方向を指定
-  # 使用例:
-  #   ng-regions:
-  #     - type: rect
-  #       label: NG領域
-  #       x_min: 0
-  #       x_max: 100
-  #       y_min: 0
-  #       y_max: 5
-  #       color: "rgba(255,0,0,0.1)"
-  #     - type: curve
-  #       label: Baskinカーブ
-  #       points: [[0, 100], [50, 200], [100, 250]]
-  #       fill: below
-  #       color: "rgba(255,0,0,0.1)"
-  # ng-regions:
-
-  # グループ結線キー（同一値のデータ点を灰色点線で結線、プロットビュー用）
-  # 同じ条件（indexや実験条件）のバージョン違いデータを結線して傾向を可視化します。
-  # 使用例:
-  #   group-line-key: index
-  # group-line-key:
-
-  # コネクタ固有設定（connectors）
-  # 各ダッシュボードコネクターが使用する固有設定を定義します。
-  # キーはコネクター名（例: abaqus）、値はコネクター固有の設定辞書です。
-  # 使用例:
-  #   connectors:
-  #     abaqus:
-  #       material-curve-columns:
-  #         plastic:
-  #           columns: [stress, strain]
-  #           x: 1
-  #           y: 0
+  # コネクター固有設定（Abaqusの物性カーブ列名等）
   connectors:
-    # Abaqusコネクター固有設定
     abaqus:
-      # 物性カーブ列名設定
-      # 物性一覧ページの列名推定に使用します。
-      # 各プロパティキーに対して columns（列名リスト）と、
-      # オプションで x/y（プロットのX軸/Y軸に使う列のインデックス）を指定します。
-      # configにマッチしないプロパティは col_0, col_1, ... で補完されます。
       material-curve-columns:
-        plastic:
-          columns: [stress, strain]
-          x: 1
-          y: 0
-        elastic:
-          columns: [E, nu]
-        density:
-          columns: [density]
-        specific-heat:
-          columns: [specific_heat]
-        conductivity:
-          columns: [conductivity]
-        expansion:
-          columns: [alpha]
-        damage-initiation:
-          columns: [value, strain]
-          x: 1
-          y: 0
-        damage-evolution:
-          columns: [displacement]
-        creep:
-          columns: [A, n, m]
+        plastic: { columns: [stress, strain], x: 1, y: 0 }
+        elastic: { columns: [E, nu] }
+        density: { columns: [density] }
+        specific-heat: { columns: [specific_heat] }
+        conductivity: { columns: [conductivity] }
+        expansion: { columns: [alpha] }
+        damage-initiation: { columns: [value, strain], x: 1, y: 0 }
+        damage-evolution: { columns: [displacement] }
+        creep: { columns: [A, n, m] }
 
-  # 保存済みビュー（ダッシュボードの「保存済みビュー」ページに表示順で表示）
-  # 各ビューにはフィルタ条件、プロット条件、ギャラリー条件を指定できます。
-  # ビュータイプ: table / plot / gallery / card / status / array_plot
-  # array_plotのmode: overlay（全条件重ね書き、デフォルト） / grid（個別グリッド） / single（個別ノード）
-  # 使用例:
-  #   saved-views:
-  #     - name: アクティブ解析一覧
-  #       type: table
-  #       filters:
-  #         active: true
-  #     - name: RF3 vs 条件
-  #       type: plot
-  #       filters:
-  #         active: true
-  #       plot:
-  #         x: 条件
-  #         y: RF3
-  #         color: バージョン
-  #         chart_type: 散布図
-  #     - name: スクリーンショット
-  #       type: gallery
-  #       gallery:
-  #         source: property
-  #         property_key: screenshot
-  #     - name: 反力プロファイル比較
-  #       type: array_plot
-  #       filters:
-  #         active: true
-  #       array_plot:
-  #         prefix: RF
-  #         x: RF.time
-  #         y: [RF.RF3]
-  #         mode: overlay
-  # saved-views:
-
-# ========================================================================
-# Obsidian エクスポート設定（obsidian）
-# ========================================================================
+# ----- Obsidian エクスポート設定 ------------------------------------------
 obsidian:
-  # ノート出力先ディレクトリ（プロジェクトルート基準）
   notes-dir: notes/props
-  # ベースファイル出力先ディレクトリ（プロジェクトルート基準）
   bases-dir: notes/bases
-  # Obsidianファイルに付けるプレフィックス
   prefix: "O-"
-  # デフォルトのビュー設定（.baseファイル用、Dataviewクエリ）
-  # 使用例:
-  #   default-views:
-  #     - type: table
-  #       name: Table
-  #       filters:
-  #         and:
-  #           - "active == true"
-  #       order:
-  #         - file.name
   default-views:
     - type: table
       name: Table
@@ -555,26 +170,15 @@ obsidian:
         - success
         - description
       sort:
-        - property: idx
-          direction: ASC
-        - property: ver
-          direction: ASC
-  # Vault設定（.obsidian/ディレクトリの自動生成内容）
-  # jj export --target obsidian 初回実行時に反映される
-  # 既存のVault（.obsidian/が存在する場合）には一切変更を加えない
+        - { property: idx, direction: ASC }
+        - { property: ver, direction: ASC }
   vault:
-    # app.json: Obsidianアプリ設定
     app:
       useMarkdownLinks: false
       showFrontmatter: true
       strictLineBreaks: false
       readableLineLength: true
-    # community-plugins.json: 推奨コミュニティプラグインID一覧
-    # ObsidianのコミュニティプラグインストアからインストールするID
-    community-plugins:
-      - dataview
-      - dbfolder
-    # core-plugins-migration.json: コアプラグインの有効/無効設定
+    community-plugins: [dataview, dbfolder]
     core-plugins:
       canvas: true
       graph: true

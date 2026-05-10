@@ -75,6 +75,7 @@ class OverviewPage(PageComponent["OverviewViewConfig"]):
             type_filter=st.session_state.get("_filter_type", "すべて"),
             status_filter=st.session_state.get("_filter_status", "すべて"),
             active_only=st.session_state.get("_filter_active", False),
+            latest_version_only=st.session_state.get("_filter_latest_version", True),
             vocab=vocab,
         )
         filtered = sort_rows_by_index(filtered, provider._index_key, provider._version_key)

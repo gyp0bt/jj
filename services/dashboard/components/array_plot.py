@@ -69,12 +69,15 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         ``view`` は enabled-pages 上の識別子兼ウィジェットキー分離用として用い、
         軸・モード・スタイル等は対話ウィジェットで選択する（旧 render_page 相当）。
         """
+        import dataclasses
+
         import streamlit as st
 
         from services.dashboard.widgets import (
             build_axis_range,
             build_style_config,
             get_active_filters,
+            maybe_persist_view,
             render_shared_filters,
         )
 
@@ -90,6 +93,8 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         # 共有フィルタ（サイドバー描画 + 適用）
         rows = provider.get_go_table()
         render_shared_filters(rows)
+
+        project_root = kwargs.get("project_root")
 
         # ウィジェットキー接頭辞（同一ページ種別を複数enabled_pagesに入れても衝突しない）
         wkey = f"_ap_{view.name}"
@@ -107,9 +112,9 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
         prefixes = sorted({k.split(".")[0] for k in array_keys})
         prefix_default_idx = prefixes.index(cfg_prefix) if cfg_prefix in prefixes else 0
 
-        # UI: 接頭辞選択 → X/Y軸選択
-        col1, col2, col3 = st.columns(3)
-        with col1:
+        # ビュー設定フォームはサイドバーに固定する（save-on-edit）
+        with st.sidebar:
+            st.subheader(f"⚙ {view.name}")
             selected_prefix = st.selectbox(
                 "データグループ",
                 prefixes,
@@ -117,54 +122,62 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 key=f"{wkey}_prefix",
             )
 
-        # 選択された接頭辞のキーのみ
-        prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
+            prefix_keys = [k for k in array_keys if k.startswith(selected_prefix + ".")]
 
-        with col2:
-            x_default_idx = prefix_keys.index(cfg_x) if cfg_x in prefix_keys else min(1, len(prefix_keys) - 1)
+            # X軸: 同じ prefix の場合は cfg_x を初期選択、別prefix の場合は先頭
+            cfg_x_match = cfg_x if cfg_x in prefix_keys else ""
+            x_default_idx = prefix_keys.index(cfg_x_match) if cfg_x_match else min(1, len(prefix_keys) - 1)
             x_default_idx = max(0, x_default_idx)
-            x_key = st.selectbox("X軸", prefix_keys, index=x_default_idx, key=f"{wkey}_x") if prefix_keys else ""
-        with col3:
+            x_key = (
+                st.selectbox(
+                    "X軸",
+                    prefix_keys,
+                    index=x_default_idx,
+                    key=f"{wkey}_x_{selected_prefix}",
+                )
+                if prefix_keys
+                else ""
+            )
+
             y_options = [k for k in prefix_keys if k != x_key]
             if not y_options:
                 st.warning("Y軸に使用できるキーがありません。")
                 return
-            y_defaults = [k for k in cfg_y if k in y_options]
-            if not y_defaults:
-                y_defaults = [y_options[min(len(y_options) - 1, 0)]]
-            y_keys = st.multiselect("Y軸", y_options, default=y_defaults, key=f"{wkey}_y")
+            cfg_y_match = [k for k in cfg_y if k in y_options]
+            y_defaults = cfg_y_match if cfg_y_match else [y_options[0]]
+            y_keys = st.multiselect(
+                "Y軸",
+                y_options,
+                default=y_defaults,
+                key=f"{wkey}_y_{selected_prefix}",
+            )
 
-        if not y_keys:
-            st.info("Y軸を選択してください。")
-            return
+            mode_options = ["全条件比較", "個別ノード"]
+            mode_default_idx = 1 if cfg_mode == "single" else 0
+            view_mode = st.radio(
+                "表示モード",
+                mode_options,
+                index=mode_default_idx,
+                horizontal=True,
+                key=f"{wkey}_mode",
+            )
 
-        # 表示モード: 全条件比較 or 個別ノード
-        mode_options = ["全条件比較", "個別ノード"]
-        mode_default_idx = 1 if cfg_mode == "single" else 0
-        view_mode = st.radio(
-            "表示モード",
-            mode_options,
-            index=mode_default_idx,
-            horizontal=True,
-            key=f"{wkey}_mode",
-        )
+            with st.expander("軸範囲", expanded=False):
+                rc1, rc2 = st.columns(2)
+                with rc1:
+                    ax_x_min = st.number_input("X最小", value=None, key=f"{wkey}_x_min", format="%g")
+                    ax_y_min = st.number_input("Y最小", value=None, key=f"{wkey}_y_min", format="%g")
+                with rc2:
+                    ax_x_max = st.number_input("X最大", value=None, key=f"{wkey}_x_max", format="%g")
+                    ax_y_max = st.number_input("Y最大", value=None, key=f"{wkey}_y_max", format="%g")
+                auto_clip_extreme = st.checkbox(
+                    "極端値を自動カット（Y軸）",
+                    value=True,
+                    key=f"{wkey}_clip_extreme",
+                    help="|y|>1e8 等の発散値があるとき、99パーセンタイル基準でY軸範囲を自動制限",
+                )
 
-        # 軸範囲設定（number_input）
-        with st.expander("軸範囲設定", expanded=False):
-            rc1, rc2, rc3, rc4 = st.columns(4)
-            with rc1:
-                ax_x_min = st.number_input("X最小", value=None, key=f"{wkey}_x_min", format="%g")
-            with rc2:
-                ax_x_max = st.number_input("X最大", value=None, key=f"{wkey}_x_max", format="%g")
-            with rc3:
-                ax_y_min = st.number_input("Y最小", value=0.0, key=f"{wkey}_y_min", format="%g")
-            with rc4:
-                ax_y_max = st.number_input("Y最大", value=100, key=f"{wkey}_y_max", format="%g")
-
-        # スタイル設定
-        with st.expander("スタイル設定", expanded=False):
-            sc1, sc2, sc3 = st.columns(3)
-            with sc1:
+            with st.expander("スタイル", expanded=False):
                 ap_marker_size = st.number_input(
                     "マーカーサイズ",
                     value=None,
@@ -172,9 +185,13 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                     max_value=50,
                     key=f"{wkey}_marker_size",
                 )
-            with sc2:
-                ap_line_width = st.number_input("線幅", value=None, min_value=1, max_value=20, key=f"{wkey}_line_width")
-            with sc3:
+                ap_line_width = st.number_input(
+                    "線幅",
+                    value=None,
+                    min_value=1,
+                    max_value=20,
+                    key=f"{wkey}_line_width",
+                )
                 ap_font_size = st.number_input(
                     "フォントサイズ",
                     value=None,
@@ -182,6 +199,11 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                     max_value=48,
                     key=f"{wkey}_font_size",
                 )
+            st.divider()
+
+        if not y_keys:
+            st.info("Y軸を選択してください。")
+            return
 
         ap_x_range = build_axis_range(ax_x_min, ax_x_max)
         ap_y_range = build_axis_range(ax_y_min, ax_y_max)
@@ -189,6 +211,16 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
 
         # 共有フィルタをprovider用のフィルタ辞書に変換
         active_filters = get_active_filters()
+
+        # save-on-edit: prefix/x/y/mode の選択を view.array_plot に保存
+        new_array_plot: dict[str, Any] = {
+            "prefix": selected_prefix,
+            "x": x_key,
+            "y": list(y_keys),
+            "mode": "single" if view_mode == "個別ノード" else "overlay",
+        }
+        new_view = dataclasses.replace(view, array_plot=new_array_plot)
+        maybe_persist_view(new_view, view, dashboard_config, project_root)
 
         # NG領域設定
         ng_regions = getattr(dashboard_config, "ng_regions", [])
@@ -203,6 +235,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 x_range=ap_x_range,
                 y_range=ap_y_range,
                 style=ap_style,
+                auto_clip_extreme=auto_clip_extreme,
             )
         else:
             _render_array_single(
@@ -215,6 +248,7 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
                 y_range=ap_y_range,
                 style=ap_style,
                 widget_key_prefix=wkey,
+                auto_clip_extreme=auto_clip_extreme,
             )
 
     def generate_html(
@@ -234,6 +268,37 @@ class ArrayPlotPage(PageComponent[ArrayPlotViewConfig]):
 # ====================================================================
 
 
+def _compute_safe_y_range(
+    y_arrays: list[list[float]],
+    threshold: float = 1e8,
+) -> list[float] | None:
+    """発散値カット範囲を計算
+
+    全シリーズのy値を集めて |y| が threshold 以上の値が含まれる場合、
+    1〜99パーセンタイルに5%マージンを加えた範囲を返す。
+    発散していない場合は None（自動範囲のまま）。
+    """
+    import math
+
+    all_vals: list[float] = []
+    for arr in y_arrays:
+        for v in arr:
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and not math.isnan(float(v)):
+                all_vals.append(float(v))
+    if len(all_vals) < 2:
+        return None
+    if max(abs(v) for v in all_vals) < threshold:
+        return None
+    sorted_vals = sorted(all_vals)
+    n = len(sorted_vals)
+    p1 = sorted_vals[max(0, int(n * 0.01))]
+    p99 = sorted_vals[min(n - 1, int(n * 0.99))]
+    if p99 <= p1:
+        return None
+    margin = (p99 - p1) * 0.05
+    return [p1 - margin, p99 + margin]
+
+
 def _render_array_overlay(
     provider: DashboardDataProvider,
     x_key: str,
@@ -243,21 +308,32 @@ def _render_array_overlay(
     x_range: list[float] | None = None,
     y_range: list[float] | None = None,
     style: dict[str, int] | None = None,
+    auto_clip_extreme: bool = True,
 ) -> None:
     """全条件の配列データを凡例付きで同一グラフに重ね書き"""
     import streamlit as st
 
     from services.dashboard.html_export import _add_ng_regions_to_fig
-    from services.dashboard.widgets import apply_style_to_fig
+    from services.dashboard.widgets import apply_style_to_fig, get_active_filtered_names
+
+    # 共有フィルタ + 最新versionフィルタ適用後の name 集合
+    shared_names = get_active_filtered_names(provider)
 
     for y_key in y_keys:
         st.subheader(f"{y_key} vs {x_key}")
         grid_data = provider.get_array_grid_data(x_key, y_key, filters=filters)
+        if shared_names is not None:
+            grid_data = [d for d in grid_data if d.get("name") in shared_names]
         if not grid_data:
             st.info(f"'{x_key}' と '{y_key}' のデータがありません。")
             continue
 
         grid_data.sort(key=lambda d: (d.get("index", ""), d.get("version", "")))
+
+        # 極端値の自動カット: ユーザー指定 y_range が無く auto_clip_extreme が有効な場合のみ
+        effective_y_range = y_range
+        if effective_y_range is None and auto_clip_extreme:
+            effective_y_range = _compute_safe_y_range([item["y_values"] for item in grid_data])
 
         try:
             import plotly.graph_objects as go
@@ -302,8 +378,8 @@ def _render_array_overlay(
             )
             if x_range:
                 fig.update_xaxes(range=x_range)
-            if y_range:
-                fig.update_yaxes(range=y_range)
+            if effective_y_range:
+                fig.update_yaxes(range=effective_y_range)
             if style:
                 apply_style_to_fig(fig, style)
             st.plotly_chart(fig, width="stretch")
@@ -324,12 +400,13 @@ def _render_array_single(
     y_range: list[float] | None = None,
     style: dict[str, int] | None = None,
     widget_key_prefix: str = "_ap",
+    auto_clip_extreme: bool = True,
 ) -> None:
     """配列データの個別ノード表示（複数Y軸重ね書き）"""
     import streamlit as st
 
     from services.dashboard.html_export import _add_ng_regions_to_fig
-    from services.dashboard.widgets import apply_style_to_fig
+    from services.dashboard.widgets import apply_style_to_fig, get_active_filtered_names
 
     rows = provider.get_go_table()
     if not rows:
@@ -339,6 +416,10 @@ def _render_array_single(
     # フィルタ適用
     if filters:
         rows = [r for r in rows if provider._matches_filters(r, filters)]
+    # 最新versionフィルタも併せて適用（共有フィルタ経由）
+    shared_names = get_active_filtered_names(provider)
+    if shared_names is not None:
+        rows = [r for r in rows if r.get("name") in shared_names]
 
     # verbose_nameキー
     vn_key = provider._verbose_name_key
@@ -377,6 +458,11 @@ def _render_array_single(
     if plot_data is None:
         st.warning("配列データの取得に失敗しました。")
         return
+
+    # 極端値の自動カット: ユーザー指定 y_range が無く auto_clip_extreme が有効な場合のみ
+    effective_y_range = y_range
+    if effective_y_range is None and auto_clip_extreme:
+        effective_y_range = _compute_safe_y_range([s["values"] for s in plot_data["series"]])
 
     try:
         import plotly.graph_objects as go
@@ -421,8 +507,8 @@ def _render_array_single(
         )
         if x_range:
             fig.update_xaxes(range=x_range)
-        if y_range:
-            fig.update_yaxes(range=y_range)
+        if effective_y_range:
+            fig.update_yaxes(range=effective_y_range)
         if style:
             apply_style_to_fig(fig, style)
         st.plotly_chart(fig, width="stretch")

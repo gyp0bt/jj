@@ -50,6 +50,7 @@ def apply_filters(
     type_filter: str | None = None,
     status_filter: str | None = None,
     active_only: bool = False,
+    latest_version_only: bool = False,
     vocab: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """汎用フィルタを適用
@@ -59,6 +60,7 @@ def apply_filters(
         type_filter: タイプフィルタ（Noneまたは"すべて"で無効）
         status_filter: ステータスフィルタ（Noneまたは"すべて"で無効）
         active_only: Trueの場合activeのみ
+        latest_version_only: Trueの場合、同一indexの中で最新versionのみ残す
         vocab: 語彙マッピング（キー: 論理名, 値: 実際の列名）
 
     Returns:
@@ -80,7 +82,57 @@ def apply_filters(
     if active_only:
         filtered = [r for r in filtered if is_truthy(r.get(active_key))]
 
+    if latest_version_only:
+        filtered = filter_latest_version(filtered)
+
     return filtered
+
+
+def filter_latest_version(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """同一indexの中で最新versionの行のみ残す
+
+    `index` または `idx` をグループキーとし、`version` または `v` を比較対象とする。
+    indexが空/非数値の行はそのまま残す（材料ファイル等のidxを持たないノードを保護）。
+    入力順は元の順序を維持する。
+
+    Args:
+        rows: フィルタ対象の行リスト
+
+    Returns:
+        各index毎に最大versionの行のみを残したリスト
+    """
+
+    def _to_int(val: Any) -> int | None:
+        if val is None or val == "":
+            return None
+        if isinstance(val, bool):
+            return None
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return None
+
+    # index別の最大version+その行ID(行Index)を集計
+    best: dict[int, tuple[int, int]] = {}  # idx_val -> (ver_val, row_position)
+    keep_positions: set[int] = set()
+    for i, r in enumerate(rows):
+        idx_val = _to_int(r.get("index"))
+        if idx_val is None:
+            idx_val = _to_int(r.get("idx"))
+        if idx_val is None:
+            keep_positions.add(i)
+            continue
+        ver_val = _to_int(r.get("version"))
+        if ver_val is None:
+            ver_val = _to_int(r.get("v"))
+        if ver_val is None:
+            ver_val = 0
+        cur = best.get(idx_val)
+        if cur is None or ver_val > cur[0]:
+            best[idx_val] = (ver_val, i)
+
+    keep_positions.update(pos for _, pos in best.values())
+    return [r for i, r in enumerate(rows) if i in keep_positions]
 
 
 def apply_saved_view_filters(rows: list[dict[str, Any]], filters: dict[str, Any]) -> list[dict[str, Any]]:
