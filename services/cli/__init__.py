@@ -161,6 +161,7 @@ def dispatch(args: argparse.Namespace) -> int:
         "export",
         "info",
         "diff",
+        "jobs",
         "credential",
         "config",
     ):
@@ -180,6 +181,7 @@ def dispatch(args: argparse.Namespace) -> int:
     print("  export      エクスポート")
     print("  info        ファイル詳細")
     print("  diff        INP差分比較")
+    print("  jobs        ジョブ（RUN）一覧")
     print("  run (r)     コマンド実行+ログ")
     print("  config      設定管理")
     return 0

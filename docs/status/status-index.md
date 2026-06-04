@@ -8,6 +8,13 @@
 
 > 最新statusファイルから引き継がれた未完了TODO。作業開始時はここを確認する。
 
+### 軸B: 汎用レポジトリ＋一覧 (status-092)
+
+- [x] **J-0**: `jj jobs`（RUN一覧）最小実装・テスト先行（1180 passed / 0 failed）
+- [ ] **J-1**: `jj jobs` 出力拡充（入出力数・duration・exit_code・`--detail`）
+- [ ] **J-2**: ソート順制御（started_at 降順デフォルト・`--sort`）
+- [ ] **J-3**: 軸B本丸 = `NodeCategory.REPOSITORY` を使った汎用レポジトリ一覧
+
 ### ダッシュボード層の全削除 (status-091)
 
 - [x] **DR-1**: `services/dashboard/` 一式・launchers・api_service・dashboard_json・コネクター基底を削除
@@ -78,6 +85,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [092](status-092.md) | 06-04 | jj jobs コマンド追加（軸B第一歩・RUN一覧・1180 passed, 0 failed） | claude/jj-jobs-cli-A8iQ9 |
 | [091](status-091.md) | 06-04 | ダッシュボード層の全削除（CLIファースト回帰・約20k行削除・1169 passed, 0 failed） | claude/jj-cli-workspace-ypjUt |
 | [090](status-090.md) | 05-01 | ミニマル化の機能回帰修正・テスト復旧（1751+ passed, 0 failed） | master |
 | [089](status-089.md) | 04-30 | プラグイン構造統合（v0.2.1） | master |

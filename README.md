@@ -16,6 +16,7 @@ Obsidian Vault、Neo4j、CSV/JSONなど多彩なフォーマットにエクス�
 [jj parse] ── フォルダ/ファイル解析 → グラフ構築 (.j2/storage/)
     │
     ├── [jj show] ──── グラフ表示（ローカル即時確認）
+    ├── [jj jobs] ──── RUN（ジョブ）一覧
     ├── [jj diff] ──── INPキーワードブロック差分
     ├── [jj export --target obsidian] ── Obsidian Vault
     ├── [jj export --target neo4j] ── Neo4j Database
@@ -29,6 +30,7 @@ pip install -e ".[dev]"        # 開発用インストール（コア + テス�
 jj init                         # 設定ファイル初期化（.j2/config/ 生成）
 jj parse                        # プロジェクトをスキャンしグラフ構築 → .j2/storage/graph.yaml
 jj show --summary               # グラフのサマリー表示
+jj jobs                         # ワークスペース内のRUN（ジョブ）一覧
 jj export --target csv          # ノード属性をCSVエクスポート
 ```
 
