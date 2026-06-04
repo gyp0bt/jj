@@ -58,16 +58,6 @@ class TestPluginRegistration:
         except Exception:
             pytest.skip("entry_points not available (not installed with -e)")
 
-    def test_abaqus_dashboard_connector_registered(self):
-        """Abaqusダッシュボードコネクターがレジストリに登録される"""
-        import plugins.abaqus.dashboard  # noqa: F401
-        from services.dashboard.connectors import DashboardPageConnector
-
-        registered_labels = list(DashboardPageConnector._registry.keys())
-        assert "物性一覧" in registered_labels
-        assert "メッシュ品質" in registered_labels
-        assert "ジョブサマリー" in registered_labels
-
     def test_plugin_register_idempotent(self):
         """register()を複数回呼んでもエラーにならない（冪等性）"""
         from services.plugins.abaqus import register

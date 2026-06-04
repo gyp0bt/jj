@@ -42,11 +42,6 @@ class TestSdkExports:
 
         assert AbstractExporter is not None
 
-    def test_import_dashboard_connector(self):
-        from services.sdk import DashboardPageConnector
-
-        assert DashboardPageConnector is not None
-
     def test_import_cache_provider(self):
         from services.sdk import CacheProvider
 
@@ -155,11 +150,3 @@ class TestSdkTypes:
         from services.sdk import AbstractExporter
 
         assert AbstractExporter is OrigExporter
-
-    def test_connector_identity(self):
-        from services.dashboard.connectors import (
-            DashboardPageConnector as OrigConnector,
-        )
-        from services.sdk import DashboardPageConnector
-
-        assert DashboardPageConnector is OrigConnector

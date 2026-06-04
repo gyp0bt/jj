@@ -8,7 +8,6 @@ Abaqus/Obsidian等のドメイン固有ロジックをプラグインとして�
 
 - パーサー（AbstractFileParserサブクラス）
 - エクスポーター（AbstractExporterサブクラス）
-- ダッシュボードコネクター（DashboardPageConnectorサブクラス）
 
 プラグインのロードはservices.sdk.plugin_registryが管理する。
 

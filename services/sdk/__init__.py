@@ -9,7 +9,6 @@
 
 使用例:
     from services.sdk import AbstractFileParser, AbstractExporter
-    from services.sdk import DashboardPageConnector
     from services.sdk import Node, Relation, GraphModel
     from services.sdk import ProjectGraph, ProjectFile, ProjectDirectory
     from services.sdk import CacheProvider
@@ -23,11 +22,6 @@ from __future__ import annotations
 # 型定義（jj_types）
 # --------------------------------------------------
 from jj_types import GraphModel, Node, Relation
-
-# --------------------------------------------------
-# ダッシュボードコネクター基盤
-# --------------------------------------------------
-from services.dashboard.connectors import DashboardPageConnector
 
 # --------------------------------------------------
 # エクスポーター基盤
@@ -91,7 +85,6 @@ __all__ = [
     "Capability",
     "CapabilityEntry",
     "CapabilityRegistry",
-    "DashboardPageConnector",
     "Event",
     "EventBus",
     "GraphExported",

@@ -100,7 +100,7 @@ def _add_export_args(parser: argparse.ArgumentParser) -> None:
     """exportコマンドの引数を追加"""
     parser.add_argument(
         "--target",
-        choices=["obsidian", "csv", "json", "neo4j", "cypher", "dashboard-json"],
+        choices=["obsidian", "csv", "json", "neo4j", "cypher"],
         default="obsidian",
         help="エクスポート先（デフォルト: obsidian）",
     )
@@ -326,21 +326,6 @@ def _add_diff_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-# dashboard/serve の引数定義とランチャーは services/cli/launchers.py に分離
-from services.cli.launchers import (  # noqa: E402
-    add_dashboard_args as _add_dashboard_args,
-)
-from services.cli.launchers import (  # noqa: E402
-    add_serve_args as _add_serve_args,
-)
-from services.cli.launchers import (  # noqa: E402
-    run_dashboard as _launchers_run_dashboard,
-)
-from services.cli.launchers import (  # noqa: E402
-    run_serve as _launchers_run_serve,
-)
-
-
 def _add_credential_args(parser: argparse.ArgumentParser) -> None:
     """credentialコマンドの引数を追加"""
     cred_sub = parser.add_subparsers(dest="credential_command", help="クレデンシャル操作")
@@ -441,20 +426,6 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
         help="クレデンシャル（認証情報）の管理",
     )
     _add_credential_args(cred_parser)
-
-    # jj dashboard
-    dashboard_parser = subparsers.add_parser(
-        "dashboard",
-        help="Streamlitダッシュボードを起動",
-    )
-    _add_dashboard_args(dashboard_parser)
-
-    # jj serve
-    serve_parser = subparsers.add_parser(
-        "serve",
-        help="REST APIサーバーを起動（FastAPI）",
-    )
-    _add_serve_args(serve_parser)
 
     # jj config
     config_parser = subparsers.add_parser(
@@ -577,10 +548,6 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return _run_diff(project_root, args)
     elif cmd == "credential":
         return _run_credential(project_root, args)
-    elif cmd == "dashboard":
-        return _run_dashboard(project_root, args)
-    elif cmd == "serve":
-        return _run_serve(project_root, args)
     elif cmd == "config":
         config_command = getattr(args, "config_command", None)
         if config_command == "migrate":
@@ -847,10 +814,6 @@ def _build_export_kwargs(target: str, args: argparse.Namespace) -> dict[str, Any
         if output_file:
             kwargs["output_file"] = output_file
 
-    # dashboard-json固有
-    elif target == "dashboard-json":
-        kwargs["output_file"] = getattr(args, "output", None)
-
     return kwargs
 
 
@@ -1092,13 +1055,3 @@ def _run_diff(project_root: Path, args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)
         return 1
-
-
-def _run_dashboard(project_root: Path, args: argparse.Namespace) -> int:
-    """dashboardサブコマンドを実行 - launchers.pyに委譲"""
-    return _launchers_run_dashboard(project_root, args)
-
-
-def _run_serve(project_root: Path, args: argparse.Namespace) -> int:
-    """serveサブコマンドを実行 - launchers.pyに委譲"""
-    return _launchers_run_serve(project_root, args)

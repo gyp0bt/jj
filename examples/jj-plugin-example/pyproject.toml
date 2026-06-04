@@ -30,9 +30,5 @@ example_solver = "jj_plugin_example:register"
 [project.entry-points."jj.parsers"]
 example_parser = "jj_plugin_example.parser"
 
-# 個別のダッシュボードコネクター登録
-[project.entry-points."jj.dashboard_connectors"]
-example_dashboard = "jj_plugin_example.dashboard"
-
 [tool.setuptools.packages.find]
 where = ["src"]

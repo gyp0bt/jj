@@ -304,35 +304,6 @@ class JJApp:
                 all_routes.extend(collect_api_routes(manifest.api_routes))
         return all_routes
 
-    def get_dashboard_pages(self) -> list[dict[str, str]]:
-        """利用可能なダッシュボードページ一覧"""
-        from services.dashboard.connectors import DashboardPageConnector
-
-        pages = []
-        for label, cls in DashboardPageConnector._registry.items():
-            pages.append({"label": label, "connector_key": cls.connector_key})
-        return pages
-
-    def get_dashboard_page_data(self, page_label: str, **params: Any) -> dict[str, Any]:
-        """指定ダッシュボードページのデータをJSON-serializable形式で返す
-
-        Args:
-            page_label: ページラベル
-            **params: 追加パラメータ
-
-        Returns:
-            ページデータ辞書。未登録の場合は空辞書。
-        """
-        from services.dashboard.connectors import DashboardPageConnector
-
-        cls = DashboardPageConnector._registry.get(page_label)
-        if cls is None:
-            return {}
-        connector = cls()
-        # get_page_data にはプロバイダーとconfigが必要
-        # ここでは簡易的にNone対応
-        return connector.get_page_data(None, None)
-
     # === 内部メソッド ===
 
     def _register_plugin_capabilities(self) -> None:
@@ -344,9 +315,6 @@ class JJApp:
             # エクスポーター
             for exporter_path in manifest.exporters:
                 self.capability_registry.register(Capability.EXPORTER, exporter_path, manifest.name)
-            # ダッシュボードページ
-            for page_path in manifest.dashboard_pages:
-                self.capability_registry.register(Capability.DASHBOARD_PAGE, page_path, manifest.name)
             # CLIコマンド
             for cli_path in manifest.cli_commands:
                 self.capability_registry.register(Capability.CLI_COMMAND, cli_path, manifest.name)
@@ -360,8 +328,6 @@ class JJApp:
                 capabilities.append("parsers")
             if manifest.exporters:
                 capabilities.append("exporters")
-            if manifest.dashboard_pages:
-                capabilities.append("dashboard_pages")
             if manifest.cli_commands:
                 capabilities.append("cli_commands")
             if manifest.api_routes:

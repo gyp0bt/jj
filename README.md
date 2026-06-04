@@ -5,7 +5,7 @@ CAE業務データをグラフ構造化し、検索・可視化・横断比較�
 ## 概要
 
 ローカルCAEプロジェクトのフォルダ/ファイルを解析し、グラフデータとして構造化。
-Streamlitダッシュボード、Obsidian Vault、Neo4j、CSV/JSONなど多彩なフォーマットにエクスポート可能。
+Obsidian Vault、Neo4j、CSV/JSONなど多彩なフォーマットにエクスポート可能。
 
 ### アーキテクチャ概要
 
@@ -15,8 +15,8 @@ Streamlitダッシュボード、Obsidian Vault、Neo4j、CSV/JSONなど多彩�
     ▼
 [jj parse] ── フォルダ/ファイル解析 → グラフ構築 (.j2/storage/)
     │
-    ├── [jj dashboard] ── Streamlitダッシュボード（ローカル即時確認）
-    ├── [jj serve] ──── REST API (FastAPI)
+    ├── [jj show] ──── グラフ表示（ローカル即時確認）
+    ├── [jj diff] ──── INPキーワードブロック差分
     ├── [jj export --target obsidian] ── Obsidian Vault
     ├── [jj export --target neo4j] ── Neo4j Database
     └── [jj export --target csv] ── CSVエクスポート
@@ -32,10 +32,10 @@ jj show --summary               # グラフのサマリー表示
 jj export --target csv          # ノード属性をCSVエクスポート
 ```
 
-Abaqus解析やダッシュボードを使う場合:
+Abaqus解析を使う場合:
 ```bash
-pip install -e ".[abaqus,dashboard]"   # Abaqus + ダッシュボード依存を追加
-jj dashboard                            # Streamlitダッシュボード起動
+pip install -e ".[abaqus]"             # Abaqusプラグイン依存を追加
+jj diff a.inp b.inp                     # INPキーワードブロック差分
 ```
 
 テスト実行:
@@ -61,8 +61,6 @@ pytest                          # テスト実行
 | 言語 | Python 3.10+ |
 | グラフ | NetworkX |
 | データモデル | Pydantic |
-| ダッシュボード | Streamlit |
-| API | FastAPI |
 | テスト | pytest |
 | lint/format | ruff |
 

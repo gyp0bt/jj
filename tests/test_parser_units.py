@@ -3147,7 +3147,7 @@ class TestExporterRegistry:
     """全エクスポーターがレジストリに登録されていることを確認するテスト"""
 
     def test_all_exporters_registered(self):
-        """全6形式のエクスポーターがレジストリに登録されていること"""
+        """全5形式のエクスポーターがレジストリに登録されていること"""
         import services.export.connectors  # noqa: F401
         from services.export import get_exporter_registry
 
@@ -3158,7 +3158,6 @@ class TestExporterRegistry:
         assert "obsidian" in formats
         assert "neo4j" in formats
         assert "cypher" in formats
-        assert "dashboard-json" in formats
 
     def test_exporter_priority_order(self):
         """エクスポーターがpriority順で取得できること"""
@@ -3202,25 +3201,6 @@ class TestExporterRegistry:
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={}),
-        ]
-        graph = GraphModel(nodes=nodes, relations=[])
-        exporter = exporter_cls()
-        result = exporter.export(graph, project_root=tmp_path)
-        assert result["output_path"].exists()
-        assert result["node_count"] == 1
-
-    def test_dashboard_json_exporter_via_registry(self, tmp_path: Path):
-        """DashboardJsonExporterがレジストリ経由で取得・実行できること"""
-        import services.export.connectors  # noqa: F401
-        from jj_types import GraphModel
-        from services.export import get_exporter_for_format
-
-        exporter_cls = get_exporter_for_format("dashboard-json")
-        assert exporter_cls is not None
-        assert exporter_cls.format == "dashboard-json"
-
-        nodes = [
-            Node(id=1, type="go", name="test1", format="inp", properties={"index": "1", "version": "1"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
         exporter = exporter_cls()
@@ -3449,23 +3429,6 @@ class TestFormatCliResult:
         assert "Cypher" in output
         assert "5" in output
         assert "3" in output
-
-    def test_dashboard_json_cli_result(self, tmp_path: Path):
-        """DashboardJsonExporterのCLI出力にテーブル行数が含まれること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
-
-        exporter_cls = get_exporter_for_format("dashboard-json")
-        exporter = exporter_cls()
-        result = {
-            "output_path": tmp_path / "dashboard.json",
-            "node_count": 10,
-            "relation_count": 5,
-            "row_count": 8,
-        }
-        output = exporter.format_cli_result(result, tmp_path)
-        assert "dashboard-json" in output
-        assert "8" in output
 
 
 # =========================================================================
@@ -4624,70 +4587,6 @@ class TestDisplayNameParser:
         assert "verbose_name" not in mesh_node.properties
 
 
-# ====================================================================
-# 画像パスメタデータ抽出テスト
-# ====================================================================
-
-
-class TestExtractPathMetadata:
-    """extract_path_metadata の単体テスト"""
-
-    def test_extract_result_key_and_props(self):
-        """パスからresult_keyとプロパティが正しく抽出される"""
-        from services.dashboard.images import extract_path_metadata
-
-        result_key, props = extract_path_metadata(
-            "results/contours/go_idx1.v3_vmax50.0_vmin-50.0_step0_frame10_S-S13.png"
-        )
-        assert result_key == "S-S13"
-        assert props["vmax"] == "50.0"
-        assert props["vmin"] == "-50.0"
-        assert props["step"] == "0"
-        assert props["frame"] == "10"
-
-    def test_extract_result_key_without_negative(self):
-        """負の値がないパスも正しく抽出される"""
-        from services.dashboard.images import extract_path_metadata
-
-        result_key, props = extract_path_metadata("results/step0_frame10/go_idx1.v1_S-S33_vmax10.0_vmin5.0.png")
-        assert result_key == "S-S33"
-        assert props["vmax"] == "10.0"
-        assert props["vmin"] == "5.0"
-
-    def test_extract_from_directory_tokens(self):
-        """ディレクトリ名からもプロパティが抽出される"""
-        from services.dashboard.images import extract_path_metadata
-
-        result_key, props = extract_path_metadata("results/step0_frame10/go_idx1.v1_S-S33_vmax10.0.png")
-        assert result_key == "S-S33"
-        assert props["step"] == "0"
-        assert props["frame"] == "10"
-        assert props["vmax"] == "10.0"
-
-    def test_no_result_key(self):
-        """result_keyがない場合は空文字を返す"""
-        from services.dashboard.images import extract_path_metadata
-
-        result_key, _props = extract_path_metadata("go_idx1.v1_vmax10.0.png")
-        assert result_key == ""
-
-    def test_empty_path(self):
-        """空パスの場合は空を返す"""
-        from services.dashboard.images import extract_path_metadata
-
-        result_key, props = extract_path_metadata("")
-        assert result_key == ""
-        assert props == {}
-
-    def test_peeq_result_key(self):
-        """PEEQ（ダッシュなし）のresult_keyが抽出される"""
-        from services.dashboard.images import extract_path_metadata
-
-        result_key, props = extract_path_metadata("results/step0_frame5/go_idx1.v1_PEEQ_vmax0.1.png")
-        assert result_key == "PEEQ"
-        assert props["vmax"] == "0.1"
-
-
 # =========================================================================
 # プラグインレジストリ テスト
 # =========================================================================
@@ -4731,7 +4630,6 @@ class TestPluginRegistry:
             AbstractExporter,
             AbstractFileParser,
             CacheProvider,
-            DashboardPageConnector,
             GraphModel,
             Node,
             ProjectDirectory,

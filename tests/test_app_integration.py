@@ -105,7 +105,6 @@ class TestJJAppCapabilityRegistry:
             description="Test plugin",
             parsers=["test.parsers.parser1"],
             exporters=["test.exporters.exporter1"],
-            dashboard_pages=["test.dashboard.page1"],
             cli_commands=["test.cli.commands"],
             api_routes=["test.api.routes"],
         )
@@ -131,11 +130,6 @@ class TestJJAppCapabilityRegistry:
     def test_exporters_registered(self, app_with_manifest):
         """エクスポーターがCapabilityRegistryに登録される"""
         entries = app_with_manifest.capability_registry.get_all(Capability.EXPORTER)
-        assert len(entries) == 1
-
-    def test_dashboard_pages_registered(self, app_with_manifest):
-        """ダッシュボードページが登録される"""
-        entries = app_with_manifest.capability_registry.get_all(Capability.DASHBOARD_PAGE)
         assert len(entries) == 1
 
     def test_cli_commands_registered(self, app_with_manifest):
@@ -185,24 +179,8 @@ class TestJJAppCapabilityRegistry:
         assert "parsers" in events[0].capabilities
 
 
-class TestJJAppDashboardPageData:
-    """JJApp ダッシュボードページデータ取得テスト"""
-
-    def test_get_dashboard_page_data_unknown_page(self, tmp_path):
-        """未登録ページは空辞書を返す"""
-        mock_config = MagicMock()
-        pm = PluginManager(_BUILTIN_PLUGINS=[])
-        app = JJApp(project_root=tmp_path, config=mock_config, plugin_manager=pm)
-        result = app.get_dashboard_page_data("nonexistent_page")
-        assert result == {}
-
-    def test_get_dashboard_pages(self, tmp_path):
-        """get_dashboard_pages() がリストを返す"""
-        mock_config = MagicMock()
-        pm = PluginManager(_BUILTIN_PLUGINS=[])
-        app = JJApp(project_root=tmp_path, config=mock_config, plugin_manager=pm)
-        result = app.get_dashboard_pages()
-        assert isinstance(result, list)
+class TestJJAppCliCommands:
+    """JJApp CLIコマンド取得テスト"""
 
     def test_get_cli_commands_empty(self, tmp_path):
         """CLIコマンドなしでは空リスト"""

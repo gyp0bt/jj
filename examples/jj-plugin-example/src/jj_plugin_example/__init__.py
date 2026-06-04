@@ -7,7 +7,7 @@
 
 1. pyproject.tomlの[project.entry-points]でエントリーポイントを登録
 2. jjの起動時にentry_points経由でregister()が呼ばれる
-3. register()内でパーサー/エクスポーター/コネクターをインポート
+3. register()内でパーサー/エクスポーターをインポート
 4. __init_subclass__により各コンポーネントが自動登録される
 
 ## 使い方
@@ -42,13 +42,7 @@ def register() -> None:
     _registered = True
 
     # パーサーのインポート（__init_subclass__で自動登録）
-    import jj_plugin_example.parser
-
-    # ダッシュボードコネクターのインポート（optional）
-    try:
-        import jj_plugin_example.dashboard  # noqa: F401
-    except ImportError:
-        logger.debug("Dashboard connector skipped (streamlit not available)")
+    import jj_plugin_example.parser  # noqa: F401
 
     logger.debug("example_solverプラグインを登録完了")
 

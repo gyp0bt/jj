@@ -1,6 +1,6 @@
 """Abaqusプラグイン: INP解析・結果ファイル解析・メッシュ統計・差分比較・ジョブ投入
 
-Abaqus固有のパーサー・ダッシュボードコネクター・ジョブ投入サービスを集約するプラグインパッケージ。
+Abaqus固有のパーサー・ジョブ投入サービスを集約するプラグインパッケージ。
 このモジュールをインポートすると、以下のコンポーネントが自動登録される:
 
 ## 登録されるパーサー（AbstractFileParserサブクラス）
@@ -15,12 +15,6 @@ Abaqus固有のパーサー・ダッシュボードコネクター・ジョブ�
 | AbaqusMaterialAssignmentParser | 85 | 材料割り当て |
 | AbaqusDiffParser | 90 | バージョン間diff |
 | AbaqusElsetParser | 98 | elsetノード化 |
-
-## 登録されるダッシュボードコネクター
-
-| コネクター | page_label | 説明 |
-|------------|------------|------|
-| AbaqusMaterialPageConnector | 物性一覧 | 材料テーブル・プロパティカーブ表示 |
 
 ## サービス
 
@@ -66,16 +60,7 @@ def register() -> PluginManifest | None:
     import plugins.abaqus.parse.mesh_inherit_parser
     import plugins.abaqus.parse.mesh_parser
     import plugins.abaqus.parse.parameter_parser
-    import plugins.abaqus.parse.result_parser
-
-    # ダッシュボードコネクターのインポート（自動登録が発動）
-    dashboard_pages: list[str] = []
-    try:
-        import plugins.abaqus.dashboard  # noqa: F401
-
-        dashboard_pages.append("plugins.abaqus.dashboard")
-    except ImportError:
-        logger.debug("Abaqusダッシュボードコネクターのロードをスキップ（依存パッケージ不足）")
+    import plugins.abaqus.parse.result_parser  # noqa: F401
 
     logger.debug("Abaqusプラグインを登録完了")
 
@@ -92,7 +77,6 @@ def register() -> PluginManifest | None:
             "plugins.abaqus.parse.mesh_inherit_parser",
             "plugins.abaqus.parse.diff_parser",
         ],
-        dashboard_pages=dashboard_pages,
         optional_dependencies={
             "pymesh": "pymesh（メッシュ統計）",
         },

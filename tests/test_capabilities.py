@@ -18,7 +18,6 @@ class TestCapability:
         expected = {
             "PARSER",
             "EXPORTER",
-            "DASHBOARD_PAGE",
             "CLI_COMMAND",
             "API_ROUTE",
             "EVENT_HANDLER",
@@ -80,14 +79,14 @@ class TestCapabilityRegistry:
     def test_get_by_plugin(self) -> None:
         reg = CapabilityRegistry()
         reg.register(Capability.PARSER, str, "abaqus")
-        reg.register(Capability.DASHBOARD_PAGE, int, "abaqus")
+        reg.register(Capability.EXPORTER, int, "abaqus")
         reg.register(Capability.PARSER, float, "ml")
 
         abaqus = reg.get_by_plugin("abaqus")
         assert Capability.PARSER in abaqus
-        assert Capability.DASHBOARD_PAGE in abaqus
+        assert Capability.EXPORTER in abaqus
         assert len(abaqus[Capability.PARSER]) == 1
-        assert len(abaqus[Capability.DASHBOARD_PAGE]) == 1
+        assert len(abaqus[Capability.EXPORTER]) == 1
 
     def test_get_by_plugin_empty(self) -> None:
         reg = CapabilityRegistry()
