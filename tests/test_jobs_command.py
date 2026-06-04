@@ -132,3 +132,85 @@ class TestJobsService:
         result = service.jobs()
         assert result.empty is False
         assert result.jobs == []
+
+
+class TestJobsCLI:
+    """jj jobs CLI層（argparse解析・出力整形）のテスト"""
+
+    def test_parser_accepts_jobs(self):
+        """build_parserがjobsサブコマンドを解析できる"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["jobs"])
+        assert args.cmd == "jobs"
+
+    def test_parser_accepts_type_and_status(self):
+        """--type / --status / -f を解析できる"""
+        from services.cli import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["jobs", "--type", "cae_job", "--status", "completed", "-f", "graph.yaml"])
+        assert args.cmd == "jobs"
+        assert args.type == "cae_job"
+        assert args.status == "completed"
+        assert args.file == "graph.yaml"
+
+    def test_dispatch_jobs_outputs_runs(self, tmp_path, monkeypatch, capsys):
+        """jj jobs がRUNノード一覧を出力する"""
+        import services.cli.graph as graph_cli
+        from services.cli import build_parser, dispatch
+
+        monkeypatch.setattr(graph_cli.Path, "cwd", lambda: tmp_path)
+        monkeypatch.setattr(
+            graph_cli.GraphCommandService,
+            "jobs",
+            lambda self, run_type=None, run_status=None, graph_filename=None: JobsResult(
+                jobs=_build_jobs_graph().nodes[2:],
+                empty=False,
+            ),
+        )
+
+        args = build_parser().parse_args(["jobs"])
+        rc = dispatch(args)
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "Run 1" in out
+        assert "ML Run" in out
+        assert "completed" in out
+
+    def test_dispatch_jobs_empty(self, tmp_path, monkeypatch, capsys):
+        """グラフが空のときは案内メッセージを出力する"""
+        import services.cli.graph as graph_cli
+        from services.cli import build_parser, dispatch
+
+        monkeypatch.setattr(graph_cli.Path, "cwd", lambda: tmp_path)
+        monkeypatch.setattr(
+            graph_cli.GraphCommandService,
+            "jobs",
+            lambda self, run_type=None, run_status=None, graph_filename=None: JobsResult(jobs=[], empty=True),
+        )
+
+        args = build_parser().parse_args(["jobs"])
+        rc = dispatch(args)
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "parse" in out
+
+    def test_dispatch_jobs_no_runs(self, tmp_path, monkeypatch, capsys):
+        """RUNノードが無い場合は0件メッセージを出力する"""
+        import services.cli.graph as graph_cli
+        from services.cli import build_parser, dispatch
+
+        monkeypatch.setattr(graph_cli.Path, "cwd", lambda: tmp_path)
+        monkeypatch.setattr(
+            graph_cli.GraphCommandService,
+            "jobs",
+            lambda self, run_type=None, run_status=None, graph_filename=None: JobsResult(jobs=[], empty=False),
+        )
+
+        args = build_parser().parse_args(["jobs"])
+        rc = dispatch(args)
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "0" in out or "見つかりません" in out
