@@ -68,6 +68,7 @@ jj/                            # プロジェクトルート
 | `jj export` | エクスポート |
 | `jj info` | ファイル詳細 |
 | `jj diff` | INP差分比較 |
+| `jj jobs` | RUN（ジョブ）一覧 |
 | `jj run` (jj r) | コマンド実行+ログ |
 | `jj config migrate` | 設定移行 |
 
