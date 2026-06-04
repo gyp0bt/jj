@@ -1,7 +1,6 @@
 """CapabilityRegistry — 拡張ポイントの型安全な管理
 
-既存の _parser_registry, _exporter_registry,
-DashboardPageConnector._registry を統合的に管理するメタデータレジストリ。
+既存の _parser_registry, _exporter_registry を統合的に管理するメタデータレジストリ。
 
 既存レジストリとの互換性を維持しつつ、「どのプラグインが何を提供しているか」を
 横断的に問い合わせ可能にする。
@@ -22,7 +21,6 @@ class Capability(Enum):
 
     PARSER = auto()
     EXPORTER = auto()
-    DASHBOARD_PAGE = auto()
     CLI_COMMAND = auto()
     API_ROUTE = auto()
     EVENT_HANDLER = auto()
@@ -50,8 +48,7 @@ class CapabilityEntry:
 class CapabilityRegistry:
     """プラグインが提供する機能の統合レジストリ
 
-    既存の _parser_registry, _exporter_registry,
-    DashboardPageConnector._registry を統合的に管理する。
+    既存の _parser_registry, _exporter_registry を統合的に管理する。
     既存レジストリとの互換性を維持しつつ、メタデータを付加する。
     """
 

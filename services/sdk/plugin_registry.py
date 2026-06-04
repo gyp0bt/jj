@@ -11,7 +11,6 @@ importすることで、__init_subclass__による自動登録が発動する。
 | `jj.plugins` | プラグインパッケージ全体のエントリ | 各プラグインの__init__.py |
 | `jj.parsers` | AbstractFileParserサブクラス | _parser_registry |
 | `jj.exporters` | AbstractExporterサブクラス | _exporter_registry |
-| `jj.dashboard_connectors` | DashboardPageConnectorサブクラス | _registry |
 
 ## 使用例
 
@@ -136,7 +135,6 @@ def load_all_plugins() -> None:
     # 3. 個別のレジストリグループも発見（外部プラグインが個別登録する場合）
     discover_entry_point_plugins("jj.parsers")
     discover_entry_point_plugins("jj.exporters")
-    discover_entry_point_plugins("jj.dashboard_connectors")
 
 
 def reset_plugins() -> None:

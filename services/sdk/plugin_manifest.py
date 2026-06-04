@@ -29,7 +29,6 @@ class PluginManifest:
         description: 説明文
         parsers: パーサーモジュールパスのリスト
         exporters: エクスポーターモジュールパスのリスト
-        dashboard_pages: ダッシュボードコネクターモジュールパスのリスト
         cli_commands: CLIサブコマンド拡張モジュールパスのリスト
         api_routes: APIルート拡張モジュールパスのリスト
         depends_on: 依存プラグイン名のリスト
@@ -47,7 +46,6 @@ class PluginManifest:
     # === 提供機能 (Capabilities) ===
     parsers: list[str] = field(default_factory=list)
     exporters: list[str] = field(default_factory=list)
-    dashboard_pages: list[str] = field(default_factory=list)
     cli_commands: list[str] = field(default_factory=list)
     api_routes: list[str] = field(default_factory=list)
 

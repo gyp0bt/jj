@@ -71,7 +71,6 @@ class PluginManager:
         # 3. 個別のレジストリグループも発見
         self._discover_entry_point_plugins("jj.parsers")
         self._discover_entry_point_plugins("jj.exporters")
-        self._discover_entry_point_plugins("jj.dashboard_connectors")
 
         # 4. マニフェストのライフサイクルフック実行
         for manifest in self._manifests.values():
@@ -163,8 +162,6 @@ class PluginManager:
                 capabilities.append("parsers")
             if manifest.exporters:
                 capabilities.append("exporters")
-            if manifest.dashboard_pages:
-                capabilities.append("dashboard_pages")
             if manifest.cli_commands:
                 capabilities.append("cli_commands")
             if manifest.api_routes:

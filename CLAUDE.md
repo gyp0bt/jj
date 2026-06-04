@@ -37,11 +37,9 @@ jj/                            # プロジェクトルート
 ├── plugins/                   # プラグインパッケージ（v0.2.1 新構造）
 │   ├── base/                  # 基底クラス群
 │   │   ├── parser.py          # AbstractFileParser
-│   │   ├── dashboard.py       # DashboardPageConnector
 │   │   └── exporter.py        # AbstractExporter
 │   ├── abaqus/                # Abaqusプラグイン
 │   │   ├── parse/             # パーサー群
-│   │   ├── dashboard.py       # ダッシュボードコネクター
 │   │   └── submit.py          # ジョブ投入サービス
 │   └── obsidian/              # Obsidianプラグイン
 │       ├── parse/             # パーサー群
@@ -52,7 +50,6 @@ jj/                            # プロジェクトルート
 │   ├── parse/                 # パーサー共通（後方互換re-exportあり）
 │   │   └── parsers/           # 組み込みパーサー
 │   ├── export/                # エクスポーター共通
-│   ├── dashboard/             # Streamlitダッシュボード
 │   └── run/                   # Runサービス
 ├── shared/                    # 共有パッケージ（テストアセット）
 ├── tests/                     # テストスイート
@@ -72,7 +69,6 @@ jj/                            # プロジェクトルート
 | `jj info` | ファイル詳細 |
 | `jj diff` | INP差分比較 |
 | `jj run` (jj r) | コマンド実行+ログ |
-| `jj dashboard` | Streamlit起動 |
 | `jj config migrate` | 設定移行 |
 
 ### AbstractFileParser パターン（最重要設計）
@@ -85,7 +81,7 @@ AbstractFileParser
   └── plugins/{solver}/parse/ 配下に分散
 ```
 
-同パターンを AbstractExporter / DashboardPageConnector にも適用。
+同パターンを AbstractExporter にも適用。
 
 ### プラグイン拡張パターン（v0.2.1）
 
@@ -93,7 +89,6 @@ AbstractFileParser
 |---------|--------|-----------|---------|
 | パーサー | `plugins/{solver}/parse/` | `AbstractFileParser` | `__init_subclass__` |
 | エクスポーター | `plugins/{solver}/export.py` | `AbstractExporter` | `__init_subclass__` |
-| ダッシュボードページ | `plugins/{solver}/dashboard.py` | `DashboardPageConnector` | `__init_subclass__` |
 | プラグインパッケージ | `plugins/{solver}/` | — | `pyproject.toml` entry_points |
 
 現在有効なプラグイン: **abaqus**, **obsidian**
@@ -107,11 +102,9 @@ v0.2.1で旧パスからのimportも引き続きサポート（re-export）:
 | 旧パス | 新パス |
 |--------|--------|
 | `services.parse.base` | `plugins.base.parser` |
-| `services.dashboard.connectors` | `plugins.base.dashboard` |
 | `services.export` | `plugins.base.exporter` |
 | `services.plugins.abaqus` | `plugins.abaqus` |
 | `services.parse.connectors.abaqus` | `plugins.abaqus.parse` |
-| `services.dashboard.connectors.abaqus` | `plugins.abaqus.dashboard` |
 | `services.plugins.obsidian` | `plugins.obsidian` |
 | `services.parse.connectors.obsidian` | `plugins.obsidian.parse` |
 | `services.export.connectors.obsidian` | `plugins.obsidian.export` |
@@ -138,9 +131,8 @@ v0.2.1で旧パスからのimportも引き続きサポート（re-export）:
 pymesh = ["pandas", "chardet", "ftfy", "scipy", "plotly"]
 abaqus = ["jj[pymesh]", "scipy"]
 obsidian = ["pyyaml"]
-dashboard = ["streamlit", "streamlit-aggrid", "plotly"]
 dev = ["pytest", "pytest-cov"]
-all = ["jj[pymesh,abaqus,obsidian,dashboard,dev]"]
+all = ["jj[pymesh,abaqus,obsidian,dev]"]
 ```
 
 ---

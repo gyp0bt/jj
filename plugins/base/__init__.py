@@ -1,20 +1,11 @@
 """プラグイン基底クラス群
 
-AbstractFileParser, AbstractExporter, DashboardPageConnector等の基底クラスと
+AbstractFileParser, AbstractExporter等の基底クラスと
 レジストリ関数を提供する。
 
 [READMEへ戻る](../../README.md)
 """
 
-from plugins.base.dashboard import (
-    DashboardPageConnector,
-    generate_connector_pages_html,
-    generate_connector_saved_view_html,
-    get_connector_config_schema,
-    get_connector_pages,
-    get_connector_view_type_options,
-    render_connector,
-)
 from plugins.base.exporter import (
     AbstractExporter,
     clear_exporter_registry,
@@ -45,21 +36,14 @@ __all__ = [
     "NO_NODE_EXTENSIONS",
     "AbstractExporter",
     "AbstractFileParser",
-    "DashboardPageConnector",
     "FileGroup",
     "FileNameParser",
     "FileType",
     "_parse_prop_token",
     "clear_exporter_registry",
     "clear_parser_registry",
-    "generate_connector_pages_html",
-    "generate_connector_saved_view_html",
-    "get_connector_config_schema",
-    "get_connector_pages",
-    "get_connector_view_type_options",
     "get_exporter_for_format",
     "get_exporter_registry",
     "get_parser_registry",
     "parse",
-    "render_connector",
 ]

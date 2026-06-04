@@ -733,7 +733,7 @@ class TestQueryService:
 
 
 class TestBackwardCompatibility:
-    """services/dashboard/query.py からの再エクスポート互換テスト"""
+    """services.graph.query の公開関数 再エクスポート互換テスト"""
 
     def test_is_truthy(self):
         from services.graph.query import is_truthy

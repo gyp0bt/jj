@@ -1,7 +1,6 @@
 """外部プラグインのテスト例
 
-プラグインのパーサーとダッシュボードコネクターが
-正しくレジストリに登録されることを検証する。
+プラグインのパーサーが正しくレジストリに登録されることを検証する。
 """
 
 from __future__ import annotations
@@ -17,15 +16,6 @@ def test_parser_registered():
     registry = get_parser_registry()
     cls_names = [cls.__name__ for cls in registry]
     assert "ExampleSolverParser" in cls_names
-
-
-def test_dashboard_connector_registered():
-    """ExampleSolverPageConnectorがレジストリに登録される"""
-    import jj_plugin_example  # noqa: F401
-
-    from services.dashboard.connectors import DashboardPageConnector
-
-    assert "Exampleサマリー" in DashboardPageConnector._registry
 
 
 def test_register_is_idempotent():

@@ -41,7 +41,7 @@ class TestEvent:
         e = PluginLoaded(
             source="core",
             plugin_name="abaqus",
-            capabilities=["parsers", "dashboard_pages"],
+            capabilities=["parsers", "exporters"],
         )
         assert e.plugin_name == "abaqus"
         assert len(e.capabilities) == 2

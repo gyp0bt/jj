@@ -25,7 +25,6 @@ class TestPluginManifest:
         assert m.description == ""
         assert m.parsers == []
         assert m.exporters == []
-        assert m.dashboard_pages == []
         assert m.depends_on == []
 
     def test_create_full(self):
@@ -36,7 +35,6 @@ class TestPluginManifest:
             description="Abaqus CAE解析ファイルの解析・可視化",
             parsers=["services.parse.connectors.abaqus.inp_parser"],
             exporters=["services.export.connectors.abaqus_exporter"],
-            dashboard_pages=["plugins.abaqus.dashboard"],
             cli_commands=["services.plugins.abaqus.cli"],
             api_routes=["services.plugins.abaqus.api"],
             depends_on=[],
@@ -81,7 +79,7 @@ class TestPluginInfo:
             name="abaqus",
             version="0.3.0",
             description="Abaqus plugin",
-            capabilities=["parsers", "dashboard_pages"],
+            capabilities=["parsers", "exporters"],
             has_manifest=True,
         )
         assert info.name == "abaqus"
@@ -166,7 +164,7 @@ class TestPluginManager:
                 name="new_plugin",
                 version="1.0.0",
                 parsers=["p1"],
-                dashboard_pages=["d1"],
+                exporters=["e1"],
             )
         )
         pm._legacy_plugins.append("old_plugin")
@@ -177,7 +175,7 @@ class TestPluginManager:
         new = next(p for p in plugins if p.name == "new_plugin")
         assert new.has_manifest is True
         assert "parsers" in new.capabilities
-        assert "dashboard_pages" in new.capabilities
+        assert "exporters" in new.capabilities
 
         old = next(p for p in plugins if p.name == "old_plugin")
         assert old.has_manifest is False

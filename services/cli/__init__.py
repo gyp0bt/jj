@@ -162,8 +162,6 @@ def dispatch(args: argparse.Namespace) -> int:
         "info",
         "diff",
         "credential",
-        "dashboard",
-        "serve",
         "config",
     ):
         return run_top_level_graph_command(cmd, args)
@@ -183,7 +181,6 @@ def dispatch(args: argparse.Namespace) -> int:
     print("  info        ファイル詳細")
     print("  diff        INP差分比較")
     print("  run (r)     コマンド実行+ログ")
-    print("  dashboard   Streamlitダッシュボード起動")
     print("  config      設定管理")
     return 0
 

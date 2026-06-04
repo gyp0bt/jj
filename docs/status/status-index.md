@@ -8,6 +8,15 @@
 
 > 最新statusファイルから引き継がれた未完了TODO。作業開始時はここを確認する。
 
+### ダッシュボード層の全削除 (status-091)
+
+- [x] **DR-1**: `services/dashboard/` 一式・launchers・api_service・dashboard_json・コネクター基底を削除
+- [x] **DR-2**: `jj dashboard` / `jj serve` / `--target dashboard-json` コマンド除去
+- [x] **DR-3**: SDK/プラグイン基盤から dashboard 概念（manifest field・Capability・re-export）除去
+- [x] **DR-4**: 全テスト緑復旧（1169 passed / 15 skipped / 0 failed）・ruff clean
+- [ ] **DR-5**: `config.DashboardConfig` / `SavedViewConfig` の刈り取り（次パス）
+- [ ] **DR-6**: `docs/specs` ダッシュボード仕様書の扱い（アーカイブ or 削除）
+
 ### ミニマル化機能回帰修正 (status-090)
 
 - [x] **R-1**: パーサー自動登録の復元（21パーサー稼働、リレーション数 0→55）— status-090
@@ -44,6 +53,7 @@
 | T3〜T10: 各種機能 | **削除** | [088](status-088.md)で軽量化のため削除 |
 | L-1: コードベース軽量化 | **完了** | [088](status-088.md) |
 | P-1: プラグイン構造統合 | **完了** | [089](status-089.md) |
+| DR: ダッシュボード層全削除 | **完了** | [091](status-091.md) |
 
 ---
 
@@ -68,6 +78,7 @@
 
 | # | 日付 | 概要 | ブランチ |
 |---|------|------|---------|
+| [091](status-091.md) | 06-04 | ダッシュボード層の全削除（CLIファースト回帰・約20k行削除・1169 passed, 0 failed） | claude/jj-cli-workspace-ypjUt |
 | [090](status-090.md) | 05-01 | ミニマル化の機能回帰修正・テスト復旧（1751+ passed, 0 failed） | master |
 | [089](status-089.md) | 04-30 | プラグイン構造統合（v0.2.1） | master |
 | [088](status-088.md) | 04-30 | コードベース軽量化（v0.2.0） | master |
