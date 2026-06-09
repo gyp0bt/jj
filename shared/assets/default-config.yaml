@@ -89,3 +89,24 @@ ignore:
 # CSV単位の表示形式: header → 列名に [unit] を付加 / row → 1列目に単位行
 export:
   csv-unit-format: header
+
+# ----- Obsidian エクスポート（jj export --format obsidian） ---------------
+# .base（Obsidian Bases）ファイルの既定ビュー。NodeGroup（同一index/同一type）
+# ごとに生成される .base に流し込まれ、各ビューには対象フォルダ限定フィルタと
+# グループ内プロパティ積集合が自動付与される。
+# index/version 昇順で並べる素朴なテーブルビューを既定とする。
+obsidian:
+  default-views:
+    - type: table
+      name: バージョン一覧
+      # order はグループ共通プロパティ（積集合）が自動追記される起点。
+      # ここに書いた index/version が先頭に来る。
+      order:
+        - index
+        - version
+      # sort のキーは生キーに正規化される（idx→index, v/ver→version）。
+      sort:
+        - property: index
+          direction: ASC
+        - property: version
+          direction: ASC
