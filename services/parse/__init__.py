@@ -3,7 +3,6 @@ import services.parse.parsers  # noqa: F401
 from plugins.base.parser import AbstractFileParser, FileNameParser, parse
 
 from .file_parse import (
-    TARGET_EXTENSIONS,
     FileGroup,
     FileParse,
     FileType,
@@ -12,7 +11,6 @@ from .file_parse import (
     get_group_name,
     get_index_and_version,
     get_index_and_version_legacy,
-    normalize_extension_to_inp,
     safe_relative_path,
 )
 
@@ -26,7 +24,6 @@ from .file_parse import (
 # Abaqus固有APIは plugins.abaqus.parse から直接importすること。
 
 __all__ = [
-    "TARGET_EXTENSIONS",
     "AbstractFileParser",
     "FileGroup",
     "FileNameParser",
@@ -37,7 +34,6 @@ __all__ = [
     "get_group_name",
     "get_index_and_version",
     "get_index_and_version_legacy",
-    "normalize_extension_to_inp",
     "parse",
     "safe_relative_path",
 ]
