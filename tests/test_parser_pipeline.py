@@ -27,7 +27,7 @@ ASSET_DIR = Path(__file__).resolve().parent.parent / "shared" / "tests" / "test_
 
 
 # テスト間でレジストリ状態を共有するためのフィクスチャ
-@pytest.fixture
+@pytest.fixture(scope="module")
 def config() -> GraphConfig:
     return GraphConfig.from_dict(
         {
@@ -38,10 +38,17 @@ def config() -> GraphConfig:
     )
 
 
-@pytest.fixture
-def graph(config: GraphConfig) -> GraphModel:
+@pytest.fixture(scope="module")
+def _parsed_graph(config: GraphConfig) -> GraphModel:
+    """ASSET_DIR のフルパースはモジュールにつき1回だけ実行する（重いため）。"""
     svc = GraphService(project_root=ASSET_DIR, config=config)
     return svc.parse_project()
+
+
+@pytest.fixture
+def graph(_parsed_graph: GraphModel) -> GraphModel:
+    """各テストには使い回しのパース結果のディープコピーを渡し、隔離を保つ。"""
+    return _parsed_graph.model_copy(deep=True)
 
 
 # ====================================================================
@@ -1401,6 +1408,7 @@ class TestProcessPoolBenchmark:
 # ====================================================================
 
 
+@pytest.mark.slow
 class TestPoolBenchmark:
     """ProcessPoolExecutor vs ThreadPoolExecutor のベンチマーク実測
 

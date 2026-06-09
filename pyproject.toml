@@ -115,6 +115,11 @@ indent-style = "space"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# slow（ベンチマーク等）はデフォルトで除外。実行するには: pytest -m slow / pytest -m ""
+addopts = "-m 'not slow'"
+markers = [
+    "slow: 実行時間の長いベンチマーク/負荷テスト（デフォルト除外）",
+]
 
 [tool.uv.workspace]
 members = [
