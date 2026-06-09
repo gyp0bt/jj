@@ -87,14 +87,6 @@ class CredentialShowResult:
     credentials: dict[str, str] | None = None
 
 
-@dataclass
-class JobsResult:
-    """jobsコマンドの結果"""
-
-    jobs: list[Node]
-    empty: bool  # グラフデータが空
-
-
 # =========
 # サービス本体
 # =========
@@ -217,38 +209,6 @@ class GraphCommandService:
             summary=summary,
             empty=False,
         )
-
-    # =========
-    # jobs
-    # =========
-
-    def jobs(
-        self,
-        run_type: str | None = None,
-        run_status: str | None = None,
-        graph_filename: str | None = None,
-    ) -> JobsResult:
-        """ワークスペース内のRUNノード一覧を返却
-
-        RunQueryService.get_runs() に委譲し、run_type/run_statusで絞り込む。
-
-        Args:
-            run_type: Run種別で絞り込み（例: "cae_job"）
-            run_status: Run状態で絞り込み（例: "completed", "latent"）
-            graph_filename: 読み込むグラフファイル名
-
-        Returns:
-            JobsResult
-        """
-        from services.run.query import RunQueryService
-
-        graph = self._graph_service.load(filename=graph_filename, resolve_externalized=True)
-
-        if not graph.nodes and not graph.relations:
-            return JobsResult(jobs=[], empty=True)
-
-        runs = RunQueryService(graph).get_runs(run_type=run_type, run_status=run_status)
-        return JobsResult(jobs=runs, empty=False)
 
     # =========
     # export: load or parse

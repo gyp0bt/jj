@@ -12,7 +12,6 @@ class NodeLabel:
     # jj由来のノード
     JJ_FILE = "JJFile"
     JJ_MATERIAL = "JJMaterial"
-    JJ_RUN = "JJRun"
     JJ_TAG = "JJTag"
 
     # DB由来のノード（将来拡張用）
@@ -53,11 +52,6 @@ class RelType:
     OPTIMIZES = "OPTIMIZES"
     USES_OBJECTIVE = "USES_OBJECTIVE"
 
-    # Runリレーション
-    RUN_INPUT = "RUN_INPUT"
-    RUN_OUTPUT = "RUN_OUTPUT"
-    RUN_MEDIA = "RUN_MEDIA"
-
     # クロスリレーション
     MATCHES = "MATCHES"
     REFERENCES = "REFERENCES"
@@ -91,10 +85,6 @@ LABEL_TO_RELTYPE: dict[str, str] = {
     "surrogate_of": RelType.SURROGATE_OF,
     "optimizes": RelType.OPTIMIZES,
     "uses_objective": RelType.USES_OBJECTIVE,
-    # Runリレーション
-    "run_input": RelType.RUN_INPUT,
-    "run_output": RelType.RUN_OUTPUT,
-    "run_media": RelType.RUN_MEDIA,
 }
 
 # jj Node.type → Neo4j NodeLabel マッピング
@@ -113,7 +103,6 @@ TYPE_TO_LABEL: dict[str, str] = {
     "abaqus_material": NodeLabel.JJ_MATERIAL,
     "abaqus_elset": NodeLabel.JJ_FILE,
     "version_diff": NodeLabel.JJ_FILE,
-    "run": NodeLabel.JJ_RUN,
     "tag": NodeLabel.JJ_TAG,
     # MLノードタイプ
     "dataset": NodeLabel.JJ_FILE,

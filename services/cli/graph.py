@@ -307,29 +307,6 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_jobs_args(parser: argparse.ArgumentParser) -> None:
-    """jobsコマンドの引数を追加"""
-    parser.add_argument(
-        "--type",
-        type=str,
-        default=None,
-        help="Run種別で絞り込み（例: cae_job, ml_training, script）",
-    )
-    parser.add_argument(
-        "--status",
-        type=str,
-        default=None,
-        help="Run状態で絞り込み（例: completed, latent, failed）",
-    )
-    parser.add_argument(
-        "-f",
-        "--file",
-        type=str,
-        default=None,
-        help="読み込むグラフファイル名",
-    )
-
-
 def _resolve_file_path(project_root: Path, filename: str) -> Path | None:
     """プロジェクトルート配下でファイルパスを解決する"""
     candidate = project_root / filename
@@ -454,13 +431,6 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
         help="2つのファイル間のAbaqusキーワードブロック差分を表示",
     )
     _add_diff_args(diff_parser)
-
-    # jj jobs
-    jobs_parser = subparsers.add_parser(
-        "jobs",
-        help="ワークスペース内のRUN（ジョブ）一覧を表示",
-    )
-    _add_jobs_args(jobs_parser)
 
     # jj credential
     cred_parser = subparsers.add_parser(
@@ -588,8 +558,6 @@ def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
         return _run_info(project_root, args)
     elif cmd == "diff":
         return _run_diff(project_root, args)
-    elif cmd == "jobs":
-        return _run_jobs(project_root, args)
     elif cmd == "credential":
         return _run_credential(project_root, args)
     elif cmd == "config":
@@ -990,53 +958,6 @@ def _format_prop_value(value: Any) -> str:
         if abs_val != 0 and (abs_val >= 1e4 or abs_val < 1e-2):
             return f"{value:.2e}"
     return str(value)
-
-
-def _run_jobs(project_root: Path, args: argparse.Namespace) -> int:
-    """jobsサブコマンドを実行 - ワークスペース内のRUN（ジョブ）一覧を表示"""
-    service = GraphCommandService(project_root)
-
-    run_type = getattr(args, "type", None)
-    run_status = getattr(args, "status", None)
-
-    try:
-        result = service.jobs(
-            run_type=run_type,
-            run_status=run_status,
-            graph_filename=getattr(args, "file", None),
-        )
-
-        if result.empty:
-            print("グラフデータが見つかりません。")
-            print("まず 'jj parse' を実行してください。")
-            return 1
-
-        if not result.jobs:
-            filters = []
-            if run_type:
-                filters.append(f"type={run_type}")
-            if run_status:
-                filters.append(f"status={run_status}")
-            suffix = f"（{', '.join(filters)}）" if filters else ""
-            print(f"ジョブが見つかりません{suffix}。")
-            return 0
-
-        print(f"=== ジョブ一覧 ({len(result.jobs)}件) ===\n")
-        for node in result.jobs:
-            run_type_val = node.properties.get("run_type", node.type)
-            status = node.properties.get("run_status", "")
-            started = node.properties.get("started_at", "")
-            print(f"[{node.id}] {node.name}")
-            line = f"    type: {run_type_val}  status: {status}"
-            if started:
-                line += f"  started: {started}"
-            print(line)
-
-        return 0
-
-    except Exception as e:
-        print(f"エラー: {e}", file=sys.stderr)
-        return 1
 
 
 def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
