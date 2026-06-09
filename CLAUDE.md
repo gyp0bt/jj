@@ -168,11 +168,16 @@ all = ["jj[pymesh,abaqus,obsidian,dashboard,dev]"]
 トップレベル `services` を `jj.services` にエイリアス）。`pip install -e ".[dashboard]"`
 でUI依存を導入。`GraphQuery` 自体はコア依存のみで動作する。
 
-### default-config.yaml（最小版）
+### default-config.yaml（Abaqusワークスペース既定）
 
-出荷時デフォルトは「ダッシュボードと `jj export` が動く最小限」のみ
-（`path-type-map` の go_ ブロック / `ignore` / `export.csv-unit-format`）。
-省略キーは `config/__init__.py` のスキーマ既定値が使われる。
+コア（parse/graph）は特定CAEソルバーを仮定しない。「どの拡張子を入力/結果として
+扱うか」等のソルバー固有の前提は**コードではなく出荷時 config が担う**。出荷
+デフォルトは最も一般的な **Abaqusワークスペース** を明示的に想定する：
+`default-extensions`（`.inp`/`.odb`/`.sta`/`.msg`/`.dat` + 汎用） /
+`file-relations`（入力 `.inp` → 結果 `.odb`/`.sta`/`.msg`/`.dat`） /
+`path-type-map` の go_ ブロック / `ignore` / `export.csv-unit-format`。
+別ソルバーへは上記3ブロックの差し替えで移行できる。
+ここに無いキー（`vocab` 等）は `config/__init__.py` のスキーマ既定値が使われる。
 
 ---
 
