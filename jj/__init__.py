@@ -21,8 +21,21 @@
 
 from __future__ import annotations
 
+import contextlib as _contextlib
+import importlib as _importlib
+import sys as _sys
 from pathlib import Path
 from typing import Any
+
+# --- jj.services エイリアス ------------------------------------------------
+# スクリプトやStreamlitページから `import jj.services.X` で参照できるように、
+# トップレベル `services` パッケージを `jj.services` として公開する。
+# setuptools のパッケージ宣言では別名（alias）パッケージを定義できないため、
+# import 時に sys.modules を書き換えてエイリアスを張る。以後
+# `jj.services.dashboard` などのサブモジュールは `services` の __path__ 経由で
+# 解決される。
+with _contextlib.suppress(ImportError):
+    _sys.modules.setdefault("jj.services", _importlib.import_module("services"))
 
 __all__ = [
     "get_node",

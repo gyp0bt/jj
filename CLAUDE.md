@@ -132,9 +132,32 @@ v0.2.1で旧パスからのimportも引き続きサポート（re-export）:
 pymesh = ["pandas", "chardet", "ftfy", "scipy", "plotly"]
 abaqus = ["jj[pymesh]", "scipy"]
 obsidian = ["pyyaml"]
+dashboard = ["streamlit", "streamlit-aggrid", "plotly", "pandas", "numpy"]
 dev = ["pytest", "pytest-cov"]
-all = ["jj[pymesh,abaqus,obsidian,dev]"]
+all = ["jj[pymesh,abaqus,obsidian,dashboard,dev]"]
 ```
+
+### ダッシュボード（`services/dashboard/`）
+
+軽量な復活版。フレームワーク（PageComponent / SavedView / connectors）は持たず、
+データ層と最小限の Streamlit ページのみ。
+
+| 要素 | 内容 |
+|------|------|
+| `data_provider.py` | `DashboardDataProvider`（UI非依存。`get_go_table` / `get_array_plot_data` / `get_output_images` 等） |
+| `widgets.py` | `try_render_aggrid`（フィルタ/選択結果を `st.session_state["filtered_df"]` に共有） |
+| `images.py` | 画像のファイル名パラメータによるグルーピング |
+| `app/` | `streamlit run services/dashboard/app/Home.py` で起動するページ群（応力–ひずみ / 画像ギャラリー） |
+
+スクリプトからは `import jj.services.dashboard...` で参照する（`jj/__init__.py` が
+トップレベル `services` を `jj.services` にエイリアスする）。`pip install -e ".[dashboard]"`
+でUI依存を導入。`DashboardDataProvider` 自体はコア依存のみで動作する。
+
+### default-config.yaml（最小版）
+
+出荷時デフォルトは「ダッシュボードと `jj export` が動く最小限」のみ
+（`path-type-map` の go_ ブロック / `ignore` / `export.csv-unit-format`）。
+省略キーは `config/__init__.py` のスキーマ既定値が使われる。
 
 ---
 
