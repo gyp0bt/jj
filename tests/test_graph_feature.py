@@ -2478,7 +2478,7 @@ class TestObsidianWarningDisplay:
 
     def test_warnings_in_markdown_body(self, tmp_path):
         """warning情報がmarkdown本文に記載される"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -2494,7 +2494,7 @@ class TestObsidianWarningDisplay:
             },
         )
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         frontmatter = connector.node_to_frontmatter(node)
         content = connector._format_md(frontmatter, node)
 
@@ -2504,7 +2504,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_in_markdown_body(self, tmp_path):
         """diff情報がmarkdown本文に記載される"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -2521,7 +2521,7 @@ class TestObsidianWarningDisplay:
             },
         )
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         frontmatter = connector.node_to_frontmatter(node)
         content = connector._format_md(frontmatter, node)
 
@@ -2531,7 +2531,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_unified_in_markdown_body(self, tmp_path):
         """diff_unified形式がmarkdown本文にUnified Diffセクションとして出力される"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         diff_unified_text = "```diff\n- old_value\n+ new_value\n  unchanged\n```"
         node = Node(
@@ -2550,7 +2550,7 @@ class TestObsidianWarningDisplay:
             },
         )
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         frontmatter = connector.node_to_frontmatter(node)
         content = connector._format_md(frontmatter, node)
 
@@ -2560,7 +2560,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_unified_not_shown_without_diff_from(self, tmp_path):
         """diff_fromがない場合はdiffセクション自体が出力されない"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -2573,7 +2573,7 @@ class TestObsidianWarningDisplay:
             },
         )
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         frontmatter = connector.node_to_frontmatter(node)
         content = connector._format_md(frontmatter, node)
 
@@ -2581,7 +2581,7 @@ class TestObsidianWarningDisplay:
 
     def test_no_warnings_section_when_clean(self, tmp_path):
         """warning/errorがない場合はセクションが表示されない"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -2595,7 +2595,7 @@ class TestObsidianWarningDisplay:
             },
         )
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         frontmatter = connector.node_to_frontmatter(node)
         content = connector._format_md(frontmatter, node)
 
@@ -3178,7 +3178,7 @@ class TestObsidianTagExport:
 
     def test_tags_in_frontmatter(self):
         """frontmatterにタイプタグが追加される"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -3191,14 +3191,14 @@ class TestObsidianTagExport:
                 "path": "go_idx1.inp",
             },
         )
-        connector = ObsidianConnector(project_root=Path("/tmp"))
+        connector = ObsidianWriter(project_root=Path("/tmp"))
         fm = connector.node_to_frontmatter(node)
         tags = fm.get("tags", [])
         assert "go" in tags
 
     def test_material_tags_in_frontmatter(self):
         """材料タグがfrontmatterのtagsに追加される"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -3212,7 +3212,7 @@ class TestObsidianTagExport:
                 "materials": ["Steel", "Aluminum"],
             },
         )
-        connector = ObsidianConnector(project_root=Path("/tmp"))
+        connector = ObsidianWriter(project_root=Path("/tmp"))
         fm = connector.node_to_frontmatter(node)
         tags = fm.get("tags", [])
         assert "material/Steel" in tags
@@ -3220,7 +3220,7 @@ class TestObsidianTagExport:
 
     def test_tags_in_markdown_body(self):
         """markdown本文に#tag形式でタグが出力される"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         node = Node(
             id=1,
@@ -3233,7 +3233,7 @@ class TestObsidianTagExport:
                 "path": "go_idx1.inp",
             },
         )
-        connector = ObsidianConnector(project_root=Path("/tmp"))
+        connector = ObsidianWriter(project_root=Path("/tmp"))
         fm = connector.node_to_frontmatter(node)
         content = connector._format_md(fm, node)
         assert "#go" in content

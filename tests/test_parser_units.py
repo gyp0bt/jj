@@ -2787,7 +2787,7 @@ class TestAbstractExporter:
 
     def test_exporter_registry_contains_csv_json(self):
         """CSV/JSONエクスポーターがレジストリに登録されていること"""
-        import services.export.connectors  # noqa: F401  組み込みエクスポーター登録トリガー
+        import services.export.exporters  # noqa: F401  組み込みエクスポーター登録トリガー
         from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
@@ -2798,7 +2798,7 @@ class TestAbstractExporter:
     def test_get_exporter_for_format_csv(self):
         """format="csv"でCsvExporterが返ること"""
         from plugins.base.exporter import get_exporter_for_format
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         exporter_cls = get_exporter_for_format("csv")
         assert exporter_cls is CsvExporter
@@ -2806,7 +2806,7 @@ class TestAbstractExporter:
     def test_get_exporter_for_format_json(self):
         """format="json"でJsonExporterが返ること"""
         from plugins.base.exporter import get_exporter_for_format
-        from services.export.connectors.csv_json import JsonExporter
+        from services.export.exporters.csv_json import JsonExporter
 
         exporter_cls = get_exporter_for_format("json")
         assert exporter_cls is JsonExporter
@@ -2820,7 +2820,7 @@ class TestAbstractExporter:
     def test_csv_exporter_export(self, tmp_path: Path):
         """CsvExporterのexport()がCSVファイルを生成すること"""
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={"index": "1"}),
@@ -2840,7 +2840,7 @@ class TestAbstractExporter:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import JsonExporter
+        from services.export.exporters.csv_json import JsonExporter
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={"version": "1"}),
@@ -2865,7 +2865,7 @@ class TestElsetCsvExport:
     def test_elset_quality_flattened_in_csv(self, tmp_path: Path):
         """quality辞書が"."区切りで平坦化されたカラムになること"""
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         nodes = [
             Node(
@@ -2895,7 +2895,7 @@ class TestElsetCsvExport:
     def test_elset_type_filter_in_csv(self, tmp_path: Path):
         """type_filter="abaqus_elset"でelsetノードのみエクスポートされること"""
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={}),
@@ -3009,9 +3009,9 @@ class TestObsidianElsetDataview:
 
     def test_elset_node_has_dataview_query(self):
         """abaqus_elsetノードのmd出力にDataviewクエリが含まれること"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        connector = ObsidianWriter(project_root=Path("/tmp/test"))
         node = Node(
             id=1,
             type="abaqus_elset",
@@ -3031,9 +3031,9 @@ class TestObsidianElsetDataview:
 
     def test_material_node_has_elset_dataview(self):
         """abaqus_materialノードのmd出力にelset用Dataviewクエリが含まれること"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        connector = ObsidianWriter(project_root=Path("/tmp/test"))
         node = Node(
             id=1,
             type="abaqus_material",
@@ -3049,9 +3049,9 @@ class TestObsidianElsetDataview:
 
     def test_go_node_with_elsets_has_dataview(self):
         """elsets propertyを持つgoノードにDataviewクエリが含まれること"""
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        connector = ObsidianWriter(project_root=Path("/tmp/test"))
         node = Node(
             id=1,
             type="go",
@@ -3081,7 +3081,7 @@ class TestObsidianElsetCanvas:
         import json
 
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
@@ -3094,7 +3094,7 @@ class TestObsidianElsetCanvas:
             ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_canvas(graph)
 
         assert canvas_path is not None
@@ -3109,13 +3109,13 @@ class TestObsidianElsetCanvas:
     def test_canvas_not_generated_without_elsets(self, tmp_path: Path):
         """elsetノードがない場合にcanvasが生成されないこと"""
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="test", format="inp", properties={}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_canvas(graph)
         assert canvas_path is None
 
@@ -3124,13 +3124,13 @@ class TestObsidianElsetCanvas:
         import json
 
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="abaqus_elset", name="ELSET_A", format="", properties={"element_count": 50}),  # 材料なし
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_canvas(graph)
 
         assert canvas_path is not None
@@ -3149,7 +3149,7 @@ class TestExporterRegistry:
 
     def test_all_exporters_registered(self):
         """全5形式のエクスポーターがレジストリに登録されていること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
@@ -3162,7 +3162,7 @@ class TestExporterRegistry:
 
     def test_exporter_priority_order(self):
         """エクスポーターがpriority順で取得できること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
@@ -3172,7 +3172,7 @@ class TestExporterRegistry:
 
     def test_obsidian_exporter_via_registry(self, tmp_path: Path):
         """ObsidianExporterがレジストリ経由で取得・実行できること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from jj_types import GraphModel
         from plugins.base.exporter import get_exporter_for_format
 
@@ -3192,7 +3192,7 @@ class TestExporterRegistry:
 
     def test_cypher_exporter_via_registry(self, tmp_path: Path):
         """CypherExporterがレジストリ経由で取得・実行できること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from jj_types import GraphModel
         from plugins.base.exporter import get_exporter_for_format
 
@@ -3250,7 +3250,7 @@ class TestObsidianElsetMaterialGoCanvas:
         import json
 
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3268,7 +3268,7 @@ class TestObsidianElsetMaterialGoCanvas:
             ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
 
         assert canvas_path is not None
@@ -3290,7 +3290,7 @@ class TestObsidianElsetMaterialGoCanvas:
         import json
 
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
@@ -3303,7 +3303,7 @@ class TestObsidianElsetMaterialGoCanvas:
             ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
 
         assert canvas_path is not None
@@ -3319,7 +3319,7 @@ class TestObsidianElsetMaterialGoCanvas:
         import json
 
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3335,7 +3335,7 @@ class TestObsidianElsetMaterialGoCanvas:
             ),  # 材料なし
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
 
         assert canvas_path is not None
@@ -3349,13 +3349,13 @@ class TestObsidianElsetMaterialGoCanvas:
     def test_three_layer_canvas_not_generated_without_elsets(self, tmp_path: Path):
         """elsetがない場合にcanvasが生成されないこと"""
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="test", format="inp", properties={}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
         assert canvas_path is None
 
@@ -3370,7 +3370,7 @@ class TestFormatCliResult:
 
     def test_csv_exporter_cli_result(self, tmp_path: Path):
         """CsvExporterのCLI出力が正しくフォーマットされること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("csv")
@@ -3386,7 +3386,7 @@ class TestFormatCliResult:
 
     def test_json_exporter_cli_result(self, tmp_path: Path):
         """JsonExporterのCLI出力が正しくフォーマットされること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("json")
@@ -3401,7 +3401,7 @@ class TestFormatCliResult:
 
     def test_obsidian_exporter_cli_result(self, tmp_path: Path):
         """ObsidianExporterのCLI出力にファイル数が含まれること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("obsidian")
@@ -3416,7 +3416,7 @@ class TestFormatCliResult:
 
     def test_cypher_exporter_cli_result(self, tmp_path: Path):
         """CypherExporterのCLI出力にノード/リレーション数が含まれること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("cypher")
@@ -3512,7 +3512,7 @@ class TestObsidianSummaryNote:
     def test_summary_note_generated(self, tmp_path: Path):
         """ノードがある場合にサマリーノートが生成されること"""
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3524,7 +3524,7 @@ class TestObsidianSummaryNote:
                 Relation(id=1, label="uses_material", node1_id=1, node2_id=2),
             ],
         )
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
 
         assert summary_path is not None
@@ -3546,17 +3546,17 @@ class TestObsidianSummaryNote:
     def test_summary_note_not_generated_for_empty_graph(self, tmp_path: Path):
         """空のグラフではサマリーノートが生成されないこと"""
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         graph = GraphModel(nodes=[], relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
         assert summary_path is None
 
     def test_summary_note_type_sections(self, tmp_path: Path):
         """各タイプごとにDataviewセクションが生成されること"""
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go1", format="inp", properties={}),
@@ -3564,7 +3564,7 @@ class TestObsidianSummaryNote:
             Node(id=3, type="mesh", name="mesh1", format="cdb", properties={}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
 
         content = summary_path.read_text(encoding="utf-8")
@@ -3587,13 +3587,13 @@ class TestObsidianVaultConfig:
         import json
 
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         written = connector.export_graph(graph)
 
         obsidian_dir = tmp_path / ".obsidian"
@@ -3626,7 +3626,7 @@ class TestObsidianVaultConfig:
     def test_vault_config_not_overwritten(self, tmp_path: Path):
         """既存の.obsidian/ディレクトリがある場合は変更しないこと"""
         from jj_types import GraphModel
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         # 事前に.obsidian/を作成（ユーザーの既存Vault）
         obsidian_dir = tmp_path / ".obsidian"
@@ -3637,7 +3637,7 @@ class TestObsidianVaultConfig:
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         written = connector.export_graph(graph)
 
         # 既存のapp.jsonは変更されない
@@ -3651,9 +3651,9 @@ class TestObsidianVaultConfig:
     def test_vault_config_standalone(self, tmp_path: Path):
         """_write_vault_config()を単独で呼んだ場合のテスト"""
 
-        from plugins.obsidian.export import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         written = connector._write_vault_config()
         assert len(written) == 3
 

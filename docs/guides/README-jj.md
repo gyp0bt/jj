@@ -160,7 +160,7 @@ pytest
     - `services/parse/connectors/obsidian/` : Obsidianエクスポート、daily連携
   - `services/dashboard/widgets.py` : 共有UIヘルパー（AgGrid等、コネクタからも利用）
   - `services/query/` : 汎用フィルタ/ソート層（props条件式フィルタ、vocab順ソート）
-  - `services/export/connectors/` : 外部ツールへのエクスポート（Neo4jConnector等）
+  - `services/export/connectors/` : 外部ツールへのエクスポート（Neo4jClient等）
   - `services/api/` : REST APIサーバー（FastAPI、jj serve）
   - `services/run/` : スクリプトラッパー（jj r）
   - `services/service/` : サービス横断オーケストレーション（ApiService/QueryService等）

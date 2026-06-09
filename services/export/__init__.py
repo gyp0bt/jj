@@ -13,4 +13,4 @@ CSV/JSON/Neo4j/Cypher 等のコア同梱エクスポーターを集約する。
 
 # import 時に組み込みエクスポーターを自動登録（__init_subclass__ を発火）。
 # トップレベル import だと循環参照になるため、サブパッケージを遅延 import する。
-import services.export.connectors  # noqa: F401
+import services.export.exporters  # noqa: F401

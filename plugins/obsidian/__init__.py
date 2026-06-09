@@ -19,7 +19,7 @@ Obsidian固有のパーサー・エクスポーターを集約するプラグイ
 
 - plugins.obsidian.parse.daily_parser: DailyNoteParser
 - plugins.obsidian.parse.daily: daily note解析ユーティリティ
-- plugins.obsidian.export: ObsidianConnector, ObsidianExporter
+- plugins.obsidian.export: ObsidianWriter, ObsidianExporter
 
 [READMEへ戻る](../../README.md)
 """

@@ -15,12 +15,12 @@ Obsidian エクスポーターはコア同梱ではなくプラグイン
 """
 
 from .csv_json import CsvExporter, JsonExporter
-from .neo4j import CypherExporter, Neo4jConnector, Neo4jExporter
+from .neo4j import CypherExporter, Neo4jClient, Neo4jExporter
 
 __all__ = [
     "CsvExporter",
     "CypherExporter",
     "JsonExporter",
-    "Neo4jConnector",
+    "Neo4jClient",
     "Neo4jExporter",
 ]

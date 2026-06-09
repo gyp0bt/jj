@@ -121,7 +121,7 @@ AbstractFileParser
 | Abaqusパーサー群 | `plugins.abaqus.parse` |
 | Obsidianエクスポート/デイリー解析 | `plugins.obsidian.export` / `plugins.obsidian.parse.daily` |
 | プラグイン登録 | `plugins.abaqus` / `plugins.obsidian`（`register()`） |
-| 組み込みエクスポーター（CSV/JSON/Neo4j/Cypher） | `services.export.connectors` |
+| 組み込みエクスポーター（CSV/JSON/Neo4j/Cypher） | `services.export.exporters` |
 
 ### CacheProvider プロトコル
 

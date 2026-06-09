@@ -9,7 +9,7 @@ Obsidian 連携の実体は ``plugins.obsidian.export``（ノード→ノート�
 
 from plugins.obsidian.export import (
     ObsidianConfig,
-    ObsidianConnector,
+    ObsidianWriter,
     _coerce_property_value,
     _split_tag,
     from_obsidian_filename,
@@ -23,7 +23,7 @@ from plugins.obsidian.export import (
 
 __all__ = [
     "ObsidianConfig",
-    "ObsidianConnector",
+    "ObsidianWriter",
     "_coerce_property_value",
     "_split_tag",
     "from_obsidian_filename",

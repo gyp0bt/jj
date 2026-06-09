@@ -64,7 +64,7 @@ class ExcelExporter(AbstractExporter):
             sheet_name: str - シート名（デフォルト: "Data"）
             flatten: bool - プロパティ平坦化（デフォルト: True）
         """
-        from services.export.connectors.csv_json import flatten_properties
+        from services.export.exporters.csv_json import flatten_properties
 
         project_root = kwargs.get("project_root", Path("."))
         nodes = kwargs.get("nodes")

@@ -341,7 +341,7 @@ class SharedConfig(BaseModel):
 既存の08-export.md仕様を拡張し、Neo4jへの直接書き込みを実装。
 
 ```python
-class Neo4jConnector:
+class Neo4jClient:
     """jj GraphModel → Neo4j 書き込み"""
 
     def __init__(self, config: Neo4jConfig, project: str):
@@ -518,7 +518,7 @@ volumes:
 
 ### Phase N2: jj Neo4jエクスポーター ✅ (status-037)
 
-- [x] `services/connectors/neo4j.py` 実装（Neo4jConnector）
+- [x] `services/connectors/neo4j.py` 実装（Neo4jClient）
 - [x] `jj export --target neo4j` CLI追加
 - [x] `jj export --target cypher` CLI追加
 - [x] GraphModel → Neo4j Cypherマッピング実装

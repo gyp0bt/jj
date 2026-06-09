@@ -250,7 +250,7 @@ def _coerce_property_value(value: Any) -> Any:
     return value
 
 
-class ObsidianConnector:
+class ObsidianWriter:
     """GraphModelをObsidian向けにエクスポートするコネクタ"""
 
     def __init__(
@@ -320,7 +320,7 @@ class ObsidianConnector:
         for key, value in props.items():
             full_key = f"{prefix}.{key}" if prefix else key
             if isinstance(value, dict):
-                result.update(ObsidianConnector._flatten_properties(value, prefix=full_key))
+                result.update(ObsidianWriter._flatten_properties(value, prefix=full_key))
             else:
                 result[full_key] = value
         return result
@@ -1461,7 +1461,7 @@ SORT file.name ASC
 class ObsidianExporter(AbstractExporter):
     """Obsidian形式エクスポーター（AbstractExporterサブクラス）
 
-    ObsidianConnectorをラップし、AbstractExporterレジストリに登録する。
+    ObsidianWriterをラップし、AbstractExporterレジストリに登録する。
     """
 
     format = "obsidian"
@@ -1476,7 +1476,7 @@ class ObsidianExporter(AbstractExporter):
         """
         project_root = kwargs.get("project_root")
         overwrite = kwargs.get("overwrite", False)
-        connector = ObsidianConnector(project_root=project_root)
+        connector = ObsidianWriter(project_root=project_root)
         written = connector.export_graph(graph, overwrite=overwrite)
         # Vault初期化されたかどうかを判定
         vault_initialized = any(".obsidian" in str(p) for p in written)

@@ -29,11 +29,11 @@ services/
 │       │   ├── __init__.py # ABQData, read_inp, diff等
 │       │   └── mesh.py     # pymesh統合メッシュ品質
 │       └── obsidian/       # Obsidianエクスポート、daily連携
-│           ├── __init__.py # ObsidianConnector, export_graph等
+│           ├── __init__.py # ObsidianWriter, export_graph等
 │           └── daily.py    # DailyNote解析
 ├── export/                 # グラフの外部出力（ローカル以外）
 │   └── connectors/
-│       └── neo4j.py        # Neo4jConnector
+│       └── neo4j.py        # Neo4jClient
 ├── run/                    # スクリプトラッパー（jj r）
 ├── service/                # サービス横断オーケストレーション
 ├── cli/                    # CLI（serviceからのみimport）
@@ -157,15 +157,15 @@ def parse(graph: ProjectGraph) -> ProjectGraph:
 ソフト固有のparseロジックを配置する。
 
 - **abaqus/**: Abaqus INPファイルの読み込み（`read_inp`）、差分比較（`diff_abq_blocks`）、pymeshメッシュ統計
-- **obsidian/**: Obsidian向けエクスポート（`ObsidianConnector`）、dailyノート解析（`DailyNote`）
+- **obsidian/**: Obsidian向けエクスポート（`ObsidianWriter`）、dailyノート解析（`DailyNote`）
 
 ### Obsidian向け
-- `ObsidianConnector` でGraphModel→Obsidian mdファイル群へのエクスポートを行う。
+- `ObsidianWriter` でGraphModel→Obsidian mdファイル群へのエクスポートを行う。
 - frontmatter（YAML）にNodeプロパティを書き出し、.baseファイルでフィルター条件を定義。
 
 ## services/export の詳細
 - グラフの外部出力先を管理する。
-- `export/connectors/neo4j.py`: Neo4jConnector（直接書き込み+Cypherファイル出力）
+- `export/connectors/neo4j.py`: Neo4jClient（直接書き込み+Cypherファイル出力）
 - CSV/JSON/dashboard-jsonエクスポーターを予定。
 
 ## services/run の詳細

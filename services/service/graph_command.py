@@ -261,7 +261,7 @@ class GraphCommandService:
         Returns:
             (エクスポート結果辞書, エクスポーターインスタンス)
         """
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
@@ -337,7 +337,7 @@ class GraphCommandService:
             エクスポーター固有の結果辞書
         """
         # コネクタモジュールをインポートしてレジストリ登録を確実にする
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
