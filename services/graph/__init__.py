@@ -360,6 +360,7 @@ class GraphService:
         exclude_dirs: Iterable[str] | None = None,
         full_mode: bool = False,
         debug: bool = False,
+        trace: bool = False,
     ) -> GraphModel:
         """プロジェクトをパースしてGraphModelを生成
 
@@ -434,7 +435,7 @@ class GraphService:
             logger.info(f"タイムスタンプ差分: {modified_count}/{total_count}ファイルが変更済み")
 
         # 全登録パーサーをpriority順に適用
-        project_graph = run_parser_pipeline(project_graph, full_mode=full_mode, debug=debug)
+        project_graph = run_parser_pipeline(project_graph, full_mode=full_mode, debug=debug, trace=trace)
 
         # パース完了後にタイムスタンプを保存
         self.storage.save_timestamps(self.project_root, current_timestamps)
@@ -470,13 +471,16 @@ class GraphService:
         filename: str | None = None,
         full_mode: bool = False,
         debug: bool = False,
+        trace: bool = False,
     ) -> tuple[GraphModel, Path]:
         """プロジェクトをパースして保存
 
         Returns:
             (生成されたGraphModel, 保存先パス)
         """
-        graph = self.parse_project(extensions=extensions, exclude_dirs=exclude_dirs, full_mode=full_mode, debug=debug)
+        graph = self.parse_project(
+            extensions=extensions, exclude_dirs=exclude_dirs, full_mode=full_mode, debug=debug, trace=trace
+        )
         path = self.save(graph, filename)
 
         # プラグインキャッシュの自動クリーンアップ（古いキャッシュの削除）

@@ -72,6 +72,18 @@ def _add_parse_args(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="デバッグモード: パーサーでエラーが発生した場合に例外をraiseする",
     )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        default=False,
+        help="各パーサーの定義ファイル:行・ノード/リレーション増分・所要時間を出力する",
+    )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        default=False,
+        help="パースせずにパーサーパイプライン（誰が・どのファイルで・何を）を表示して終了",
+    )
 
 
 def _add_show_args(parser: argparse.ArgumentParser) -> None:
@@ -664,6 +676,16 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
     full_mode = getattr(args, "full", False)
     max_depth = getattr(args, "max_depth", None)
     debug = getattr(args, "debug", False)
+    trace = getattr(args, "trace", False)
+
+    # --explain: パースせずにパイプライン構成（誰が・どのファイルで・何を）を表示
+    if getattr(args, "explain", False):
+        from services.graph import GraphService
+        from services.parse.base import format_pipeline_plan
+
+        GraphService(project_root)  # プラグインをロードしてレジストリを満たす
+        print(format_pipeline_plan(full_mode=full_mode))
+        return 0
 
     mode_label = "full" if full_mode else "lite"
     print(f"プロジェクトをスキャン中 ({mode_label}): {project_root}")
@@ -675,6 +697,7 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
             full_mode=full_mode,
             max_depth=max_depth,
             debug=debug,
+            trace=trace,
         )
 
         print("\n=== スキャン完了 ===")

@@ -178,11 +178,6 @@ pytest
 - `tests/` : pytestテスト
 - `assets/` : テストデータ/サンプル
 
-## 運用メモ
-- CodexとClaude Codeの2交代制を前提に、引き継ぎ可能な形で実装状況を記録します。
-- v0.2.0以降のstatusファイルは `docs/status/status-{index}.md`（ルート共有）に記載します。
-- v0.1.0のstatus（jj: 001〜090、jjrv: 001〜060）は [v0.1.0 statusインデックス](../docs/status/status-index-v0.1.0.md) および `docs/status/archive-v0.1.0/` にアーカイブ済みです。
-
 ## v0.1.0 開発サマリー
 - テスト1,002件、パーサー16+クラス、エクスポーター6種
 - Phase 0（基盤）→ Phase 1（graph）→ Phase R（構造改革）→ Phase 2（拡充）→ Phase 2.5（ダッシュボード）→ Phase P（プラグイン化）

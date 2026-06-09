@@ -1,14 +1,19 @@
-"""グラフクエリ・フィルタ・ソート・変換層
+"""グラフクエリ・フィルタ・ソート・変換 + データ供給層
 
-GraphModel に対する汎用クエリ操作と、行データに対するフィルタ/ソート/
-変換ロジックを集約する。services/dashboard と services/api の双方から
-利用される。dashboard 固有の表示変換（vocab/units/verbose_name）は
-ここには含めない — それらは DashboardDataProvider に残す。
+GraphModel に対する汎用クエリ操作・行整形に加え、go_ ノード向けのデータ供給
+（旧 DashboardDataProvider）と vocab/units 表示変換を `GraphQuery` に統合する。
+画像ファイル名のパラメータ解析・グルーピングは `images` サブモジュールに置く。
+UI（streamlit 等）には依存しない — UI層 services/dashboard が本層を描画する。
 
 公開API:
-    クエリクラス:
-        GraphQuery (4 メソッド: query_nodes, query_relations,
-                    nodes_to_rows, apply_view)
+    クエリ + データ供給クラス:
+        GraphQuery (query_nodes / query_relations / nodes_to_rows / apply_view、
+                    および get_go_table / get_array_plot_data /
+                    get_output_images / get_status_summary 等)
+
+    画像グルーピング (images):
+        group_images_by_composite_key, extract_path_metadata,
+        build_composite_group_key, filter_images_by_keys, collect_group_keys
 
     フィルタ:
         is_truthy, apply_filters, apply_saved_view_filters,
@@ -55,6 +60,13 @@ from services.graph.query.sort import (
     sort_columns_by_vocab,
     sort_rows_by_index,
 )
+from services.graph.query.images import (
+    build_composite_group_key,
+    collect_group_keys,
+    extract_path_metadata,
+    filter_images_by_keys,
+    group_images_by_composite_key,
+)
 from services.graph.query.transform import summarize_list_columns, summarize_list_value
 
 __all__ = [
@@ -66,10 +78,15 @@ __all__ = [
     "apply_filters",
     "apply_prop_filters",
     "apply_saved_view_filters",
+    "build_composite_group_key",
+    "collect_group_keys",
+    "extract_path_metadata",
+    "filter_images_by_keys",
     "filter_latest_version",
     "format_float_value",
     "get_base_key",
     "get_file_base_name",
+    "group_images_by_composite_key",
     "is_truthy",
     "merge_filters",
     "node_prop_getter",

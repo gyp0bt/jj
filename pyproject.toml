@@ -36,6 +36,16 @@ abaqus = [
 obsidian = [
     "pyyaml>=6.0",
 ]
+# Streamlitダッシュボード（services/dashboard/app/）依存
+# `streamlit run services/dashboard/app/Home.py` で起動するUI層。
+# DashboardDataProvider 自体はコア依存のみで動作し、これらはUI表示専用。
+dashboard = [
+    "streamlit>=1.30.0",
+    "streamlit-aggrid>=1.0.0",
+    "plotly>=5.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+]
 # 開発・テスト
 dev = [
     "pytest>=7.0.0",
@@ -43,7 +53,7 @@ dev = [
 ]
 # 全依存（便宜上）
 all = [
-    "jj[pymesh,abaqus,obsidian,dev]",
+    "jj[pymesh,abaqus,obsidian,dashboard,dev]",
 ]
 
 # --------------------------------------------------
