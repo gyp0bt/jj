@@ -2,7 +2,7 @@
 
 # docs/ — ドキュメントナビゲーション
 
-> **新規セッション開始時**: 1. 本ファイルで全体構造を把握 → 2. [status-index](status/status-index.md) で現在地とTODOを確認 → 3. 作業開始
+> **新規セッション開始時**: 本ファイルで全体構造を把握 → roadmap.md で現在地を確認 → 作業開始
 
 ---
 
@@ -11,8 +11,7 @@
 - **バージョン**: v0.3.0 開発中
 - **完了トラック**: T1(TODO解消), T2(Config分離), T3(MLダッシュボード), T4(Deprecation), T5(リモートジョブ), T6(ダッシュボード高度化)
 - **進行中トラック**: T7(Ollama AI連携), T8(汎用データ管理), T9(共有フォルダ同期), T10(プラグインコア設計)
-- **最新status**: [status-index.md](status/status-index.md) 末尾を参照
-- **アクティブTODO**: 最新statusファイルのTODOセクションに記載
+- **計画**: [roadmap.md](roadmap.md) を参照
 
 ---
 
@@ -77,12 +76,6 @@
 | [migration-guide.md](guides/migration-guide.md) | バージョン移行ガイド |
 | [prefect-integration-guide.md](guides/prefect-integration-guide.md) | Prefectワークフロー連携 |
 
-### 実装ログ（Status）
-
-| ドキュメント | 内容 |
-|-------------|------|
-| [status-index.md](status/status-index.md) | **v0.3.0 statusインデックス（status-053〜）** |
-
 ### アーカイブ
 
 | ドキュメント | 内容 |
@@ -90,19 +83,6 @@
 | [archive/review/review-v0.1.0.md](archive/review/review-v0.1.0.md) | v0.1.0 開発フェーズ総括 |
 | [archive/roadmap-v0.1.0.md](archive/roadmap-v0.1.0.md) | v0.1.0 ロードマップ |
 | [archive/detail.md](archive/detail.md) | 実装方針・技術詳細（初期設計） |
-| [status/archive-v0.1.0/](status/archive-v0.1.0/) | v0.1.0 status（jj: 90件、jjrv: 60件） |
-| [status/archive-v0.2.0/](status/archive-v0.2.0/) | v0.2.0 status（001〜052） |
-
----
-
-## statusファイル運用ルール
-
-- 粒度: 1 status ≒ 1 PR
-- statusの内容はgitコミットメッセージと整合
-- 未完了TODOは次のstatusに引き継ぎ
-- v0.1.0のstatusは `docs/status/archive-v0.1.0/` にアーカイブ済み
-- v0.2.0のstatusは `docs/status/archive-v0.2.0/` にアーカイブ済み（status-001〜052）
-- v0.3.0のstatusは `docs/status/status-053.md` 以降
 
 ---
 
@@ -124,14 +104,6 @@ docs/
 │   ├── 01〜11-*.md            # ドメイン仕様書
 │   ├── midterm-plan-v0.3.md   # 中期計画
 │   └── *.md                   # 個別設計文書
-├── status/                    # 実装ログ
-│   ├── status-index.md        # v0.3.0 インデックス
-│   ├── status-053〜*.md       # v0.3.0 アクティブstatus
-│   ├── archive-v0.2.0/        # v0.2.0 status（001-052）
-│   └── archive-v0.1.0/        # v0.1.0 status
-│       ├── jj/
-│       ├── jjrv/
-│       └── status-index-v0.1.0.md
 └── archive/                   # 旧バージョン文書
     ├── detail.md              # 初期実装方針
     ├── roadmap-v0.1.0.md      # v0.1.0 ロードマップ

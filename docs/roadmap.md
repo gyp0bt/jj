@@ -85,8 +85,6 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 | M6: ML/最適化タスク | Phase5完了 | パーサー9種, ダッシュボード2ページ, ML使用マニュアル |
 | M7: Run中心スキーマ | Phase6完了 | RunDiscoverer, RunService, Run比較, Neo4j対応 |
 
-> 各マイルストーンの詳細タスク一覧は [status-index.md](status/status-index.md) の個別statusファイルを参照
-
 ### 関連仕様書
 
 | 仕様書 | 対象 |

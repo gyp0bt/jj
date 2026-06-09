@@ -163,13 +163,6 @@ all = ["jj[pymesh,abaqus,obsidian,dashboard,dev]"]
 
 ## よくある作業の手順
 
-### 新規セッション開始時
-1. `docs/status/status-index.md` でマイルストーン進捗を確認
-2. 最新 `docs/status/status-{NNN}.md` を読む
-3. 未完了TODOを確認し、作業計画を立てる
-
 ### 作業完了時
-1. statusファイルを新規作成（次のindex番号）
-2. `docs/status/status-index.md` を更新
-3. README, roadmap を必要に応じて更新
-4. featureごとにコミットを切り、pushする
+1. README, roadmap を必要に応じて更新
+2. featureごとにコミットを切り、pushする

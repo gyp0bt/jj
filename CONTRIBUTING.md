@@ -31,7 +31,7 @@ claude/{feature-keyword}-{hash}
 ## コミットメッセージ
 
 ```
-{type}: {日本語の変更概要} (status-{NNN})
+{type}: {日本語の変更概要}
 ```
 
 ### type一覧
@@ -49,55 +49,10 @@ claude/{feature-keyword}-{hash}
 ### 例
 
 ```
-feat: Fluentコネクタ parse connector実装 (status-003)
-fix: AbaqusパーサーのINP読み込みエラー修正 (status-004)
-docs: Getting Startedセクション追加 (status-002)
+feat: Fluentコネクタ parse connector実装
+fix: AbaqusパーサーのINP読み込みエラー修正
+docs: Getting Startedセクション追加
 ```
-
----
-
-## statusファイルの書き方
-
-### ファイル名
-`docs/status/status-{NNN}.md` — NNNはゼロ埋め3桁
-
-### テンプレート
-
-```markdown
-[← README.md](../../README.md)
-
-# status-{NNN}: {タイトル}
-
-**日付**: YYYY-MM-DD
-**バージョン**: v0.X.0
-
----
-
-## 概要
-{1〜2行の概要}
-
-## 完了した作業
-### 1. {作業1}
-{詳細}
-
-### 2. {作業2}
-{詳細}
-
-## 変更ファイル
-| ファイル | 変更種別 | 内容 |
-|---------|---------|------|
-| `path/to/file` | 新規/修正/削除 | {説明} |
-
-## TODO
-- [ ] {未完了タスク}
-
-## 確認事項・懸念
-- {ユーザーへの確認事項}
-```
-
-### 粒度基準
-- 1 status = 1 PR 程度
-- 複数の小さな修正をまとめた場合も1 statusとして記録可
 
 ---
 

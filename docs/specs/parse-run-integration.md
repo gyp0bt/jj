@@ -98,4 +98,3 @@ jj run --no-parse python train.py  # parse をスキップ（高速実行）
 
 - [Run中心スキーマ仕様書](run-centric-schema.md)
 - [MLタスクロードマップ](ml-task-roadmap.md)
-- [status-045](../status/status-045.md)
