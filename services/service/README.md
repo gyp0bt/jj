@@ -13,9 +13,8 @@
 
 | クラス | ファイル | 責務 |
 |--------|---------|------|
-| `GraphCommandService` | `graph_command.py` | グラフコマンドのビジネスロジック（init/parse/show/export/info/diff/credential） |
+| `GraphCommandService` | `graph_command.py` | グラフコマンドのビジネスロジック（init/parse/show/export/info/diff/credential/config） |
 | `InfoService` | `info.py` | グラフ情報検索・データエクスポート |
-| `SubmitService` | `submit.py` | submit/files/syntax コマンドのビジネスロジック |
 
 ## 依存関係
 ```

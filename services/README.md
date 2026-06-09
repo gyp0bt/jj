@@ -2,103 +2,36 @@
 
 # services
 
-CLIで利用する主要サービス群のルートです。各サブモジュールは責務を明確に分け、必要に応じて依存方向を整理します。
+`jj` CLI の本体ロジック。各サブパッケージは責務を一つに絞り、依存方向は
+`cli → service → graph/parse/export/...` の一方向に保つ。
 
 ## 構成
-- `storage/`: `.j2/storage` にグラフデータを保存・取得する層。
-- `parse/`: プロジェクトフォルダ解析とグラフ化、共通アダプタの基盤。
-- `run/`: `jj r` で実行するシステムコマンドのラップとログ/トレース収集。
-- `file/`: グラフ情報を保持しつつファイル操作・履歴管理・ssh送受信。
-- `ssh/`: SSHによる送受信やリモートコマンド実行のユーティリティ。
-- `dashboard/`: ダッシュボード（Streamlit）。描画層(app.py)、クエリ層(query.py)、データ供給層(data_provider.py)、HTMLエクスポート(html_export.py)に分離。コネクター(connectors/)でソフト固有ページを提供。
-- `service/`: 各サービスをアセンブルし、CLIに渡す処理関数を提供。
+
+| パッケージ | 責務 |
+|-----------|------|
+| `cli/` | CLIエントリポイント（`jj = services.cli:main`）。argparse解析と出力整形のみ。ロジックは持たず `service/` に委譲する |
+| `service/` | CLIコマンドのビジネスロジック。`GraphCommandService`（init/parse/show/export/info/diff/credential/config）と `InfoService` |
+| `graph/` | `GraphService`（`.j2/storage/` への保存・読込）と `ProjectGraph`（パイプライン用グラフ型）、`query/`（`GraphQuery` データ供給層） |
+| `parse/` | パーサーパイプライン共通基盤と組み込みパーサー（`parsers/`）。プラグインパーサーは `plugins/*/parse/` に分散 |
+| `export/` | エクスポーター共通基盤（`AbstractExporter`）と組み込みコネクター |
+| `dashboard/` | Streamlit UI（`widgets.py` + `app/`）。データ層は `graph/query/` に統合済み |
+| `lib/` | 薄いユーティリティ（`selection`, `credentials`） |
+| `sdk/` | プラグインSDK（cache, plugin manifest/registry, entry_points 検出） |
 
 ## 依存ルール
-- `main.py` -> `service` -> 各サービス。
-- `parse`/`storage`/`file`/`run` は互いの責務が重複しないように設計し、必要な連携は `service` 経由で行います。
 
----
-## 26/2/9 servicesの構成を大幅変更
-- 従来のservicesは凝集性が過剰に上がって開発効率を落としていた。特にparse/graphまわりのロジックが過密であったため、構成の変更を実施。
-- 従来はparseロジックが増えるたびにgraphロジックを膨らまし、手動でparseするもののparseロジック同士の関係性が不明瞭で背反が続出していた。
-- 新構造：
-    - graph: プロジェクトのツリー構造をスキャンして初期グラフデータの生成
-        - ProjectGraph: プロジェクトのツリー構造をスキャンしたグラフデータ型
-            ```
-            @dataclass
-            class Node:
-                type: str
-                filetype: Literal["directory", "file", "only-data"]
-                name: str
-                properties: dict[str, Any]
-            
-            @dataclass
-            class Relation:
-                type: str
-                label: str
-                node_id1: int
-                node_id2: int
-            
-            @dataclass
-            class ProjectFile:
-                path: Path
-                parent_directory: ProjectDirectory
-            
-            @dataclass
-            class ProjectDirectory:
-                path: Path
-                parent_directory: ProjectDirectory
-                child_directories: list[ProjectDirectory]
-                files: list[File]
-            
-            @dataclass
-            class ProjectGraph:
-                nodes: dict[int, Node]
-                relations: list[Relation]
+- `cli` は `service` 以外からロジックをimportしない。CLI層でロジックを実装しない。
+- `parse` / `graph` / `export` は互いの責務を重複させず、横断的な連携は `service` 経由で行う。
 
-                def iterate_directories(self) -> Iterator[ProjectDirectory]:
-                    """プロジェクトのツリー構造をNode/RelationからProjectDirectory/ProjectFileに直してiteration"""
+## CLIコマンド → service 対応
 
-            ```
-        - graph.storage: 加工されたグラフデータをローカルファイル(.j2/storage/)に保存
-    - export: グラフデータをデフォルトのローカルファイル以外に保存
-        - json, neo4j, sqlを予定
-    - parse: 
-        - プロジェクトのツリー構造を受け取ってtag, property, relationを割り当てて返す
-        - 抽象パーサーAbstractFileParserクラスを用意し、継承したサブクラスを__init_subclass__でリスト化する。
-            ```
-
-            parser_list = []
-
-
-            class AbstractFileParser(ABC):
-                """Parser抽象基底クラス"""
-
-                def __init__(
-                    self,
-                    true_filepath: Path,
-                    extension_candidates: Iterable[str] | None = None,
-                ):
-                    self.true_file_path = true_filepath
-                    self.extension_candidates = extension_candidates
-                
-                def __init_subclass__(self, cls):
-                    parser_list.append(cls)
-                
-                @abstractmethod
-                def apply(self, graph:ProjectGraph) -> ProjectGraph:
-                    """個々のパースロジックに従ってグラフデータを更新する"""
-                    return graph
-
-            def parse(graph:ProjectDirectory) -> ProjectDirectory:
-                """全パースロジックを実行してgraphを更新する。Abaqus、Obsidianコネクタのうちファイルの解析に関するロジックはこの枠組みに焼き直す"""
-                for i in parser_list:
-                    graph = i.apply(graph)
-            ```
-        - connectors: AbaqusやObsidianの外部ロジック
-    - run: 従来通りのスクリプトラッパー
-    - service: 複数サービスにまたがるロジックの凝集性を切り出すためのサービス
-    - cli: cliserv用ラッパー。service以外からロジックをインポートすること、中でロジックを実装することを禁止する。
-    - lib: メインのサービスではない薄いutilityロジック
-        - credentials: 秘匿情報の安全な管理
-        - file: sshによるファイル送受信や一括renamのutility
+| コマンド | CLIハンドラ（`cli/graph.py`） | service |
+|---------|------------------------------|---------|
+| `jj init` | `_run_init` | `GraphCommandService.init_config` |
+| `jj parse` | `_run_parse` | `GraphCommandService.parse` + `GraphService` |
+| `jj show` | `_run_show` | `GraphCommandService.show` |
+| `jj export` | `_run_export` | `GraphCommandService.export_unified` / `export_by_format` |
+| `jj info` | `_run_info` | `GraphCommandService.info`（内部で `InfoService`） |
+| `jj diff` | `_run_diff` | `GraphCommandService.diff` |
+| `jj credential` | `_run_credential` | `GraphCommandService.credential_*` |
+| `jj config migrate` | `_run_config_migrate` | `config.migrate_legacy_configs` |
