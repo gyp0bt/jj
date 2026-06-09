@@ -2,7 +2,15 @@
 
 # プラグインコア設計 — CI/Dashboard/Server統一アーキテクチャ
 
-> **ステータス**: 設計仕様（P-1〜P-8実装完了）
+> **⚠️ 廃止（歴史的文書）**: 本文書が記述する `JJApp` / `EventBus` /
+> `CapabilityRegistry` / `PluginManager` / CLI・API拡張（cli_extension /
+> api_extension）は **撤去済み**。CLI が `GraphService` / `GraphQuery` を
+> 直接呼ぶ簡素な構成に回帰した。現行のプラグイン機構は entry_points +
+> `AbstractFileParser` / `AbstractExporter` の `__init_subclass__` 自動登録のみ
+> （`services/sdk/` は cache / plugin_manifest / plugin_registry に縮小）。
+> 最新は `CLAUDE.md` を参照。本文書は設計経緯の記録として残す。
+>
+> **ステータス**: 廃止（旧設計の記録）
 > **作成日**: 2026-03-14
 > **トラック**: T10 プラグイン完全分離・コア共通設計
 

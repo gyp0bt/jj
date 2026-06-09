@@ -3,8 +3,6 @@
 汎用フィルタ（filters.py）とソート（sort.py）の単体テスト。
 props条件式フィルタの汎用化（dict行データ/Nodeオブジェクト両対応）を
 重点的にテストする。
-
-QueryServiceのノードフィルタリング統合テストも含む。
 """
 
 from __future__ import annotations
@@ -620,111 +618,6 @@ class TestGetBaseKey:
         from services.graph.query.sort import get_base_key
 
         assert get_base_key(":key") == "key"
-
-
-# ====================================================================
-# QueryService テスト
-# ====================================================================
-
-
-def _import_query_service():
-    """QueryServiceをインポート
-
-    services.service.__init__.pyが重い依存（chardet/numpy等）を
-    持つため、インポート失敗時はテストをスキップする。
-    """
-    try:
-        from services.service.query_service import QueryService
-
-        return QueryService
-    except ImportError as e:
-        pytest.skip(f"QueryService import failed: {e}")
-
-
-class TestQueryService:
-    """QueryService の統合テスト"""
-
-    def _make_nodes(self):
-        return [
-            Node(id=1, type="go", name="go_idx1", format="inp", properties={"RF3": 3.0, "active": True}),
-            Node(id=2, type="go", name="go_idx2", format="inp", properties={"RF3": 8.0, "active": False}),
-            Node(id=3, type="material", name="Steel", format="inp", properties={"RF3": 5.0, "active": True}),
-            Node(id=4, type="go", name="go_idx3", format="inp", properties={"RF3": 10.0, "active": True}),
-        ]
-
-    def test_no_filter(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(nodes)
-        assert len(result) == 4
-
-    def test_type_filter(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(nodes, type_filter="go")
-        assert len(result) == 3
-
-    def test_active_filter(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(nodes, active_filter=True)
-        assert len(result) == 3
-
-    def test_name_filter(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(nodes, name_filter="idx1")
-        assert len(result) == 1
-        assert result[0].name == "go_idx1"
-
-    def test_name_filter_case_insensitive(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(nodes, name_filter="STEEL")
-        assert len(result) == 1
-        assert result[0].name == "Steel"
-
-    def test_props_filter(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(nodes, query_params={"props.RF3.gt": "5"})
-        assert len(result) == 2
-        names = {n.name for n in result}
-        assert names == {"go_idx2", "go_idx3"}
-
-    def test_combined_filters(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        result = QueryService.filter_nodes(
-            nodes,
-            type_filter="go",
-            query_params={"props.RF3.gt": "5"},
-        )
-        assert len(result) == 2
-        names = {n.name for n in result}
-        assert names == {"go_idx2", "go_idx3"}
-
-    def test_parse_prop_filters_static(self):
-        QueryService = _import_query_service()
-
-        filters = QueryService.parse_prop_filters({"props.RF3.gt": "5"})
-        assert len(filters) == 1
-        assert filters[0] == ("RF3", "gt", 5.0)
-
-    def test_apply_prop_filters_to_nodes_static(self):
-        QueryService = _import_query_service()
-
-        nodes = self._make_nodes()
-        filters = [("RF3", "gt", 5.0)]
-        result = QueryService.apply_prop_filters_to_nodes(nodes, filters)
-        assert len(result) == 2
 
 
 # ====================================================================
