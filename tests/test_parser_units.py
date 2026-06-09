@@ -2787,6 +2787,7 @@ class TestAbstractExporter:
 
     def test_exporter_registry_contains_csv_json(self):
         """CSV/JSONエクスポーターがレジストリに登録されていること"""
+        import services.export.connectors  # noqa: F401  組み込みエクスポーター登録トリガー
         from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
