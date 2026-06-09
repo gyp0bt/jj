@@ -4,10 +4,10 @@
 type/status/activeの基本フィルタに加え、プロパティ条件式
 （props.KEY.OPERATOR=VALUE）による数値比較フィルタを汎用的に扱う。
 
-ダッシュボード（services/dashboard）とREST API（services/api）の
-両方から利用される共通フィルタ層。
+GraphQuery のデータ供給メソッドや UI 層（services/dashboard）から利用される
+共通フィルタ層。
 
-[READMEへ戻る](../../../README.md)
+[READMEへ戻る](../../../../README.md)
 """
 
 from __future__ import annotations
@@ -168,7 +168,7 @@ def apply_saved_view_filters(rows: list[dict[str, Any]], filters: dict[str, Any]
 def saved_view_filters_to_provider_filters(
     filters: dict[str, Any],
 ) -> dict[str, Any]:
-    """保存済みビューのフィルタをDashboardDataProvider.get_*のfilters形式に変換"""
+    """保存済みビューのフィルタを GraphQuery.get_* の filters 形式に変換"""
     result: dict[str, Any] = {}
     for key, value in filters.items():
         result[key] = value

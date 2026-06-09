@@ -20,9 +20,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from jj.services.dashboard.data_provider import DashboardDataProvider
 from jj.services.dashboard.widgets import try_render_aggrid
 from jj.services.graph import GraphService
+from jj.services.graph.query import GraphQuery
 
 X_KEY = "RF.U3-REFJIG"
 Y_KEY = "RF.RF3-REFJIG"
@@ -30,15 +30,15 @@ DISPLAY_COLUMNS = ["id", "name", "idx", "v", "radius"]
 
 
 @st.cache_resource
-def load_provider() -> DashboardDataProvider:
+def load_query() -> GraphQuery:
     svc = GraphService()
     gm = svc.load(resolve_externalized=True)
-    return DashboardDataProvider(graph=gm, project_root=Path("./"))
+    return GraphQuery(gm, project_root=Path("./"), vocab=svc.config.vocab)
 
 
-def build_go_table(provider: DashboardDataProvider) -> pd.DataFrame:
+def build_go_table(query: GraphQuery) -> pd.DataFrame:
     """ABQ inp の go_ ノードをプロパティ展開した DataFrame に変換"""
-    rows = provider.get_go_table(filters={"type": "ABQ inp"})
+    rows = query.get_go_table(filters={"type": "ABQ inp"})
     all_cols: set[str] = set()
     for r in rows:
         all_cols.update(r)
@@ -53,8 +53,8 @@ def main() -> None:
     st.set_page_config(page_title="応力-ひずみ", page_icon="📈", layout="wide")
     st.title("📈 応力–ひずみ曲線")
 
-    provider = load_provider()
-    df = build_go_table(provider)
+    query = load_query()
+    df = build_go_table(query)
     if df.empty:
         st.warning("ABQ inp ノードが見つかりません。`jj parse` を実行してください。")
         return
@@ -85,7 +85,7 @@ def main() -> None:
 
     fig = go.Figure()
     for node_id, row in df_filtered.iterrows():
-        xy = provider.get_array_plot_data(node_id=int(node_id), x_key=X_KEY, y_keys=[Y_KEY])
+        xy = query.get_array_plot_data(node_id=int(node_id), x_key=X_KEY, y_keys=[Y_KEY])
         if xy is None:
             continue
         series = xy["series"][0]

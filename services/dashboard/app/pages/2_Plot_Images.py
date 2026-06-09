@@ -13,32 +13,31 @@ from pathlib import Path
 
 import streamlit as st
 
-from jj.services.dashboard.data_provider import DashboardDataProvider
-from jj.services.dashboard.images import group_images_by_composite_key
 from jj.services.graph import GraphService
+from jj.services.graph.query import GraphQuery, group_images_by_composite_key
 
 
 @st.cache_resource
-def load_provider() -> DashboardDataProvider:
+def load_query() -> GraphQuery:
     svc = GraphService()
     gm = svc.load(resolve_externalized=True)
-    return DashboardDataProvider(graph=gm, project_root=Path("./"))
+    return GraphQuery(gm, project_root=Path("./"), vocab=svc.config.vocab)
 
 
 def main() -> None:
     st.set_page_config(page_title="画像", page_icon="🖼️", layout="wide")
     st.title("🖼️ 画像ギャラリー")
 
-    provider = load_provider()
+    query = load_query()
     project_root = Path("./").resolve()
 
     source = st.sidebar.radio("ソース", ["出力画像 (has_output)", "プロパティ画像"])
     cols_per_row = st.sidebar.slider("列数", min_value=1, max_value=8, value=4)
 
     if source.startswith("出力"):
-        images = provider.get_output_images()
+        images = query.get_output_images()
     else:
-        images = provider.get_property_images()
+        images = query.get_property_images()
 
     if not images:
         st.info("画像が見つかりませんでした。")

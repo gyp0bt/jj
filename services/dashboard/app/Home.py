@@ -16,16 +16,16 @@ from pathlib import Path
 
 import streamlit as st
 
-from jj.services.dashboard.data_provider import DashboardDataProvider
 from jj.services.graph import GraphService
+from jj.services.graph.query import GraphQuery
 
 
 @st.cache_resource
-def load_provider() -> DashboardDataProvider:
-    """カレントディレクトリのプロジェクトグラフからプロバイダを構築（キャッシュ）"""
+def load_query() -> GraphQuery:
+    """カレントディレクトリのプロジェクトグラフから GraphQuery を構築（キャッシュ）"""
     svc = GraphService()
     gm = svc.load(resolve_externalized=True)
-    return DashboardDataProvider(graph=gm, project_root=Path("./"))
+    return GraphQuery(gm, project_root=Path("./"), vocab=svc.config.vocab)
 
 
 def main() -> None:
@@ -43,20 +43,20 @@ def main() -> None:
         st.rerun()
 
     try:
-        provider = load_provider()
+        query = load_query()
     except Exception as e:  # noqa: BLE001 — UI層なので例外を表示して継続
         st.error(f"グラフデータの読み込みに失敗しました: {e}")
         st.info("`jj parse` を実行してグラフデータ（.j2/storage/graph.yaml）を生成してください。")
         return
 
-    if not provider.graph.nodes:
+    if not query.graph.nodes:
         st.warning("グラフデータが空です。`jj parse` を実行してください。")
         return
 
-    status = provider.get_status_summary()
+    status = query.get_status_summary()
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("総ノード数", len(provider.graph.nodes))
-    c2.metric("総リレーション数", len(provider.graph.relations))
+    c1.metric("総ノード数", len(query.graph.nodes))
+    c2.metric("総リレーション数", len(query.graph.relations))
     c3.metric("go_ ファイル数", status["total"])
     c4.metric("完了", status["completed"])
 

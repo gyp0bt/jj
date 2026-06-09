@@ -137,21 +137,21 @@ dev = ["pytest", "pytest-cov"]
 all = ["jj[pymesh,abaqus,obsidian,dashboard,dev]"]
 ```
 
-### ダッシュボード（`services/dashboard/`）
+### ダッシュボード（データ層は query に統合）
 
-軽量な復活版。フレームワーク（PageComponent / SavedView / connectors）は持たず、
-データ層と最小限の Streamlit ページのみ。
+軽量な復活版。フレームワーク（PageComponent / SavedView / connectors）は持たない。
+**データ層は `services/graph/query/` に統合**し、UI（Streamlit）だけが `services/dashboard/` に残る。
 
-| 要素 | 内容 |
-|------|------|
-| `data_provider.py` | `DashboardDataProvider`（UI非依存。`get_go_table` / `get_array_plot_data` / `get_output_images` 等） |
-| `widgets.py` | `try_render_aggrid`（フィルタ/選択結果を `st.session_state["filtered_df"]` に共有） |
-| `images.py` | 画像のファイル名パラメータによるグルーピング |
-| `app/` | `streamlit run services/dashboard/app/Home.py` で起動するページ群（応力–ひずみ / 画像ギャラリー） |
+| 要素 | 場所 | 内容 |
+|------|------|------|
+| データ供給 | `services/graph/query/graph_query.py` | `GraphQuery` にデータ供給メソッドを統合（`get_go_table` / `get_array_plot_data` / `get_output_images` / `get_status_summary` 等）+ vocab/units 表示変換。UI非依存 |
+| 画像グルーピング | `services/graph/query/images.py` | 画像ファイル名パラメータによる複合キーグルーピング |
+| UIウィジェット | `services/dashboard/widgets.py` | `try_render_aggrid`（フィルタ/選択結果を `st.session_state["filtered_df"]` に共有） |
+| Streamlitアプリ | `services/dashboard/app/` | `streamlit run services/dashboard/app/Home.py`（応力–ひずみ / 画像ギャラリー） |
 
-スクリプトからは `import jj.services.dashboard...` で参照する（`jj/__init__.py` が
-トップレベル `services` を `jj.services` にエイリアスする）。`pip install -e ".[dashboard]"`
-でUI依存を導入。`DashboardDataProvider` 自体はコア依存のみで動作する。
+スクリプトからは `import jj.services.graph.query` で参照する（`jj/__init__.py` が
+トップレベル `services` を `jj.services` にエイリアス）。`pip install -e ".[dashboard]"`
+でUI依存を導入。`GraphQuery` 自体はコア依存のみで動作する。
 
 ### default-config.yaml（最小版）
 
