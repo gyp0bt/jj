@@ -18,11 +18,22 @@ class MyParser(AbstractFileParser):
         return graph
 ```
 
+## どのパーサーがどこで何をしているか追う（自動登録の所在問題）
+
+自動登録は便利な反面「実装がどのファイルにあるか分からない」という問題を生む。
+そこで以下でパイプラインを可視化できる:
+
+- `format_pipeline_plan()` — priority順に「パーサー名・定義ファイル:行・タスク
+  （docstring1行目）」の一覧を文字列で返す。`jj parse --explain` で表示。
+- `parse(..., trace=True)`（`jj parse --trace` / 環境変数 `JJ_PARSE_TRACE=1`）—
+  実行しながら各パーサーの定義ファイル:行・ノード/リレーション増分・所要時間を出力。
+
 [READMEへ戻る](../../README.md)
 """
 
 from __future__ import annotations
 
+import inspect
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
@@ -391,6 +402,76 @@ def clear_parser_registry() -> None:
     _parser_registry.clear()
 
 
+def parser_location(cls: type) -> str:
+    """パーサークラスが定義されているファイルと行番号を "path:line" で返す。
+
+    自動登録（__init_subclass__）で「どこに実装があるか分からない」問題を
+    解消するためのヘルパー。パスは可能ならカレントディレクトリからの相対パス。
+    """
+    try:
+        src = inspect.getsourcefile(cls) or inspect.getfile(cls)
+    except (TypeError, OSError):
+        return f"{getattr(cls, '__module__', '?')} (場所不明)"
+    try:
+        line = inspect.getsourcelines(cls)[1]
+    except (OSError, TypeError):
+        line = 0
+    path = Path(src)
+    try:
+        path = path.relative_to(Path.cwd())
+    except ValueError:
+        pass
+    return f"{path}:{line}"
+
+
+def parser_task(cls: type) -> str:
+    """パーサーの「タスク」= docstring の1行目を返す（なければクラス名）。"""
+    doc = inspect.getdoc(cls)
+    if doc:
+        first = doc.strip().splitlines()[0].strip()
+        if first:
+            return first
+    return cls.__name__
+
+
+def describe_registry(full_mode: bool = True) -> list[dict[str, object]]:
+    """登録済みパーサーを実行順（priority昇順）で記述したリストを返す。
+
+    各要素: {priority, name, location, task, requires_full}。
+    full_mode=False の場合、requires_full=True のパーサーは除外する。
+    """
+    eligible = [c for c in _parser_registry if full_mode or not c.requires_full]
+    ordered = sorted(eligible, key=lambda c: (c.priority, c.__name__))
+    return [
+        {
+            "priority": c.priority,
+            "name": c.__name__,
+            "location": parser_location(c),
+            "task": parser_task(c),
+            "requires_full": c.requires_full,
+        }
+        for c in ordered
+    ]
+
+
+def format_pipeline_plan(full_mode: bool = True) -> str:
+    """パーサーパイプラインを priority順の一覧文字列に整形して返す。
+
+    `jj parse --explain` から呼ばれ、「誰が・どのファイルで・何をするか」を一望できる。
+    """
+    rows = describe_registry(full_mode=full_mode)
+    if not rows:
+        return "（登録済みパーサーがありません。プラグインがロードされていない可能性があります）"
+    mode = "full" if full_mode else "lite"
+    lines = [f"パーサーパイプライン（{mode}, 実行順 / 全{len(rows)}段）:"]
+    for r in rows:
+        flag = " [full]" if r["requires_full"] else ""
+        lines.append(f"  [{r['priority']:>3}] {r['name']}{flag}")
+        lines.append(f"        ファイル: {r['location']}")
+        lines.append(f"        タスク  : {r['task']}")
+    return "\n".join(lines)
+
+
 def _group_parsers_by_priority(
     parsers: list[type[AbstractFileParser]],
 ) -> list[list[type[AbstractFileParser]]]:
@@ -412,6 +493,7 @@ def parse(
     debug: bool = False,
     parallel: bool = False,
     max_workers: int | None = None,
+    trace: bool | None = None,
 ) -> ProjectGraph:
     """全登録パーサーをpriority順に適用する
 
@@ -421,46 +503,66 @@ def parse(
         debug: デバッグモード（True: パーサーエラーをraise）
         parallel: Trueの場合、同一priorityグループ内のパーサーを並列実行する
         max_workers: 並列実行時のワーカー数（Noneでcpu_count()ベースの自動決定）
+        trace: Trueで各パーサーの定義ファイル:行・ノード/リレーション増分・所要時間を
+               stderrに出力する。Noneのときは環境変数 JJ_PARSE_TRACE で判定。
 
     Returns:
         全パーサー適用後のProjectGraph
     """
+    import os
     import sys
     import time
 
-    # priorityでグルーピング
+    if trace is None:
+        trace = os.environ.get("JJ_PARSE_TRACE", "").strip().lower() in ("1", "true", "yes")
+
     eligible = [cls for cls in _parser_registry if full_mode or not cls.requires_full]
     groups = _group_parsers_by_priority(eligible)
     node_count = len(graph.nodes) or 1  # ゼロ除算防止
 
-    for group in groups:
-        # print([i.__name__ for i in group])
-        if parallel and len(group) > 1:
-            print([i.__name__ for i in group])
-            graph = _run_parser_group_parallel(graph, group, debug=debug, max_workers=max_workers)
-        else:
-            for parser_cls in group:
-                print(parser_cls.__name__)
-                start_time = time.monotonic()
-                try:
-                    graph = parser_cls().apply(graph)
-                except Exception as e:
-                    if debug:
-                        raise
-                    print(
-                        f"警告: {parser_cls.__name__} でエラーが発生しました: {e}",
-                        file=sys.stderr,
-                    )
-                    continue
-                elapsed = time.monotonic() - start_time
+    if trace:
+        mode = "full" if full_mode else "lite"
+        print(f"=== parse pipeline trace ({mode}, {len(eligible)}段） ===", file=sys.stderr)
 
-                if not full_mode and elapsed > 0 and (elapsed / node_count) > 0.1:
-                    print(
-                        f"警告: {parser_cls.__name__} の実行に {elapsed:.1e}秒かかりました"
-                        f"（{elapsed / node_count:.1e}秒/ファイル）。"
-                        f"--fullオプションでの実行を推奨します。",
-                        file=sys.stderr,
-                    )
+    for group in groups:
+        if parallel and len(group) > 1:
+            if trace:
+                names = ", ".join(c.__name__ for c in group)
+                print(f"[{group[0].priority:>3}] (parallel) {names}", file=sys.stderr)
+            graph = _run_parser_group_parallel(graph, group, debug=debug, max_workers=max_workers)
+            continue
+        for parser_cls in group:
+            n0, r0 = len(graph.nodes), len(graph.relations)
+            start_time = time.monotonic()
+            try:
+                graph = parser_cls().apply(graph)
+            except Exception as e:
+                if debug:
+                    raise
+                print(
+                    f"警告: {parser_cls.__name__} でエラーが発生しました: {e}",
+                    file=sys.stderr,
+                )
+                continue
+            elapsed = time.monotonic() - start_time
+
+            if trace:
+                dn = len(graph.nodes) - n0
+                dr = len(graph.relations) - r0
+                print(
+                    f"[{parser_cls.priority:>3}] {parser_cls.__name__}  ({parser_location(parser_cls)})\n"
+                    f"        {parser_task(parser_cls)}\n"
+                    f"        ノード {dn:+d} / リレーション {dr:+d} / {elapsed:.3f}s",
+                    file=sys.stderr,
+                )
+
+            if not full_mode and elapsed > 0 and (elapsed / node_count) > 0.1:
+                print(
+                    f"警告: {parser_cls.__name__} の実行に {elapsed:.1e}秒かかりました"
+                    f"（{elapsed / node_count:.1e}秒/ファイル）。"
+                    f"--fullオプションでの実行を推奨します。",
+                    file=sys.stderr,
+                )
 
     return graph
 
@@ -489,9 +591,6 @@ def _run_parser_group_parallel(
     """
     import sys
     from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    names = ", ".join(cls.__name__ for cls in group)
-    print(f"[parallel] {names}")
 
     def _apply_parser(parser_cls: type[AbstractFileParser]) -> None:
         parser_cls().apply(graph)

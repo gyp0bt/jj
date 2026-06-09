@@ -144,6 +144,7 @@ class GraphCommandService:
         full_mode: bool = False,
         max_depth: int | None = None,
         debug: bool = False,
+        trace: bool = False,
     ) -> ParseResult:
         """プロジェクトをパースしてサマリーを返却
 
@@ -165,7 +166,9 @@ class GraphCommandService:
         if output_file is None:
             output_file = f"graph.{format}"
 
-        graph, save_path = self._graph_service.parse_and_save(filename=output_file, full_mode=full_mode, debug=debug)
+        graph, save_path = self._graph_service.parse_and_save(
+            filename=output_file, full_mode=full_mode, debug=debug, trace=trace
+        )
         summary = self._graph_service.summary(graph)
 
         return ParseResult(

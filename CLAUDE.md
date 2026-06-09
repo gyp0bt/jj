@@ -45,12 +45,16 @@ jj/                            # プロジェクトルート
 │       ├── parse/             # パーサー群
 │       └── export.py          # エクスポーター
 ├── services/                  # メインロジック
-│   ├── cli/                   # CLIエントリポイント
-│   ├── graph/                 # グラフサービス
+│   ├── cli/                   # CLIエントリポイント（jj = services.cli:main）
+│   ├── service/               # CLIビジネスロジック（GraphCommand/Info/RunCommand）
+│   ├── graph/                 # GraphService + query（データ供給層）
 │   ├── parse/                 # パーサー共通（後方互換re-exportあり）
 │   │   └── parsers/           # 組み込みパーサー
 │   ├── export/                # エクスポーター共通
-│   └── run/                   # Runサービス
+│   ├── run/                   # Runサービス（実行＋RunQueryService）
+│   ├── dashboard/             # Streamlit UI（widgets + app/）
+│   ├── lib/                   # 小物（selection, credentials）
+│   └── sdk/                   # プラグインSDK（cache, plugin_manifest/registry）
 ├── shared/                    # 共有パッケージ（テストアセット）
 ├── tests/                     # テストスイート
 ├── docs/                      # ドキュメント
@@ -76,13 +80,26 @@ jj/                            # プロジェクトルート
 
 ```
 AbstractFileParser
-  ├── __init_subclass__() で自動登録
-  ├── priority: int で実行順序制御
+  ├── __init_subclass__() で自動登録（_parser_registry へ）
+  ├── priority: int で実行順序制御（小さいほど先。同値はグループ）
+  ├── requires_full: bool（True は --full 時のみ実行）
   ├── apply(project_graph) を各サブクラスが実装
   └── plugins/{solver}/parse/ 配下に分散
 ```
 
 同パターンを AbstractExporter にも適用。
+
+#### 自動登録の所在を追う（「どこに実装があるか分からない」対策）
+
+自動登録は便利な反面、実装の所在が見えにくい。パイプラインは可視化できる:
+
+| 手段 | 効果 |
+|------|------|
+| `jj parse --explain` | パースせず、priority順に「パーサー名・定義ファイル:行・タスク（docstring1行目）」を一覧表示 |
+| `jj parse --trace` / `JJ_PARSE_TRACE=1` | 実行しながら各パーサーの定義ファイル:行・ノード/リレーション増分・所要時間を出力 |
+| `plugins.base.parser.format_pipeline_plan()` / `describe_registry()` / `parser_location(cls)` | 上記をコードから取得（`services.parse.base` からも re-export） |
+
+パーサーの **docstring 1行目がそのまま「タスク」表示**になるため、1行目に役割を書く。
 
 ### プラグイン拡張パターン（v0.2.1）
 

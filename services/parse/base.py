@@ -21,8 +21,12 @@ from plugins.base.parser import (
     _parse_prop_token,
     _run_parser_group_parallel,
     clear_parser_registry,
+    describe_registry,
+    format_pipeline_plan,
     get_parser_registry,
     parse,
+    parser_location,
+    parser_task,
 )
 
 __all__ = [
@@ -39,6 +43,10 @@ __all__ = [
     "_parse_prop_token",
     "_run_parser_group_parallel",
     "clear_parser_registry",
+    "describe_registry",
+    "format_pipeline_plan",
     "get_parser_registry",
     "parse",
+    "parser_location",
+    "parser_task",
 ]
