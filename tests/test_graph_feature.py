@@ -2281,17 +2281,18 @@ class TestCliTopLevelCommands:
     def _import_graph_module():
         """cli.graphをインポート（失敗時はpytest.skipで中断）"""
         try:
-            import services.cli.graph as mod
+            import services.cli.commands as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
-            pytest.skip(f"cli.graph import failed: {e}")
+            pytest.skip(f"cli.commands import failed: {e}")
 
     def test_top_level_graph_commands_defined(self):
-        """トップレベルグラフコマンドが定義されている"""
+        """コマンドレジストリと登録/実行関数が定義されている"""
         mod = self._import_graph_module()
-        assert callable(mod.add_top_level_graph_commands)
-        assert callable(mod.run_top_level_graph_command)
+        assert callable(mod.add_commands)
+        assert callable(mod.run_command)
+        assert any(c.name == "parse" for c in mod.COMMANDS)
 
     def test_add_init_args(self):
         """init引数が正しく定義される"""
@@ -2340,7 +2341,7 @@ class TestCliTopLevelCommands:
         mod = self._import_graph_module()
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers(dest="cmd")
-        mod.add_top_level_graph_commands(sub)
+        mod.add_commands(sub)
         args = parser.parse_args(["parse"])
         assert args.cmd == "parse"
 
@@ -2766,11 +2767,11 @@ class TestExportParse:
     @staticmethod
     def _import_graph_module():
         try:
-            import services.cli.graph as mod
+            import services.cli.commands as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
-            pytest.skip(f"cli.graph import failed: {e}")
+            pytest.skip(f"cli.commands import failed: {e}")
 
     def test_export_parse_flag_exists(self):
         """export --parse引数がパーサーに定義されている"""
@@ -2879,11 +2880,11 @@ class TestInfoCommandEnhanced:
     @staticmethod
     def _import_graph_module():
         try:
-            import services.cli.graph as mod
+            import services.cli.commands as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
-            pytest.skip(f"cli.graph import failed: {e}")
+            pytest.skip(f"cli.commands import failed: {e}")
 
     def test_info_args_multiple_filenames(self):
         """ファイル名を複数指定できる"""
@@ -2958,11 +2959,11 @@ class TestDiffCommand:
     @staticmethod
     def _import_graph_module():
         try:
-            import services.cli.graph as mod
+            import services.cli.commands as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
-            pytest.skip(f"cli.graph import failed: {e}")
+            pytest.skip(f"cli.commands import failed: {e}")
 
     def test_diff_args(self):
         """diffコマンドの引数パース"""
@@ -3021,11 +3022,11 @@ class TestExportCSVJSON:
     @staticmethod
     def _import_graph_module():
         try:
-            import services.cli.graph as mod
+            import services.cli.commands as mod
 
             return mod
         except (ValueError, ImportError, ModuleNotFoundError) as e:
-            pytest.skip(f"cli.graph import failed: {e}")
+            pytest.skip(f"cli.commands import failed: {e}")
 
     def test_export_args_csv(self):
         """--target csv オプション"""

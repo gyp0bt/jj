@@ -73,6 +73,8 @@ jj/                            # プロジェクトルート
 | `jj diff` | INP差分比較 |
 | `jj config migrate` | 設定移行 |
 
+サブコマンドは `services/cli/commands.py` の **`COMMANDS` レジストリ**（`Command(name, help, add_args, run)` の1表）で宣言的に定義する。`cli/__init__.py` の `build_parser`/`dispatch` はこの表だけを見るので、「どのコマンドがどの service を呼ぶか」は1ファイルで一望できる。コマンド追加は表に1行足すだけ。旧 `jj g`/`jj graph` 互換ツリーは撤去済み。
+
 ### AbstractFileParser パターン（最重要設計）
 
 ```

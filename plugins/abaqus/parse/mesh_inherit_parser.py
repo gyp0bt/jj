@@ -28,8 +28,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from services.graph.query.sort import get_file_base_name
 from plugins.base.parser import AbstractFileParser
+from services.graph.query.sort import get_file_base_name
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph

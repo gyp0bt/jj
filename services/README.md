@@ -9,7 +9,7 @@
 
 | パッケージ | 責務 |
 |-----------|------|
-| `cli/` | CLIエントリポイント（`jj = services.cli:main`）。argparse解析と出力整形のみ。ロジックは持たず `service/` に委譲する |
+| `cli/` | CLIエントリポイント（`jj = services.cli:main`）。argparse解析と出力整形のみ。ロジックは持たず `service/` に委譲する。サブコマンドは `cli/commands.py` の `COMMANDS` レジストリ（`name → add_args → handler` の1表）で宣言的に定義し、`cli/__init__.py` の `build_parser`/`dispatch` はこの表だけを見る |
 | `service/` | CLIコマンドのビジネスロジック。`GraphCommandService`（init/parse/show/export/info/diff/credential/config）と `InfoService` |
 | `graph/` | `GraphService`（`.j2/storage/` への保存・読込）と `ProjectGraph`（パイプライン用グラフ型）、`query/`（`GraphQuery` データ供給層） |
 | `parse/` | パーサーパイプライン共通基盤と組み込みパーサー（`parsers/`）。プラグインパーサーは `plugins/*/parse/` に分散 |

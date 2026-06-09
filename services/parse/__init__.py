@@ -1,6 +1,5 @@
 # 汎用パーサーサブクラスのimport（コア機能、自動登録用）
 import services.parse.parsers  # noqa: F401
-
 from plugins.base.parser import AbstractFileParser, FileNameParser, parse
 
 from .file_parse import (
