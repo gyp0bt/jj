@@ -31,7 +31,6 @@
 | 01 | コアデータモデル | [01-core-data-model.md](specs/01-core-data-model.md) |
 | 02 | パーサー | [02-parser.md](specs/02-parser.md) |
 | 03 | 設定管理 | [03-config.md](specs/03-config.md) |
-| 04 | runコマンド | [04-run-command.md](specs/04-run-command.md) |
 | 05 | noteコマンド | [05-note-command.md](specs/05-note-command.md) |
 | 06 | fileコマンド | [06-file-command.md](specs/06-file-command.md) |
 | 07 | アダプター | [07-adapter.md](specs/07-adapter.md) |
@@ -47,16 +46,12 @@
 | ドキュメント | 関連トラック |
 |-------------|-------------|
 | [multi-solver.md](specs/multi-solver.md) | M2: マルチソルバー |
-| [run-centric-schema.md](specs/run-centric-schema.md) | M7: Run中心スキーマ |
 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6: ML対応 |
 | [surrogate-model-framework.md](specs/surrogate-model-framework.md) | M6: サロゲートモデル |
 | [neo4j-pipeline-design.md](specs/neo4j-pipeline-design.md) | M3: Neo4j統合 |
-| [parse-run-integration.md](specs/parse-run-integration.md) | M7: Parse-Run統合 |
-| [run-property-traceability.md](specs/run-property-traceability.md) | M7: Runプロパティ |
 | [config-classification.md](specs/config-classification.md) | T2: Config分離 |
 | [vocab-display-time.md](specs/vocab-display-time.md) | M2: 表示名 |
 | [results-directory-restructure.md](specs/results-directory-restructure.md) | M2: results構造 |
-| [plugin-core-design.md](specs/plugin-core-design.md) | T10: プラグインコア設計 |
 | [sync-shared-folder.md](specs/sync-shared-folder.md) | T9: 共有フォルダ同期 |
 | [windows-integration.md](specs/windows-integration.md) | W: Office連携 |
 | [t8-generic-data-management.md](specs/t8-generic-data-management.md) | T8: 汎用データ管理 |

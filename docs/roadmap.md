@@ -83,18 +83,16 @@ T3 (MLダッシュボード) ────────────→ T7 (Ollama 
 | M4: 横断ダッシュボード | 凍結 | jjrv分離により凍結 |
 | M5: ワークフロー自動化 | →T5 | v0.3.0 T5に発展 |
 | M6: ML/最適化タスク | Phase5完了 | パーサー9種, ダッシュボード2ページ, ML使用マニュアル |
-| M7: Run中心スキーマ | Phase6完了 | RunDiscoverer, RunService, Run比較, Neo4j対応 |
+| M7: Run中心スキーマ | 撤去 | run主体データ管理は冗長化のため v0.2.x で全廃 |
 
 ### 関連仕様書
 
 | 仕様書 | 対象 |
 |--------|------|
 | [midterm-plan-v0.3.md](specs/midterm-plan-v0.3.md) | T1-T10全体設計 |
-| [plugin-core-design.md](specs/plugin-core-design.md) | T10 プラグインコア設計 |
 | [sync-shared-folder.md](specs/sync-shared-folder.md) | T9 共有フォルダ同期 |
 | [multi-solver.md](specs/multi-solver.md) | M2 マルチソルバー |
 | [ml-task-roadmap.md](specs/ml-task-roadmap.md) | M6 ML対応 |
-| [run-centric-schema.md](specs/run-centric-schema.md) | M7 Run中心スキーマ |
 | [neo4j-pipeline-design.md](specs/neo4j-pipeline-design.md) | M3 Neo4j統合 |
 
 ---

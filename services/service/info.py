@@ -173,7 +173,7 @@ class InfoService:
         Returns:
             (出力パス, エクスポートされたノード数)
         """
-        from services.export.connectors.csv_json import _export_data
+        from services.export.exporters.csv_json import _export_data
 
         export_config = self.service.config.export
 
@@ -217,6 +217,6 @@ class InfoService:
 
 
 # 後方互換: 旧コードから参照されている場合のために関数をre-export
-from services.export.connectors.csv_json import (  # noqa: F401, E402
+from services.export.exporters.csv_json import (  # noqa: F401, E402
     flatten_properties as _flatten_properties,
 )

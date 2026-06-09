@@ -29,8 +29,8 @@ abaqus_result = "jj_abaqus.parsers.result_parser"
 
 ```toml
 [project.entry-points."jj.plugins"]
-abaqus = "services.plugins.abaqus:register"
-obsidian = "services.plugins.obsidian:register"
+abaqus = "plugins.abaqus:register"
+obsidian = "plugins.obsidian:register"
 ```
 
 [READMEへ戻る](../../../README.md)
@@ -50,8 +50,8 @@ _plugins_loaded: bool = False
 
 # 内蔵プラグインの登録関数リスト（entry_pointsが利用できない環境用のフォールバック）
 _BUILTIN_PLUGINS: list[str] = [
-    "services.plugins.abaqus",
-    "services.plugins.obsidian",
+    "plugins.abaqus",
+    "plugins.obsidian",
 ]
 
 

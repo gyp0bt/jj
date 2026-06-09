@@ -11,7 +11,7 @@ def test_parser_registered():
     # プラグインをインポート（自動登録される）
     import jj_plugin_example  # noqa: F401
 
-    from services.parse.base import get_parser_registry
+    from plugins.base.parser import get_parser_registry
 
     registry = get_parser_registry()
     cls_names = [cls.__name__ for cls in registry]

@@ -2,7 +2,7 @@
 
 外部プラグイン（parseコネクター、エクスポーター）の開発者がインポートすべき
 公開APIを集約する。プラグインはこのパッケージからのみインポートすればよく、
-内部実装（services.graph, services.parse.base 等）を直接参照しなくてよい。
+内部実装（services.graph, plugins.base.parser 等）を直接参照しなくてよい。
 
 使用例:
     from services.sdk import AbstractFileParser, AbstractExporter
@@ -19,7 +19,7 @@ from __future__ import annotations
 from jj_types import GraphModel, Node, Relation
 
 # エクスポーター基盤
-from services.export import AbstractExporter
+from plugins.base.exporter import AbstractExporter
 from services.graph.project_graph import (
     ProjectDirectory,
     ProjectFile,
@@ -28,7 +28,7 @@ from services.graph.project_graph import (
 )
 
 # パーサー基盤
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 
 # キャッシュプロバイダープロトコル
 from services.sdk.cache import CacheProvider

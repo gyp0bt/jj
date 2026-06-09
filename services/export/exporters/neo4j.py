@@ -8,7 +8,7 @@ GraphModelのノードとリレーションをNeo4jに投入する。
   - またはデフォルト値（bolt://localhost:7687, neo4j/password）
 
 使用方法:
-  connector = Neo4jConnector(project_root="/path/to/project")
+  connector = Neo4jClient(project_root="/path/to/project")
   connector.export_graph(graph)
   connector.close()
 
@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from jj_types import GraphModel, Node, Relation
-from services.export import AbstractExporter
+from plugins.base.exporter import AbstractExporter
 from shared.config import Neo4jConfig
 from shared.neo4j_schema import (
     get_neo4j_label,
@@ -124,7 +124,7 @@ def _format_cypher_value(value: Any) -> str:
     return f'"{_escape_cypher_string(str(value))}"'
 
 
-class Neo4jConnector:
+class Neo4jClient:
     """jj GraphModel → Neo4j 書き込み / Cypherエクスポート
 
     Neo4jドライバが利用可能な場合はデータベースに直接書き込む。
@@ -381,7 +381,7 @@ class Neo4jConnector:
 class Neo4jExporter(AbstractExporter):
     """Neo4jデータベース直接エクスポーター（AbstractExporterサブクラス）
 
-    Neo4jConnectorをラップし、AbstractExporterレジストリに登録する。
+    Neo4jClientをラップし、AbstractExporterレジストリに登録する。
     """
 
     format = "neo4j"
@@ -409,7 +409,7 @@ class Neo4jExporter(AbstractExporter):
         if kwargs.get("neo4j_password"):
             neo4j_config.password = kwargs["neo4j_password"]
 
-        connector = Neo4jConnector(project_root=project_root, config=neo4j_config)
+        connector = Neo4jClient(project_root=project_root, config=neo4j_config)
         try:
             stats = connector.export_graph(graph, clear_project=clear_project)
             return {
@@ -442,7 +442,7 @@ class Neo4jExporter(AbstractExporter):
 class CypherExporter(AbstractExporter):
     """Cypherファイルエクスポーター（AbstractExporterサブクラス）
 
-    Neo4jConnector.export_cypher()をラップし、AbstractExporterレジストリに登録する。
+    Neo4jClient.export_cypher()をラップし、AbstractExporterレジストリに登録する。
     """
 
     format = "cypher"
@@ -460,7 +460,7 @@ class CypherExporter(AbstractExporter):
         clear_project = kwargs.get("clear_project", False)
         output_file = kwargs.get("output_file")
 
-        connector = Neo4jConnector(project_root=project_root)
+        connector = Neo4jClient(project_root=project_root)
         try:
             output_path = connector.export_cypher(
                 graph,

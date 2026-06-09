@@ -12,8 +12,8 @@ import pytest
 
 from config import GraphConfig
 from jj_types import GraphModel, Node
-from services.parse.connectors.obsidian import (
-    ObsidianConnector,
+from plugins.obsidian.export import (
+    ObsidianWriter,
     _coerce_property_value,
     from_obsidian_filename,
     get_directory_for_type,
@@ -67,13 +67,13 @@ class TestObsidianNaming:
         assert get_directory_for_type("O-mesh") == "mesh"
 
 
-class TestObsidianConnector:
-    """ObsidianConnectorのテスト"""
+class TestObsidianWriter:
+    """ObsidianWriterのテスト"""
 
     @pytest.fixture
     def connector(self, tmp_path):
         """テスト用コネクタ"""
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     @pytest.fixture
     def sample_node(self):
@@ -191,7 +191,7 @@ class TestObsidianBaseAndGroupFiles:
     @pytest.fixture
     def connector(self, tmp_path):
         """テスト用コネクタ"""
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_export_graph_generates_base_files(self, connector, tmp_path):
         """同一indexのノードが2つ以上あれば.baseファイルが生成される（同一タイプ.baseも生成）"""
@@ -342,7 +342,7 @@ class TestObsidianFrontmatterProperties:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_frontmatter_has_node_type(self, connector):
         """frontmatterにnode_typeが含まれる"""
@@ -399,7 +399,7 @@ class TestObsidianVersionLinks:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_three_versions_link_chain(self, connector, tmp_path):
         """v1→v2, v2→v3, v3→.base のリンクチェーン"""
@@ -546,7 +546,7 @@ class TestFrontmatterPropertyTypes:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_int_properties_in_frontmatter(self, connector):
         """整数値がintとしてfrontmatterに入る（生キーindex/versionを使用）"""
@@ -627,7 +627,7 @@ class TestBaseFilterSimplified:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_base_filter_folder_only(self, connector, tmp_path):
         """フィルターがfolder条件のみであること"""
@@ -691,7 +691,7 @@ class TestBaseOrderIntersection:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_order_includes_intersection_properties(self, connector, tmp_path):
         """orderブロックにグループ共通プロパティが含まれる"""
@@ -757,7 +757,7 @@ class TestSameTypeBaseFiles:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_type_base_file_generated(self, connector, tmp_path):
         """同一タイプのノードが2つ以上あればタイプ.baseが生成される"""
@@ -869,7 +869,7 @@ class TestOverwriteBehavior:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_props_always_overwritten(self, connector, tmp_path):
         """props/のmdファイルはoverwrite=Falseでも上書きされる"""
@@ -907,7 +907,7 @@ class TestVocabPropsUnification:
 
     @pytest.fixture
     def connector(self, tmp_path):
-        return ObsidianConnector(project_root=tmp_path)
+        return ObsidianWriter(project_root=tmp_path)
 
     def test_default_vocab_idx_to_jouken(self, connector):
         """生キーindexがそのままfrontmatterに入る"""
@@ -964,7 +964,7 @@ class TestVocabPropsUnification:
                 "vocab": {"idx": "No.", "v": "Rev"},
             }
         )
-        connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
+        connector = ObsidianWriter(project_root=tmp_path, graph_config=config)
         node = Node(
             id=1,
             type="go",
@@ -980,7 +980,7 @@ class TestVocabPropsUnification:
     def test_empty_vocab_falls_back_to_idx_ver(self, tmp_path):
         """vocabが空でも生キーindex/versionで統一"""
         config = GraphConfig.from_dict({"vocab": {}})
-        connector = ObsidianConnector(project_root=tmp_path, graph_config=config)
+        connector = ObsidianWriter(project_root=tmp_path, graph_config=config)
         node = Node(
             id=1,
             type="go",

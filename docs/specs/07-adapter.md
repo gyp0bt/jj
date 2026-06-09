@@ -24,7 +24,7 @@ services/parse/connectors/
 │   ├── mesh.py               # pymesh統合メッシュユーティリティ
 │   └── diff_parser.py        # AbaqusDiffParser
 └── obsidian/
-    ├── __init__.py            # ObsidianConnector, export_graph等
+    ├── __init__.py            # ObsidianWriter, export_graph等
     ├── daily.py               # DailyNote解析ユーティリティ
     └── daily_parser.py        # DailyNoteParser
 ```

@@ -1,14 +1,15 @@
-"""Obsidianコネクタ（後方互換ラッパー）
+"""Obsidian パーサーパッケージ
 
-本体は services.export.connectors.obsidian に移動済み。
-既存コードの互換性のため、ここからre-exportする。
+Obsidian 連携の実体は ``plugins.obsidian.export``（ノード→ノート変換）と
+``plugins.obsidian.parse.daily``（デイリーノート解析）にある。
+本 ``__init__`` は ``plugins.obsidian.export`` の公開シンボルを集約する。
 
 [READMEへ戻る](../../../README.md)
 """
 
 from plugins.obsidian.export import (
     ObsidianConfig,
-    ObsidianConnector,
+    ObsidianWriter,
     _coerce_property_value,
     _split_tag,
     from_obsidian_filename,
@@ -22,7 +23,7 @@ from plugins.obsidian.export import (
 
 __all__ = [
     "ObsidianConfig",
-    "ObsidianConnector",
+    "ObsidianWriter",
     "_coerce_property_value",
     "_split_tag",
     "from_obsidian_filename",

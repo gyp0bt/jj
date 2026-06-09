@@ -1,17 +1,18 @@
-"""jj graph コマンド: グラフデータの管理
+"""jj サブコマンド定義（CLI層）
 
-このモジュールはCLI層のみを担当し、ビジネスロジックはservices.serviceから呼び出します。
+CLI層のみを担当し、ビジネスロジックは services.service から呼び出す。
+各サブコマンドは末尾の COMMANDS レジストリに1行で登録され、
+build_parser / dispatch はこの表だけを見て動作する
+（「どのコマンドがどの service を呼ぶか」の唯一の地図）。
 
-サブコマンド（トップレベル）:
-- jj init: 設定ファイルを初期化
-- jj parse: プロジェクトをスキャンしてグラフデータを生成・保存
-- jj show: 保存されたグラフデータを表示
-- jj export: グラフデータをObsidian等にエクスポート
-- jj export --parse: parseしてからexport
-- jj info <ファイル名>: ファイルのproperty/relationを表示
-
-旧コマンド（互換性維持）:
-- jj g init / jj g parse / jj g show / jj g export
+- jj init    : 設定ファイルを初期化
+- jj parse   : プロジェクトをスキャンしてグラフデータを生成・保存
+- jj show    : 保存されたグラフデータを表示
+- jj export  : グラフデータをエクスポート（--parse で parse 後に export）
+- jj info    : ファイルのproperty/relationを表示
+- jj diff    : INPキーワードブロック差分
+- jj credential : 認証情報の管理
+- jj config  : 設定ファイル管理（migrate）
 
 [READMEへ戻る](../../README.md)
 """
@@ -20,6 +21,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -307,29 +310,6 @@ def _add_info_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_jobs_args(parser: argparse.ArgumentParser) -> None:
-    """jobsコマンドの引数を追加"""
-    parser.add_argument(
-        "--type",
-        type=str,
-        default=None,
-        help="Run種別で絞り込み（例: cae_job, ml_training, script）",
-    )
-    parser.add_argument(
-        "--status",
-        type=str,
-        default=None,
-        help="Run状態で絞り込み（例: completed, latent, failed）",
-    )
-    parser.add_argument(
-        "-f",
-        "--file",
-        type=str,
-        default=None,
-        help="読み込むグラフファイル名",
-    )
-
-
 def _resolve_file_path(project_root: Path, filename: str) -> Path | None:
     """プロジェクトルート配下でファイルパスを解決する"""
     candidate = project_root / filename
@@ -411,70 +391,9 @@ def _add_credential_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None:
-    """トップレベルのグラフサブコマンドを追加（jj init, jj parse等）"""
-    # jj init
-    init_parser = subparsers.add_parser(
-        "init",
-        help="設定ファイルを初期化（デフォルト設定をコピー）",
-    )
-    _add_init_args(init_parser)
-
-    # jj parse
-    parse_parser = subparsers.add_parser(
-        "parse",
-        help="プロジェクトをスキャンしてグラフデータを生成",
-    )
-    _add_parse_args(parse_parser)
-
-    # jj show
-    show_parser = subparsers.add_parser(
-        "show",
-        help="グラフデータを表示",
-    )
-    _add_show_args(show_parser)
-
-    # jj export
-    export_parser = subparsers.add_parser(
-        "export",
-        help="グラフデータをエクスポート",
-    )
-    _add_export_args(export_parser)
-
-    # jj info
-    info_parser = subparsers.add_parser(
-        "info",
-        help="ファイルのproperty/relationを表示",
-    )
-    _add_info_args(info_parser)
-
-    # jj diff
-    diff_parser = subparsers.add_parser(
-        "diff",
-        help="2つのファイル間のAbaqusキーワードブロック差分を表示",
-    )
-    _add_diff_args(diff_parser)
-
-    # jj jobs
-    jobs_parser = subparsers.add_parser(
-        "jobs",
-        help="ワークスペース内のRUN（ジョブ）一覧を表示",
-    )
-    _add_jobs_args(jobs_parser)
-
-    # jj credential
-    cred_parser = subparsers.add_parser(
-        "credential",
-        help="クレデンシャル（認証情報）の管理",
-    )
-    _add_credential_args(cred_parser)
-
-    # jj config
-    config_parser = subparsers.add_parser(
-        "config",
-        help="設定ファイル管理",
-    )
-    config_sub = config_parser.add_subparsers(dest="config_command")
+def _add_config_args(parser: argparse.ArgumentParser) -> None:
+    """configコマンドの引数を追加"""
+    config_sub = parser.add_subparsers(dest="config_command")
     migrate_parser = config_sub.add_parser(
         "migrate",
         help="レガシー設定（extensions.yaml, prefixes.yaml）をconfig.yamlに統合",
@@ -486,123 +405,34 @@ def add_top_level_graph_commands(subparsers: argparse._SubParsersAction) -> None
     )
 
 
-def add_graph_parser(subparsers: argparse._SubParsersAction) -> None:
-    """graphサブコマンドをパーサーに追加（jj g互換）"""
-    graph_parser = subparsers.add_parser(
-        "g",
-        aliases=["graph"],
-        help="グラフデータの管理",
-        description="プロジェクトのグラフデータを管理します",
-    )
-
-    graph_subparsers = graph_parser.add_subparsers(
-        dest="graph_command",
-        help="グラフサブコマンド",
-    )
-
-    # jj g init
-    init_parser = graph_subparsers.add_parser(
-        "init",
-        help="設定ファイルを初期化（デフォルト設定をコピー）",
-    )
-    _add_init_args(init_parser)
-
-    # jj g parse
-    parse_parser = graph_subparsers.add_parser(
-        "parse",
-        help="プロジェクトをスキャンしてグラフデータを生成",
-    )
-    _add_parse_args(parse_parser)
-
-    # jj g show
-    show_parser = graph_subparsers.add_parser(
-        "show",
-        help="グラフデータを表示",
-    )
-    _add_show_args(show_parser)
-
-    # jj g export
-    export_parser = graph_subparsers.add_parser(
-        "export",
-        help="グラフデータをエクスポート",
-    )
-    _add_export_args(export_parser)
-
-    # jj g info
-    info_parser = graph_subparsers.add_parser(
-        "info",
-        help="ファイルのproperty/relationを表示",
-    )
-    _add_info_args(info_parser)
-
-    # jj g diff
-    diff_parser = graph_subparsers.add_parser(
-        "diff",
-        help="2つのファイル間のAbaqusキーワードブロック差分を表示",
-    )
-    _add_diff_args(diff_parser)
+def _run_config(project_root: Path, args: argparse.Namespace) -> int:
+    """configコマンドを実行（サブコマンドへ委譲）"""
+    if getattr(args, "config_command", None) == "migrate":
+        return _run_config_migrate(project_root, args)
+    print("使用方法: jj config <サブコマンド>")
+    print("  migrate  レガシー設定をconfig.yamlに統合")
+    return 1
 
 
-def run_graph_command(args: argparse.Namespace) -> int:
-    """graphコマンドを実行（jj g経由）"""
-    graph_command = getattr(args, "graph_command", None)
-
-    if graph_command is None:
-        print("使用方法: jj g <サブコマンド>")
-        print("サブコマンド: init, parse, show, export, info, diff")
-        print("詳細: jj g --help")
-        return 1
-
-    project_root = Path.cwd()
-
-    if graph_command == "init":
-        return _run_init(project_root, args)
-    elif graph_command == "parse":
-        return _run_parse(project_root, args)
-    elif graph_command == "show":
-        return _run_show(project_root, args)
-    elif graph_command == "export":
-        return _run_export(project_root, args)
-    elif graph_command == "info":
-        return _run_info(project_root, args)
-    elif graph_command == "diff":
-        return _run_diff(project_root, args)
-    else:
-        print(f"不明なサブコマンド: {graph_command}")
-        return 1
+# =========================================================
+# コマンドレジストリ（「コマンド → service」の唯一の地図）
+# =========================================================
 
 
-def run_top_level_graph_command(cmd: str, args: argparse.Namespace) -> int:
-    """トップレベルのグラフコマンドを実行（jj init/parse/show/export/info/diff/credential）"""
-    project_root = Path.cwd()
+@dataclass(frozen=True)
+class Command:
+    """1つの jj サブコマンドの定義。
 
-    if cmd == "init":
-        return _run_init(project_root, args)
-    elif cmd == "parse":
-        return _run_parse(project_root, args)
-    elif cmd == "show":
-        return _run_show(project_root, args)
-    elif cmd == "export":
-        return _run_export(project_root, args)
-    elif cmd == "info":
-        return _run_info(project_root, args)
-    elif cmd == "diff":
-        return _run_diff(project_root, args)
-    elif cmd == "jobs":
-        return _run_jobs(project_root, args)
-    elif cmd == "credential":
-        return _run_credential(project_root, args)
-    elif cmd == "config":
-        config_command = getattr(args, "config_command", None)
-        if config_command == "migrate":
-            return _run_config_migrate(project_root, args)
-        else:
-            print("使用方法: jj config <サブコマンド>")
-            print("  migrate  レガシー設定をconfig.yamlに統合")
-            return 1
-    else:
-        print(f"不明なコマンド: {cmd}")
-        return 1
+    name     : サブコマンド名（jj <name>）
+    help     : --help 表示文
+    add_args : argparse パーサーに引数を追加する関数
+    run      : (project_root, args) -> 終了コード を返すハンドラ
+    """
+
+    name: str
+    help: str
+    add_args: Callable[[argparse.ArgumentParser], None]
+    run: Callable[[Path, argparse.Namespace], int]
 
 
 # =========
@@ -680,8 +510,8 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
 
     # --explain: パースせずにパイプライン構成（誰が・どのファイルで・何を）を表示
     if getattr(args, "explain", False):
+        from plugins.base.parser import format_pipeline_plan
         from services.graph import GraphService
-        from services.parse.base import format_pipeline_plan
 
         GraphService(project_root)  # プラグインをロードしてレジストリを満たす
         print(format_pipeline_plan(full_mode=full_mode))
@@ -992,53 +822,6 @@ def _format_prop_value(value: Any) -> str:
     return str(value)
 
 
-def _run_jobs(project_root: Path, args: argparse.Namespace) -> int:
-    """jobsサブコマンドを実行 - ワークスペース内のRUN（ジョブ）一覧を表示"""
-    service = GraphCommandService(project_root)
-
-    run_type = getattr(args, "type", None)
-    run_status = getattr(args, "status", None)
-
-    try:
-        result = service.jobs(
-            run_type=run_type,
-            run_status=run_status,
-            graph_filename=getattr(args, "file", None),
-        )
-
-        if result.empty:
-            print("グラフデータが見つかりません。")
-            print("まず 'jj parse' を実行してください。")
-            return 1
-
-        if not result.jobs:
-            filters = []
-            if run_type:
-                filters.append(f"type={run_type}")
-            if run_status:
-                filters.append(f"status={run_status}")
-            suffix = f"（{', '.join(filters)}）" if filters else ""
-            print(f"ジョブが見つかりません{suffix}。")
-            return 0
-
-        print(f"=== ジョブ一覧 ({len(result.jobs)}件) ===\n")
-        for node in result.jobs:
-            run_type_val = node.properties.get("run_type", node.type)
-            status = node.properties.get("run_status", "")
-            started = node.properties.get("started_at", "")
-            print(f"[{node.id}] {node.name}")
-            line = f"    type: {run_type_val}  status: {status}"
-            if started:
-                line += f"  started: {started}"
-            print(line)
-
-        return 0
-
-    except Exception as e:
-        print(f"エラー: {e}", file=sys.stderr)
-        return 1
-
-
 def _run_credential(project_root: Path, args: argparse.Namespace) -> int:
     """credentialサブコマンドを実行 - 認証情報の暗号化保存・表示・削除"""
     cred_cmd = getattr(args, "credential_command", None)
@@ -1157,3 +940,38 @@ def _run_diff(project_root: Path, args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"エラー: {e}", file=sys.stderr)
         return 1
+
+
+# =========================================================
+# コマンドレジストリ（「コマンド → service」の唯一の地図）
+# =========================================================
+# 全 _add_*_args / _run_* 定義後にレジストリを構築する（前方参照を避けるため末尾に置く）。
+# サブコマンドを追加するときはここに Command を1行足すだけ。
+COMMANDS: list[Command] = [
+    Command("init", "設定ファイルを初期化（デフォルト設定をコピー）", _add_init_args, _run_init),
+    Command("parse", "プロジェクトをスキャンしてグラフデータを生成", _add_parse_args, _run_parse),
+    Command("show", "グラフデータを表示", _add_show_args, _run_show),
+    Command("export", "グラフデータをエクスポート", _add_export_args, _run_export),
+    Command("info", "ファイルのproperty/relationを表示", _add_info_args, _run_info),
+    Command("diff", "2つのファイル間のAbaqusキーワードブロック差分を表示", _add_diff_args, _run_diff),
+    Command("credential", "クレデンシャル（認証情報）の管理", _add_credential_args, _run_credential),
+    Command("config", "設定ファイル管理", _add_config_args, _run_config),
+]
+
+_COMMANDS_BY_NAME: dict[str, Command] = {c.name: c for c in COMMANDS}
+
+
+def add_commands(subparsers: argparse._SubParsersAction) -> None:
+    """COMMANDS レジストリから全サブコマンドをパーサーへ登録する。"""
+    for cmd in COMMANDS:
+        parser = subparsers.add_parser(cmd.name, help=cmd.help)
+        cmd.add_args(parser)
+
+
+def run_command(name: str, args: argparse.Namespace) -> int:
+    """COMMANDS レジストリ経由でコマンドを実行する。"""
+    cmd = _COMMANDS_BY_NAME.get(name)
+    if cmd is None:
+        print(f"不明なコマンド: {name}")
+        return 1
+    return cmd.run(Path.cwd(), args)

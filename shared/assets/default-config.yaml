@@ -1,19 +1,72 @@
-# jj デフォルト設定ファイル（最小版）
+# jj デフォルト設定ファイル（Abaqus ワークスペース既定）
 # このファイルは jj の出荷時デフォルト。プロジェクト固有の上書きは
 # .j2/config/config.yaml に記述する（同じキーを書けば上書きされる）。
 #
-# ここには「Streamlitダッシュボード（応力–ひずみ）と jj export が動く最小限」
-# だけを残してある。ここに無いキー（vocab, default-extensions, file-relations,
-# dashboard, obsidian など）は config/__init__.py のスキーマ既定値が使われる。
+# コア（parse/graph）は特定の CAE ソルバーを仮定しない設計に統一済み。
+# 「どの拡張子を入力/結果として扱うか」等のソルバー固有の前提は、コードでは
+# なく "この設定ファイル" が担う。出荷時デフォルトは最も一般的な
+# **Abaqus ワークスペース** を想定して書いてある。別ソルバー（LS-DYNA /
+# OpenFOAM 等）に切り替える場合は、下記の default-extensions / file-relations /
+# path-type-map を差し替えるだけでよい。
+#
+# ここに無いキー（vocab, dashboard, obsidian など）は config/__init__.py の
+# スキーマ既定値が使われる。
 #
 # [READMEへ戻る](../README.md)
+
+# ----- デフォルト拡張子（default-extensions） ----------------------------
+# jj parse のスキャン対象、およびファイル名解析（basename/拡張子判定）の候補。
+# コアは .inp 等をハードコードしないため、Abaqus ワークスペースで扱う拡張子は
+# ここで明示する。前半が Abaqus 固有、後半が汎用（スクリプト/データ/画像）。
+default-extensions:
+  # --- Abaqus ---
+  - .inp        # 入力デック
+  - .odb        # 結果データベース（バイナリ。NO_NODE によりNode化はされない）
+  - .sta        # 解析ステータス
+  - .msg        # メッセージ（収束情報等）
+  - .dat        # データ/プリント出力
+  - .cae        # Abaqus/CAE モデル
+  # --- 汎用（解析ワークフローで併用するファイル） ---
+  - .cas.h5
+  - .dat.h5
+  - .py
+  - .xlsx
+  - .csv
+  - .pptx
+  - .yaml
+  - .md
+  - .json
+  - .sh
+  - .msh
+  - .stp
+  - .step
+  - .png
+  - .gif
+
+# ----- 入力/結果/アセットの対応（file-relations） ------------------------
+# result_of リレーション（入力デック → 結果ファイル）の判定に使う。
+# Abaqus 既定: 入力 .inp、結果 .odb/.sta/.msg/.dat。
+# 同一 basename の入力と結果を結びつける（例: go_idx1_v2.inp → go_idx1_v2.odb）。
+file-relations:
+  input-extensions:
+    - .inp
+  result-extensions:
+    - .odb
+    - .sta
+    - .msg
+    - .dat
+  asset-extensions:
+    - .modfem
+    - .stl
+    - .cdb
+    - .msh
 
 # ----- パス → ファイルタイプ（path-type-map） ----------------------------
 # go_ 配下の *.inp を「ABQ inp」として型付けする。
 # ダッシュボードの type フィルタ（{"type": "ABQ inp"}）と get_go_table が依存。
 # 結果ファイル（.sta/.dat/.odb 等）は「計算結果」にまとめる。
-# ※ 結果データ（RF.*）の抽出は abaqus パーサーが拡張子と file-relations
-#   （スキーマ既定値）で行うため、型名には依存しない。
+# ※ 結果データ（RF.*）の抽出は abaqus パーサーが拡張子と file-relations で
+#   行うため、型名には依存しない。
 path-type-map:
   "**go_* | **go":
     "*.inp": ABQ inp
@@ -36,3 +89,24 @@ ignore:
 # CSV単位の表示形式: header → 列名に [unit] を付加 / row → 1列目に単位行
 export:
   csv-unit-format: header
+
+# ----- Obsidian エクスポート（jj export --format obsidian） ---------------
+# .base（Obsidian Bases）ファイルの既定ビュー。NodeGroup（同一index/同一type）
+# ごとに生成される .base に流し込まれ、各ビューには対象フォルダ限定フィルタと
+# グループ内プロパティ積集合が自動付与される。
+# index/version 昇順で並べる素朴なテーブルビューを既定とする。
+obsidian:
+  default-views:
+    - type: table
+      name: バージョン一覧
+      # order はグループ共通プロパティ（積集合）が自動追記される起点。
+      # ここに書いた index/version が先頭に来る。
+      order:
+        - index
+        - version
+      # sort のキーは生キーに正規化される（idx→index, v/ver→version）。
+      sort:
+        - property: index
+          direction: ASC
+        - property: version
+          direction: ASC

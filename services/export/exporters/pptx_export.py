@@ -21,7 +21,7 @@ from pptx import Presentation
 from pptx.util import Emu, Inches, Pt
 
 from jj_types import GraphModel
-from services.export import AbstractExporter
+from plugins.base.exporter import AbstractExporter
 
 # ================================================================
 # 定数（スライドレイアウト・マージン）

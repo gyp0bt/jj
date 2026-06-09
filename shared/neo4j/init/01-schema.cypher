@@ -14,10 +14,6 @@ FOR (n:JJFile) REQUIRE (n.project, n.jj_id) IS UNIQUE;
 CREATE CONSTRAINT jjmaterial_unique IF NOT EXISTS
 FOR (n:JJMaterial) REQUIRE (n.project, n.jj_id) IS UNIQUE;
 
-// JJRun: プロジェクト内でjj_idが一意
-CREATE CONSTRAINT jjrun_unique IF NOT EXISTS
-FOR (n:JJRun) REQUIRE (n.project, n.jj_id) IS UNIQUE;
-
 // JJTag: プロジェクト内でjj_idが一意
 CREATE CONSTRAINT jjtag_unique IF NOT EXISTS
 FOR (n:JJTag) REQUIRE (n.project, n.jj_id) IS UNIQUE;
@@ -36,9 +32,6 @@ CREATE INDEX jjfile_project IF NOT EXISTS FOR (n:JJFile) ON (n.project);
 // JJMaterial検索用
 CREATE INDEX jjmaterial_name IF NOT EXISTS FOR (n:JJMaterial) ON (n.name);
 CREATE INDEX jjmaterial_project IF NOT EXISTS FOR (n:JJMaterial) ON (n.project);
-
-// JJRun検索用
-CREATE INDEX jjrun_project IF NOT EXISTS FOR (n:JJRun) ON (n.project);
 
 // === メッシュ関連プロパティインデックス ===
 

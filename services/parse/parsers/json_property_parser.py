@@ -24,7 +24,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from jj_types import Node
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph

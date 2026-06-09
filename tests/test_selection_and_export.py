@@ -518,17 +518,17 @@ class TestJsonExportFlatten:
 # =========
 class TestParseFullMode:
     def test_requires_full_default_false(self):
-        from services.parse.base import AbstractFileParser
+        from plugins.base.parser import AbstractFileParser
 
         assert AbstractFileParser.requires_full is False
 
     def test_mesh_parser_requires_full(self):
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         assert AbaqusMeshParser.requires_full is True
 
     def test_parse_skips_full_parsers_in_lite_mode(self):
-        from services.parse.base import get_parser_registry
+        from plugins.base.parser import get_parser_registry
 
         registry = get_parser_registry()
         full_parsers = [p for p in registry if p.requires_full]
@@ -818,13 +818,13 @@ class TestJsonPropertyFlatten:
 # =========
 class TestMeshInheritParser:
     def test_parser_registered(self):
-        from services.parse.base import get_parser_registry
+        from plugins.base.parser import get_parser_registry
 
         registry = get_parser_registry()
         assert any(p.__name__ == "MeshInheritParser" for p in registry)
 
     def test_priority_after_includes_and_mesh(self):
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         assert MeshInheritParser.priority > 40  # IncludesRelationParser
         assert MeshInheritParser.priority > 80  # AbaqusMeshParser

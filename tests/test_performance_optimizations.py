@@ -101,7 +101,7 @@ class TestProjectGraphIndex:
         """get_nodes_by_categoryがインデックスを使用して正しい結果を返す"""
         pg = ProjectGraph(nodes=[], relations=[], project_root=ASSET_DIR, config=config)
         n1 = Node(id=1, type="go", name="a", format="inp", properties={}, category=NodeCategory.FILE)
-        n2 = Node(id=2, type="cae_job", name="run1", format="", properties={}, category=NodeCategory.RUN)
+        n2 = Node(id=2, type="dataset", name="d1", format="", properties={}, category=NodeCategory.DATA)
         n3 = Node(id=3, type="go", name="c", format="inp", properties={}, category=NodeCategory.FILE)
         pg.add_node(n1)
         pg.add_node(n2)
@@ -110,8 +110,8 @@ class TestProjectGraphIndex:
         file_nodes = pg.get_nodes_by_category(NodeCategory.FILE)
         assert len(file_nodes) == 2
 
-        run_nodes = pg.get_nodes_by_category(NodeCategory.RUN)
-        assert len(run_nodes) == 1
+        data_nodes = pg.get_nodes_by_category(NodeCategory.DATA)
+        assert len(data_nodes) == 1
 
     def test_remove_nodes_rebuilds_all_indexes(self, config: GraphConfig):
         """remove_nodesが全インデックスを再構築する"""

@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from jj_types import Node
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph

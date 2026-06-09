@@ -336,134 +336,23 @@ class FileParse:
         return FileGroup(tuple(items), file_type=file_type, index=index)
 
 
-@dataclass(frozen=True)
-class ObsidianMap:
-    true_file_path: str | Path
-    notes_dir: str | Path = "notes/props"
-    base_path: str | Path = "notes/bases"
-    extension_candidates: Iterable[str] | None = None
-
-    def _file_parse(self) -> FileParse:
-        return FileParse(self.true_file_path, extension_candidates=self.extension_candidates)
-
-    def get_base_path(self) -> Path:
-        return Path(self.base_path)
-
-    def to_frontmatter_path(
-        self,
-        true_file_path: str | Path | None = None,
-        notes_dir: str | Path | None = None,
-    ) -> Path:
-        target_path = true_file_path or self.true_file_path
-        parser = FileParse(target_path, extension_candidates=self.extension_candidates)
-        path = Path(target_path)
-        if path.is_dir():
-            basename = path.name
-        else:
-            basename, ext = parser._split_extension()
-            if ext:
-                basename = f"{basename}.{ext.lstrip('.')}"  # .inp → .inp.md に変更
-        base_dir = Path(notes_dir or self.notes_dir)
-        return base_dir / f"{basename}.md"
-
-    def get_frontmatter_path(self) -> Path:
-        return self.to_frontmatter_path()
-
-
-@dataclass(frozen=True)
-class ObsidianFileParse(FileParse):
-    notes_dir: str | Path = "notes/props"
-    base_path: str | Path = "notes/bases"
-
-    def _obsidian_map(self) -> ObsidianMap:
-        return ObsidianMap(
-            self.true_file_path,
-            notes_dir=self.notes_dir,
-            base_path=self.base_path,
-            extension_candidates=self.extension_candidates,
-        )
-
-    def get_frontmatter_path(self) -> Path:
-        return self._obsidian_map().get_frontmatter_path()
-
-    def get_base_path(self) -> Path:
-        return self._obsidian_map().get_base_path()
-
-    def to_frontmatter_path(self) -> Path:
-        return self._obsidian_map().to_frontmatter_path()
-
-
 # ===========================================================================
 # レガシー関数インターフェース（旧file_utils.pyから統合）
 # ===========================================================================
 
-# 拡張子候補リスト
-TARGET_EXTENSIONS: list[str] = [
-    ".cas.h5",
-    ".dat.h5",
-    ".aedt.batchinfo",
-    ".py",
-    ".xlsx",
-    ".csv",
-    ".pptx",
-    ".yaml",
-    ".md",
-    ".json",
-    ".sh",
-    ".msh",
-    ".modfem",
-    ".stp",
-    ".step",
-    ".catPart",
-    ".dxf",
-    ".dwg",
-    ".png",
-    ".gif",
-    ".inp",
-    ".odb",
-    ".sta",
-]
 
-
-def normalize_extension_to_inp(filepath: str) -> tuple[str, str]:
-    """拡張子を正規化して、.inp形式に変換する
-
-    Args:
-        filepath: ファイルパス
-
-    Returns:
-        (拡張子を.inpに置き換えたパス, 元の拡張子)
-
-    Examples:
-        >>> normalize_extension_to_inp("go_test.cas.h5")
-        ('go_test.inp', '.cas.h5')
-        >>> normalize_extension_to_inp("go_test.inp")
-        ('go_test.inp', '.inp')
-        >>> normalize_extension_to_inp("go_test")
-        ('go_test', '')
-    """
-    if "." not in filepath:
-        return filepath, ""
-
-    ext = None
-    for ext_i in TARGET_EXTENSIONS:
-        if filepath.endswith(ext_i):
-            ext = ext_i
-            break
-
-    if ext is None:
-        ext = "." + filepath.split(".")[-1]
-
-    # .inpに置き換え
-    normalized = filepath.replace(ext, ".inp")
-    return normalized, ext
-
-
-def get_basename_with_ext(filepath: str) -> tuple[str, str]:
+def get_basename_with_ext(
+    filepath: str, extension_candidates: Iterable[str] | None = None
+) -> tuple[str, str]:
     """ファイルパスからbasename（拡張子なし）と拡張子を取得
 
+    拡張子は extension_candidates（未指定時は DEFAULT_EXTENSIONS）に対する最長一致で
+    判定し、候補に無い場合は最後のドット以降を拡張子とみなす。特定ソルバーの拡張子
+    （.inp 等）をハードコードせず、config 由来の候補で駆動できる。
+
     Args:
         filepath: ファイルパス
+        extension_candidates: 認識する拡張子候補（例: config.default_extensions）
 
     Returns:
         (basename, 拡張子)
@@ -474,23 +363,18 @@ def get_basename_with_ext(filepath: str) -> tuple[str, str]:
         >>> get_basename_with_ext("go_test.cas.h5")
         ('go_test', '.cas.h5')
     """
-    normalized, ext = normalize_extension_to_inp(filepath)
-    if ext:
-        # .inpを除去してbasenameを取得
-        basename = normalized[:-4]
-    else:
-        basename = normalized
-
-    # パス部分を除去
-    basename = basename.split("/")[-1].split("\\")[-1]
+    name = filepath.split("/")[-1].split("\\")[-1]
+    ext = _match_extension(name, extension_candidates)
+    basename = name[: -len(ext)] if ext else name
     return basename, ext
 
 
-def get_basename(filepath: str) -> str:
+def get_basename(filepath: str, extension_candidates: Iterable[str] | None = None) -> str:
     """ファイルパスからbasename（拡張子なし）のみを取得
 
     Args:
         filepath: ファイルパス
+        extension_candidates: 認識する拡張子候補（例: config.default_extensions）
 
     Returns:
         basename（拡張子なし）
@@ -499,15 +383,16 @@ def get_basename(filepath: str) -> str:
         >>> get_basename("path/to/go_test.v1.inp")
         'go_test.v1'
     """
-    basename, _ = get_basename_with_ext(filepath)
+    basename, _ = get_basename_with_ext(filepath, extension_candidates)
     return basename
 
 
-def get_group_name(filepath: str) -> str:
+def get_group_name(filepath: str, extension_candidates: Iterable[str] | None = None) -> str:
     """ファイル名からグループ名を抽出（idx/verを除いた先頭部分）
 
     Args:
         filepath: ファイルパス
+        extension_candidates: 認識する拡張子候補（例: config.default_extensions）
 
     Returns:
         グループ名（go, mesh等の先頭プレフィックス）
@@ -521,7 +406,7 @@ def get_group_name(filepath: str) -> str:
     if os.path.isdir(filepath):
         return ""
 
-    basename, _ = get_basename_with_ext(filepath)
+    basename, _ = get_basename_with_ext(filepath, extension_candidates)
     # headを取得（例: go_1_v2 → go）
     head = basename.split("_")[0]
     return head

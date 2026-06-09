@@ -17,9 +17,6 @@ from typing import Any
 
 from config import GraphConfig
 from jj_types import (
-    RUN_INPUT,
-    RUN_MEDIA,
-    RUN_OUTPUT,
     GraphModel,
     Node,
     NodeCategory,
@@ -355,103 +352,6 @@ class ProjectGraph:
             current = queue.pop(0)
             yield current
             queue.extend(current.children)
-
-    # =========================================================
-    # Run検索メソッド
-    # =========================================================
-
-    def get_run_nodes(self, run_type: str | None = None) -> list[Node]:
-        """Runカテゴリのノードを取得（インデックス参照: O(1)）
-
-        Args:
-            run_type: 指定時はrun_typeプロパティでフィルタリング
-
-        Returns:
-            Runノードのリスト
-        """
-        runs = list(self._nodes_by_category.get(NodeCategory.RUN, []))
-        if run_type is not None:
-            runs = [r for r in runs if r.properties.get("run_type") == run_type]
-        return runs
-
-    def get_run_inputs(self, run_node: Node) -> list[Node]:
-        """Runの入力ノード群を取得"""
-        return self._get_run_related_nodes(run_node, RUN_INPUT)
-
-    def get_run_outputs(self, run_node: Node) -> list[Node]:
-        """Runの出力ノード群を取得"""
-        return self._get_run_related_nodes(run_node, RUN_OUTPUT)
-
-    def get_run_media(self, run_node: Node) -> list[Node]:
-        """Runの実行媒体ノード群を取得"""
-        return self._get_run_related_nodes(run_node, RUN_MEDIA)
-
-    def _get_run_related_nodes(self, run_node: Node, label: str) -> list[Node]:
-        """Run構造的リレーションで接続されたノードを取得（インデックス参照）
-
-        run_input/run_output/run_media は Run(node1) → Target(node2) の方向。
-        """
-        target_ids = [
-            r.node2_id
-            for r in self._relations_by_node.get(run_node.id, [])
-            if r.label == label and r.node1_id == run_node.id
-        ]
-        return [n for nid in target_ids if (n := self.get_node_by_id(nid)) is not None]
-
-    def add_run_node(
-        self,
-        name: str,
-        run_type: str,
-        *,
-        input_node_ids: list[int] | None = None,
-        output_node_ids: list[int] | None = None,
-        media_node_ids: list[int] | None = None,
-        properties: dict[str, Any] | None = None,
-        discovery: str = "static",
-    ) -> Node:
-        """Runノードを生成し、入力・出力・媒体リレーションと共にグラフに追加
-
-        Args:
-            name: Run名
-            run_type: Run種別（"cae_job", "ml_training" 等）
-            input_node_ids: 入力ノードID群
-            output_node_ids: 出力ノードID群
-            media_node_ids: 実行媒体ノードID群
-            properties: 追加プロパティ
-            discovery: "static"（パーサー発見）or "runtime"（実行時記録）
-
-        Returns:
-            生成されたRunノード
-        """
-        run_props: dict[str, Any] = {
-            "run_type": run_type,
-            "run_status": "latent" if discovery == "static" else "completed",
-            "discovery": discovery,
-        }
-        if properties:
-            run_props.update(properties)
-
-        run_node = Node(
-            id=self.next_node_id(),
-            type=run_type,
-            name=name,
-            format="",
-            properties=run_props,
-            category=NodeCategory.RUN,
-        )
-        self.add_node(run_node)
-
-        # Run構造的リレーションを追加
-        for nid in input_node_ids or []:
-            self.add_relation(Relation(id=self.next_relation_id(), label=RUN_INPUT, node1_id=run_node.id, node2_id=nid))
-        for nid in output_node_ids or []:
-            self.add_relation(
-                Relation(id=self.next_relation_id(), label=RUN_OUTPUT, node1_id=run_node.id, node2_id=nid)
-            )
-        for nid in media_node_ids or []:
-            self.add_relation(Relation(id=self.next_relation_id(), label=RUN_MEDIA, node1_id=run_node.id, node2_id=nid))
-
-        return run_node
 
     def get_nodes_by_category(self, category: NodeCategory) -> list[Node]:
         """カテゴリでノードをフィルタリング（インデックス参照: O(1)）"""

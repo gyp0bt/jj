@@ -15,7 +15,7 @@ import pytest
 from config import GraphConfig
 from jj_types import Node
 from services.graph.project_graph import ProjectGraph
-from services.parse.connectors.abaqus.mesh_parser import (
+from plugins.abaqus.parse.mesh_parser import (
     _compute_mesh_content_hash,
     _load_mesh_stats_cache,
     _save_mesh_stats_cache,
@@ -325,7 +325,7 @@ class TestMeshStatsCacheIntegration:
 
     def test_apply_mesh_stats_to_node(self):
         """_apply_mesh_stats_to_nodeがプロパティを正しく設定"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         node = Node(id=1, type="go", name="test", format="inp", properties={})
         cached = {
@@ -354,7 +354,7 @@ class TestMeshStatsCacheIntegration:
 
     def test_apply_mesh_stats_partial(self):
         """一部がNoneのキャッシュでも正しく適用"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         node = Node(id=1, type="go", name="test", format="inp", properties={})
         cached = {

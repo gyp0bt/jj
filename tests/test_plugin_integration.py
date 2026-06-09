@@ -19,11 +19,11 @@ class TestPluginRegistration:
 
     def test_abaqus_plugin_registers(self):
         """Abaqusプラグインが正常に登録される"""
-        from services.plugins.abaqus import register
+        from plugins.abaqus import register
 
         register()
         # パーサーレジストリにAbaqusパーサーが含まれること
-        from services.parse.base import get_parser_registry
+        from plugins.base.parser import get_parser_registry
 
         parser_names = [cls.__name__ for cls in get_parser_registry()]
         assert any("Abaqus" in name for name in parser_names)
@@ -31,8 +31,8 @@ class TestPluginRegistration:
     def test_all_plugins_register_without_error(self):
         """全プラグインのregister()がエラーなく完了する"""
         plugin_modules = [
-            "services.plugins.abaqus",
-            "services.plugins.obsidian",
+            "plugins.abaqus",
+            "plugins.obsidian",
         ]
         for mod_name in plugin_modules:
             mod = importlib.import_module(mod_name)
@@ -60,7 +60,7 @@ class TestPluginRegistration:
 
     def test_plugin_register_idempotent(self):
         """register()を複数回呼んでもエラーにならない（冪等性）"""
-        from services.plugins.abaqus import register
+        from plugins.abaqus import register
 
         register()
         register()
@@ -73,11 +73,11 @@ class TestPluginParseIntegration:
 
     def test_parse_pipeline_includes_abaqus_parsers(self):
         """パースパイプラインにAbaqusパーサーが含まれる"""
-        from services.plugins.abaqus import register
+        from plugins.abaqus import register
 
         register()
 
-        from services.parse.base import get_parser_registry
+        from plugins.base.parser import get_parser_registry
 
         parser_names = [cls.__name__ for cls in get_parser_registry()]
         # Abaqus固有パーサーが含まれること
@@ -91,11 +91,11 @@ class TestPluginParseIntegration:
 
     def test_parse_pipeline_priority_order(self):
         """パーサーがpriority順にソートされている"""
-        from services.plugins.abaqus import register
+        from plugins.abaqus import register
 
         register()
 
-        from services.parse.base import get_parser_registry
+        from plugins.base.parser import get_parser_registry
 
         registry = get_parser_registry()
         sorted_registry = sorted(registry, key=lambda cls: cls.priority)

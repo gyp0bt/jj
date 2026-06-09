@@ -17,7 +17,7 @@ UI層が本クラスの戻り値を描画する。
     データ供給（go_ ノード中心）:
         get_go_table / get_plot_data / get_array_plot_data / get_array_grid_data /
         get_output_images / get_property_images / get_status_summary /
-        get_run_nodes / get_run_for_node / get_node_card / get_related_files /
+        get_node_card / get_related_files /
         get_property_keys / get_filtered_property_keys / to_dashboard_json
 
 [READMEへ戻る](../../../../README.md)
@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from jj_types import RUN_INPUT, RUN_MEDIA, RUN_OUTPUT, GraphModel, Node, NodeCategory, Relation
+from jj_types import GraphModel, Node, Relation
 from services.graph.query.filters import apply_saved_view_filters
 from services.graph.query.sort import sort_rows_by_index
 
@@ -330,62 +330,6 @@ class GraphQuery:
                 continue
             rows.append(row)
         return rows
-
-    def get_run_nodes(self) -> list[dict[str, Any]]:
-        """Run ノード一覧を返す"""
-        results: list[dict[str, Any]] = []
-        for node in self.graph.nodes:
-            if node.category != NodeCategory.RUN:
-                continue
-            inputs: list[int] = []
-            outputs: list[int] = []
-            media: list[int] = []
-            for rel in self.query_relations(node.id, direction="outgoing"):
-                if rel.label == RUN_INPUT:
-                    inputs.append(rel.node2_id)
-                elif rel.label == RUN_OUTPUT:
-                    outputs.append(rel.node2_id)
-                elif rel.label == RUN_MEDIA:
-                    media.append(rel.node2_id)
-            results.append(
-                {
-                    "id": node.id,
-                    "name": node.name,
-                    "run_type": node.properties.get("run_type", ""),
-                    "run_status": node.properties.get("run_status", ""),
-                    "discovery": node.properties.get("discovery", ""),
-                    "properties": {
-                        k: v
-                        for k, v in node.properties.items()
-                        if k not in ("path", "run_type", "run_status", "discovery")
-                    },
-                    "input_ids": inputs,
-                    "output_ids": outputs,
-                    "media_ids": media,
-                }
-            )
-        return results
-
-    def get_run_for_node(self, node_id: int) -> dict[str, Any] | None:
-        """指定ノードを出力に持つ Run ノードを返す（run_output 逆引き）"""
-        for rel in self.query_relations(node_id, label=RUN_OUTPUT, direction="incoming"):
-            run_node = self._node_by_id.get(rel.node1_id)
-            if run_node is not None and run_node.category == NodeCategory.RUN:
-                return {
-                    "id": run_node.id,
-                    "name": run_node.name,
-                    "run_type": run_node.properties.get("run_type", ""),
-                    "run_status": run_node.properties.get("run_status", ""),
-                    "discovery": run_node.properties.get("discovery", ""),
-                    "duration_seconds": run_node.properties.get("duration_seconds"),
-                    "started_at": run_node.properties.get("started_at"),
-                    "finished_at": run_node.properties.get("finished_at"),
-                    "command": run_node.properties.get("command"),
-                    "host": run_node.properties.get("host"),
-                    "user": run_node.properties.get("user"),
-                    "exit_code": run_node.properties.get("exit_code"),
-                }
-        return None
 
     def get_node_card(self, node_id: int) -> dict[str, Any] | None:
         """ノード詳細カード（関連ノード含む）"""

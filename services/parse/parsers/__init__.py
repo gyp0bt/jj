@@ -10,7 +10,6 @@ AbstractFileParserのサブクラスとして、ファイル名解析・バー�
 """
 
 # 全パーサーをimportして自動登録させる
-from services.parse.parsers.cae_run_discoverer import CaeRunDiscoverer
 from services.parse.parsers.csv_array_parser import CsvArrayParser
 from services.parse.parsers.directory_parser import (
     DirectoryRelationParser,
@@ -31,11 +30,9 @@ from services.parse.parsers.vocab_finalizer import VocabFinalizer
 
 # MeshInheritParserはstatus-088でAbaqusプラグインに移動。
 # plugins.abaqus.register() 経由で自動登録される。
-# MlTrainingRunDiscovererはstatus-088でMLプラグイン削除に伴い無効化。
 
 __all__ = [
     "AssetRelationParser",
-    "CaeRunDiscoverer",
     "CsvArrayParser",
     "DirectoryRelationParser",
     "DisplayNameParser",

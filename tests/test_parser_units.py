@@ -633,7 +633,7 @@ class TestMeshInheritParser:
 
     def test_inherits_mesh_properties(self, config: GraphConfig):
         """go_*.inpがinclude先のmesh_*.inpからプロパティを継承する"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -678,7 +678,7 @@ class TestMeshInheritParser:
 
     def test_prefix_escaping_on_key_conflict(self, config: GraphConfig):
         """キー競合時に「{child_name}:{key}」接頭辞付きで保存される"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -711,7 +711,7 @@ class TestMeshInheritParser:
 
     def test_inherits_from_all_includes(self, config: GraphConfig):
         """mesh_*だけでなく全include先からプロパティを継承する"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -751,7 +751,7 @@ class TestMeshInheritParser:
 
     def test_skips_meta_properties(self, config: GraphConfig):
         """path, tags, active, verbose_name等のメタプロパティは継承しない"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -789,7 +789,7 @@ class TestMeshInheritParser:
 
     def test_merges_mesh_dict_properties(self, config: GraphConfig):
         """複数include先のメッシュ辞書プロパティがマージされる"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -848,7 +848,7 @@ class TestMeshInheritParser:
 
     def test_versioned_includes_merge_to_base_name(self, config: GraphConfig):
         """バージョン付きinclude先のキー競合がベース名に正規化・後勝ちマージされる"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -1089,7 +1089,7 @@ class TestAbaqusElsetParser:
 
     def test_creates_elset_nodes_from_mesh_elset_summary(self, config: GraphConfig):
         """mesh_elset_summaryからabaqus_elsetノードが生成される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1114,7 +1114,7 @@ class TestAbaqusElsetParser:
 
     def test_elset_has_element_count(self, config: GraphConfig):
         """elsetノードにelement_countプロパティが付与される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1138,7 +1138,7 @@ class TestAbaqusElsetParser:
 
     def test_elset_has_material_assignment(self, config: GraphConfig):
         """material_elsetsから各elsetに材料割り当てが付与される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1162,7 +1162,7 @@ class TestAbaqusElsetParser:
 
     def test_elset_from_include_child(self, config: GraphConfig):
         """include先のmesh_elset_summaryからもelset名とelement_countが取得される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
@@ -1190,7 +1190,7 @@ class TestAbaqusElsetParser:
 
     def test_has_elset_relation_created(self, config: GraphConfig):
         """go_*.inpとelsetの間にhas_elsetリレーションが生成される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1214,7 +1214,7 @@ class TestAbaqusElsetParser:
 
     def test_go_node_gets_elsets_property(self, config: GraphConfig):
         """go_*.inpノードにelsetsプロパティが設定される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1238,7 +1238,7 @@ class TestAbaqusElsetParser:
 
     def test_material_only_elset_no_element_count(self, config: GraphConfig):
         """material_elsetsのみにあるelsetはelement_countなし"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1272,7 +1272,7 @@ class TestAbaqusDiffParser:
 
     def test_diff_node_created_for_version_pair(self, tmp_path: Path, config: GraphConfig):
         """隣接バージョン間でdiffノードが作成され、diff_from/diff_to relationが作られる"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = (
             "*NODE, NSET=ALL\n"
@@ -1342,7 +1342,7 @@ class TestAbaqusDiffParser:
 
     def test_diff_contains_node_count_change(self, tmp_path: Path, config: GraphConfig):
         """diffノードのdiff_detailsにノード数変更が反映される"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n"
         content_v2 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n3, 2.0, 0.0, 0.0\n"
@@ -1377,7 +1377,7 @@ class TestAbaqusDiffParser:
 
     def test_diff_contains_element_count_change(self, tmp_path: Path, config: GraphConfig):
         """diffノードのdiff_detailsに要素数変更が反映される"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = (
             "*NODE, NSET=ALL\n"
@@ -1429,7 +1429,7 @@ class TestAbaqusDiffParser:
 
     def test_diff_contains_nset_elset_changes(self, tmp_path: Path, config: GraphConfig):
         """diffノードのdiff_detailsにnset/elsetの変更が含まれる"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*NSET, NSET=FIX\n1\n*ELSET, ELSET=BODY\n1\n"
         content_v2 = (
@@ -1475,7 +1475,7 @@ class TestAbaqusDiffParser:
 
     def test_no_diff_for_identical_versions(self, tmp_path: Path, config: GraphConfig):
         """同一内容のバージョンではdiffプロパティが付与されない"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content = (
             "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
@@ -1528,7 +1528,7 @@ class TestParserCache:
         """AbaqusDiffParserがキャッシュを使い、同一ファイルの再パースを避ける"""
         from unittest.mock import patch
 
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = (
             "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n*STEP, NAME=Step-1\n*STATIC\n1., 1.\n*END STEP\n"
@@ -1577,7 +1577,7 @@ class TestParserCache:
             call_count += 1
             return original_read_inp(path, verbose=verbose, include_max_depth=include_max_depth)
 
-        from services.parse.connectors import abaqus
+        import plugins.abaqus.parse as abaqus
 
         original_read_inp = abaqus.read_inp
 
@@ -1590,7 +1590,7 @@ class TestParserCache:
 
     def test_diff_parser_populates_cache(self, tmp_path: Path, config: GraphConfig):
         """AbaqusDiffParser実行後にキャッシュが populated される"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n"
         content_v2 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n"
@@ -1712,7 +1712,7 @@ class TestElementQualityStats:
 
     def test_elset_node_created_without_quality(self, config: GraphConfig):
         """elsetノードが作成される（qualityは要素タイプ別のため個別elsetにはない）"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(
@@ -1746,7 +1746,7 @@ class TestElementQualityStats:
 
     def test_elset_from_include_child(self, config: GraphConfig):
         """include先のelsetもノード化される"""
-        from services.parse.connectors.abaqus.inp_parser import AbaqusElsetParser
+        from plugins.abaqus.parse.inp_parser import AbaqusElsetParser
 
         nodes = [
             Node(id=1, type="go", name="go_idx1", format="inp", properties={"path": "go_idx1.inp", "index": "1"}),
@@ -2288,7 +2288,7 @@ class TestMeshTopologyGroups:
 
     def test_single_connected_group(self, tmp_path: Path):
         """ノード共有で全要素が1つの連結成分を形成"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
+        from plugins.abaqus.parse.mesh import extract_mesh_topology_groups
 
         # *ELSETは*ELEMENTのELSET=とは別に定義する
         # （pymeshはELSET=を要素ブロック名に使い、elset_dataには格納しない）
@@ -2319,7 +2319,7 @@ class TestMeshTopologyGroups:
 
     def test_two_disconnected_groups(self, tmp_path: Path):
         """ノード非共有で2つの独立した連結成分"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
+        from plugins.abaqus.parse.mesh import extract_mesh_topology_groups
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2351,7 +2351,7 @@ class TestMeshTopologyGroups:
 
     def test_no_elsets_returns_none(self, tmp_path: Path):
         """elsetが定義されていない場合はNone"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_topology_groups
+        from plugins.abaqus.parse.mesh import extract_mesh_topology_groups
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2370,7 +2370,7 @@ class TestMeshTopologyGroups:
 
     def test_topology_groups_assigned_to_node(self, tmp_path: Path, config: GraphConfig):
         """AbaqusMeshParserがmesh_topology_groupsをノードに付与する"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2401,7 +2401,7 @@ class TestMeshTopologyGroups:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
 
         # キャッシュを投入してread_inp()のネットワーク呼び出しを避ける
-        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+        from plugins.abaqus.parse import read_inp as abq_read_inp
 
         abq_data = abq_read_inp(str(tmp_path / "go_idx1_v1.inp"), verbose=False)
         graph.set_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp"), abq_data)
@@ -2426,7 +2426,7 @@ class TestMeshParserCache:
         """AbaqusMeshParserがキャッシュを使い、同一ファイルの再パースを避ける"""
         from unittest.mock import patch
 
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2451,7 +2451,7 @@ class TestMeshParserCache:
         graph = _make_graph(nodes, config=config, project_root=tmp_path)
 
         # 先にキャッシュを投入
-        from services.parse.connectors.abaqus import read_inp as abq_read_inp
+        from plugins.abaqus.parse import read_inp as abq_read_inp
 
         abq_data = abq_read_inp(str(tmp_path / "go_idx1_v1.inp"), verbose=False)
         graph.set_cached_plugin_data("abaqus", str(tmp_path / "go_idx1_v1.inp"), abq_data)
@@ -2465,7 +2465,7 @@ class TestMeshParserCache:
             call_count += 1
             return original_read_inp(path, verbose=verbose, include_max_depth=include_max_depth)
 
-        from services.parse.connectors import abaqus
+        import plugins.abaqus.parse as abaqus
 
         original_read_inp = abaqus.read_inp
 
@@ -2477,7 +2477,7 @@ class TestMeshParserCache:
 
     def test_mesh_parser_skips_unchanged_file(self, tmp_path: Path, config: GraphConfig):
         """タイムスタンプが変わっていないファイルをスキップ"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         content = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n"
         f = tmp_path / "go_idx1_v1.inp"
@@ -2501,7 +2501,7 @@ class TestDiffParserTimestamp:
 
     def test_diff_parser_skips_unchanged_pair(self, tmp_path: Path, config: GraphConfig):
         """両方のファイルが未変更の場合、diffノードが作成されない"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n"
         content_v2 = "*NODE, NSET=ALL\n1, 0.0, 0.0, 0.0\n2, 1.0, 0.0, 0.0\n"
@@ -2541,7 +2541,7 @@ class TestDiffParserTimestamp:
 
     def test_diff_parser_runs_when_one_changed(self, tmp_path: Path, config: GraphConfig):
         """片方のファイルが変更されている場合、diffノードが作成される"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         content_v1 = (
             "*NODE, NSET=ALL\n"
@@ -2641,7 +2641,7 @@ class TestPymeshWithModules:
 
     def test_extract_mesh_stats_with_cache(self, tmp_path: Path):
         """extract_mesh_statsにcached_abq_dataを渡した場合の動作"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from plugins.abaqus.parse.mesh import extract_mesh_stats
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2669,7 +2669,7 @@ class TestPymeshWithModules:
 
     def test_extract_mesh_stats_mixed_element_types(self, tmp_path: Path):
         """要素タイプ混在（C3D8+C3D4）でも品質計算が成功すること"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from plugins.abaqus.parse.mesh import extract_mesh_stats
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2709,7 +2709,7 @@ class TestPymeshWithModules:
 
     def test_extract_element_quality_mixed_element_types(self, tmp_path: Path):
         """要素タイプ混在でも*ELEMENTキーワード別品質統計が計算されること"""
-        from services.parse.connectors.abaqus.mesh import extract_element_quality_stats
+        from plugins.abaqus.parse.mesh import extract_element_quality_stats
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2748,7 +2748,7 @@ class TestPymeshWithModules:
 
     def test_compute_quality_single_element_type(self, tmp_path: Path):
         """単一要素タイプでの品質計算（回帰テスト）"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from plugins.abaqus.parse.mesh import extract_mesh_stats
 
         content = (
             "*NODE, NSET=ALL\n"
@@ -2787,7 +2787,8 @@ class TestAbstractExporter:
 
     def test_exporter_registry_contains_csv_json(self):
         """CSV/JSONエクスポーターがレジストリに登録されていること"""
-        from services.export import get_exporter_registry
+        import services.export.exporters  # noqa: F401  組み込みエクスポーター登録トリガー
+        from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
         cls_names = [cls.__name__ for cls in registry]
@@ -2796,30 +2797,30 @@ class TestAbstractExporter:
 
     def test_get_exporter_for_format_csv(self):
         """format="csv"でCsvExporterが返ること"""
-        from services.export import get_exporter_for_format
-        from services.export.connectors.csv_json import CsvExporter
+        from plugins.base.exporter import get_exporter_for_format
+        from services.export.exporters.csv_json import CsvExporter
 
         exporter_cls = get_exporter_for_format("csv")
         assert exporter_cls is CsvExporter
 
     def test_get_exporter_for_format_json(self):
         """format="json"でJsonExporterが返ること"""
-        from services.export import get_exporter_for_format
-        from services.export.connectors.csv_json import JsonExporter
+        from plugins.base.exporter import get_exporter_for_format
+        from services.export.exporters.csv_json import JsonExporter
 
         exporter_cls = get_exporter_for_format("json")
         assert exporter_cls is JsonExporter
 
     def test_get_exporter_for_format_unknown(self):
         """未知のformatではNoneが返ること"""
-        from services.export import get_exporter_for_format
+        from plugins.base.exporter import get_exporter_for_format
 
         assert get_exporter_for_format("unknown_format_xyz") is None
 
     def test_csv_exporter_export(self, tmp_path: Path):
         """CsvExporterのexport()がCSVファイルを生成すること"""
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={"index": "1"}),
@@ -2839,7 +2840,7 @@ class TestAbstractExporter:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import JsonExporter
+        from services.export.exporters.csv_json import JsonExporter
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={"version": "1"}),
@@ -2864,7 +2865,7 @@ class TestElsetCsvExport:
     def test_elset_quality_flattened_in_csv(self, tmp_path: Path):
         """quality辞書が"."区切りで平坦化されたカラムになること"""
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         nodes = [
             Node(
@@ -2894,7 +2895,7 @@ class TestElsetCsvExport:
     def test_elset_type_filter_in_csv(self, tmp_path: Path):
         """type_filter="abaqus_elset"でelsetノードのみエクスポートされること"""
         from jj_types import GraphModel
-        from services.export.connectors.csv_json import CsvExporter
+        from services.export.exporters.csv_json import CsvExporter
 
         nodes = [
             Node(id=1, type="go", name="test1", format="inp", properties={}),
@@ -3008,9 +3009,9 @@ class TestObsidianElsetDataview:
 
     def test_elset_node_has_dataview_query(self):
         """abaqus_elsetノードのmd出力にDataviewクエリが含まれること"""
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        connector = ObsidianWriter(project_root=Path("/tmp/test"))
         node = Node(
             id=1,
             type="abaqus_elset",
@@ -3030,9 +3031,9 @@ class TestObsidianElsetDataview:
 
     def test_material_node_has_elset_dataview(self):
         """abaqus_materialノードのmd出力にelset用Dataviewクエリが含まれること"""
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        connector = ObsidianWriter(project_root=Path("/tmp/test"))
         node = Node(
             id=1,
             type="abaqus_material",
@@ -3048,9 +3049,9 @@ class TestObsidianElsetDataview:
 
     def test_go_node_with_elsets_has_dataview(self):
         """elsets propertyを持つgoノードにDataviewクエリが含まれること"""
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=Path("/tmp/test"))
+        connector = ObsidianWriter(project_root=Path("/tmp/test"))
         node = Node(
             id=1,
             type="go",
@@ -3080,7 +3081,7 @@ class TestObsidianElsetCanvas:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
@@ -3093,7 +3094,7 @@ class TestObsidianElsetCanvas:
             ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_canvas(graph)
 
         assert canvas_path is not None
@@ -3108,13 +3109,13 @@ class TestObsidianElsetCanvas:
     def test_canvas_not_generated_without_elsets(self, tmp_path: Path):
         """elsetノードがない場合にcanvasが生成されないこと"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="test", format="inp", properties={}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_canvas(graph)
         assert canvas_path is None
 
@@ -3123,13 +3124,13 @@ class TestObsidianElsetCanvas:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="abaqus_elset", name="ELSET_A", format="", properties={"element_count": 50}),  # 材料なし
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_canvas(graph)
 
         assert canvas_path is not None
@@ -3148,8 +3149,8 @@ class TestExporterRegistry:
 
     def test_all_exporters_registered(self):
         """全5形式のエクスポーターがレジストリに登録されていること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_registry
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
         formats = {cls.format for cls in registry}
@@ -3161,8 +3162,8 @@ class TestExporterRegistry:
 
     def test_exporter_priority_order(self):
         """エクスポーターがpriority順で取得できること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_registry
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_registry
 
         registry = get_exporter_registry()
         sorted_exporters = sorted(registry, key=lambda cls: cls.priority)
@@ -3171,9 +3172,9 @@ class TestExporterRegistry:
 
     def test_obsidian_exporter_via_registry(self, tmp_path: Path):
         """ObsidianExporterがレジストリ経由で取得・実行できること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from jj_types import GraphModel
-        from services.export import get_exporter_for_format
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("obsidian")
         assert exporter_cls is not None
@@ -3191,9 +3192,9 @@ class TestExporterRegistry:
 
     def test_cypher_exporter_via_registry(self, tmp_path: Path):
         """CypherExporterがレジストリ経由で取得・実行できること"""
-        import services.export.connectors  # noqa: F401
+        import services.export.exporters  # noqa: F401
         from jj_types import GraphModel
-        from services.export import get_exporter_for_format
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("cypher")
         assert exporter_cls is not None
@@ -3249,7 +3250,7 @@ class TestObsidianElsetMaterialGoCanvas:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3267,7 +3268,7 @@ class TestObsidianElsetMaterialGoCanvas:
             ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
 
         assert canvas_path is not None
@@ -3289,7 +3290,7 @@ class TestObsidianElsetMaterialGoCanvas:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="abaqus_material", name="Steel", format="material", properties={}),
@@ -3302,7 +3303,7 @@ class TestObsidianElsetMaterialGoCanvas:
             ),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
 
         assert canvas_path is not None
@@ -3318,7 +3319,7 @@ class TestObsidianElsetMaterialGoCanvas:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3334,7 +3335,7 @@ class TestObsidianElsetMaterialGoCanvas:
             ),  # 材料なし
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
 
         assert canvas_path is not None
@@ -3348,13 +3349,13 @@ class TestObsidianElsetMaterialGoCanvas:
     def test_three_layer_canvas_not_generated_without_elsets(self, tmp_path: Path):
         """elsetがない場合にcanvasが生成されないこと"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="test", format="inp", properties={}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         canvas_path = connector._write_elset_material_go_canvas(graph)
         assert canvas_path is None
 
@@ -3369,8 +3370,8 @@ class TestFormatCliResult:
 
     def test_csv_exporter_cli_result(self, tmp_path: Path):
         """CsvExporterのCLI出力が正しくフォーマットされること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("csv")
         exporter = exporter_cls()
@@ -3385,8 +3386,8 @@ class TestFormatCliResult:
 
     def test_json_exporter_cli_result(self, tmp_path: Path):
         """JsonExporterのCLI出力が正しくフォーマットされること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("json")
         exporter = exporter_cls()
@@ -3400,8 +3401,8 @@ class TestFormatCliResult:
 
     def test_obsidian_exporter_cli_result(self, tmp_path: Path):
         """ObsidianExporterのCLI出力にファイル数が含まれること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("obsidian")
         exporter = exporter_cls()
@@ -3415,8 +3416,8 @@ class TestFormatCliResult:
 
     def test_cypher_exporter_cli_result(self, tmp_path: Path):
         """CypherExporterのCLI出力にノード/リレーション数が含まれること"""
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format("cypher")
         exporter = exporter_cls()
@@ -3484,7 +3485,7 @@ class TestExportUnified:
     def test_export_unified_returns_exporter_instance(self, tmp_path: Path):
         """export_unifiedがエクスポーターインスタンスを返すこと"""
         from jj_types import GraphModel
-        from services.export import AbstractExporter
+        from plugins.base.exporter import AbstractExporter
         from services.service.graph_command import GraphCommandService
 
         nodes = [
@@ -3511,7 +3512,7 @@ class TestObsidianSummaryNote:
     def test_summary_note_generated(self, tmp_path: Path):
         """ノードがある場合にサマリーノートが生成されること"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3523,7 +3524,7 @@ class TestObsidianSummaryNote:
                 Relation(id=1, label="uses_material", node1_id=1, node2_id=2),
             ],
         )
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
 
         assert summary_path is not None
@@ -3545,17 +3546,17 @@ class TestObsidianSummaryNote:
     def test_summary_note_not_generated_for_empty_graph(self, tmp_path: Path):
         """空のグラフではサマリーノートが生成されないこと"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         graph = GraphModel(nodes=[], relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
         assert summary_path is None
 
     def test_summary_note_type_sections(self, tmp_path: Path):
         """各タイプごとにDataviewセクションが生成されること"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go1", format="inp", properties={}),
@@ -3563,7 +3564,7 @@ class TestObsidianSummaryNote:
             Node(id=3, type="mesh", name="mesh1", format="cdb", properties={}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         summary_path = connector._write_summary_note(graph)
 
         content = summary_path.read_text(encoding="utf-8")
@@ -3586,13 +3587,13 @@ class TestObsidianVaultConfig:
         import json
 
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         written = connector.export_graph(graph)
 
         obsidian_dir = tmp_path / ".obsidian"
@@ -3625,7 +3626,7 @@ class TestObsidianVaultConfig:
     def test_vault_config_not_overwritten(self, tmp_path: Path):
         """既存の.obsidian/ディレクトリがある場合は変更しないこと"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
         # 事前に.obsidian/を作成（ユーザーの既存Vault）
         obsidian_dir = tmp_path / ".obsidian"
@@ -3636,7 +3637,7 @@ class TestObsidianVaultConfig:
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
         ]
         graph = GraphModel(nodes=nodes, relations=[])
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         written = connector.export_graph(graph)
 
         # 既存のapp.jsonは変更されない
@@ -3650,9 +3651,9 @@ class TestObsidianVaultConfig:
     def test_vault_config_standalone(self, tmp_path: Path):
         """_write_vault_config()を単独で呼んだ場合のテスト"""
 
-        from services.export.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianWriter
 
-        connector = ObsidianConnector(project_root=tmp_path)
+        connector = ObsidianWriter(project_root=tmp_path)
         written = connector._write_vault_config()
         assert len(written) == 3
 
@@ -3663,7 +3664,7 @@ class TestObsidianVaultConfig:
     def test_exporter_vault_initialized_flag(self, tmp_path: Path):
         """ObsidianExporterのexport結果にvault_initializedフラグが含まれること"""
         from jj_types import GraphModel
-        from services.export.connectors.obsidian import ObsidianExporter
+        from plugins.obsidian.export import ObsidianExporter
 
         nodes = [
             Node(id=1, type="go", name="go_test_v1", format="inp", properties={"path": "go_test_v1.inp"}),
@@ -3681,7 +3682,7 @@ class TestObsidianVaultConfig:
 
     def test_format_cli_result_with_vault_init(self, tmp_path: Path):
         """Vault初期化時のCLI出力に案内が含まれること"""
-        from services.export.connectors.obsidian import ObsidianExporter
+        from plugins.obsidian.export import ObsidianExporter
 
         exporter = ObsidianExporter()
         result = {
@@ -3696,7 +3697,7 @@ class TestObsidianVaultConfig:
 
     def test_format_cli_result_without_vault_init(self, tmp_path: Path):
         """Vault初期化なしの場合は案内が表示されないこと"""
-        from services.export.connectors.obsidian import ObsidianExporter
+        from plugins.obsidian.export import ObsidianExporter
 
         exporter = ObsidianExporter()
         result = {
@@ -4617,7 +4618,7 @@ class TestPluginRegistry:
         reset_plugins()
         load_all_plugins()
 
-        from services.parse.base import get_parser_registry
+        from plugins.base.parser import get_parser_registry
 
         registry = get_parser_registry()
         cls_names = [cls.__name__ for cls in registry]

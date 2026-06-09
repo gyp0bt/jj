@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from services.export import AbstractExporter
+    from plugins.base.exporter import AbstractExporter
 
 from config import init_graph_config
 from jj_types import GraphModel, Node, Relation
@@ -85,14 +85,6 @@ class CredentialShowResult:
     found: bool
     service: str
     credentials: dict[str, str] | None = None
-
-
-@dataclass
-class JobsResult:
-    """jobsコマンドの結果"""
-
-    jobs: list[Node]
-    empty: bool  # グラフデータが空
 
 
 # =========
@@ -219,38 +211,6 @@ class GraphCommandService:
         )
 
     # =========
-    # jobs
-    # =========
-
-    def jobs(
-        self,
-        run_type: str | None = None,
-        run_status: str | None = None,
-        graph_filename: str | None = None,
-    ) -> JobsResult:
-        """ワークスペース内のRUNノード一覧を返却
-
-        RunQueryService.get_runs() に委譲し、run_type/run_statusで絞り込む。
-
-        Args:
-            run_type: Run種別で絞り込み（例: "cae_job"）
-            run_status: Run状態で絞り込み（例: "completed", "latent"）
-            graph_filename: 読み込むグラフファイル名
-
-        Returns:
-            JobsResult
-        """
-        from services.run.query import RunQueryService
-
-        graph = self._graph_service.load(filename=graph_filename, resolve_externalized=True)
-
-        if not graph.nodes and not graph.relations:
-            return JobsResult(jobs=[], empty=True)
-
-        runs = RunQueryService(graph).get_runs(run_type=run_type, run_status=run_status)
-        return JobsResult(jobs=runs, empty=False)
-
-    # =========
     # export: load or parse
     # =========
 
@@ -301,8 +261,8 @@ class GraphCommandService:
         Returns:
             (エクスポート結果辞書, エクスポーターインスタンス)
         """
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
         if exporter_cls is None:
@@ -377,8 +337,8 @@ class GraphCommandService:
             エクスポーター固有の結果辞書
         """
         # コネクタモジュールをインポートしてレジストリ登録を確実にする
-        import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        import services.export.exporters  # noqa: F401
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
         if exporter_cls is None:
@@ -476,12 +436,12 @@ class GraphCommandService:
         Returns:
             DiffResult
         """
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             diff_abq_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,
         )
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             read_inp as abq_read_inp,
         )
 

@@ -33,7 +33,7 @@ services/
 │       │   ├── __init__.py # ABQData, read_inp, diff等
 │       │   └── mesh.py     # pymesh統合メッシュ品質
 │       └── obsidian/       # Obsidianエクスポート、daily連携
-│           ├── __init__.py # ObsidianConnector, export_graph等
+│           ├── __init__.py # ObsidianWriter, export_graph等
 │           └── daily.py    # DailyNote解析
 ├── dashboard/              # ダッシュボード向けデータ供給
 │   ├── __init__.py         # DashboardDataProvider公開
@@ -44,7 +44,7 @@ services/
 │       └── abaqus.py       # Abaqus物性一覧ページ（connector_key="abaqus"）
 ├── export/                 # グラフの外部出力（ローカル以外）
 │   └── connectors/
-│       └── neo4j.py        # Neo4jConnector
+│       └── neo4j.py        # Neo4jClient
 ├── run/                    # スクリプトラッパー
 ├── service/                # サービス横断オーケストレーション
 ├── cli/                    # CLI（serviceからのみimport）
@@ -178,7 +178,7 @@ class ProjectGraph:
 
 - [x] `shared/` パッケージ作成（neo4j_schema.py, types.py, config.py）
 - [x] `neo4j/docker-compose.yml` 作成
-- [x] Neo4jConnector 実装（直接書き込み+Cypher出力）
+- [x] Neo4jClient 実装（直接書き込み+Cypher出力）
 - [x] CLI `--target neo4j/cypher` 追加
 - [x] credential暗号化管理（jj credential set/show/delete）
 
@@ -239,7 +239,7 @@ services/graph/__init__.pyへの過集中を解消し、抽象パーサーパタ
 - [x] Neo4jエクスポートは `export/connectors/neo4j.py` に配置済み
 - [x] CSV/JSONエクスポートを `export/connectors/csv_json.py` へ移動 (status-063)
 - [x] `AbstractExporter` 基底クラスの定義（`__init_subclass__`自動登録パターン） (status-063)
-- [x] ObsidianConnector / Neo4jConnector / DashboardJsonをAbstractExporterサブクラスに移行 (status-064)
+- [x] ObsidianWriter / Neo4jClient / DashboardJsonをAbstractExporterサブクラスに移行 (status-064)
 - [x] `jj export --target <format>` のAbstractExporterレジストリ経由での統一実行 (status-064)
 - [x] Obsidian Canvas 3層（go-material-elset）関係グラフ生成 (status-064)
 - [x] CLI `_run_export()` レジストリ経由統一ディスパッチ（旧if/elifチェーン廃止） (status-065)
@@ -478,7 +478,7 @@ Phase R（構造リファクタリング）が完了した新アーキテクチ�
 
 #### N2. jj Neo4jエクスポーター ✅ (status-037)
 
-- [x] `Neo4jConnector` 実装
+- [x] `Neo4jClient` 実装
 - [x] CLI `--target neo4j/cypher` 追加
 - [x] GraphModel → Neo4j Cypherマッピング
 - [x] upsert対応（UNWIND + MERGE）

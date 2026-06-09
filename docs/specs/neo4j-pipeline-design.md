@@ -44,7 +44,7 @@ jjで構築したプロジェクトグラフをNeo4jに永続化し、jjrvから
 
 | コンポーネント | ファイル | 状態 |
 |---------------|---------|------|
-| Neo4jConnector | `services/export/connectors/neo4j.py` | 完了（489行） |
+| Neo4jClient | `services/export/connectors/neo4j.py` | 完了（489行） |
 | Neo4jExporter | 同上（priority=30） | 完了 |
 | CypherExporter | 同上（priority=31） | 完了 |
 | Neo4jConfig | `shared/config.py` | 完了 |
