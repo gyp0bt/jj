@@ -344,7 +344,7 @@ class GraphService:
 
         明示的にextensionsが指定されない場合、config.default_extensionsに加えて
         file-relations設定のinput/result/asset拡張子を自動マージする。
-        これにより、CLIからのjj g parse実行時に.inp, .odb, .sta等も確実にスキャンされる。
+        これにより、jj parse 実行時に.inp, .odb, .sta等も確実にスキャンされる。
         """
         if extensions is not None:
             return set(extensions)

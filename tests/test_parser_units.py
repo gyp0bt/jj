@@ -633,7 +633,7 @@ class TestMeshInheritParser:
 
     def test_inherits_mesh_properties(self, config: GraphConfig):
         """go_*.inpがinclude先のmesh_*.inpからプロパティを継承する"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -678,7 +678,7 @@ class TestMeshInheritParser:
 
     def test_prefix_escaping_on_key_conflict(self, config: GraphConfig):
         """キー競合時に「{child_name}:{key}」接頭辞付きで保存される"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -711,7 +711,7 @@ class TestMeshInheritParser:
 
     def test_inherits_from_all_includes(self, config: GraphConfig):
         """mesh_*だけでなく全include先からプロパティを継承する"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -751,7 +751,7 @@ class TestMeshInheritParser:
 
     def test_skips_meta_properties(self, config: GraphConfig):
         """path, tags, active, verbose_name等のメタプロパティは継承しない"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -789,7 +789,7 @@ class TestMeshInheritParser:
 
     def test_merges_mesh_dict_properties(self, config: GraphConfig):
         """複数include先のメッシュ辞書プロパティがマージされる"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(
@@ -848,7 +848,7 @@ class TestMeshInheritParser:
 
     def test_versioned_includes_merge_to_base_name(self, config: GraphConfig):
         """バージョン付きinclude先のキー競合がベース名に正規化・後勝ちマージされる"""
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         nodes = [
             Node(

@@ -336,63 +336,6 @@ class FileParse:
         return FileGroup(tuple(items), file_type=file_type, index=index)
 
 
-@dataclass(frozen=True)
-class ObsidianMap:
-    true_file_path: str | Path
-    notes_dir: str | Path = "notes/props"
-    base_path: str | Path = "notes/bases"
-    extension_candidates: Iterable[str] | None = None
-
-    def _file_parse(self) -> FileParse:
-        return FileParse(self.true_file_path, extension_candidates=self.extension_candidates)
-
-    def get_base_path(self) -> Path:
-        return Path(self.base_path)
-
-    def to_frontmatter_path(
-        self,
-        true_file_path: str | Path | None = None,
-        notes_dir: str | Path | None = None,
-    ) -> Path:
-        target_path = true_file_path or self.true_file_path
-        parser = FileParse(target_path, extension_candidates=self.extension_candidates)
-        path = Path(target_path)
-        if path.is_dir():
-            basename = path.name
-        else:
-            basename, ext = parser._split_extension()
-            if ext:
-                basename = f"{basename}.{ext.lstrip('.')}"  # .inp → .inp.md に変更
-        base_dir = Path(notes_dir or self.notes_dir)
-        return base_dir / f"{basename}.md"
-
-    def get_frontmatter_path(self) -> Path:
-        return self.to_frontmatter_path()
-
-
-@dataclass(frozen=True)
-class ObsidianFileParse(FileParse):
-    notes_dir: str | Path = "notes/props"
-    base_path: str | Path = "notes/bases"
-
-    def _obsidian_map(self) -> ObsidianMap:
-        return ObsidianMap(
-            self.true_file_path,
-            notes_dir=self.notes_dir,
-            base_path=self.base_path,
-            extension_candidates=self.extension_candidates,
-        )
-
-    def get_frontmatter_path(self) -> Path:
-        return self._obsidian_map().get_frontmatter_path()
-
-    def get_base_path(self) -> Path:
-        return self._obsidian_map().get_base_path()
-
-    def to_frontmatter_path(self) -> Path:
-        return self._obsidian_map().to_frontmatter_path()
-
-
 # ===========================================================================
 # レガシー関数インターフェース（旧file_utils.pyから統合）
 # ===========================================================================

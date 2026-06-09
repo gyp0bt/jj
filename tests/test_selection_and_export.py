@@ -824,7 +824,7 @@ class TestMeshInheritParser:
         assert any(p.__name__ == "MeshInheritParser" for p in registry)
 
     def test_priority_after_includes_and_mesh(self):
-        from services.parse.parsers.mesh_inherit_parser import MeshInheritParser
+        from plugins.abaqus.parse.mesh_inherit_parser import MeshInheritParser
 
         assert MeshInheritParser.priority > 40  # IncludesRelationParser
         assert MeshInheritParser.priority > 80  # AbaqusMeshParser
