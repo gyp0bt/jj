@@ -1,90 +1,27 @@
-# jj デフォルト設定ファイル（小市民版）
+# jj デフォルト設定ファイル（最小版）
 # このファイルは jj の出荷時デフォルト。プロジェクト固有の上書きは
 # .j2/config/config.yaml に記述する（同じキーを書けば上書きされる）。
 #
-# 詳細リファレンス・上級者向け設定（neo4j, sync, solver-profiles, AIなど）は
-# docs/config-reference.md を参照。
+# ここには「Streamlitダッシュボード（応力–ひずみ）と jj export が動く最小限」
+# だけを残してある。ここに無いキー（vocab, default-extensions, file-relations,
+# dashboard, obsidian など）は config/__init__.py のスキーマ既定値が使われる。
 #
 # [READMEへ戻る](../README.md)
 
-# ----- ファイル名キー → 表示名（vocab） ----------------------------------
-# ファイル名トークンや属性キーをダッシュボードで日本語表示する。
-# 列順・プロット軸の並びにも影響（vocab定義順 → 文字列昇順）。
-vocab:
-  idx: 条件
-  v: v
-  verbose_name: 表示名
-  wallclock_time: 計算時間
-  cpu_time: 計算時間(CPU時間)
-  analysis_status: 成否
-
-# ノード表示名のテンプレート（vocab変換後のキー名で参照）
-verbose-name-format: "条件{条件}(v{v})"
-
-# ----- ファイル拡張子の認識候補 ------------------------------------------
-# 複合拡張子（.cas.h5等）は先頭にあるほど優先される。
-default-extensions:
-  - ".cas.h5"
-  - ".dat.h5"
-  - ".aedt.batchinfo"
-  - ".py"
-  - ".xlsx"
-  - ".csv"
-  - ".pptx"
-  - ".yaml"
-  - ".md"
-  - ".json"
-  - ".sh"
-  - ".msh"
-  - ".modfem"
-  - ".stp"
-  - ".step"
-  - ".catPart"
-  - ".dxf"
-  - ".dwg"
-  - ".png"
-  - ".gif"
-
 # ----- パス → ファイルタイプ（path-type-map） ----------------------------
-# 上から順に評価し、最初にマッチしたルールを採用する。
+# go_ 配下の *.inp を「ABQ inp」として型付けする。
+# ダッシュボードの type フィルタ（{"type": "ABQ inp"}）と get_go_table が依存。
+# 結果ファイル（.sta/.dat/.odb 等）は「計算結果」にまとめる。
+# ※ 結果データ（RF.*）の抽出は abaqus パーサーが拡張子と file-relations
+#   （スキーマ既定値）で行うため、型名には依存しない。
 path-type-map:
   "**go_* | **go":
     "*.inp": ABQ inp
-    "*.cas.h5": Fluent inp
-    "*.aedt": HFSS inp
-    "*.sta": ABQ sta
-    "*.dat": ABQ dat
-    "*.odb": ABQ  odb
     "*": 計算結果
-  "**mesh_* | **mesh":
-    "*.inp": ABQ mesh
-    "*.msh": Fluent mesh
-    "*.cdb": ANSYS mesh
-  "**material_* | **material":
-    "*.inp": ABQ mat
-  "**step_* | **step":
-    "*.inp": ABQ step
-  "./reports/":
-    "*": 報告書
-  "./results/":
-    "*": 計算結果
-  "./tools/":
-    "*": 処理スクリプト
-  "./docs/":
-    "*": 受領ファイル
-
-# ----- パス → プロパティ自動付与（path-property-map） ---------------------
-# 例: archive配下のファイルは active=false にしてダッシュボードのデフォルト
-# フィルタから外す。
-path-property-map:
-  "**old/*":
-    active: false
-  "**archive/*":
-    active: false
-    archived: true
 
 # ----- 除外パターン ------------------------------------------------------
 # .gitignore相当。マッチしたパスはパース対象から外れる。
+# （省略するとスキーマ既定値は空になり .git/.j2 等まで走査してしまうため残す）
 ignore:
   - ".git"
   - ".git/**"
@@ -92,109 +29,10 @@ ignore:
   - ".j2/**"
   - "__pycache__"
   - "__pycache__/**"
-  - "*.pyc"
-  - "node_modules"
-  - "node_modules/**"
   - ".venv"
   - ".venv/**"
-  - "*.tmp"
-  - "*.bak"
-  - "~$*"
-  - ".DS_Store"
-  - "Thumbs.db"
-  - "notes"
-  - "notes/**"
-  - ".obsidian"
-  - ".obsidian/**"
 
-# ----- 入力/結果ファイル関係（同じbasenameで自動関連付け） -----------------
-file-relations:
-  input-extensions: [".inp", ".cas.h5", ".k", ".key", ".dat"]
-  result-extensions: [".odb", ".sta", ".msg", ".csv", ".json"]
-  asset-extensions: [".modfem", ".stl", ".cdb", ".msh"]
-
-# ----- エクスポート設定 ---------------------------------------------------
+# ----- エクスポート設定（jj export） -------------------------------------
+# CSV単位の表示形式: header → 列名に [unit] を付加 / row → 1列目に単位行
 export:
-  # CSV単位の表示形式: header → 列名に [unit] を付加 / row → 1列目に単位行
   csv-unit-format: header
-
-# ----- ダッシュボード設定 -------------------------------------------------
-dashboard:
-  # テーブルから隠す列。内部メタ・重複表示の整理用。
-  exclude-table-columns:
-    - type
-    - format
-    - path
-    - daily_notes
-    - daily_sections
-    - verbose_name
-    - dat_warnings
-    - msg_warnings
-    - cpu_time
-    - result_key
-
-  # 起動時に適用するフィルタ
-  default-filters:
-    active: true
-
-  # コネクター固有設定（Abaqusの物性カーブ列名等）
-  connectors:
-    abaqus:
-      material-curve-columns:
-        plastic: { columns: [stress, strain], x: 1, y: 0 }
-        elastic: { columns: [E, nu] }
-        density: { columns: [density] }
-        specific-heat: { columns: [specific_heat] }
-        conductivity: { columns: [conductivity] }
-        expansion: { columns: [alpha] }
-        damage-initiation: { columns: [value, strain], x: 1, y: 0 }
-        damage-evolution: { columns: [displacement] }
-        creep: { columns: [A, n, m] }
-
-# ----- Obsidian エクスポート設定 ------------------------------------------
-obsidian:
-  notes-dir: notes/props
-  bases-dir: notes/bases
-  prefix: "O-"
-  default-views:
-    - type: table
-      name: Table
-      filters:
-        and:
-          - "file.fullname.endsWith(\".md\")"
-          - "active == true"
-      order:
-        - file.name
-        - idx
-        - ver
-        - success
-        - description
-      sort:
-        - { property: idx, direction: ASC }
-        - { property: ver, direction: ASC }
-  vault:
-    app:
-      useMarkdownLinks: false
-      showFrontmatter: true
-      strictLineBreaks: false
-      readableLineLength: true
-    community-plugins: [dataview, dbfolder]
-    core-plugins:
-      canvas: true
-      graph: true
-      outgoing-link: true
-      tag-pane: true
-      backlink: true
-      page-preview: true
-      file-explorer: true
-      global-search: true
-      switcher: true
-      markdown-importer: false
-      note-composer: true
-      command-palette: true
-      editor-status: true
-      bookmarks: true
-      outline: true
-      word-count: true
-      file-recovery: true
-      properties: true
