@@ -33,6 +33,7 @@ class MyParser(AbstractFileParser):
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import re
 from abc import ABC, abstractmethod
@@ -417,10 +418,8 @@ def parser_location(cls: type) -> str:
     except (OSError, TypeError):
         line = 0
     path = Path(src)
-    try:
+    with contextlib.suppress(ValueError):
         path = path.relative_to(Path.cwd())
-    except ValueError:
-        pass
     return f"{path}:{line}"
 
 
