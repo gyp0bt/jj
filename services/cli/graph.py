@@ -649,7 +649,7 @@ def _run_parse(project_root: Path, args: argparse.Namespace) -> int:
     # --explain: パースせずにパイプライン構成（誰が・どのファイルで・何を）を表示
     if getattr(args, "explain", False):
         from services.graph import GraphService
-        from services.parse.base import format_pipeline_plan
+        from plugins.base.parser import format_pipeline_plan
 
         GraphService(project_root)  # プラグインをロードしてレジストリを満たす
         print(format_pipeline_plan(full_mode=full_mode))

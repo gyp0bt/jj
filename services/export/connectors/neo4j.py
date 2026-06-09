@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from jj_types import GraphModel, Node, Relation
-from services.export import AbstractExporter
+from plugins.base.exporter import AbstractExporter
 from shared.config import Neo4jConfig
 from shared.neo4j_schema import (
     get_neo4j_label,

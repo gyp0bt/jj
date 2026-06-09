@@ -17,7 +17,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -155,7 +155,7 @@ def _parse_inp_worker(args: tuple[str, int]) -> tuple[str, object]:
     Returns:
         (file_path, ABQData)のタプル
     """
-    import services.parse.connectors.abaqus as abaqus_mod
+    import plugins.abaqus.parse as abaqus_mod
 
     fp_str, include_depth = args
     abq = abaqus_mod.read_inp(fp_str, verbose=False, include_max_depth=include_depth)
@@ -186,7 +186,7 @@ class AbaqusMeshParser(AbstractFileParser):
         2. ディスク永続化キャッシュ（.j2/storage/plugin_cache/abaqus/）
         3. キャッシュなし → read_inp()で新規パースし、両方に保存
         """
-        import services.parse.connectors.abaqus as abaqus_mod
+        import plugins.abaqus.parse as abaqus_mod
         from services.graph.storage import GraphStorage
 
         # 1. インメモリキャッシュ
@@ -247,7 +247,7 @@ class AbaqusMeshParser(AbstractFileParser):
             node.properties["mesh_topology_groups"] = topology_groups
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        from services.parse.connectors.abaqus.mesh import (
+        from plugins.abaqus.parse.mesh import (
             extract_element_quality_stats,
             extract_mesh_stats,
             extract_mesh_topology_groups,
@@ -397,7 +397,7 @@ class AbaqusMeshParser(AbstractFileParser):
         """
         from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-        import services.parse.connectors.abaqus as abaqus_mod
+        import plugins.abaqus.parse as abaqus_mod
 
         # 同一ファイルの重複parseを避けるためパス単位で一意化
         unique_paths: dict[str, Path] = {}

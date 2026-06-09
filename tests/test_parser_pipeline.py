@@ -18,7 +18,7 @@ from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
 from services.graph import GraphService
 from services.graph.project_graph import ProjectGraph
-from services.parse.base import (
+from plugins.base.parser import (
     get_parser_registry,
     parse,
 )
@@ -578,7 +578,7 @@ class TestParserParallel:
 
     def test_parallel_sequential_same_result(self, config: GraphConfig):
         """parallel=True と False で同じパーサーが適用される"""
-        from services.parse.base import _group_parsers_by_priority, get_parser_registry
+        from plugins.base.parser import _group_parsers_by_priority, get_parser_registry
 
         registry = get_parser_registry()
         eligible = [cls for cls in registry if not cls.requires_full]
@@ -590,7 +590,7 @@ class TestParserParallel:
 
     def test_group_parsers_by_priority(self):
         """_group_parsers_by_priority が正しくグルーピングする"""
-        from services.parse.base import _group_parsers_by_priority, get_parser_registry
+        from plugins.base.parser import _group_parsers_by_priority, get_parser_registry
 
         registry = get_parser_registry()
         groups = _group_parsers_by_priority(registry)
@@ -613,7 +613,7 @@ class TestMeshParserPrefetch:
 
     def test_prefetch_populates_cache(self, config: GraphConfig):
         """並列プリフェッチがインメモリキャッシュを正しく設定する"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         pg = ProjectGraph(
             nodes=[
@@ -657,7 +657,7 @@ class TestMeshParserPrefetch:
 
     def test_prefetch_skips_already_cached(self, config: GraphConfig):
         """既にキャッシュ済みのファイルはprefetchをスキップする"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         pg = ProjectGraph(
             nodes=[
@@ -691,7 +691,7 @@ class TestMeshParserPrefetch:
 
     def test_prefetch_deduplicates_paths(self, config: GraphConfig):
         """同一パスの重複parseを回避する"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         pg = ProjectGraph(
             nodes=[
@@ -740,7 +740,7 @@ class TestDiffParserLightweight:
 
     def test_lightweight_parse_returns_abqdata(self, config: GraphConfig):
         """lightweightモードでABQDataが返される"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         pg = ProjectGraph(
             nodes=[],
@@ -758,7 +758,7 @@ class TestDiffParserLightweight:
 
     def test_lightweight_returns_full_cache_if_available(self, config: GraphConfig):
         """フルデータキャッシュがあればlightweight要求でもフルデータを返す"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         pg = ProjectGraph(
             nodes=[],
@@ -781,7 +781,7 @@ class TestDiffParserLightweight:
 
     def test_lightweight_cache_key_separated(self, config: GraphConfig):
         """lightweightとフルデータのキャッシュキーが分離されている"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         pg = ProjectGraph(
             nodes=[],
@@ -817,28 +817,28 @@ class TestComputeOptimalWorkers:
 
     def test_single_file(self):
         """ファイル1件ではワーカー1"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         result = AbaqusMeshParser._compute_optimal_workers(1)
         assert result == 1
 
     def test_many_files_capped(self):
         """ファイル数が多くても上限16を超えない"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         result = AbaqusMeshParser._compute_optimal_workers(100)
         assert result <= 16
 
     def test_file_count_limits_workers(self):
         """ワーカー数はファイル数以下"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         result = AbaqusMeshParser._compute_optimal_workers(3)
         assert result <= 3
 
     def test_minimum_one(self):
         """ワーカー数は最低1"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         result = AbaqusMeshParser._compute_optimal_workers(0)
         assert result >= 1
@@ -859,7 +859,7 @@ class TestMeshHashesMatch:
 
     def test_identical_mesh_returns_true(self, tmp_path: Path):
         """同一メッシュのファイルペアはTrueを返す"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         mesh = "*NODE\n1, 0.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8\n1, 1\n"
         f1 = self._write_inp(tmp_path, "a.inp", "*PARAMETER\nthick=5\n" + mesh)
@@ -869,7 +869,7 @@ class TestMeshHashesMatch:
 
     def test_different_mesh_returns_false(self, tmp_path: Path):
         """異なるメッシュのファイルペアはFalseを返す"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         f1 = self._write_inp(tmp_path, "a.inp", "*NODE\n1, 0.0, 0.0, 0.0\n*ELEMENT, TYPE=C3D8\n1, 1\n")
         f2 = self._write_inp(
@@ -880,7 +880,7 @@ class TestMeshHashesMatch:
 
     def test_no_mesh_returns_false(self, tmp_path: Path):
         """メッシュ定義なしのファイルペアはFalseを返す"""
-        from services.parse.connectors.abaqus.diff_parser import AbaqusDiffParser
+        from plugins.abaqus.parse.diff_parser import AbaqusDiffParser
 
         f1 = self._write_inp(tmp_path, "a.inp", "*PARAMETER\nthick=5\n*STEP\n*STATIC\n")
         f2 = self._write_inp(tmp_path, "b.inp", "*PARAMETER\nthick=10\n*STEP\n*DYNAMIC\n")
@@ -900,7 +900,7 @@ class TestComputeOptimalWorkersProcessMode:
         """プロセスモードではCPU数が上限（スレッドモードの半分）"""
         from unittest.mock import patch
 
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         with patch("os.cpu_count", return_value=8):
             thread_result = AbaqusMeshParser._compute_optimal_workers(100, use_processes=False)
@@ -911,7 +911,7 @@ class TestComputeOptimalWorkersProcessMode:
 
     def test_process_mode_single_file(self):
         """プロセスモードでもファイル1件ではワーカー1"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         result = AbaqusMeshParser._compute_optimal_workers(1, use_processes=True)
         assert result == 1
@@ -920,7 +920,7 @@ class TestComputeOptimalWorkersProcessMode:
         """プロセスモードでも上限16"""
         from unittest.mock import patch
 
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         with patch("os.cpu_count", return_value=32):
             result = AbaqusMeshParser._compute_optimal_workers(100, use_processes=True)
@@ -930,7 +930,7 @@ class TestComputeOptimalWorkersProcessMode:
         """デフォルトはスレッドモード（後方互換）"""
         from unittest.mock import patch
 
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         with patch("os.cpu_count", return_value=4):
             default_result = AbaqusMeshParser._compute_optimal_workers(10)
@@ -949,7 +949,7 @@ class TestProcessPoolThreshold:
 
     def test_threshold_value(self):
         """閾値が3であること"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         assert AbaqusMeshParser._PROCESS_POOL_THRESHOLD == 3
 
@@ -971,7 +971,7 @@ class TestDiffSeparation:
         """diff_abq_mesh_blocks はメッシュ差分を検出する"""
         import textwrap
 
-        from services.parse.connectors.abaqus import diff_abq_mesh_blocks, read_inp
+        from plugins.abaqus.parse import diff_abq_mesh_blocks, read_inp
 
         f1 = self._write_inp(
             tmp_path,
@@ -1002,7 +1002,7 @@ class TestDiffSeparation:
         """diff_abq_mesh_blocks はSTEP差分を検出しない"""
         import textwrap
 
-        from services.parse.connectors.abaqus import diff_abq_mesh_blocks, read_inp
+        from plugins.abaqus.parse import diff_abq_mesh_blocks, read_inp
 
         f1 = self._write_inp(
             tmp_path,
@@ -1035,7 +1035,7 @@ class TestDiffSeparation:
         """diff_abq_metadata_blocks はSTEP差分を検出する"""
         import textwrap
 
-        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+        from plugins.abaqus.parse import diff_abq_metadata_blocks, read_inp
 
         f1 = self._write_inp(
             tmp_path,
@@ -1069,7 +1069,7 @@ class TestDiffSeparation:
         """diff_abq_metadata_blocks はメッシュ差分を検出しない"""
         import textwrap
 
-        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+        from plugins.abaqus.parse import diff_abq_metadata_blocks, read_inp
 
         f1 = self._write_inp(
             tmp_path,
@@ -1099,7 +1099,7 @@ class TestDiffSeparation:
         """diff_abq_blocks = diff_abq_mesh_blocks + diff_abq_metadata_blocks"""
         import textwrap
 
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             diff_abq_blocks,
             diff_abq_mesh_blocks,
             diff_abq_metadata_blocks,
@@ -1154,34 +1154,34 @@ class TestMeshTopologyFilter:
 
     def test_mesh_topology_keywords_defined(self):
         """_MESH_TOPOLOGY_KEYWORDS が定義されている"""
-        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+        from plugins.abaqus.parse import _MESH_TOPOLOGY_KEYWORDS
 
         assert isinstance(_MESH_TOPOLOGY_KEYWORDS, frozenset)
         assert len(_MESH_TOPOLOGY_KEYWORDS) > 0
 
     def test_core_mesh_keywords_included(self):
         """コアメッシュキーワードが含まれる"""
-        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+        from plugins.abaqus.parse import _MESH_TOPOLOGY_KEYWORDS
 
         for kw in ("node", "element", "nset", "elset"):
             assert kw in _MESH_TOPOLOGY_KEYWORDS
 
     def test_constraint_keywords_included(self):
         """メッシュ拘束キーワードが含まれる"""
-        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+        from plugins.abaqus.parse import _MESH_TOPOLOGY_KEYWORDS
 
         for kw in ("mpc", "equation", "tie", "rigidbody"):
             assert kw in _MESH_TOPOLOGY_KEYWORDS
 
     def test_orientation_keyword_included(self):
         """要素局所座標系キーワードが含まれる"""
-        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+        from plugins.abaqus.parse import _MESH_TOPOLOGY_KEYWORDS
 
         assert "orientation" in _MESH_TOPOLOGY_KEYWORDS
 
     def test_section_keywords_not_included(self):
         """セクション定義はメッシュ参照を持つが材料割当を含むためフィルタ対象外"""
-        from services.parse.connectors.abaqus import _MESH_TOPOLOGY_KEYWORDS
+        from plugins.abaqus.parse import _MESH_TOPOLOGY_KEYWORDS
 
         # セクション定義は材料割り当て・板厚定義を含むため、
         # メッシュ同一でも変更される可能性がありフィルタ対象外
@@ -1192,7 +1192,7 @@ class TestMeshTopologyFilter:
         """_filter_non_mesh_raw_blocks がメッシュ関連RawBlockを除外する"""
         from pathlib import Path
 
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             RawBlock,
             _filter_non_mesh_raw_blocks,
         )
@@ -1213,7 +1213,7 @@ class TestMeshTopologyFilter:
         """_filter_non_mesh_raw_blocks はReadComponentをフィルタしない"""
         from pathlib import Path
 
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             Context,
             RawBlock,
             ReadNode,
@@ -1232,7 +1232,7 @@ class TestMeshTopologyFilter:
         """diff_abq_metadata_blocks がraw_blocksのメッシュキーワードを除外する"""
         import textwrap
 
-        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+        from plugins.abaqus.parse import diff_abq_metadata_blocks, read_inp
 
         # TIEキーワードはraw_blocksに入り、メッシュトポロジー関連
         f1 = self._write_inp(
@@ -1264,7 +1264,7 @@ class TestMeshTopologyFilter:
         """diff_abq_metadata_blocks がORIENTATIONキーワードを除外する"""
         import textwrap
 
-        from services.parse.connectors.abaqus import diff_abq_metadata_blocks, read_inp
+        from plugins.abaqus.parse import diff_abq_metadata_blocks, read_inp
 
         f1 = self._write_inp(
             tmp_path,
@@ -1315,7 +1315,7 @@ class TestProcessPoolBenchmark:
         """Thread/Process両方式で同一ファイルのパース結果が一致する"""
         import textwrap
 
-        from services.parse.connectors.abaqus import read_inp
+        from plugins.abaqus.parse import read_inp
 
         # テスト用INPファイルを3つ作成（Process閾値以上）
         for i in range(3):
@@ -1354,7 +1354,7 @@ class TestProcessPoolBenchmark:
         """_parse_inp_worker がpickle可能であることを検証"""
         import pickle
 
-        from services.parse.connectors.abaqus.mesh_parser import _parse_inp_worker
+        from plugins.abaqus.parse.mesh_parser import _parse_inp_worker
 
         # モジュールレベル関数はpickle可能
         pickled = pickle.dumps(_parse_inp_worker)
@@ -1374,7 +1374,7 @@ class TestProcessPoolBenchmark:
         fp = tmp_path / "test.inp"
         fp.write_text(content, encoding="utf-8")
 
-        from services.parse.connectors.abaqus.mesh_parser import _parse_inp_worker
+        from plugins.abaqus.parse.mesh_parser import _parse_inp_worker
 
         result_fp, abq = _parse_inp_worker((str(fp), 5))
         assert result_fp == str(fp)
@@ -1383,7 +1383,7 @@ class TestProcessPoolBenchmark:
 
     def test_process_pool_fallback_to_thread(self):
         """ProcessPoolExecutor失敗時にThreadPoolExecutorへフォールバックする設計を検証"""
-        from services.parse.connectors.abaqus.mesh_parser import AbaqusMeshParser
+        from plugins.abaqus.parse.mesh_parser import AbaqusMeshParser
 
         # 閾値の存在を確認
         assert hasattr(AbaqusMeshParser, "_PROCESS_POOL_THRESHOLD")
@@ -1432,8 +1432,8 @@ class TestPoolBenchmark:
         import time
         from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
-        from services.parse.connectors.abaqus import read_inp
-        from services.parse.connectors.abaqus.mesh_parser import _parse_inp_worker
+        from plugins.abaqus.parse import read_inp
+        from plugins.abaqus.parse.mesh_parser import _parse_inp_worker
 
         inp_files = self._collect_inp_files()
         if len(inp_files) < 3:

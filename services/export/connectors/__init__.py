@@ -1,22 +1,21 @@
-"""コネクタモジュール: 外部ツールへのエクスポート機能
+"""組み込みエクスポーター（コア同梱）
 
-このモジュールはグラフデータを外部ツール向けにエクスポートする
-コネクタ・エクスポーターを提供します。
-
-すべてのエクスポーターはAbstractExporterのサブクラスとしてレジストリに
-自動登録され、`get_exporter_for_format()` で取得できます。
+グラフデータを出力するコア同梱エクスポーター。AbstractExporter のサブクラス
+として ``__init_subclass__`` でレジストリに自動登録され、
+``get_exporter_for_format()`` で取得できる。
 
 - CSV/JSON: ファイルベースのデータエクスポート
-- Obsidian: マークダウンファイルとして出力
 - Neo4j: Neo4jデータベースへの直接書き込み
 - Cypher: Cypherクエリファイルエクスポート
+
+Obsidian エクスポーターはコア同梱ではなくプラグイン
+（``plugins.obsidian.export``）として提供され、プラグインロード時に登録される。
 
 [READMEへ戻る](../../../README.md)
 """
 
 from .csv_json import CsvExporter, JsonExporter
 from .neo4j import CypherExporter, Neo4jConnector, Neo4jExporter
-from .obsidian import ObsidianConfig, ObsidianConnector, ObsidianExporter
 
 __all__ = [
     "CsvExporter",
@@ -24,7 +23,4 @@ __all__ = [
     "JsonExporter",
     "Neo4jConnector",
     "Neo4jExporter",
-    "ObsidianConfig",
-    "ObsidianConnector",
-    "ObsidianExporter",
 ]

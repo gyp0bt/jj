@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from jj_types import Node, Relation
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 from services.parse.file_parse import FileParse, FileType
 
 if TYPE_CHECKING:

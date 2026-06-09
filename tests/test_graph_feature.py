@@ -1013,7 +1013,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_material_from_file(self):
         """material.inpファイルのパース"""
-        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
+        from plugins.abaqus.parse.inp_parser_base import parse_material_blocks
 
         inp_path = FIXTURE_DIR / "material.inp"
         if not inp_path.exists():
@@ -1036,7 +1036,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_empty_file(self, tmp_path):
         """空ファイルのパース"""
-        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
+        from plugins.abaqus.parse.inp_parser_base import parse_material_blocks
 
         empty_file = tmp_path / "empty.inp"
         empty_file.write_text("")
@@ -1045,7 +1045,7 @@ class TestParseMaterialBlocks:
 
     def test_parse_file_without_material(self, tmp_path):
         """*MATERIALブロックがないファイル"""
-        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
+        from plugins.abaqus.parse.inp_parser_base import parse_material_blocks
 
         inp_file = tmp_path / "no_material.inp"
         inp_file.write_text("*STEP\n*STATIC\n1., 1.\n*END STEP\n")
@@ -1058,7 +1058,7 @@ class TestParseStaFile:
 
     def test_parse_completed_sta(self):
         """成功したstaファイル"""
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         sta_path = FIXTURE_DIR / "go_idx1_w5_t20.sta"
         if not sta_path.exists():
@@ -1070,7 +1070,7 @@ class TestParseStaFile:
 
     def test_parse_failed_sta(self):
         """失敗したstaファイル"""
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         sta_path = FIXTURE_DIR / "go_idx2.sta"
         if not sta_path.exists():
@@ -1083,7 +1083,7 @@ class TestParseStaFile:
 
     def test_parse_nonexistent_sta(self, tmp_path):
         """存在しないファイル"""
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         result = parse_sta_file(tmp_path / "nonexistent.sta")
         assert result["analysis_status"] == "unknown"
@@ -1561,7 +1561,7 @@ class TestInpParameterProps:
 
     def test_read_parameter_props(self, tmp_path, config):
         """*PARAMETER/**propsブロックのkey=valueが読み取られる"""
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+        from plugins.abaqus.parse.parameter_parser import AbaqusParameterParser
 
         inp = tmp_path / "go_idx1.inp"
         inp.write_text("*HEADING\ntest\n*PARAMETER\n**props\nw=5\nt=20\n*STEP\n")
@@ -1581,7 +1581,7 @@ class TestInpParameterProps:
 
     def test_no_parameter_block(self, tmp_path, config):
         """*PARAMETERブロックがない場合は何も追加されない"""
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+        from plugins.abaqus.parse.parameter_parser import AbaqusParameterParser
 
         inp = tmp_path / "go_idx1.inp"
         inp.write_text("*HEADING\ntest\n*STEP\n*STATIC\n")
@@ -1599,7 +1599,7 @@ class TestInpParameterProps:
 
     def test_parameter_without_props_comment(self, tmp_path, config):
         """*PARAMETERの後に**propsがなくてもパラメータを読み取る"""
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+        from plugins.abaqus.parse.parameter_parser import AbaqusParameterParser
 
         inp = tmp_path / "go_idx1.inp"
         inp.write_text("*PARAMETER\n** something else\nw=5\n*STEP\n")
@@ -1617,7 +1617,7 @@ class TestInpParameterProps:
 
     def test_non_inp_file_skipped(self, tmp_path, config):
         """INP以外のファイルはパラメータ読み取りをスキップ"""
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+        from plugins.abaqus.parse.parameter_parser import AbaqusParameterParser
 
         csv = tmp_path / "go_idx1.csv"
         csv.write_text("a,b,c\n1,2,3\n")
@@ -1782,7 +1782,7 @@ class TestVocabValueTranslation:
     def test_vocab_translates_prop_values(self, tmp_path):
         """vocabはparse時に適用されないので値は生のまま"""
         from services.graph.project_graph import ProjectGraph
-        from services.parse.connectors.abaqus.parameter_parser import AbaqusParameterParser
+        from plugins.abaqus.parse.parameter_parser import AbaqusParameterParser
 
         config = GraphConfig.from_dict(
             {
@@ -1842,7 +1842,7 @@ class TestPymeshConnector:
 
     def test_extract_material_elset_mapping_basic(self, tmp_path):
         """基本的な材料→Elsetマッピング抽出"""
-        from services.parse.connectors.abaqus.mesh import (
+        from plugins.abaqus.parse.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -1863,7 +1863,7 @@ class TestPymeshConnector:
 
     def test_extract_material_elset_mapping_no_section(self, tmp_path):
         """セクション定義がない場合は空"""
-        from services.parse.connectors.abaqus.mesh import (
+        from plugins.abaqus.parse.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -1877,7 +1877,7 @@ class TestPymeshConnector:
 
     def test_extract_material_elset_mapping_missing_file(self, tmp_path):
         """ファイルが存在しない場合は空"""
-        from services.parse.connectors.abaqus.mesh import (
+        from plugins.abaqus.parse.mesh import (
             extract_material_elset_mapping,
         )
 
@@ -1886,14 +1886,14 @@ class TestPymeshConnector:
 
     def test_extract_mesh_stats_missing_file(self, tmp_path):
         """存在しないファイルに対してNoneを返す"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from plugins.abaqus.parse.mesh import extract_mesh_stats
 
         result = extract_mesh_stats(tmp_path / "nonexistent.inp")
         assert result is None
 
     def test_extract_mesh_stats_non_inp_file(self, tmp_path):
         """非.inpファイルに対してNoneを返す"""
-        from services.parse.connectors.abaqus.mesh import extract_mesh_stats
+        from plugins.abaqus.parse.mesh import extract_mesh_stats
 
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("hello", encoding="utf-8")
@@ -2034,7 +2034,7 @@ class TestMaterialSourceFiltering:
 
     def test_is_material_source_node_static(self):
         """_is_material_source_nodeの静的テスト"""
-        from services.parse.connectors.abaqus.inp_parser_base import AbaqusInpParser
+        from plugins.abaqus.parse.inp_parser_base import AbaqusInpParser
 
         # go系.inp → True
         go_node = Node(id=1, type="go", name="go_idx1", format="inp", properties={})
@@ -2158,7 +2158,7 @@ class TestTrailingCommaInMaterialProperty:
 
     def test_trailing_comma_in_density(self):
         """末尾カンマがある行をNoneで埋めてパースできる"""
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             Context,
             MaterialPropertyReadComponent,
             ReadMaterial,
@@ -2182,7 +2182,7 @@ class TestTrailingCommaInMaterialProperty:
 
     def test_no_trailing_comma(self):
         """末尾カンマなしの通常行は正常にパースされる"""
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             Context,
             MaterialPropertyReadComponent,
             ReadMaterial,
@@ -2203,7 +2203,7 @@ class TestIncludeFileNotFound:
 
     def test_missing_include_file_skipped(self, tmp_path):
         """存在しない*includeファイルはスキップして親ファイルの残りを処理"""
-        from services.parse.connectors.abaqus import read_files_with_unknown_encoding
+        from plugins.abaqus.parse import read_files_with_unknown_encoding
 
         inp = tmp_path / "main.inp"
         inp.write_text(
@@ -2221,7 +2221,7 @@ class TestIncludeFileNotFound:
 
     def test_missing_include_does_not_crash_read_inp(self, tmp_path):
         """存在しない*includeファイルがあってもread_inpがクラッシュしない"""
-        from services.parse.connectors.abaqus import read_inp
+        from plugins.abaqus.parse import read_inp
 
         inp = tmp_path / "main.inp"
         inp.write_text(
@@ -2478,7 +2478,7 @@ class TestObsidianWarningDisplay:
 
     def test_warnings_in_markdown_body(self, tmp_path):
         """warning情報がmarkdown本文に記載される"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2504,7 +2504,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_in_markdown_body(self, tmp_path):
         """diff情報がmarkdown本文に記載される"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2531,7 +2531,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_unified_in_markdown_body(self, tmp_path):
         """diff_unified形式がmarkdown本文にUnified Diffセクションとして出力される"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         diff_unified_text = "```diff\n- old_value\n+ new_value\n  unchanged\n```"
         node = Node(
@@ -2560,7 +2560,7 @@ class TestObsidianWarningDisplay:
 
     def test_diff_unified_not_shown_without_diff_from(self, tmp_path):
         """diff_fromがない場合はdiffセクション自体が出力されない"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2581,7 +2581,7 @@ class TestObsidianWarningDisplay:
 
     def test_no_warnings_section_when_clean(self, tmp_path):
         """warning/errorがない場合はセクションが表示されない"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -2608,7 +2608,7 @@ class TestDailyNotesParsing:
 
     def test_parse_daily_note_file_references(self, tmp_path):
         """日報からファイル参照を検出"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily_content = """---
 tags:
@@ -2635,7 +2635,7 @@ tags:
 
     def test_parse_daily_note_with_properties(self, tmp_path):
         """コロン区切りのプロパティ付きファイル参照を検出"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily_content = """## メモ
 go_idx1.inp:  備考: 最終版
@@ -2659,7 +2659,7 @@ go_idx2.inp: status: completed
 
     def test_parse_daily_note_section_detection(self, tmp_path):
         """セクション名が正しく取得される"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily_content = """## 応力振幅1
 - go_idx1.inp
@@ -2681,7 +2681,7 @@ go_idx2.inp: status: completed
 
     def test_parse_daily_note_tags(self, tmp_path):
         """タグの検出"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily_content = """---
 tags:
@@ -2700,7 +2700,7 @@ tags:
 
     def test_scan_daily_notes_empty_dir(self, tmp_path):
         """日報ディレクトリが空の場合は空リストを返す"""
-        from services.parse.connectors.obsidian.daily import scan_daily_notes
+        from plugins.obsidian.parse.daily import scan_daily_notes
 
         daily_dir = tmp_path / "notes" / "daily"
         daily_dir.mkdir(parents=True)
@@ -2710,7 +2710,7 @@ tags:
 
     def test_scan_daily_notes_nonexistent_dir(self, tmp_path):
         """日報ディレクトリが存在しない場合は空リストを返す"""
-        from services.parse.connectors.obsidian.daily import scan_daily_notes
+        from plugins.obsidian.parse.daily import scan_daily_notes
 
         daily_dir = tmp_path / "notes" / "daily"
         notes = scan_daily_notes(daily_dir)
@@ -2798,7 +2798,7 @@ class TestDailyConnectorEnhanced:
 
     def test_obsidian_link_with_property(self, tmp_path):
         """[[O-go_idx1.inp]]:備考:条件1 でプロパティがセットされる"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -2813,7 +2813,7 @@ class TestDailyConnectorEnhanced:
 
     def test_obsidian_link_display_name_with_property(self, tmp_path):
         """[[go_idx1.inp|表示名]]:status:completed でプロパティがセットされる"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -2828,7 +2828,7 @@ class TestDailyConnectorEnhanced:
 
     def test_plain_filename_with_property(self, tmp_path):
         """go_idx1.inp:備考:条件1 でもプロパティがセットされる"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -2842,7 +2842,7 @@ class TestDailyConnectorEnhanced:
 
     def test_file_link_value_extraction(self, tmp_path):
         """プロパティ値が[[image.png]]の場合、ファイルパスを抽出"""
-        from services.parse.connectors.obsidian.daily import (
+        from plugins.obsidian.parse.daily import (
             _extract_file_path_from_value,
         )
 
@@ -2853,7 +2853,7 @@ class TestDailyConnectorEnhanced:
 
     def test_strip_obsidian_prefix(self):
         """O-プレフィックスの除去テスト"""
-        from services.parse.connectors.obsidian.daily import _strip_obsidian_prefix
+        from plugins.obsidian.parse.daily import _strip_obsidian_prefix
 
         assert _strip_obsidian_prefix("O-go_idx1.inp") == "go_idx1.inp"
         assert _strip_obsidian_prefix("O-go_idx1.inp.md") == "go_idx1.inp"
@@ -2861,7 +2861,7 @@ class TestDailyConnectorEnhanced:
 
     def test_file_link_value_in_property(self, tmp_path):
         """go_idx1.inp: image: [[image.png|画像1]] でファイルパスが抽出される"""
-        from services.parse.connectors.obsidian.daily import parse_daily_note
+        from plugins.obsidian.parse.daily import parse_daily_note
 
         daily = tmp_path / "2026-02-07.md"
         daily.write_text(
@@ -3135,7 +3135,7 @@ class TestMaterialAssignmentProps:
         from config import GraphConfig
         from jj_types import Relation
         from services.graph.project_graph import ProjectGraph
-        from services.parse.connectors.abaqus.inp_parser import (
+        from plugins.abaqus.parse.inp_parser import (
             AbaqusMaterialAssignmentParser,
         )
 
@@ -3178,7 +3178,7 @@ class TestObsidianTagExport:
 
     def test_tags_in_frontmatter(self):
         """frontmatterにタイプタグが追加される"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -3198,7 +3198,7 @@ class TestObsidianTagExport:
 
     def test_material_tags_in_frontmatter(self):
         """材料タグがfrontmatterのtagsに追加される"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -3220,7 +3220,7 @@ class TestObsidianTagExport:
 
     def test_tags_in_markdown_body(self):
         """markdown本文に#tag形式でタグが出力される"""
-        from services.parse.connectors.obsidian import ObsidianConnector
+        from plugins.obsidian.export import ObsidianConnector
 
         node = Node(
             id=1,
@@ -3520,7 +3520,7 @@ class TestDatEnrichment:
 
     def test_parse_dat_file_extracts_time(self, tmp_path):
         """parse_dat_fileがCPU時間とウォールクロック時間を抽出"""
-        from services.parse.connectors.abaqus.result_parser import parse_dat_file
+        from plugins.abaqus.parse.result_parser import parse_dat_file
 
         dat_content = (
             "SOME OUTPUT DATA\n TOTAL CPU TIME (SEC)      =   123.45\n TOTAL WALL CLOCK TIME (SEC) =    67.89\n"
@@ -3533,7 +3533,7 @@ class TestDatEnrichment:
 
     def test_parse_dat_file_empty(self, tmp_path):
         """空datファイルは空辞書"""
-        from services.parse.connectors.abaqus.result_parser import parse_dat_file
+        from plugins.abaqus.parse.result_parser import parse_dat_file
 
         dat_file = tmp_path / "empty.dat"
         dat_file.write_text("")
@@ -3590,7 +3590,7 @@ class TestPymeshImport:
         except ImportError:
             pytest.skip("pymeshの依存パッケージ(pandas/scipy/plotly)が未インストール")
 
-        from services.parse.connectors.abaqus.mesh import _safe_import_pymesh
+        from plugins.abaqus.parse.mesh import _safe_import_pymesh
 
         create_mesher, _get_quality = _safe_import_pymesh()
         assert create_mesher is not None, (
@@ -3604,7 +3604,7 @@ class TestMaterialNameCasePreservation:
 
     def test_parse_material_blocks_preserves_case(self, tmp_path):
         """parse_material_blocksが元の大文字小文字を保持する"""
-        from services.parse.connectors.abaqus.inp_parser_base import parse_material_blocks
+        from plugins.abaqus.parse.inp_parser_base import parse_material_blocks
 
         inp_file = tmp_path / "material.inp"
         inp_file.write_text(
@@ -3623,7 +3623,7 @@ class TestMaterialNameCasePreservation:
 
     def test_elset_mapping_preserves_case(self, tmp_path):
         """extract_material_elset_mappingが元のケースを保持する"""
-        from services.parse.connectors.abaqus.mesh import (
+        from plugins.abaqus.parse.mesh import (
             extract_material_elset_mapping,
         )
 

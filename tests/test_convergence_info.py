@@ -64,7 +64,7 @@ class TestParseConvergenceInfo:
     """_parse_convergence_info 関数の単体テスト"""
 
     def test_standard_with_cutbacks(self):
-        from services.parse.connectors.abaqus.result_parser import _parse_convergence_info
+        from plugins.abaqus.parse.result_parser import _parse_convergence_info
 
         info = _parse_convergence_info(SAMPLE_STA_STANDARD)
         assert info["increment_count"] == 10
@@ -73,7 +73,7 @@ class TestParseConvergenceInfo:
         assert info["max_equilibrium_iters"] == 5
 
     def test_no_cutback(self):
-        from services.parse.connectors.abaqus.result_parser import _parse_convergence_info
+        from plugins.abaqus.parse.result_parser import _parse_convergence_info
 
         info = _parse_convergence_info(SAMPLE_STA_NO_CUTBACK)
         assert info["increment_count"] == 4
@@ -82,7 +82,7 @@ class TestParseConvergenceInfo:
         assert info["max_equilibrium_iters"] == 3
 
     def test_failed_analysis(self):
-        from services.parse.connectors.abaqus.result_parser import _parse_convergence_info
+        from plugins.abaqus.parse.result_parser import _parse_convergence_info
 
         info = _parse_convergence_info(SAMPLE_STA_FAILED)
         assert info["increment_count"] == 4
@@ -90,13 +90,13 @@ class TestParseConvergenceInfo:
         assert info["step_count"] == 1
 
     def test_empty_content(self):
-        from services.parse.connectors.abaqus.result_parser import _parse_convergence_info
+        from plugins.abaqus.parse.result_parser import _parse_convergence_info
 
         info = _parse_convergence_info("")
         assert info == {}
 
     def test_total_iterations(self):
-        from services.parse.connectors.abaqus.result_parser import _parse_convergence_info
+        from plugins.abaqus.parse.result_parser import _parse_convergence_info
 
         info = _parse_convergence_info(SAMPLE_STA_STANDARD)
         # 2+3+5+4+2+5+5+3+2+2 = 33
@@ -107,7 +107,7 @@ class TestParseStaFileConvergence:
     """parse_sta_file で収束情報が返却されることのテスト"""
 
     def test_sta_file_returns_convergence(self, tmp_path):
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         sta = tmp_path / "test.sta"
         sta.write_text(SAMPLE_STA_STANDARD)
@@ -119,7 +119,7 @@ class TestParseStaFileConvergence:
         assert result["step_count"] == 2
 
     def test_sta_file_failed_with_error(self, tmp_path):
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         sta = tmp_path / "test.sta"
         sta.write_text(SAMPLE_STA_FAILED)
@@ -130,7 +130,7 @@ class TestParseStaFileConvergence:
         assert any("TOO MANY CUTBACKS" in e for e in result["errors"])
 
     def test_sta_no_convergence_data(self, tmp_path):
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         sta = tmp_path / "empty.sta"
         sta.write_text("THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n")
@@ -140,7 +140,7 @@ class TestParseStaFileConvergence:
         assert "increment_count" not in result
 
     def test_nonexistent_file(self, tmp_path):
-        from services.parse.connectors.abaqus.result_parser import parse_sta_file
+        from plugins.abaqus.parse.result_parser import parse_sta_file
 
         result = parse_sta_file(tmp_path / "nonexistent.sta")
         assert result["analysis_status"] == "unknown"
@@ -165,7 +165,7 @@ class TestAbaqusResultParserConvergenceIntegration:
     def test_convergence_props_on_sta_node(self, tmp_path, config):
         from services.graph import GraphService
         from services.graph.project_graph import ProjectGraph
-        from services.parse.connectors.abaqus.result_parser import AbaqusResultParser
+        from plugins.abaqus.parse.result_parser import AbaqusResultParser
 
         # INPファイルとSTAファイルを作成
         inp = tmp_path / "go_idx1.inp"

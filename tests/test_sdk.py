@@ -140,13 +140,13 @@ class TestSdkTypes:
         assert GraphModel is OrigGraphModel
 
     def test_parser_identity(self):
-        from services.parse.base import AbstractFileParser as OrigParser
+        from plugins.base.parser import AbstractFileParser as OrigParser
         from services.sdk import AbstractFileParser
 
         assert AbstractFileParser is OrigParser
 
     def test_exporter_identity(self):
-        from services.export import AbstractExporter as OrigExporter
+        from plugins.base.exporter import AbstractExporter as OrigExporter
         from services.sdk import AbstractExporter
 
         assert AbstractExporter is OrigExporter

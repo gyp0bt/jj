@@ -1,7 +1,8 @@
 # 汎用パーサーサブクラスのimport（コア機能、自動登録用）
 import services.parse.parsers  # noqa: F401
 
-from .base import AbstractFileParser, FileNameParser, parse
+from plugins.base.parser import AbstractFileParser, FileNameParser, parse
+
 from .file_parse import (
     TARGET_EXTENSIONS,
     FileGroup,
@@ -20,12 +21,12 @@ from .file_parse import (
 
 # Abaqus/Obsidian等のコネクターはプラグインレジストリ経由で動的に登録される。
 # services.sdk.plugin_registry.load_all_plugins() を呼び出し済みであれば
-# services.plugins.abaqus / services.plugins.obsidian が自動インポートされ、
+# plugins.abaqus / plugins.obsidian が自動インポートされ、
 # 各パーサーの__init_subclass__による自動登録が発動する。
 # 後方互換: GraphServiceのimport時に load_all_plugins() が呼ばれる。
 #
 # Abaqus固有エクスポート（ABQData, read_inp, diff_abq_blocks等）はstatus-088で除去。
-# Abaqus固有APIは services.parse.connectors.abaqus から直接importすること。
+# Abaqus固有APIは plugins.abaqus.parse から直接importすること。
 
 __all__ = [
     "TARGET_EXTENSIONS",

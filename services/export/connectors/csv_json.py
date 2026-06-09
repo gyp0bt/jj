@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from jj_types import GraphModel, Node
-from services.export import AbstractExporter
+from plugins.base.exporter import AbstractExporter
 
 
 class CsvExporter(AbstractExporter):

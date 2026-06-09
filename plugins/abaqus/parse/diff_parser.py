@@ -18,7 +18,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from jj_types import Node, Relation
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -61,7 +61,7 @@ class AbaqusDiffParser(AbstractFileParser):
         """
         from pathlib import Path
 
-        import services.parse.connectors.abaqus as abaqus_mod
+        import plugins.abaqus.parse as abaqus_mod
         from services.graph.storage import GraphStorage
 
         # lightweightパース結果はキャッシュキーを分離（フルデータと混在させない）
@@ -124,14 +124,14 @@ class AbaqusDiffParser(AbstractFileParser):
         両方のハッシュが計算可能で、かつ一致する場合にTrueを返す。
         ハッシュが計算できない場合（メッシュ定義なし等）はFalseを返す。
         """
-        from services.parse.connectors.abaqus.mesh_parser import _compute_mesh_content_hash
+        from plugins.abaqus.parse.mesh_parser import _compute_mesh_content_hash
 
         h1 = _compute_mesh_content_hash(prev_path)
         h2 = _compute_mesh_content_hash(next_path)
         return h1 is not None and h2 is not None and h1 == h2
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             diff_abq_blocks,
             diff_abq_metadata_blocks,
             format_diff_blocks_markdown,

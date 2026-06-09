@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from services.export import AbstractExporter
+    from plugins.base.exporter import AbstractExporter
 
 from config import init_graph_config
 from jj_types import GraphModel, Node, Relation
@@ -262,7 +262,7 @@ class GraphCommandService:
             (エクスポート結果辞書, エクスポーターインスタンス)
         """
         import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
         if exporter_cls is None:
@@ -338,7 +338,7 @@ class GraphCommandService:
         """
         # コネクタモジュールをインポートしてレジストリ登録を確実にする
         import services.export.connectors  # noqa: F401
-        from services.export import get_exporter_for_format
+        from plugins.base.exporter import get_exporter_for_format
 
         exporter_cls = get_exporter_for_format(target)
         if exporter_cls is None:
@@ -436,12 +436,12 @@ class GraphCommandService:
         Returns:
             DiffResult
         """
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             diff_abq_blocks,
             format_diff_blocks_markdown,
             format_diff_summary_table,
         )
-        from services.parse.connectors.abaqus import (
+        from plugins.abaqus.parse import (
             read_inp as abq_read_inp,
         )
 

@@ -1,37 +1,16 @@
-"""エクスポート基盤モジュール（後方互換）
+"""組み込みエクスポーター層
 
-このモジュールはplugins.base.exporterからre-exportしています。
-新規コードでは plugins.base.exporter を直接importしてください。
+CSV/JSON/Neo4j/Cypher 等のコア同梱エクスポーターを集約する。
+本パッケージを import すると ``connectors`` 配下が読み込まれ、
+``AbstractExporter.__init_subclass__`` による自動登録が発火する。
+
+エクスポーター基底（AbstractExporter）とレジストリAPIは
+``plugins.base.exporter`` が唯一の定義元。本層はその実装ではなく
+「組み込みエクスポーターの置き場 + 登録トリガー」である。
 
 [READMEへ戻る](../../README.md)
 """
 
-# 後方互換のためのre-export
-from plugins.base.exporter import (
-    AbstractExporter,
-    _exporter_registry,
-    clear_exporter_registry,
-    get_exporter_for_format,
-    get_exporter_registry,
-)
-
-
-def _register_builtin_exporters() -> None:
-    """組み込みエクスポーター（CSV/JSON等）を自動登録する。
-
-    ``services.export.connectors`` のサブモジュールを import することで、
-    ``__init_subclass__`` パターンによる自動登録が発火する。
-    トップレベル import だと循環参照になるため、関数内で遅延 import する。
-    """
-    import services.export.connectors  # noqa: F401
-
-
-_register_builtin_exporters()
-
-__all__ = [
-    "AbstractExporter",
-    "_exporter_registry",
-    "clear_exporter_registry",
-    "get_exporter_for_format",
-    "get_exporter_registry",
-]
+# import 時に組み込みエクスポーターを自動登録（__init_subclass__ を発火）。
+# トップレベル import だと循環参照になるため、サブパッケージを遅延 import する。
+import services.export.connectors  # noqa: F401

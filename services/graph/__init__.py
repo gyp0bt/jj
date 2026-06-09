@@ -26,7 +26,7 @@ import services.parse.parsers  # noqa: F401
 from config import GraphConfig
 from jj_types import GraphModel, Node, Relation
 from services.graph.storage import GraphStorage
-from services.parse.base import parse as run_parser_pipeline
+from plugins.base.parser import parse as run_parser_pipeline
 from services.parse.file_parse import (
     NO_NODE_EXTENSIONS,
     FileParse,

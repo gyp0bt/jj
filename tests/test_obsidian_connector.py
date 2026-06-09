@@ -12,7 +12,7 @@ import pytest
 
 from config import GraphConfig
 from jj_types import GraphModel, Node
-from services.parse.connectors.obsidian import (
+from plugins.obsidian.export import (
     ObsidianConnector,
     _coerce_property_value,
     from_obsidian_filename,

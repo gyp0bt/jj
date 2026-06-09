@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from jj_types import Node, Relation
-from services.parse.base import AbstractFileParser
+from plugins.base.parser import AbstractFileParser
 
 if TYPE_CHECKING:
     from services.graph.project_graph import ProjectGraph
@@ -21,7 +21,7 @@ class AbaqusMaterialAssignmentParser(AbstractFileParser):
     priority = 85
 
     def apply(self, graph: ProjectGraph) -> ProjectGraph:
-        from services.parse.connectors.abaqus.mesh import (
+        from plugins.abaqus.parse.mesh import (
             extract_material_elset_mapping,
         )
 

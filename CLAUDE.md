@@ -48,7 +48,7 @@ jj/                            # プロジェクトルート
 │   ├── cli/                   # CLIエントリポイント（jj = services.cli:main）
 │   ├── service/               # CLIビジネスロジック（GraphCommand/Info）
 │   ├── graph/                 # GraphService + query（データ供給層）
-│   ├── parse/                 # パーサー共通（後方互換re-exportあり）
+│   ├── parse/                 # パーサーパイプライン共通基盤
 │   │   └── parsers/           # 組み込みパーサー
 │   ├── export/                # エクスポーター共通
 │   ├── dashboard/             # Streamlit UI（widgets + app/）
@@ -94,7 +94,7 @@ AbstractFileParser
 |------|------|
 | `jj parse --explain` | パースせず、priority順に「パーサー名・定義ファイル:行・タスク（docstring1行目）」を一覧表示 |
 | `jj parse --trace` / `JJ_PARSE_TRACE=1` | 実行しながら各パーサーの定義ファイル:行・ノード/リレーション増分・所要時間を出力 |
-| `plugins.base.parser.format_pipeline_plan()` / `describe_registry()` / `parser_location(cls)` | 上記をコードから取得（`services.parse.base` からも re-export） |
+| `plugins.base.parser.format_pipeline_plan()` / `describe_registry()` / `parser_location(cls)` | 上記をコードから取得 |
 
 パーサーの **docstring 1行目がそのまま「タスク」表示**になるため、1行目に役割を書く。
 
@@ -110,19 +110,18 @@ AbstractFileParser
 
 プラグイン追加時: `pyproject.toml` の `[project.entry-points]` と `[project.optional-dependencies]` を更新。コア層からのハードコードimportは禁止（entry_points経由のみ）。
 
-### 後方互換パス
+### 正規import元（単一の定義元）
 
-v0.2.1で旧パスからのimportも引き続きサポート（re-export）:
+各シンボルの定義元は1箇所のみ。旧 `services.*` 経由の後方互換 re-export は撤去済み。
 
-| 旧パス | 新パス |
-|--------|--------|
-| `services.parse.base` | `plugins.base.parser` |
-| `services.export` | `plugins.base.exporter` |
-| `services.plugins.abaqus` | `plugins.abaqus` |
-| `services.parse.connectors.abaqus` | `plugins.abaqus.parse` |
-| `services.plugins.obsidian` | `plugins.obsidian` |
-| `services.parse.connectors.obsidian` | `plugins.obsidian.parse` |
-| `services.export.connectors.obsidian` | `plugins.obsidian.export` |
+| シンボル / 領域 | 正規パス |
+|----------------|---------|
+| `AbstractFileParser` ほかパーサー基盤 | `plugins.base.parser` |
+| `AbstractExporter` ほかエクスポーター基盤 | `plugins.base.exporter` |
+| Abaqusパーサー群 | `plugins.abaqus.parse` |
+| Obsidianエクスポート/デイリー解析 | `plugins.obsidian.export` / `plugins.obsidian.parse.daily` |
+| プラグイン登録 | `plugins.abaqus` / `plugins.obsidian`（`register()`） |
+| 組み込みエクスポーター（CSV/JSON/Neo4j/Cypher） | `services.export.connectors` |
 
 ### CacheProvider プロトコル
 
@@ -134,7 +133,7 @@ v0.2.1で旧パスからのimportも引き続きサポート（re-export）:
 
 - **Node**: `id: int, type: str, name: str, format: str, properties: dict[str, Any], category: NodeCategory`
 - **Relation**: `id: int, label: str, node1_id: int, node2_id: int`
-- **NodeCategory**: `FILE | DIRECTORY | DATA | REPOSITORY | RUN`
+- **NodeCategory**: `FILE | DIRECTORY | DATA | REPOSITORY`
 - グラフは `.j2/storage/graph.yaml` に永続化
 
 ---
